@@ -917,6 +917,8 @@
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .nvc, .nvc-guardar { max-width: none; }
   .nvc-op, .nvc-codigo-campo { min-height: 44px; }
+  /* K3 (Paper YQC-0): no celular, "precisa do Mac ligado" (o "seu" é do M4, no computador). */
+  .nvc-so-largo { display: none; }
   .nvc-guardar button, .nvc-link { min-width: 44px; min-height: 44px; }
   .cofre-form { grid-template-columns: 1fr; }
   .cofre-campo input { height: 44px; }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AbaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import {
+  avisoDaAbaFechada, barraSoComAvatares, conversaEstreita,
   abasVisiveis, alturaDaFolha, avisoDoPedido, botNoMeio, caixaNaVista, dicaDaAbaDeLugar, duracaoDoCursor, estadoDaAbaDeLugar, estadoDaPilula, estadoDaTela, gravarLargura, htmlAbaDeLugar,
   htmlAvisoDoSite, htmlBarraDoNavegador, htmlBotaoDoCanto, htmlEstadoDaTela, htmlLinhaDoNavegador, htmlLugares, htmlLugaresFechados, lugarFechadoAMao, htmlMenuDoNavegador, htmlPilula, imantar, larguraMaxima, larguraPadrao,
   legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, MS_ASSUMINDO_VISIVEL, partesDoEndereco, pontoDoLugar, pontoNoViewport, proximoEncaixe,
@@ -41,7 +42,11 @@ describe("a pílula (D1b A, D4, A1)", () => {
     expect(controle).not.toContain("Parar");
     expect(htmlPilula("Nina", "assumindo")).toContain("disabled");
     expect(htmlPilula("Nina", "precisa")).toMatch(/Precisa de você.*Já resolvi.*Assumir o controle/s);
-    expect(htmlPilula("Nina", "login")).toMatch(/Nina espera você entrar.*Pronto, pode seguir/s);
+    // D4 (Paper): com o artigo, como a pessoa fala.
+    expect(htmlPilula("Nina", "login")).toMatch(/A Nina espera você entrar.*Pronto, pode seguir/s);
+    expect(htmlPilula("Milton", "login")).toContain("O Milton espera você entrar");
+    expect(htmlPilula("Nina", "assumindo")).toContain("A Nina está terminando um clique…");
+    expect(controle).toContain('title="A Nina espera · ⌘⇧A devolve"');
     const ap = htmlPilula("Nina", "aprovacao", aprovacao);
     expect(ap).toMatch(/Pagar R\$ 3\.780 na TAP\?.*Não.*Pagar com Touch ID/s);
     expect(ap).toContain('data-nv="aprovar"');
@@ -102,13 +107,16 @@ describe("a barra do navegador (D2, A e B)", () => {
 });
 
 describe("os avisos do site (D2 D, D1d)", () => {
-  it("uma faixa por vez, com a ação; o pedido de login vira 'Entrar em …' sem botão (a ação é a da pílula)", () => {
+  it("uma faixa por vez, com a ação; o pedido de login vira 'Entrar no …' sem botão (a ação é a da pílula)", () => {
     expect(htmlAvisoDoSite(null)).toBe("");
     const d = htmlAvisoDoSite({ tipo: "download", texto: "fatura.pdf baixado", acao: "Abrir em Arquivos", em: 0 });
     expect(d).toContain("Download");
     expect(d).toContain("Abrir em Arquivos");
     const p = avisoDoPedido(vista({ controle: "precisa_de_voce", pedido: { tipo: "login", decisaoId: "d", site: "itau.com.br", motivo: "", opcoes: [], podeTrazerDoChrome: false, etapa: "escolher", erro: null } }));
-    expect(p).toMatchObject({ tipo: "precisa_de_voce", texto: "Entrar em itau.com.br", acao: "" });
+    // D3, 8 (Paper): "Entrar no Itaú", pelo nome do site com o artigo.
+    expect(p).toMatchObject({ tipo: "precisa_de_voce", texto: "Entrar no Itau", acao: "" });
+    const tap = avisoDoPedido(vista({ controle: "precisa_de_voce", pedido: { tipo: "login", decisaoId: "d", site: "TAP", motivo: "", opcoes: [], podeTrazerDoChrome: false, etapa: "escolher", erro: null } }));
+    expect(tap?.texto).toBe("Entrar na TAP");
     expect(avisoDoPedido(vista({ controle: "pessoa" }))).toBeNull();
   });
 
@@ -398,5 +406,32 @@ describe("achado 6: muitas abas do Chrome no painel estreito", () => {
     expect(html).toContain('class="nv-abas nv-abas-muitas"');
     // Com poucas abas o nome cabe: elas não encolhem.
     expect(htmlBarraDoNavegador(vista({ abas: abas.slice(0, 2) }), { nome: "Ada" })).toContain('class="nv-abas"');
+  });
+});
+
+describe("5d: o aviso de aba fechada", () => {
+  it("diz que o bot continua, pelo pronome (Paper: 'Ela continua trabalhando.')", () => {
+    expect(avisoDaAbaFechada("Ada")).toBe("Navegador da Ada fechado. Ela continua trabalhando.");
+    expect(avisoDaAbaFechada("Milton")).toBe("Navegador do Milton fechado. Ele continua trabalhando.");
+  });
+});
+
+describe("D6 B: a barra só com avatares com o painel cobrindo", () => {
+  it("de 900 a 1179 px e só com o painel cobrindo a conversa", () => {
+    expect(barraSoComAvatares(1024, true)).toBe(true);
+    expect(barraSoComAvatares(900, true)).toBe(true);
+    expect(barraSoComAvatares(1179, true)).toBe(true);
+    expect(barraSoComAvatares(1024, false)).toBe(false);
+    // A partir de 1180 o "cobre" vem da área: a barra estreita desfaria o próprio motivo (e oscilaria).
+    expect(barraSoComAvatares(1180, true)).toBe(false);
+    expect(barraSoComAvatares(899, true)).toBe(false);
+  });
+});
+
+describe("D5 (máximo): a conversa estreita", () => {
+  it("abaixo de 600 px de conversa o seletor de IA fica só com o anel; painel fechado nunca", () => {
+    expect(conversaEstreita(1100, 440)).toBe(false);
+    expect(conversaEstreita(1100, 680)).toBe(true);
+    expect(conversaEstreita(1100, 0)).toBe(false);
   });
 });

@@ -2,7 +2,7 @@ import type { EntradaNavegador, OperacaoNavegador, QuadroAoVivoNavegador, Respos
 import type { Api } from "../lib/api.ts";
 import { movimentoReduzido } from "../lib/movimento.ts";
 import {
-  aoNome, avisoDoPedido, botaoDoMouse, caixaNaVista, chaveDaBarra, deNome, duracaoDoCursor, estadoDaPilula, estadoDaTela, htmlAvisoDoSite, htmlBarraDoNavegador, htmlEstadoDaTela,
+  aoNome, avisoDoPedido, botaoDoMouse, caixaNaVista, chaveDaBarra, comArtigo, deNome, fraseMaiuscula, duracaoDoCursor, estadoDaPilula, estadoDaTela, htmlAvisoDoSite, htmlBarraDoNavegador, htmlEstadoDaTela,
   htmlPilula, legendaDoPasso, MS_ASSUMINDO_VISIVEL, MS_DICA_ASSUMIR, modificadoresDe, pontoNoViewport, type EstadoDaTela, type EstadoPilula,
 } from "../lib/navegador-vista.ts";
 import { pulsarHalo } from "./tela-cheia.ts";
@@ -438,7 +438,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       if (timerAssumindo) { window.clearTimeout(timerAssumindo); timerAssumindo = 0; }
       pintar();
     }
-    if (controla()) { palco.focus({ preventScroll: true }); anuncio.textContent = `Você está no controle. ${o.nome()} espera.`; }
+    if (controla()) { palco.focus({ preventScroll: true }); anuncio.textContent = `Você está no controle. ${fraseMaiuscula(comArtigo(o.nome()))} espera.`; }
   }
 
   async function devolver(): Promise<void> {

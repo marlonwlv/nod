@@ -639,7 +639,7 @@ describe("ensinar uma tarefa (T)", () => {
     const { tarefa, vista } = await n.ensinar(MARLON, A, "salvar", "  Baixar a fatura ");
     expect(tarefa).toMatchObject({ nome: "Baixar a fatura", passos });
     expect(vista.gravacao).toBeNull();
-    expect(mensagens).toEqual([{ agenteId: A, texto: "Ensinei: Baixar a fatura.", arquivo: { nome: "passos-gravados (5 passos).txt", conteudo: expect.stringContaining('4. Clicou em "Faturas"') } }]);
+    expect(mensagens).toEqual([{ agenteId: A, texto: "Ensinei: baixar a fatura.", arquivo: { nome: "passos-gravados (5 passos).txt", conteudo: expect.stringContaining('4. Clicou em "Faturas"') } }]);
     expect(mensagens[0]!.arquivo.conteudo).not.toMatch(/1234|hunter22/);
   });
 

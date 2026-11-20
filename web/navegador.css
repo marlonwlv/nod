@@ -15,6 +15,11 @@
 .app.nv-lado.nv-animando:not(#nv-nenhum) { transition: --nv-largura var(--nv-dur, 260ms) var(--curva); }
 .app.nv-lado.nv-animando.nv-fechando:not(#nv-nenhum) { transition-timing-function: var(--curva-saida); }
 .app.nv-lado > .nv-painel { grid-column: 3; grid-row: 1; }
+/* 1a e C1 (Paper): com o painel ao lado, a conversa e o campo ficam a 32 px das bordas (eram os 70 px da conversa larga, que
+   no painel padrão encolhiam o campo e cortavam o placeholder). Só com o painel aberto; sem ele, o campo do app não muda. */
+.app.nv-lado .stage > :is(.timeline-wrap, .composer-wrap) { padding-left: 32px; padding-right: 32px; }
+/* D5 (máximo): com a conversa estreita, o seletor de IA do campo fica só com o anel; o nome segue no title e no leitor. */
+.app.nv-lado.nv-conversa-estreita .composer .seletor-ia :is(.seletor-rotulo, .seletor-seta) { display: none; }
 .nv-painel {
   position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; height: 100%;
   padding: 12px 16px 0; box-sizing: border-box; background: var(--surface); border-left: 1px solid var(--borda-sutil); overflow: hidden;
@@ -292,6 +297,13 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nv-tc-topo { justify-content: flex-start; gap: 10px; padding-left: 16px; }
 .nv-tc-titulo { flex: 0 1 auto; margin: 0; }
+/* D1c (Paper XT6-0): o título é um chip, o personagem de 20 px e o nome (com o passo, D1d). */
+.nv-tc-titulo { gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid #ffffff1a; border-radius: var(--raio-full); background: #ffffff1a; line-height: 16px; color: #ffffffd9; } /* cor-fixa: a pílula do Paper sobre o #141414 */
+.nv-tc-titulo-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nv-tc-avatar { flex: none; display: grid; place-items: center; width: 20px; height: 20px; }
+.nv-tc-avatar:empty { display: none; }
+.nv-tc-titulo:has(> .nv-tc-avatar:empty) { padding-left: 12px; }
+.nv-tc-avatar > .icon, .nv-tc-avatar > nod-mascote { width: 20px; height: 20px; min-width: 20px; margin: 0; }
 .nv-tc-lugares { flex: none; display: flex; margin-right: auto; }
 .nv-lugares-escuro { padding: 2px; background: #ffffff1a; } /* cor-fixa: sobre o #141414 da tela cheia */
 .nv-lugares-escuro .nv-lugar-fundo { top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px - (var(--nv-n) - 1) * 2px) / var(--nv-n)); }
@@ -530,6 +542,7 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 @keyframes nv-cresce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 @keyframes nv-sobe { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes nv-sobe-6 { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-aparece { from { opacity: 0; } to { opacity: 1; } }
 @keyframes nv-anel { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
 @keyframes nv-ondinha { from { transform: translate(-50%, -50%) scale(0); opacity: 1; } to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
 @keyframes nv-carrega { from { transform: scaleX(0); } to { transform: scaleX(.85); } }
@@ -541,11 +554,16 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 @media (prefers-reduced-motion: reduce) {
   .app.nv-lado.nv-animando:not(#nv-nenhum) { transition: none; }
   .nv-lugar-fundo, .nv-moldura, .nv-pilula, .nv-quadro, .nv-folha { transition: none; }
-  .nv-canto-ponto, .nv-lugar-ponto, .nv-aba-lugar-ponto, .nv-favicon-giro, .nv-giro, .nvc-giro, .nv-grav-ponto, .nv-carregando[data-fase="andando"] i { animation: none; }
-  .nv-carregando[data-fase="andando"] i { transform: scaleX(.6); }
+  .nv-canto-ponto, .nv-lugar-ponto, .nv-aba-lugar-ponto, .nv-favicon-giro, .nv-giro, .nvc-giro, .nv-grav-ponto { animation: none; }
+  /* D8 (Paper XN9-0): o carregamento é "igual" com Reduzir movimento — é progresso, não enfeite. O corte geral do app
+     (interface.css, `* { animation: none !important }`) não vale para a linha de 2 px. */
+  .nv-carregando[data-fase="andando"] i { animation: nv-carrega 6s cubic-bezier(.1, .7, .3, 1) forwards !important; }
+  .nv-carregando[data-fase="completo"] i { transition: transform 120ms ease-out, opacity 200ms ease-in 80ms !important; }
   .nv-pilula-sai { display: none; }
   .nv-pilula-entra, .nv-pilula-entra > * { animation: none; }
-  .nv-anel, .nv-linha, .nv-aviso-site, .nv-menu, .nv-dica-assumir, .nvl-pop { animation-duration: 1ms; }
+  .nv-anel, .nv-aviso-site, .nv-menu, .nv-dica-assumir, .nvl-pop { animation-duration: 1ms; }
+  /* D8 (Paper XKZ-0): a linha de atividade nasce em fade de 100 ms, sem subir. */
+  .nv-linha { animation: nv-aparece 100ms linear both !important; }
   .nvl-chave, .nvl-chave span { transition: none; }
   .nv-passo.sai, .nv-passo.entra { animation: none; }
   .nv-passo.sai { display: none; }

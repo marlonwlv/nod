@@ -294,6 +294,49 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(navegador.htmlBotaoDoCanto("a1")).toContain('aria-pressed="false"');
   });
 
+  it("D8 com Reduzir movimento: trocar de lugar faz fade de 100 ms (Paper), não um corte", () => {
+    const mm = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes("reduce"), media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false })) as unknown as typeof window.matchMedia;
+    const original = HTMLElement.prototype.animate;
+    const animar = vi.fn(() => ({ cancel() {}, onfinish: null }) as unknown as Animation);
+    HTMLElement.prototype.animate = animar as unknown as typeof HTMLElement.prototype.animate;
+    try {
+      navegador.abrirPainel("a1");
+      animar.mockClear();
+      painel().querySelector<HTMLElement>('[data-lugar="computador"]')!.click();
+      expect(animar).toHaveBeenCalledWith([{ opacity: 0.2 }, { opacity: 1 }], { duration: 100, easing: "linear" });
+      // O aviso com Desfazer (5d) entra em fade de 100 ms (Paper XMD-0).
+      animar.mockClear();
+      navegador.abrirAba("a1");
+      navegador.fecharAba("a1");
+      expect(animar).toHaveBeenCalledWith([{ opacity: 0 }, { opacity: 1 }], { duration: 100, easing: "linear" });
+      document.querySelector(".nv-aviso")?.remove();
+    } finally {
+      HTMLElement.prototype.animate = original;
+      window.matchMedia = mm;
+    }
+  });
+
+  it("D5: com a conversa abaixo de 600 px a app ganha nv-conversa-estreita (o seletor de IA fica só com o anel)", () => {
+    navegador.abrirPainel("a1");
+    expect(app().classList.contains("nv-conversa-estreita")).toBe(false);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", metaKey: true, ctrlKey: true, altKey: true, bubbles: true }));
+    expect(app().style.getPropertyValue("--nv-largura")).toBe("550px");
+    expect(app().classList.contains("nv-conversa-estreita")).toBe(true);
+  });
+
+  it("D6 B: entre 900 e 1179 px o painel cobre a conversa (cobrindo); a 1440 fica ao lado", () => {
+    navegador.abrirPainel("a1");
+    expect(navegador.cobrindo()).toBe(false);
+    navegador.fechar();
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
+    navegador.abrirPainel("a1");
+    expect(app().classList.contains("nv-cobre")).toBe(true);
+    expect(navegador.cobrindo()).toBe(true);
+    navegador.fechar();
+    expect(navegador.cobrindo()).toBe(false);
+  });
+
   it("a alça: duplo clique volta ao padrão; as setas mudam 24 px; a largura é lembrada por pessoa", () => {
     navegador.abrirPainel("a1");
     const alca = painel().querySelector<HTMLElement>(".nv-alca")!;
@@ -389,6 +432,8 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(d).not.toBeNull();
     expect(d.querySelector(".nv-tc-lugares")?.textContent).toMatch(/Navegador.*Computador/);
     expect(d.querySelector(".nv-tc-titulo")?.textContent).toBe("Ada");
+    // D1c: o título é o chip com o personagem (o Paper põe o avatar antes do nome).
+    expect(d.querySelector(".nv-tc-titulo > .nv-tc-avatar + .nv-tc-titulo-txt")?.textContent).toBe("Ada");
     expect(d.querySelector(".nv-recado-bt")?.textContent).toBe("Recado para a Ada");
     expect(d.querySelector(".nv-vista")).not.toBeNull();
     const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });

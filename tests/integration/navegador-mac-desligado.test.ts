@@ -75,7 +75,7 @@ describeIntegracao("navegador: os cartões do Mac desligado (ADR-190, M2/J1, K1)
       const painel = async () => (await (await srv.chamar(sessao, "GET", `/agentes/${ada.agenteId}/navegador/lugar`)).json()) as RespostaLugarNavegador;
       expect(await painel()).toMatchObject({ respondeu: false, continuaSemMac: false, disponivel: true });
       const r = await srv.chamar(sessao, "POST", `/agentes/${ada.agenteId}/navegador/lugar`, { continuaSemMac: true });
-      expect(await r.json()).toMatchObject({ ok: true, respondeu: true, continuaSemMac: true, subtitulo: "Ada continua no nod" });
+      expect(await r.json()).toMatchObject({ ok: true, respondeu: true, continuaSemMac: true, subtitulo: "A Ada continua no nod" });
       // Desfazer (a mesma rota): a resposta segue registrada, agora "só com o Mac ligado".
       await srv.chamar(sessao, "POST", `/agentes/${ada.agenteId}/navegador/lugar`, { continuaSemMac: false });
       expect(await painel()).toMatchObject({ respondeu: true, continuaSemMac: false });

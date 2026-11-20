@@ -1,5 +1,6 @@
 import type { PayloadNavegadorLugar, PayloadNavegadorPergunta, RespostaLugarNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { esc } from "./escape.ts";
+import { comArtigo } from "./navegador-vista.ts";
 
 /**
  * Onde o navegador do bot mora, na tela (ADR-190; Paper M, N, J e K): a linha "Com o Mac desligado" do painel do bot com
@@ -48,7 +49,8 @@ export function htmlListaDoLugar(r: RespostaLugarNavegador, o: { agenteId: strin
     const estado = ligada === null ? "" : ligada ? '<span class="nvl-ligada"><i aria-hidden="true"></i>ligada</span>' : '<span class="nvl-ligada fora">fora do ar</span>';
     return `<button type="button" class="nvl-item" role="menuitemradio" aria-checked="${marcado}" ${mudar(o.agenteId, mudanca)}><span class="nvl-check" aria-hidden="true">${marcado ? "✓" : ""}</span><span class="nvl-rotulo">${esc(rotulo)}</span>${estado}</button>`;
   };
-  const titulo = r.temApp ? `Com o ${esc(aparelho(r.nomeDoAparelho))} desligado, ${esc(o.nome)} continua` : `Onde ${esc(o.nome)} trabalha`;
+  // N3 (Paper YTO-0, YWX-0): "Com o Mac desligado, a Ada continua"; sem o app, "Onde a Ada trabalha".
+  const titulo = r.temApp ? `Com o ${esc(aparelho(r.nomeDoAparelho))} desligado, ${esc(comArtigo(o.nome))} continua` : `Onde ${esc(comArtigo(o.nome))} trabalha`;
   const itens = [...r.maquinas.map((m) => item(m.id, `Na ${m.nome}`, m.ligada)), item("nod", "No nod", null)].join("");
   const mais = r.maquinas.length === 0
     ? '<button type="button" class="nvl-mais" role="menuitem" data-act="conectar-sempre-ligada"><b>Usar uma máquina sua</b><small>Uma que fique sempre ligada</small></button>'
@@ -69,10 +71,10 @@ export function htmlLinhaDoLugarNoPainel(r: RespostaLugarNavegador | null | unde
   const lista = o.aberto ? htmlListaDoLugar(r, { agenteId: o.agenteId, nome: o.nome, chave }) : "";
   const abrir = `data-act="nv-lugar-abrir" data-chave="${esc(chave)}" aria-haspopup="menu" aria-expanded="${o.aberto}"`;
   if (!r.temApp) {
-    return `<div class="nvl-linha sem-app"><button type="button" class="gv-linha nvl-abrir" ${abrir}>${ICONE_LUGAR}<span class="gv-linha-txt">Onde ${esc(o.nome)} trabalha<small>${esc(nomeDoLugar(r))}</small></span>${CHEVRON}</button>${lista}</div>`;
+    return `<div class="nvl-linha sem-app"><button type="button" class="gv-linha nvl-abrir" ${abrir}>${ICONE_LUGAR}<span class="gv-linha-txt">Onde ${esc(comArtigo(o.nome))} trabalha<small>${esc(nomeDoLugar(r))}</small></span>${CHEVRON}</button>${lista}</div>`;
   }
   const titulo = `Com o ${aparelho(r.nomeDoAparelho)} desligado`;
-  const chaveInterruptor = `<button type="button" class="nvl-chave" role="switch" aria-checked="${r.continuaSemMac}" aria-label="${esc(`${titulo}, ${o.nome} continua trabalhando`)}" ${mudar(o.agenteId, { continuaSemMac: !r.continuaSemMac })} data-desfazer="${esc(JSON.stringify({ continuaSemMac: r.continuaSemMac }))}"><span aria-hidden="true"></span></button>`;
+  const chaveInterruptor = `<button type="button" class="nvl-chave" role="switch" aria-checked="${r.continuaSemMac}" aria-label="${esc(`${titulo}, ${comArtigo(o.nome)} continua trabalhando`)}" ${mudar(o.agenteId, { continuaSemMac: !r.continuaSemMac })} data-desfazer="${esc(JSON.stringify({ continuaSemMac: r.continuaSemMac }))}"><span aria-hidden="true"></span></button>`;
   return `<div class="nvl-linha"><button type="button" class="gv-linha nvl-abrir" ${abrir}>${ICONE_LUA}<span class="gv-linha-txt">${esc(titulo)}<small>${esc(r.subtitulo)}</small></span></button>${chaveInterruptor}${lista}</div>`;
 }
 
@@ -99,7 +101,7 @@ export function htmlCartaoDaPergunta(p: PayloadNavegadorPergunta, r: RespostaLug
   }
   const chave = `cartao:${o.mensagemId}`;
   const lista = o.aberto ? htmlListaDoLugar(r, { agenteId: p.agenteId, nome: o.nome, chave }) : "";
-  return `<section class="nvl-cartao" aria-label="${esc(o.texto)}"><p class="nvl-titulo">${esc(o.texto)}</p><p class="nvl-texto">Para essa rotina rodar, ${esc(o.nome)} precisa continuar com ele desligado.</p>`
+  return `<section class="nvl-cartao" aria-label="${esc(o.texto)}"><p class="nvl-titulo">${esc(o.texto)}</p><p class="nvl-texto">Para essa rotina rodar, ${esc(comArtigo(o.nome))} precisa continuar com ele desligado.</p>`
     + `<div class="nvl-bts"><button type="button" class="nvl-bt preto" ${mudar(p.agenteId, { continuaSemMac: true })}>Continuar com o ${esc(ap)} desligado</button><button type="button" class="nvl-bt" ${mudar(p.agenteId, { continuaSemMac: false })}>Só com o ${esc(ap)} ligado</button></div>`
     + `${fraseDeBaixo(r, chave, o.aberto)}${lista}</section>`;
 }
@@ -113,7 +115,7 @@ function htmlCartaoMacDesligado(p: PayloadNavegadorPergunta, r: RespostaLugarNav
   const ap = aparelho(p.nomeDoAparelho);
   if (!r) return `<p class="cc-sistema" role="status"><span>${esc(o.texto)}</span></p>`;
   if (r.continuaSemMac) {
-    return `<div class="nvl-resposta" role="status"><span class="nvl-ok" aria-hidden="true">✓</span><span class="nvl-resposta-txt">Agora ${esc(o.nome)} continua com o ${esc(ap)} desligado</span><button type="button" class="nvl-desfazer" ${mudar(p.agenteId, { continuaSemMac: false })}>Desfazer</button></div>`;
+    return `<div class="nvl-resposta" role="status"><span class="nvl-ok" aria-hidden="true">✓</span><span class="nvl-resposta-txt">Agora ${esc(comArtigo(o.nome))} continua com o ${esc(ap)} desligado</span><button type="button" class="nvl-desfazer" ${mudar(p.agenteId, { continuaSemMac: false })}>Desfazer</button></div>`;
   }
   const turno = esc(p.turnoId ?? "");
   const responder = (resposta: string) => `data-act="nv-mac-desligado" data-id="${esc(p.agenteId)}" data-turno="${turno}" data-resposta="${resposta}"`;

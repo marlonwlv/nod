@@ -3,7 +3,7 @@ import type { PayloadNavegadorPergunta, RespostaMacDesligado } from "../contract
 import type { PlanoTurno } from "../contracts/plano-turno.ts";
 import type { Rotina } from "../contracts/rotina.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { cartaoDaPergunta, horaNoFuso, macCostumaEstarDesligado, textoDaHora } from "../domain/navegador-lugar.ts";
+import { cartaoDaPergunta, horaNoFuso, macCostumaEstarDesligado, sujeitoDoBot, textoDaHora } from "../domain/navegador-lugar.ts";
 import { autoriaPessoa, evento as eventoDoEscopo, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { autoriaAgente, evento } from "./apoio-l7.ts";
 import { enfileirarRetomada } from "./enfileirar-retomada.ts";
@@ -39,7 +39,7 @@ async function perguntar(d: D, agenteId: string, hora: string, extra: { rotinaId
   if (!agente || agente.ownerId !== d.escopo.pessoaId) return false;
   const { entrada, preferencias } = await entradaDoLugar(d, agenteId, []);
   if (!entrada.temApp || entrada.continuaSemMac || preferencias?.respondidoEm != null || preferencias?.perguntadoEm != null) return false;
-  const c = cartaoDaPergunta(hora, entrada.nomeDoAparelho, agente.nome);
+  const c = cartaoDaPergunta(hora, entrada.nomeDoAparelho, sujeitoDoBot(agente.nome));
   const ok = await gravarCartao(d, agenteId, c.titulo, { kind: "navegador_pergunta", agenteId, pergunta: "continuar_sem_mac", hora, nomeDoAparelho: entrada.nomeDoAparelho, turnoId: extra.turnoId, rotinaId: extra.rotinaId, em: d.agora() });
   if (ok) await d.repos.navegadorPreferencias.gravar(agenteId, { perguntadoEm: d.agora() }, d.agora());
   return ok;

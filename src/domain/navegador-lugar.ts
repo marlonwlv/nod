@@ -65,6 +65,20 @@ export function resolverLugar(e: EntradaLugar): ResolucaoLugar {
   return { tipo: "roda", lugar: { tipo: "nod" }, desvio: { de: m.nome, motivo: "fora_do_ar" } };
 }
 
+/**
+ * O bot como sujeito no começo da frase (M e N no Paper: "A Ada continua no nod"). Sem o gênero no agente, nome terminado
+ * em "a" é feminino: a mesma régua de web/lib/navegador-vista.ts (feminino).
+ */
+export function sujeitoDoBot(nome: string): string {
+  const n = nome.trim();
+  return `${/a$/iu.test(n) ? "A" : "O"} ${n}`;
+}
+
+/** "ela"/"ele" a partir do sujeito ("A Ada" → "ela"); sem artigo, nada (a frase segue sem o pronome). */
+function pronomeDoSujeito(bot: string): string {
+  return bot.startsWith("A ") ? "ela " : bot.startsWith("O ") ? "ele " : "";
+}
+
 /** "no nod", "na vm-sp", "no seu Mac": o fim da linha que diz onde (N, item 4). */
 export function fraseDoLugar(lugar: LugarNavegador): string {
   if (lugar.tipo === "nod") return "no nod";
@@ -85,7 +99,8 @@ export function fraseDaPergunta(e: Pick<EntradaLugar, "maquinas" | "maquinaDoCom
   if (!m) return { texto: `${bot} continua`, lugar: "no nod", resto: "", trocar: false };
   if (e.maquinas.length === 1) return { texto: `${bot} continua`, lugar: `na ${m.nome}`, resto: ", que fica sempre ligada", trocar: false };
   const jaMora = e.maquinaDoComputador === m.id;
-  return { texto: `${bot} continua`, lugar: `na ${m.nome}`, resto: jaMora ? ", onde já trabalha" : "", trocar: true };
+  // N (Paper YSO-0): "A Ada continua na vm-sp, onde ela já trabalha."
+  return { texto: `${bot} continua`, lugar: `na ${m.nome}`, resto: jaMora ? `, onde ${pronomeDoSujeito(bot)}já trabalha` : "", trocar: true };
 }
 
 /** Avisos da conversa quando algo muda (N, "Quando algo muda"). Nenhum pergunta antes; os que dá para desfazer dizem. */
@@ -170,7 +185,8 @@ export function cartaoDaPergunta(hora: string, nomeDoAparelho: string, bot: stri
   const aparelho = nomeDoAparelho.replace(/^seu /, "");
   return {
     titulo: `${hora} ${nomeDoAparelho} costuma estar desligado`,
-    texto: `Para essa rotina rodar, ${bot} precisa continuar com ele desligado.`,
+    // M2/J1 (Paper Y4U-0): "Para essa rotina rodar, a Ada precisa…" (o sujeito no meio da frase, com minúscula).
+    texto: `Para essa rotina rodar, ${bot.replace(/^([AO]) /u, (_, a: string) => `${a.toLowerCase()} `)} precisa continuar com ele desligado.`,
     sim: `Continuar com o ${aparelho} desligado`,
     nao: `Só com o ${aparelho} ligado`,
   };

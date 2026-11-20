@@ -7,6 +7,22 @@ import { esc } from "./escape.ts";
 export function feminino(nome: string): boolean {
   return /a$/iu.test(nome.trim());
 }
+/** "itau.com.br" → "Itau"; "Itaú" fica "Itaú". O que o bot disse vale mais que o domínio (ele sabe o acento). */
+export function nomeDoSite(site: string): string {
+  const t = site.trim();
+  if (!t) return "o site";
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/iu.test(t)) return t;
+  const partes = t.toLowerCase().replace(/^www\./u, "").split(".");
+  const raiz = partes[0] ?? t;
+  return raiz.charAt(0).toUpperCase() + raiz.slice(1);
+}
+
+/** "no Itaú", "na TAP": sigla e nome que termina em "a" pedem "na". definido em 2026-11-20: heurística, sem lista de sites. */
+export function noOuNa(nome: string): string {
+  const sigla = /^[A-Z0-9]{2,5}$/u.test(nome);
+  return sigla || /a$/u.test(nome) ? "na" : "no";
+}
+
 /** "a" ou "o" ("Ensinando a Ada", "Recado para o Milton"). */
 export function artigo(nome: string): string {
   return feminino(nome) ? "a" : "o";
@@ -26,6 +42,10 @@ export function comArtigo(nome: string): string {
 /** "ela", "ele". */
 export function pronome(nome: string): string {
   return feminino(nome) ? "ela" : "ele";
+}
+/** 5d (Paper): "Navegador da Ada fechado. Ela continua trabalhando." (o aviso com Desfazer e ⌘⇧T). */
+export function avisoDaAbaFechada(nome: string): string {
+  return `Navegador ${deNome(nome)} fechado. ${fraseMaiuscula(pronome(nome))} continua trabalhando.`;
 }
 /** T1: o subtítulo de "Ensinar uma tarefa", igual no + do campo e no ⋯ do navegador. */
 export function subtituloDeEnsinar(nome: string): string {
@@ -86,20 +106,22 @@ export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "ap
  */
 export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null): string {
   const nomeE = esc(nome);
+  // D4 (Paper): "A Ada espera você entrar", "A Ada está terminando um clique…", "A Ada espera · ⌘⇧A devolve".
+  const quem = esc(fraseMaiuscula(comArtigo(nome)));
   const assumir = (desligado = false) => `<button type="button" class="ctc-bt ctc-assumir nv-assumir" data-nv="assumir"${desligado ? ' disabled aria-disabled="true"' : ""}><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`;
   let corpo: string;
   switch (estado) {
     case "controle":
-      corpo = `<span class="ctc-estado">${CURSOR_NA_JANELA}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${nomeE} espera · ⌘⇧A devolve">Devolver ${esc(aoNome(nome))}</button>`;
+      corpo = `<span class="ctc-estado">${CURSOR_NA_JANELA}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${quem} espera · ⌘⇧A devolve">Devolver ${esc(aoNome(nome))}</button>`;
       break;
     case "assumindo":
-      corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${nomeE} está terminando um clique</span></span>${assumir(true)}`;
+      corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${quem} está terminando um clique…</span></span>${assumir(true)}`;
       break;
     case "precisa":
       corpo = `<span class="ctc-estado nv-precisa-txt"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="resolver">Já resolvi</button>${assumir()}</span>`;
       break;
     case "login":
-      corpo = `<span class="ctc-estado nv-precisa-txt"><span>${nomeE} espera você entrar</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, pode seguir</button>`;
+      corpo = `<span class="ctc-estado nv-precisa-txt"><span>${quem} espera você entrar</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, pode seguir</button>`;
       break;
     case "aprovacao": {
       const p = pedido?.tipo === "aprovacao" ? pedido : null;
@@ -245,7 +267,7 @@ export function htmlAvisoDoSite(a: AvisoNavegador | null): string {
 export function avisoDoPedido(v: Pick<VistaNavegador, "pedido" | "controle">): AvisoNavegador | null {
   const p = v.pedido;
   if (!p || v.controle === "pessoa") return null;
-  if (p.tipo === "login") return { tipo: "precisa_de_voce", texto: `Entrar em ${p.site}`, acao: "", em: 0 };
+  if (p.tipo === "login") { const site = nomeDoSite(p.site); return { tipo: "precisa_de_voce", texto: `Entrar ${noOuNa(site)} ${site}`, acao: "", em: 0 }; }
   if (p.tipo === "ajuda") return { tipo: "precisa_de_voce", texto: p.motivo, acao: "", em: 0 };
   return null;
 }
@@ -273,13 +295,13 @@ export function estadoDaTela(r: Pick<RespostaNavegador, "disponivel"> & { vista:
   return "ao_vivo";
 }
 
-/** "16:04" no relógio de quem vê. */
 /** "10h12": a hora como a linha de atividade escreve. */
 export function horaComH(ms: number): string {
   const d = new Date(ms);
   return `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+/** "16:04" no relógio de quem vê. */
 export function horaCurta(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -419,6 +441,27 @@ export function modoDoPainel(janela: number, celular: boolean, area: number): Mo
   if (celular) return "folha";
   if (janela < JANELA_LADO_A_LADO || area - PAINEL_MIN < CONVERSA_MIN) return "cobre";
   return "lado";
+}
+
+/** D6 B (Paper): a janela onde o painel cobre a conversa e a barra lateral fica só com avatares (900–1179 px). */
+export const JANELA_BARRA_SO_AVATARES = 900;
+
+/**
+ * D6 B: "barra lateral vira só ícones; o painel cobre a conversa com sombra", de 900 a 1179 px, enquanto o painel do
+ * navegador cobre a conversa. Não muda a escolha guardada da barra (ADR-179): fechou o painel, ela volta como estava. Só
+ * abaixo de 1180, onde o "cobre" vem da janela e não da área (a barra mais estreita não pode desfazer o próprio motivo).
+ */
+export function barraSoComAvatares(janela: number, cobrindo: boolean): boolean {
+  return cobrindo && janela >= JANELA_BARRA_SO_AVATARES && janela < JANELA_LADO_A_LADO;
+}
+
+/**
+ * D5 (máximo, a conversa com 420 px): abaixo de 600 px de conversa, o seletor de IA do campo fica só com o anel (o nome no
+ * title e no leitor). Os controles escondidos do campo guardam o lugar (casca.css) e, estreito, o texto sumia.
+ */
+export const CONVERSA_ESTREITA = 600;
+export function conversaEstreita(area: number, largura: number): boolean {
+  return largura > 0 && area - largura < CONVERSA_ESTREITA;
 }
 
 export function larguraMaxima(area: number): number {

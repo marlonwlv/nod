@@ -85,6 +85,17 @@ export function arquivoDosPassos(nome: string, g: Gravacao): string {
   return [`Tarefa ensinada: ${nome}`, "", ...linhas, "", "Gravado no navegador do bot, com a pessoa no controle. O que ela digitou e as senhas não foram gravados."].join("\n");
 }
 
+/**
+ * A mensagem da pessoa ao salvar (T3, Paper): "Ensinei: baixar a fatura do Itaú." O nome entra no meio da frase: quando
+ * começa por um verbo no infinitivo ("Baixar", "Conferir", "Pagar"), a maiúscula do começo cai. Nome próprio, site ou
+ * sigla no começo ("Itaú", "TAP", "Bradesco: extrato") fica como a pessoa escreveu.
+ */
+export function mensagemDoEnsinado(nome: string): string {
+  const n = nome.trim();
+  const meio = /^\p{Lu}\p{Ll}*[aeiu]r(?=\s|$)/u.test(n) ? n.charAt(0).toLocaleLowerCase("pt-BR") + n.slice(1) : n;
+  return `Ensinei: ${meio.replace(/[.!?…]+$/u, "")}.`;
+}
+
 /** O nome que a pessoa dá, ou um nome a partir dos passos ("Baixar a fatura do Itaú"). */
 export function nomeSugerido(g: Gravacao): string {
   const site = g.eventos.find((e) => e.tipo === "abriu");

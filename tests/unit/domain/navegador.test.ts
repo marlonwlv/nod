@@ -4,8 +4,8 @@ import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts"
 import { classificarAcao, classificarAlvo, decidirNoNavegador, lerLiberacoes, perguntaDaAcao, SEM_LIBERACOES, valorDoRotulo } from "../../../src/domain/navegador-aprovacao.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../../src/domain/navegador-catalogo.ts";
 import { comandosDaEntrada, entradaDigita, lerEntradaNavegador, TEXTO_MAX_ENTRADA } from "../../../src/domain/navegador-entrada.ts";
-import { arquivoDosPassos, campoDoElemento, eventoDoClique, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao, type ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
-import { esperaDoNavegador, fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type EntradaLugar } from "../../../src/domain/navegador-lugar.ts";
+import { arquivoDosPassos, campoDoElemento, eventoDoClique, mensagemDoEnsinado, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao, type ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
+import { esperaDoNavegador, fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, sujeitoDoBot, type EntradaLugar } from "../../../src/domain/navegador-lugar.ts";
 import { campoEhSecreto, MARCA_PROTEGIDO, redigirArvore, redigirSegredos, segredoAindaNaPagina } from "../../../src/domain/navegador-sensivel.ts";
 import { botPodeAgir, camposQueMudaram, deveriaPausar, PAUSA_APOS_MS, proximoControle } from "../../../src/domain/navegador-vista.ts";
 
@@ -132,7 +132,10 @@ describe("onde o navegador mora (M e N)", () => {
     expect(subtituloDoInterruptor(base, "A Ada")).toBe("A Ada espera o Mac ligar");
     expect(fraseDaPergunta({ maquinas: [], maquinaDoComputador: null, escolha: null }, "A Ada")).toEqual({ texto: "A Ada continua", lugar: "no nod", resto: "", trocar: false });
     expect(fraseDaPergunta({ maquinas: [sp], maquinaDoComputador: null, escolha: null }, "A Ada").resto).toBe(", que fica sempre ligada");
-    expect(fraseDaPergunta({ maquinas: [sp, rio], maquinaDoComputador: "m1", escolha: null }, "A Ada")).toMatchObject({ resto: ", onde já trabalha", trocar: true });
+    expect(fraseDaPergunta({ maquinas: [sp, rio], maquinaDoComputador: "m1", escolha: null }, "A Ada")).toMatchObject({ resto: ", onde ela já trabalha", trocar: true });
+    // M e N (Paper): o sujeito com o artigo, pela terminação do nome.
+    expect(sujeitoDoBot("Ada")).toBe("A Ada");
+    expect(sujeitoDoBot("Milton")).toBe("O Milton");
     expect(maquinaPreferida({ maquinas: [sp], maquinaDoComputador: null, escolha: "sumiu" })?.nome).toBe("vm-sp");
   });
 });
@@ -295,5 +298,17 @@ describe("a espera do navegador em palavras (ADR-190, N)", () => {
     expect(travada.instrucao).toContain('"Só na vm-sp"');
     // O nome da máquina é o que a pessoa deu ("vm-sp"); a palavra VM, servidor ou nuvem nunca vem do nod.
     for (const e of [mac, antigo, travada]) expect(`${e.causa} ${e.instrucao}`.replaceAll("vm-sp", "")).not.toMatch(/servidor|\bVM\b|nuvem/i);
+  });
+});
+
+describe("T3: a mensagem do ensinado", () => {
+  it("o verbo do começo entra minúsculo no meio da frase (Paper: 'Ensinei: baixar a fatura do Itaú.')", () => {
+    expect(mensagemDoEnsinado("Baixar a fatura do Itaú")).toBe("Ensinei: baixar a fatura do Itaú.");
+    expect(mensagemDoEnsinado("Conferir o extrato.")).toBe("Ensinei: conferir o extrato.");
+  });
+  it("nome próprio, site ou sigla no começo ficam como a pessoa escreveu", () => {
+    expect(mensagemDoEnsinado("Itaú: baixar a fatura")).toBe("Ensinei: Itaú: baixar a fatura.");
+    expect(mensagemDoEnsinado("TAP check-in")).toBe("Ensinei: TAP check-in.");
+    expect(mensagemDoEnsinado("Faturas em itau.com.br")).toBe("Ensinei: Faturas em itau.com.br.");
   });
 });

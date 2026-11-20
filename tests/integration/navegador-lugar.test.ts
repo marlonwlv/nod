@@ -69,16 +69,16 @@ describeIntegracao("navegador.lugar: tela × chat (ADR-190, N; ADR-135)", () => 
       const { repos } = depsSobre(trx, MARLON, { agora: () => AGORA });
 
       const antes = await painel(ada.agenteId);
-      expect(antes).toMatchObject({ continuaSemMac: false, maquinaId: null, soNaMaquina: false, temApp: true, nomeDoAparelho: "seu Mac", agora: null, subtitulo: "Ada espera o Mac ligar" });
+      expect(antes).toMatchObject({ continuaSemMac: false, maquinaId: null, soNaMaquina: false, temApp: true, nomeDoAparelho: "seu Mac", agora: null, subtitulo: "A Ada espera o Mac ligar" });
       expect(antes.maquinas).toEqual([{ id: vmSp, nome: "vm-sp", ligada: false }, { id: vmRio, nome: "vm-rio", ligada: false }]);
 
       // Tela: "Na vm-rio" para a Ada. Chat: a Bia ouve "usa a vm-rio" e chama ajustar_navegador.
       const r = await srv.chamar(sessao, "POST", `/agentes/${ada.agenteId}/navegador/lugar`, { maquinaId: vmRio });
       expect(r.status).toBe(200);
-      expect(await r.json()).toMatchObject({ ok: true, continuaSemMac: true, maquinaId: vmRio, subtitulo: "Ada continua na vm-rio", frasePergunta: { lugar: "na vm-rio", trocar: true } });
+      expect(await r.json()).toMatchObject({ ok: true, continuaSemMac: true, maquinaId: vmRio, subtitulo: "A Ada continua na vm-rio", frasePergunta: { lugar: "na vm-rio", trocar: true } });
       const turno = await turnoDaConversa(trx, bia);
       const pelaConversa = await ajustarNavegador(depsSobre(trx, MARLON, { agora: () => AGORA }).deps, { ...contexto(bia.agenteId, bia.conversaId, turno.id), maquina: "VM-Rio" });
-      expect(pelaConversa.data).toEqual({ ok: true, onde: "Bia continua na vm-rio", instrucao: expect.any(String) });
+      expect(pelaConversa.data).toEqual({ ok: true, onde: "A Bia continua na vm-rio", instrucao: expect.any(String) });
       const estado = async (id: string) => { const p = await repos.navegadorPreferencias.buscar(id); return p && { continuaSemMac: p.continuaSemMac, maquinaId: p.maquinaId, noNod: p.noNod, soNaMaquina: p.soNaMaquina }; };
       expect(await estado(bia.agenteId)).toEqual(await estado(ada.agenteId));
 

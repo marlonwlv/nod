@@ -48,7 +48,8 @@ describe("as falas do portão viram o cartão do navegador (cópia conferida com
 describe("L1, L2, M4, K3: o cartão de login", () => {
   it("o item que casa é o botão preto com o usuário mascarado; depois Entrar eu mesmo e Trazer do meu Chrome", () => {
     const html = htmlCartaoLogin(login(), { nome: "Ada", agenteId: "a1", url: "https://www.itau.com.br/login" });
-    expect(html).toContain("Ada precisa entrar no Itaú");
+    // L1 (Paper): com o artigo.
+    expect(html).toContain("A Ada precisa entrar no Itaú");
     expect(html).toContain("Para baixar a fatura de novembro · itau.com.br");
     expect(ordemDosBotoes(html)).toEqual(["Usar o 1Password", "Entrar eu mesmo", "Trazer do meu Chrome"]);
     expect(html).toMatch(/nvc-op-principal"[^>]*data-fonte="1password"[^>]*data-ref="op:\/\/Pessoal\/Itau"><span>Usar o 1Password<\/span><small>Itaú · marlon@…<\/small>/);
@@ -65,7 +66,7 @@ describe("L1, L2, M4, K3: o cartão de login", () => {
     });
     expect(botoesDoLogin(p).map((b) => [b.tipo, b.principal])).toEqual([["cofre", false], ["cofre", true], ["eu_mesmo", false]]);
     const html = htmlCartaoLogin(p, { nome: "Ada", agenteId: "a1" });
-    expect(html).toContain("Ada precisa entrar na TAP");
+    expect(html).toContain("A Ada precisa entrar na TAP");
     expect(ordemDosBotoes(html)).toEqual(["Usar o 1Password", "Usar o cofre do nod", "Entrar eu mesmo"]);
     expect(html).toMatch(/nvc-op-indisponivel" disabled aria-disabled="true"><span>Usar o 1Password<\/span><small>precisa do Mac ligado<\/small>/);
     expect(html).not.toContain("Trazer do meu Chrome");
@@ -208,5 +209,14 @@ describe("achado 7 do crítico: o nome do bot nos cartões (o artigo pela termin
     expect(htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "x", nome: "Ada" })).toContain("Assuma o navegador da Ada, faça esse passo e devolva. A Ada não vê o que você digita.");
     expect(htmlCartaoPedidoSemVista({ tipo: "ajuda", motivo: "x" }, { decisaoId: "d", agenteId: "a1", nome: "Milton" })).toContain("Abrir o navegador do Milton");
     expect(htmlHabilidades({ tarefas: [], erro: false, abertas: new Set(), apagando: new Set() }, { agenteId: "a1", nome: "Ada", temNavegador: true })).toContain("mostre no navegador da Ada.");
+  });
+});
+
+describe("M4 e K3: o motivo da opção cinza", () => {
+  it("'precisa do seu Mac ligado' no computador; no celular o 'seu' some pelo CSS (Paper K3: 'precisa do Mac ligado')", async () => {
+    const { htmlDoMotivo } = await import("../../../web/lib/navegador-cartoes.ts");
+    expect(htmlDoMotivo("precisa do seu Mac ligado")).toBe('precisa do <span class="nvc-so-largo">seu </span>Mac ligado');
+    expect(htmlDoMotivo("destravar no seu Mac")).toBe("destravar no seu Mac");
+    expect(htmlDoMotivo("<b>")).toBe("&lt;b&gt;");
   });
 });

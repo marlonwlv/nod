@@ -146,6 +146,28 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
    estado cifrados pela chave de cada bot (HKDF da `NOD_CREDENTIAL_KEY`), e o fato de as senhas virem do cofre na hora,
    sem o Chrome guardá-las.
 
+10. **Onde a tela desvia das pranchetas, e por quê** (conferência final de 2026-11-20, prancheta por prancheta; a matriz e
+    os prints lado a lado estão no PR #243). Vale o que vem depois na lista de pranchetas e os achados da crítica de
+    interface que o dono aceitou:
+    - **Largura do painel:** 40% da área (D5), não os 580 px das telas 1a e C1. A página aparece reduzida porque o
+      Chrome do bot tem no mínimo 800 px de largura (item 4, emenda).
+    - **Barra de cima:** só ícones nas ações (D1, item 2), não o "Abrir em aba" escrito da C1. Com um lugar só, o seletor
+      vira rótulo, sem fundo nem botão (crítica, achado 11).
+    - **Pílula:** a da tela cheia de hoje, com os ícones dela (D1b: "iguais aos da tela cheia de hoje"). Sem o app do
+      Mac, pagar diz "Pagar sem Touch ID" (crítica). O "terminou" vai na pílula ("✓ Terminou · 16h04", no formato da
+      linha de atividade), não sobre a imagem (D1d).
+    - **Faixa de aviso:** "Precisa de você" fica só com o motivo; a ação é a da pílula (crítica, achado 10).
+    - **Abas do Chrome no painel estreito:** a partir de 4 à vista, as de fundo ficam só com o favicon (crítica, achado
+      6).
+    - **Aba de lugar:** diz "Navegador"; o título da página está na aba do Chrome logo abaixo e na dica (crítica, achado
+      11). O × fica sempre à vista, como nas abas de tarefa (validação de 2026-11-19). O clique direito diz "Assumir o
+      controle" e "Fechar os outros lugares" (crítica, achado 15). A fileira começa pela pílula do bot, que é a Conversa
+      (Paper 10c A).
+    - **Linha de atividade:** no modo pílula diz "Ver" e abre o painel; "Abrir" é do modo abas (C1 e C2, linhas 1+5).
+    - **Pergunta da aprovação:** o rótulo do botão do site e o domínio da página ("Pagar R$ 3.780 no flytap.com?"); o
+      servidor não conhece o nome de marca ("na TAP").
+    - **Nova tarefa:** ⌃N no navegador, ⌘N no app do Mac (o ⌘N do navegador abre janela; web/lib/atalhos.ts).
+
 ## Gatilhos de reversão
 
 - O agent-browser não aguenta (quadro ao vivo pior que 5 por segundo no Mac, ou queda de sessão mais de uma vez por

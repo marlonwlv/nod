@@ -2,7 +2,7 @@ import type { ErroAjustarNavegador, ResultadoAjustarNavegador } from "../contrac
 import type { MudancaLugarNavegador } from "../contracts/navegador-do-bot.ts";
 import type { CasoNod, SaidaCasoDeUso } from "../contracts/servicos.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { subtituloDoInterruptor } from "../domain/navegador-lugar.ts";
+import { subtituloDoInterruptor, sujeitoDoBot } from "../domain/navegador-lugar.ts";
 import { entradaDoLugar } from "./navegador-lugar.ts";
 import { lugarDoNavegador } from "./acoes/navegador.ts";
 import type { Deps } from "./tipos.ts";
@@ -50,6 +50,6 @@ export const ajustarNavegador: CasoNod<Deps, "ajustar_navegador"> = async (deps,
   }
   const agente = await deps.repos.agentes.buscar(input.agenteId);
   const { entrada } = await entradaDoLugar(deps, input.agenteId, []);
-  const onde = subtituloDoInterruptor(entrada, agente?.nome ?? "Eu");
+  const onde = subtituloDoInterruptor(entrada, agente ? sujeitoDoBot(agente.nome) : "Eu");
   return { data: { ok: true, onde, instrucao: "Feito. Diga à pessoa numa frase onde você continua (a frase `onde`, na primeira pessoa)." } };
 };

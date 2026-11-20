@@ -1,6 +1,6 @@
 import type { FonteCofre, GravacaoNavegador, OfertaGuardarLogin, OpcaoLogin, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { esc } from "./escape.ts";
-import { aoNome, aspasCurvas, comArtigo, deNome, dominioDe, fraseMaiuscula, rotuloDaAprovacao } from "./navegador-vista.ts";
+import { aoNome, aspasCurvas, comArtigo, deNome, dominioDe, fraseMaiuscula, nomeDoSite, noOuNa, rotuloDaAprovacao } from "./navegador-vista.ts";
 
 /**
  * Os cartões do navegador do bot na conversa, em "Sua vez" e no celular (ADR-190; Paper "Navegador · login e cofre,
@@ -56,21 +56,17 @@ export function linhaDaRespostaDoNavegador(texto: string): string | null {
 
 // ---- nomes ---------------------------------------------------------------------------------------------------------------
 
-/** "itau.com.br" → "Itau"; "Itaú" fica "Itaú". O que o bot disse vale mais que o domínio (ele sabe o acento). */
-export function nomeDoSite(site: string): string {
-  const t = site.trim();
-  if (!t) return "o site";
-  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/iu.test(t)) return t;
-  const partes = t.toLowerCase().replace(/^www\./u, "").split(".");
-  const raiz = partes[0] ?? t;
-  return raiz.charAt(0).toUpperCase() + raiz.slice(1);
+/**
+ * O motivo da opção cinza do login. M4 (computador) diz "precisa do seu Mac ligado"; K3 (celular) diz "precisa do Mac
+ * ligado": o "seu" some só no celular (mobile.css, .nvc-so-largo), e o leitor de tela ouve o mesmo texto nos dois.
+ */
+export function htmlDoMotivo(motivo: string): string {
+  if (motivo === "precisa do seu Mac ligado") return 'precisa do <span class="nvc-so-largo">seu </span>Mac ligado';
+  return esc(motivo);
 }
 
-/** "no Itaú", "na TAP": sigla e nome que termina em "a" pedem "na". definido em 2026-11-20: heurística, sem lista de sites. */
-export function noOuNa(nome: string): string {
-  const sigla = /^[A-Z0-9]{2,5}$/u.test(nome);
-  return sigla || /a$/u.test(nome) ? "na" : "no";
-}
+// nomeDoSite e noOuNa moram em navegador-vista.ts (o aviso do pedido de login também usa); daqui seguem exportados.
+export { nomeDoSite, noOuNa };
 
 /** O nome de cada cofre como a pessoa o conhece. */
 export const NOME_DA_FONTE: Readonly<Record<FonteCofre, string>> = { nod: "o cofre do nod", "1password": "o 1Password", bitwarden: "o Bitwarden" };
@@ -110,7 +106,8 @@ const ICONE_GIRO = '<span class="nvc-giro" aria-hidden="true"></span>';
 export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: string; url?: string; fonte?: FonteCofre | null }): string {
   const site = nomeDoSite(p.site);
   const host = (o.url ? dominioDe(o.url) : "") || (/\./u.test(p.site) ? p.site.replace(/^www\./u, "") : "");
-  const titulo = `${o.nome} precisa entrar ${noOuNa(site)} ${site}`;
+  // L1 (Paper): "A Ada precisa entrar no Itaú", com o artigo.
+  const titulo = `${fraseMaiuscula(comArtigo(o.nome))} precisa entrar ${noOuNa(site)} ${site}`;
   const sub = [p.motivo.trim().replace(/\.$/u, ""), host].filter(Boolean).join(" · ");
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(p.decisaoId)}"`;
   const cab = `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${sub ? `<p class="nvc-sub">${esc(sub)}</p>` : ""}`;
@@ -125,7 +122,7 @@ export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: str
       const op = b.opcao;
       const rotulo = ROTULO_DA_FONTE[op.fonte];
       if (!op.disponivel) {
-        return `<button type="button" class="nvc-op nvc-op-indisponivel" disabled aria-disabled="true"><span>${esc(rotulo)}</span><small>${esc(op.motivoIndisponivel ?? "indisponível agora")}</small></button>`;
+        return `<button type="button" class="nvc-op nvc-op-indisponivel" disabled aria-disabled="true"><span>${esc(rotulo)}</span><small>${htmlDoMotivo(op.motivoIndisponivel ?? "indisponível agora")}</small></button>`;
       }
       return `<button type="button" class="nvc-op${b.principal ? " nvc-op-principal" : " nvc-op-contorno"}" data-act="nv-login" ${dados} data-escolha="cofre" data-fonte="${esc(op.fonte)}" data-ref="${esc(op.ref)}"><span>${esc(rotulo)}</span><small>${esc(op.rotulo)}</small></button>`;
     }
@@ -171,9 +168,9 @@ export function htmlCartaoCodigo(o: { decisaoId: string; agenteId: string; motiv
 
 /** O pedido de ajuda sem código (CAPTCHA, confirmação no app do banco): assumir o controle ou dizer que já resolveu. */
 export function htmlCartaoAjudaNavegador(o: { decisaoId: string; agenteId: string; motivo: string; nome: string }): string {
-  const titulo = frase(o.motivo) || `${o.nome} precisa de você no navegador`;
+  const titulo = frase(o.motivo) || `${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`;
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}"`;
-  return `<div class="nvc nvc-ajuda" role="group" aria-label="${esc(`${o.nome} precisa de você no navegador`)}" ${dados}>`
+  return `<div class="nvc nvc-ajuda" role="group" aria-label="${esc(`${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`)}" ${dados}>`
     + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>`
     + `<p class="nvc-sub">Assuma o navegador ${esc(deNome(o.nome))}, faça esse passo e devolva. ${esc(fraseMaiuscula(comArtigo(o.nome)))} não vê o que você digita.</p>`
     + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-resolver" ${dados}>Já resolvi</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="nv-assumir" ${dados}>Assumir o controle</button></div></div>`;
@@ -181,7 +178,7 @@ export function htmlCartaoAjudaNavegador(o: { decisaoId: string; agenteId: strin
 
 /** O pedido aberto sem a vista à mão (a vista ainda não chegou, ou é de outro aparelho): o título e o caminho até ela. */
 export function htmlCartaoPedidoSemVista(p: PedidoNaFala, o: { decisaoId: string; agenteId: string; nome: string }): string {
-  const titulo = p.tipo === "login" ? `${o.nome} precisa entrar ${noOuNa(nomeDoSite(p.site))} ${nomeDoSite(p.site)}` : frase(p.motivo);
+  const titulo = p.tipo === "login" ? `${fraseMaiuscula(comArtigo(o.nome))} precisa entrar ${noOuNa(nomeDoSite(p.site))} ${nomeDoSite(p.site)}` : frase(p.motivo);
   return `<div class="nvc nvc-espera" role="group" aria-label="${esc(titulo)}" data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}">`
     + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${p.tipo === "login" && p.motivo ? `<p class="nvc-sub">${esc(frase(p.motivo))}</p>` : ""}`
     + `<button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador ${esc(deNome(o.nome))}</button></div>`;

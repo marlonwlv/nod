@@ -54,7 +54,7 @@ import type { ContasIaDto } from "../src/contracts/contas-ia.ts";
 import type { Mensagem } from "../src/contracts/mensagem.ts";
 import type { EscolhaLoginNavegador, FonteCofre, MudancaLugarNavegador, VistaNavegador } from "../src/contracts/navegador-do-bot.ts";
 import { lembrarFonteDoLogin, NOME_DA_FONTE } from "./lib/navegador-cartoes.ts";
-import { comArtigo } from "./lib/navegador-vista.ts";
+import { barraSoComAvatares, comArtigo } from "./lib/navegador-vista.ts";
 import { registrarHabilidades } from "./lib/habilidades.ts";
 import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
@@ -241,7 +241,7 @@ import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
-import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO } from "./lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO, placeholderComAprovacao } from "./lib/recusa-da-aprovacao.ts";
 import { atalhoEnviarTodos } from "./telas/rascunhos-de-envio.ts";
 import { criarEnvios, enviarUmaVez } from "./lib/envio-idempotente.ts";
 import { iniciarMotorLigacao } from "./lib/ligacao.ts";
@@ -806,9 +806,17 @@ function medidasDaBarra(): { janela: number; painel: number } {
   const painel = window.innerWidth >= 1100 && !!app?.classList.contains("com-detalhes") && !app.classList.contains("detalhes-ocultos") && !document.body.classList.contains("com-raio-x") ? PAINEL_DETALHES : 0;
   return { janela: window.innerWidth, painel };
 }
+/** D6 B: o painel do navegador cobre a conversa (preenchido depois que a tela do navegador existe). */
+let navegadorCobrindo: () => boolean = () => false;
+/** A barra como a tela mostra: a guardada, ou só com avatares enquanto o painel do navegador cobre a conversa (D6 B). */
+function barraNaTela(): Barra {
+  return !celular.ativo() && barraSoComAvatares(window.innerWidth, navegadorCobrindo()) ? { ...barraAtual, compacta: true } : barraAtual;
+}
+let compactaNaTela = barraAtual.compacta;
 function pintarBarraAgora(): void {
   const m = medidasDaBarra();
-  pintarBarra(barraAtual, document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "", m.janela, m.painel);
+  compactaNaTela = barraNaTela().compacta;
+  pintarBarra(barraNaTela(), document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "", m.janela, m.painel);
   const borda = document.getElementById("borda-barra");
   if (borda) atualizarBorda(borda, barraAtual, m);
 }
@@ -834,7 +842,8 @@ function animarTrocaDaBarra(compacta: boolean): void {
   timerAnimBarra = window.setTimeout(() => { delete h.dataset.barraAnim; }, 320);
 }
 // A janela mudou: o máximo da barra também (o chat nunca fica com menos de 424 px).
-window.addEventListener("resize", () => pintarBarraAgora());
+// D6 B: a janela cruzou 900 ou 1180 px com o painel cobrindo: a barra troca de desenho (o render repinta).
+window.addEventListener("resize", () => { if (barraNaTela().compacta !== compactaNaTela) render(); else pintarBarraAgora(); });
 // A etiqueta e a prévia só valem com a barra desenhada compacta (com a busca por cima, a barra está aberta).
 const recolhida = () => document.documentElement.dataset.largura === "recolhida";
 let etiquetaDaBarra: { esconder(): void } | null = null;
@@ -1332,6 +1341,7 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
 const navegadorNaTela = criarNavegadorNaTela({
   api: () => api,
   nome: (id) => botGerido(id)?.nome ?? "o bot",
+  avatar: (id) => { const b = botGerido(id); return b ? htmlMascote(b, "sm") : ""; },
   temComputador: () => estado.computadorPessoa !== null && estado.computadorPessoa !== undefined,
   abrirComputador: (id) => { const el = document.createElement("button"); el.dataset.id = id; void ACOES["abrir-computador"]?.(el); },
   lerVista: (id) => {
@@ -1367,6 +1377,7 @@ const navegadorNaTela = criarNavegadorNaTela({
   pessoaId: () => estado.sessao?.pessoaId ?? null,
   celular: () => ehCelular(),
 });
+navegadorCobrindo = () => navegadorNaTela.cobrindo();
 /** Tela 18d do Paper: a página Tarefas de todos os bots (a linha "Tarefas" da barra abre `{ tipo: "tarefas" }`). */
 const tarefasDeTodos = criarTarefasDeTodosNaTela(document, {
   api: () => {
@@ -3008,7 +3019,7 @@ function renderSidebar(estado: Estado): string {
   // flutuante de Buscar). O HTML do computador não muda.
   const ehCelular = celular.ativo();
   // NOD-119: na barra recolhida a etiqueta própria (web/lib/borda-barra.ts) substitui o title.
-  const semTitle = !ehCelular && barraAtual.compacta && !(buscaAberta || termoBusca() !== "");
+  const semTitle = !ehCelular && barraNaTela().compacta && !(buscaAberta || termoBusca() !== "");
   const agentes = estado.frota?.agentes ?? [];
   const abertas = abertasPorAgente(estado);
   const perguntas = perguntasPorAgente(estado);
@@ -3240,7 +3251,7 @@ function renderSidebar(estado: Estado): string {
     </div>
     ${ambiente}
     ${avisoDoMotor}
-    ${cartaoAtualizacao(atualizacaoNaWeb.tela(), barraAtual.compacta)}
+    ${cartaoAtualizacao(atualizacaoNaWeb.tela(), barraNaTela().compacta)}
     <div class="rodape">
       <button type="button" class="me conta-pilula${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${menuContaAberto() ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta${nomeRodape ? ` de ${esc(nomeRodape)}` : ""}: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="${esc(nomeRodape || "Menu da conta")}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
       ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Cards" data-etiqueta="Cards">${IC_QUADRO}</button>` : ""}
@@ -3941,7 +3952,10 @@ function atualizarComposer(): void {
   // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
   const comPedido = a.placeholder === placeholderPadrao() && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
   const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
-  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? rotulo : placeholderComArquivo(rotulo);
+  // ADR-190: com o navegador aberto ao lado (painel ou aba de lugar), o curto; o aria-label segue o completo.
+  const t = estado.tela;
+  const navegadorAberto = t.tipo === "conversa" && (navegadorNaTela.painelAberto(t.agenteId) || navegadorNaTela.abaAtiva(t.agenteId));
+  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? placeholderComAprovacao(navegadorAberto) : placeholderComArquivo(rotulo);
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
   if (ta.getAttribute("aria-label") !== rotulo) ta.setAttribute("aria-label", rotulo);
   // Plano "tela limpa" (2026-10-16, T5): a dica "Enter envia…" saiu. Plano "pergunta com botões" (2026-10-18): a nota do
@@ -4541,7 +4555,7 @@ function prenderFocoNaGaveta(slug: string | null): void {
  * (digitar na busca filtra direto, no ouvinte de input).
  */
 function redesenharSidebar(): void {
-  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraAtual.compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : "", JSON.stringify(atualizacaoNaWeb.tela())], renderSidebar);
+  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraNaTela().compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : "", JSON.stringify(atualizacaoNaWeb.tela())], renderSidebar);
   // NOD-119/ADR-179: no celular a barra é a gaveta de sempre; o <html> só leva a largura no computador (virar o aparelho muda).
   pintarBarraAgora();
   if (!regiaoMudaria("sidebar", html)) return;

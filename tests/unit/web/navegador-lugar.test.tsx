@@ -16,13 +16,13 @@ const VM_RIO = "00000000-0000-4000-8000-0000000000e2";
 
 const lugar = (o: Partial<RespostaLugarNavegador> = {}): RespostaLugarNavegador => ({
   continuaSemMac: true, maquinaId: null, soNaMaquina: false, maquinas: [], maquinaDoComputador: null, temApp: true, nomeDoAparelho: "seu Mac",
-  agora: "no nod", subtitulo: "Ada continua no nod", frasePergunta: { texto: "Ada continua", lugar: "no nod", resto: "", trocar: false },
+  agora: "no nod", subtitulo: "A Ada continua no nod", frasePergunta: { texto: "A Ada continua", lugar: "no nod", resto: "", trocar: false },
   respondeu: false, retomarTurnoId: null, disponivel: true, ...o,
 });
-const uma = { maquinas: [{ id: VM_SP, nome: "vm-sp", ligada: true }], subtitulo: "Ada continua na vm-sp", frasePergunta: { texto: "Ada continua", lugar: "na vm-sp", resto: ", que fica sempre ligada", trocar: false } };
+const uma = { maquinas: [{ id: VM_SP, nome: "vm-sp", ligada: true }], subtitulo: "A Ada continua na vm-sp", frasePergunta: { texto: "A Ada continua", lugar: "na vm-sp", resto: ", que fica sempre ligada", trocar: false } };
 const duas = {
-  maquinas: [{ id: VM_SP, nome: "vm-sp", ligada: true }, { id: VM_RIO, nome: "vm-rio", ligada: true }], maquinaDoComputador: VM_SP, subtitulo: "Ada continua na vm-sp",
-  frasePergunta: { texto: "Ada continua", lugar: "na vm-sp", resto: ", onde já trabalha", trocar: true },
+  maquinas: [{ id: VM_SP, nome: "vm-sp", ligada: true }, { id: VM_RIO, nome: "vm-rio", ligada: true }], maquinaDoComputador: VM_SP, subtitulo: "A Ada continua na vm-sp",
+  frasePergunta: { texto: "A Ada continua", lugar: "na vm-sp", resto: ", onde ela já trabalha", trocar: true },
 };
 const doc = (html: string) => { const d = document.createElement("div"); d.innerHTML = html; return d; };
 const pergunta = (o: Partial<PayloadNavegadorPergunta> = {}): PayloadNavegadorPergunta => ({ kind: "navegador_pergunta", agenteId: ADA, pergunta: "continuar_sem_mac", hora: "Às 3h", nomeDoAparelho: "seu Mac", turnoId: null, rotinaId: "r1", em: 1, ...o });
@@ -30,21 +30,21 @@ const pergunta = (o: Partial<PayloadNavegadorPergunta> = {}): PayloadNavegadorPe
 describe("M1/J2/N2: a linha do painel do bot", () => {
   it("com o app: ☾ Com o Mac desligado, o subtítulo do servidor e o interruptor verde que liga e desliga", () => {
     const d = doc(htmlLinhaDoLugarNoPainel(lugar(uma), { agenteId: ADA, nome: "Ada", aberto: false }));
-    expect(d.querySelector(".gv-linha-txt")?.textContent).toBe("Com o Mac desligadoAda continua na vm-sp");
+    expect(d.querySelector(".gv-linha-txt")?.textContent).toBe("Com o Mac desligadoA Ada continua na vm-sp");
     const chave = d.querySelector<HTMLElement>(".nvl-chave")!;
     expect(chave.getAttribute("role")).toBe("switch");
     expect(chave.getAttribute("aria-checked")).toBe("true");
     expect(JSON.parse(chave.dataset.mudar!)).toEqual({ continuaSemMac: false });
     expect(d.querySelector<HTMLElement>(".nvl-abrir")!.dataset).toMatchObject({ act: "nv-lugar-abrir", chave: `painel:${ADA}` });
-    const desligado = doc(htmlLinhaDoLugarNoPainel(lugar({ continuaSemMac: false, subtitulo: "Ada espera o Mac ligar" }), { agenteId: ADA, nome: "Ada", aberto: false }));
-    expect(desligado.querySelector(".gv-linha-txt small")?.textContent).toBe("Ada espera o Mac ligar");
+    const desligado = doc(htmlLinhaDoLugarNoPainel(lugar({ continuaSemMac: false, subtitulo: "A Ada espera o Mac ligar" }), { agenteId: ADA, nome: "Ada", aberto: false }));
+    expect(desligado.querySelector(".gv-linha-txt small")?.textContent).toBe("A Ada espera o Mac ligar");
     expect(desligado.querySelector(".nvl-chave")?.getAttribute("aria-checked")).toBe("false");
   });
 
   it("no PC diz \"Com o PC desligado\"; sem o app vira \"Onde a Ada trabalha · Na vm-sp ›\" sem interruptor; sem navegador, nada", () => {
     expect(htmlLinhaDoLugarNoPainel(lugar({ nomeDoAparelho: "seu PC" }), { agenteId: ADA, nome: "Ada", aberto: false })).toContain("Com o PC desligado");
     const sem = doc(htmlLinhaDoLugarNoPainel(lugar({ ...uma, temApp: false }), { agenteId: ADA, nome: "Ada", aberto: false }));
-    expect(sem.querySelector(".gv-linha-txt")?.textContent).toBe("Onde Ada trabalhaNa vm-sp");
+    expect(sem.querySelector(".gv-linha-txt")?.textContent).toBe("Onde a Ada trabalhaNa vm-sp");
     expect(sem.querySelector(".nvl-chave")).toBeNull();
     expect(sem.querySelector(".gv-chev")).not.toBeNull();
     expect(htmlLinhaDoLugarNoPainel(lugar({ disponivel: false }), { agenteId: ADA, nome: "Ada", aberto: false })).toBe("");
@@ -57,7 +57,7 @@ describe("N3: a lista ao tocar na frase", () => {
 
   it("0 máquinas: ✓ No nod e \"Usar uma máquina sua / Uma que fique sempre ligada\" (Conectar uma máquina sempre ligada)", () => {
     const d = doc(htmlListaDoLugar(lugar(), { agenteId: ADA, nome: "Ada", chave: "k" }));
-    expect(d.querySelector(".nvl-pop-titulo")?.textContent).toBe("Com o Mac desligado, Ada continua");
+    expect(d.querySelector(".nvl-pop-titulo")?.textContent).toBe("Com o Mac desligado, a Ada continua");
     expect(itens(lugar())).toEqual(["✓ No nod"]);
     expect(d.querySelector<HTMLElement>(".nvl-mais")!.dataset.act).toBe("conectar-sempre-ligada");
     expect(d.querySelector(".nvl-mais")?.textContent).toBe("Usar uma máquina suaUma que fique sempre ligada");
@@ -84,12 +84,12 @@ describe("M2/J1/N1 e J2: o cartão-pergunta e a resposta registrada", () => {
   it("sem resposta: título, porquê, os dois botões e a frase de onde (0, 1 e 2+ máquinas, com Trocar só em 2+)", () => {
     const d = cartao(lugar({ continuaSemMac: false }));
     expect(d.querySelector(".nvl-titulo")?.textContent).toBe("Às 3h seu Mac costuma estar desligado");
-    expect(d.querySelector(".nvl-texto")?.textContent).toBe("Para essa rotina rodar, Ada precisa continuar com ele desligado.");
+    expect(d.querySelector(".nvl-texto")?.textContent).toBe("Para essa rotina rodar, a Ada precisa continuar com ele desligado.");
     expect([...d.querySelectorAll(".nvl-bt")].map((b) => [b.textContent, JSON.parse((b as HTMLElement).dataset.mudar!)])).toEqual([["Continuar com o Mac desligado", { continuaSemMac: true }], ["Só com o Mac ligado", { continuaSemMac: false }]]);
-    expect(d.querySelector(".nvl-frase")?.textContent).toBe("Ada continua no nod.");
-    expect(cartao(lugar({ ...uma, continuaSemMac: false })).querySelector(".nvl-frase")?.textContent).toBe("Ada continua na vm-sp, que fica sempre ligada.");
+    expect(d.querySelector(".nvl-frase")?.textContent).toBe("A Ada continua no nod.");
+    expect(cartao(lugar({ ...uma, continuaSemMac: false })).querySelector(".nvl-frase")?.textContent).toBe("A Ada continua na vm-sp, que fica sempre ligada.");
     const varias = cartao(lugar({ ...duas, continuaSemMac: false }));
-    expect(varias.querySelector(".nvl-frase")?.textContent).toBe("Ada continua na vm-sp, onde já trabalha.Trocar");
+    expect(varias.querySelector(".nvl-frase")?.textContent).toBe("A Ada continua na vm-sp, onde ela já trabalha.Trocar");
     expect(varias.querySelector<HTMLElement>(".nvl-trocar")!.dataset).toMatchObject({ act: "nv-lugar-abrir", chave: "cartao:m1" });
   });
 
@@ -110,7 +110,7 @@ describe("M3/K1/K2: o pedido com o Mac desligado", () => {
     const d = cartao(lugar({ continuaSemMac: false, agora: null }));
     expect(d.querySelector(".nvl-texto")?.textContent).toBe("Eu uso o navegador nele. Faço assim que ele ligar, ou agora, se eu puder continuar com ele desligado.");
     expect([...d.querySelectorAll<HTMLElement>(".nvl-bt")].map((b) => [b.textContent, b.dataset.act, b.dataset.turno, b.dataset.resposta])).toEqual([["Fazer agora", "nv-mac-desligado", "t1", "agora"], ["Quando o Mac ligar", "nv-mac-desligado", "t1", "ao_ligar"]]);
-    expect(cartao(lugar({ continuaSemMac: true })).querySelector(".nvl-resposta")?.textContent).toBe("✓Agora Ada continua com o Mac desligadoDesfazer");
+    expect(cartao(lugar({ continuaSemMac: true })).querySelector(".nvl-resposta")?.textContent).toBe("✓Agora a Ada continua com o Mac desligadoDesfazer");
     expect(cartao(lugar({ continuaSemMac: false, agora: null, retomarTurnoId: "t1" })).querySelector(".nvl-resposta")?.textContent).toBe("Faço quando o Mac ligarFazer agora");
     expect(cartao(lugar({ continuaSemMac: false, agora: "no seu Mac" })).textContent).toBe("Seu Mac está desligado. Ele já ligou.");
   });

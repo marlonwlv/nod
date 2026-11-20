@@ -45,9 +45,9 @@ describe("a hora em que o Mac costuma estar desligado (M2/J1)", () => {
     expect(textoDaHora({ h: 3, m: 0 })).toBe("Às 3h");
     expect(textoDaHora({ h: 1, m: 0 })).toBe("À 1h");
     expect(textoDaHora({ h: 22, m: 30 })).toBe("Às 22h30");
-    expect(cartaoDaPergunta("Às 3h", "seu Mac", "Ada")).toEqual({
+    expect(cartaoDaPergunta("Às 3h", "seu Mac", "A Ada")).toEqual({
       titulo: "Às 3h seu Mac costuma estar desligado",
-      texto: "Para essa rotina rodar, Ada precisa continuar com ele desligado.",
+      texto: "Para essa rotina rodar, a Ada precisa continuar com ele desligado.",
       sim: "Continuar com o Mac desligado",
       nao: "Só com o Mac ligado",
     });

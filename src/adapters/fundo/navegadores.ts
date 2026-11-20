@@ -10,7 +10,7 @@ import { motorLe, tipoDoAnexo } from "../../domain/anexo.ts";
 import { classificarAcao, decidirNoNavegador, juntarLiberacoes, perguntaDaAcao, SEM_LIBERACOES, siteLegivel, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
 import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, hostDoSite, itemCasaComHost, MOTIVO_SEM_MAC, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
-import { arquivoDosPassos, campoDoElemento, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
+import { arquivoDosPassos, campoDoElemento, mensagemDoEnsinado, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
 import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, viewportDeQuemAssiste, viewportMudouMuito, type OperacaoControle } from "../../domain/navegador-vista.ts";
@@ -1330,7 +1330,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         const t = await d.repos.navegadorTarefas.criar({ agenteId, nome: nomeFinal, passos: passosDaGravacao(g) });
         if (!t) throw new ErroDeDominio("nao_encontrado");
         const mandar = o.mandarMensagem ?? ((dd: Deps, m: MensagemDaPessoa) => mandarMensagemPadrao(dd, { ...m, ...(o.executor ? { executor: o.executor() } : {}) }));
-        await mandar(d, { agenteId, texto: `Ensinei: ${nomeFinal}.`, arquivo: { nome: nomeDoArquivoDosPassos(g), conteudo: arquivoDosPassos(nomeFinal, g) } });
+        await mandar(d, { agenteId, texto: mensagemDoEnsinado(nomeFinal), arquivo: { nome: nomeDoArquivoDosPassos(g), conteudo: arquivoDosPassos(nomeFinal, g) } });
         return t;
       });
       est.gravacao = null;

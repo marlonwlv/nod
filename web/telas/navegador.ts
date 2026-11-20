@@ -4,7 +4,7 @@ import { htmlBarraDeGravacao, htmlPassosGravados, rotuloDaGravacao } from "../li
 import { esc } from "../lib/escape.ts";
 import { movimentoReduzido } from "../lib/movimento.ts";
 import {
-  alturaDaFolha, aoNome, botNoMeio, CHAVE_LARGURA, comArtigo, deNome, fraseMaiuscula, gravarLargura, htmlAbaDeLugar, htmlAcoesDoPainel, htmlBotaoDoCanto, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, ICONES_NAVEGADOR,
+  alturaDaFolha, aoNome, avisoDaAbaFechada, conversaEstreita, botNoMeio, CHAVE_LARGURA, comArtigo, deNome, fraseMaiuscula, gravarLargura, htmlAbaDeLugar, htmlAcoesDoPainel, htmlBotaoDoCanto, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, ICONES_NAVEGADOR,
   imantar, larguraPadrao, legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, PAINEL_MIN, pontoDoLugar, proximoEncaixe, soltarFecha, soltarFolha,
   estadoDaAbaDeLugar, htmlLugaresFechados, lugarFechadoAMao, tituloDaAbaAtiva, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
 } from "../lib/navegador-vista.ts";
@@ -26,6 +26,8 @@ export type OpcoesNavegadorNaTela = {
   api: () => (OpcoesDaVista["api"] & Partial<Pick<Api, "ensinarNoNavegador">>) | null;
   /** O nome do bot (a vista nunca diz "Ada": diz o nome real). */
   nome: (agenteId: string) => string;
+  /** D1c: o personagem do bot (HTML) no chip do título da tela cheia; sem ele, o chip só com o nome. */
+  avatar?: (agenteId: string) => string;
   /** O bot tem o computador (o lugar "Computador" no seletor). */
   temComputador: (agenteId: string) => boolean;
   /** Abre a tela do computador de hoje (o lugar "Computador"). */
@@ -74,6 +76,8 @@ export const MS_RELOGIO_GRAVACAO = 1_000;
  * projeto, sem passar do ponto; o quique (a curva que passa e volta) só quando a pessoa solta com velocidade.
  */
 export const MS_FOLHA = 320;
+/** D8 (Paper XMX-0): com Reduzir movimento a folha vai sem mola, em 150 ms. */
+export const MS_FOLHA_REDUZIDO = 150;
 export const CURVA_FOLHA = "cubic-bezier(.22, 1, .36, 1)";
 export const CURVA_FOLHA_EMBALO = "cubic-bezier(.32, 1.2, .5, 1)";
 /** A velocidade (px/ms) acima da qual a soltura "tem embalo" (a mesma de soltarFolha). */
@@ -225,6 +229,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   function aplicarLargura(l: number): void {
     largura = l;
     app()?.style.setProperty("--nv-largura", `${Math.round(l)}px`);
+    app()?.classList.toggle("nv-conversa-estreita", conversaEstreita(area(), l));
     alca.setAttribute("aria-valuenow", String(Math.round(l)));
     alca.setAttribute("aria-valuemax", String(Math.round(Math.max(PAINEL_MIN, area() - 420))));
   }
@@ -347,7 +352,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       // O botão do canto volta ao cabeçalho com o painel fechado: o foco que estava no painel volta para ele.
       if (focoNoPainel) document.querySelector<HTMLElement>(`.nv-canto[data-agente="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
     };
-    if (eraModo === "folha") { moverFolha("fechada"); window.setTimeout(terminar, reduzido() ? 0 : MS_FOLHA); aberto = null; return; }
+    if (eraModo === "folha") { moverFolha("fechada"); window.setTimeout(terminar, reduzido() ? MS_FOLHA_REDUZIDO : MS_FOLHA); aberto = null; return; }
     const a = app();
     if (a && !reduzido() && modo() === "lado") {
       a.classList.add("nv-animando", "nv-fechando");
@@ -429,7 +434,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (abaAtiva === agenteId) desativarAba(agenteId);
     o.render();
     // D7 e 5d: some a aba, o bot continua, aviso com Desfazer e ⌘⇧T.
-    if (comAviso) avisar(`Navegador ${deNome(nomeDe(agenteId))} fechado. ${fraseMaiuscula(comArtigo(nomeDe(agenteId)))} continua trabalhando.`, () => reabrirFechada(), "⌘⇧T");
+    if (comAviso) avisar(avisoDaAbaFechada(nomeDe(agenteId)), () => reabrirFechada(), "⌘⇧T");
   }
 
   function reabrirFechada(id = fechadas.at(-1)): void {
@@ -512,14 +517,17 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     animacaoDaFolha?.cancel();
     animacaoDaFolha = null;
     const por = (h: number): void => folha.style.setProperty("--nv-folha-alto", `${Math.round(h)}px`);
-    if (reduzido() || typeof folha.animate !== "function" || Math.abs(para - de) < 1) { por(para); return; }
-    const easing = embalo ? CURVA_FOLHA_EMBALO : CURVA_FOLHA;
+    if (typeof folha.animate !== "function" || Math.abs(para - de) < 1) { por(para); return; }
+    // D8: a mola de 320 ms; com Reduzir movimento, "sem mola, 150 ms" (linear).
+    const rm = reduzido();
+    const duration = rm ? MS_FOLHA_REDUZIDO : MS_FOLHA;
+    const easing = rm ? "linear" : embalo ? CURVA_FOLHA_EMBALO : CURVA_FOLHA;
     if (para > de) {
       por(para);
-      animacaoDaFolha = folha.animate([{ transform: `translateY(${Math.round(para - de)}px)` }, { transform: "none" }], { duration: MS_FOLHA, easing });
+      animacaoDaFolha = folha.animate([{ transform: `translateY(${Math.round(para - de)}px)` }, { transform: "none" }], { duration, easing });
       return;
     }
-    const a = folha.animate([{ transform: "none" }, { transform: `translateY(${Math.round(de - para)}px)` }], { duration: MS_FOLHA, easing, fill: "forwards" });
+    const a = folha.animate([{ transform: "none" }, { transform: `translateY(${Math.round(de - para)}px)` }], { duration, easing, fill: "forwards" });
     animacaoDaFolha = a;
     a.onfinish = () => { por(para); a.cancel(); if (animacaoDaFolha === a) animacaoDaFolha = null; };
   }
@@ -536,7 +544,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       if (v?.controleComPessoa()) { void v.devolver(); avisar(`Devolvido ${aoNome(nomeDe(id))}`, () => abrirPainel(id)); }
       v?.ligar(false);
       aberto = null;
-      window.setTimeout(() => { if (!aberto) mostrarFolha(false); }, reduzido() ? 0 : MS_FOLHA);
+      window.setTimeout(() => { if (!aberto) mostrarFolha(false); }, reduzido() ? MS_FOLHA_REDUZIDO : MS_FOLHA);
     }
   }
 
@@ -580,7 +588,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     dialog.setAttribute("role", "region");
     dialog.setAttribute("aria-labelledby", "nv-tc-titulo");
     if ((window as { nodDesktop?: unknown }).nodDesktop !== undefined) dialog.classList.add("no-mac");
-    dialog.innerHTML = `<header class="ctc-topo nv-tc-topo"><h1 class="ctc-titulo nv-tc-titulo" id="nv-tc-titulo"></h1><div class="nv-tc-lugares"></div><button type="button" class="nv-tc-sair" data-nv-p="sair" aria-keyshortcuts="Meta+Shift+F">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>'}<span>Sair da tela cheia</span></button></header>`
+    dialog.innerHTML = `<header class="ctc-topo nv-tc-topo"><h1 class="ctc-titulo nv-tc-titulo" id="nv-tc-titulo"><span class="nv-tc-avatar" aria-hidden="true">${o.avatar?.(agenteId) ?? ""}</span><span class="nv-tc-titulo-txt"></span></h1><div class="nv-tc-lugares"></div><button type="button" class="nv-tc-sair" data-nv-p="sair" aria-keyshortcuts="Meta+Shift+F">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>'}<span>Sair da tela cheia</span></button></header>`
       + `<div class="nv-grav-topo" hidden></div>`
       + `<div class="nv-tc-meio"><div class="nv-tc-corpo"></div><div class="nv-tc-lado" hidden></div></div>`
       + `<div class="nv-recado"><form class="nv-recado-form" data-nv-form="recado" hidden><input class="nv-recado-input" name="texto" maxlength="2000" autocomplete="off" aria-label="Recado para ${esc(comArtigo(nomeDe(agenteId)))}" placeholder="Recado para ${esc(comArtigo(nomeDe(agenteId)))}…"><button type="submit" class="nv-recado-enviar">Mandar</button></form><button type="button" class="nv-recado-bt" data-nv-p="recado">Recado para ${esc(comArtigo(nomeDe(agenteId)))}</button></div>`;
@@ -625,9 +633,11 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (!telaCheia) return;
     const id = telaCheia.agenteId;
     const d = telaCheia.dialog;
+    // D1c: o chip "● Ada" do Paper; com a D1d, o passo entra no mesmo chip ("Ada · lendo os voos diretos").
     const tit = d.querySelector<HTMLElement>(".nv-tc-titulo")!;
+    const txt = tit.querySelector<HTMLElement>(".nv-tc-titulo-txt")!;
     const texto = legendaDoPasso(nomeDe(id), vistaAtual(id), "tela-cheia");
-    if (tit.textContent !== texto) { tit.textContent = texto; tit.title = texto; }
+    if (txt.textContent !== texto) { txt.textContent = texto; tit.title = texto; }
     const lug = d.querySelector<HTMLElement>(".nv-tc-lugares")!;
     const html = htmlLugares(lugaresDe(id), "navegador", pontoDoLugar(vistaAtual(id)), { escuro: true }).replaceAll('data-nv="', 'data-nv-p="');
     if (lug.innerHTML !== html) lug.innerHTML = html;
@@ -844,7 +854,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       if (!aberto || aberto.lugar === l) return;
       aberto = { ...aberto, lugar: l };
       // D8: trocar de lugar — a pílula branca desliza e a vista faz um fade cruzado de 180 ms.
-      if (!reduzido()) (aberto.modo === "folha" ? folhaCorpo : corpo).animate?.([{ opacity: 0.2 }, { opacity: 1 }], { duration: 180, easing: "ease-out" });
+      // Com Reduzir movimento, "fade 100 ms" (Paper XKT-0): a animação do elemento vale por cima do corte geral do CSS.
+      (aberto.modo === "folha" ? folhaCorpo : corpo).animate?.([{ opacity: 0.2 }, { opacity: 1 }], reduzido() ? { duration: 100, easing: "linear" } : { duration: 180, easing: "ease-out" });
       pintarTopo();
       encaixarVista();
     }
@@ -963,9 +974,9 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     el.innerHTML = `<span>${esc(texto)}</span>${desfazer ? `<button type="button" class="nv-aviso-desfazer">Desfazer${atalho ? `<kbd>${esc(atalho)}</kbd>` : ""}</button>` : ""}`;
     document.body.append(el);
     avisoEl = el;
-    // D8 (reduzir movimento): o aviso aparece e some num fade curto (120/100 ms). O corte geral de animações CSS do app
+    // D8 (reduzir movimento; Paper XMD-0): o aviso aparece e some num fade de 100 ms. O corte geral de animações CSS do app
     // (interface.css) apaga a animação do CSS; a do elemento (Web Animations) vale.
-    if (reduzido()) el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: "linear" });
+    if (reduzido()) el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 100, easing: "linear" });
     let resta = MS_AVISO;
     let desde = Date.now();
     let timer = window.setTimeout(sair, resta);
@@ -1117,6 +1128,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     abaAberta: (agenteId: string): boolean => abasDeLugar.has(agenteId),
     abaAtiva: (agenteId: string): boolean => abaAtiva === agenteId,
     painelAberto: (agenteId: string): boolean => aberto?.agenteId === agenteId && aberto.modo === "painel",
+    /** D6 B: o painel aberto cobre a conversa (janela estreita). */
+    cobrindo: (): boolean => aberto?.modo === "painel" && modo() === "cobre",
     alternar,
     ver,
     abrirPainel,

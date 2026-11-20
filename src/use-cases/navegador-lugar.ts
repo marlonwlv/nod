@@ -1,7 +1,7 @@
 import type { LugarNavegador, MudancaLugarNavegador, PayloadNavegadorLugar, RespostaLugarNavegador } from "../contracts/navegador-do-bot.ts";
 import type { PlataformaMaquina } from "../contracts/ponte.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { avisoForaDoAr, avisoMaquinaSaiu, avisoPrimeiraMaquina, esperaDoNavegador, fraseDaPergunta, fraseDoLugar, horaNoFuso, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type AvisoDeLugar, type EntradaLugar, type EsperaDoNavegador, type ResolucaoLugar } from "../domain/navegador-lugar.ts";
+import { avisoForaDoAr, avisoMaquinaSaiu, avisoPrimeiraMaquina, esperaDoNavegador, fraseDaPergunta, fraseDoLugar, horaNoFuso, maquinaPreferida, resolverLugar, subtituloDoInterruptor, sujeitoDoBot, type AvisoDeLugar, type EntradaLugar, type EsperaDoNavegador, type ResolucaoLugar } from "../domain/navegador-lugar.ts";
 import type { PreferenciasNavegador } from "../repositories/navegador.repo.ts";
 import { autoriaAgente, evento } from "./apoio-l7.ts";
 import type { Deps } from "./tipos.ts";
@@ -97,8 +97,8 @@ export async function painelDoLugar(d: D, agenteId: string, ligadas: readonly Ma
     temApp: e.temApp,
     nomeDoAparelho: e.nomeDoAparelho,
     agora: r.tipo === "roda" ? fraseDoLugar(r.lugar) : null,
-    subtitulo: subtituloDoInterruptor(e, agente.nome),
-    frasePergunta: fraseDaPergunta(e, agente.nome),
+    subtitulo: subtituloDoInterruptor(e, sujeitoDoBot(agente.nome)),
+    frasePergunta: fraseDaPergunta(e, sujeitoDoBot(agente.nome)),
     respondeu: preferencias?.respondidoEm != null,
     retomarTurnoId: preferencias?.retomarTurnoId ?? null,
   };
