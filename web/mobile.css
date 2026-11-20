@@ -897,6 +897,11 @@
   .bt.aprov-fechar { width: 44px; height: 44px; min-height: 44px; margin: -10px -10px -10px auto; }
 }
 
+/* QA 2026-11-17: a chave crua aparece uma vez; copiar e confirmar precisam do alvo móvel inteiro. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .cfg-chave.chave-emitida .bt { min-width: 44px; min-height: 44px; }
+}
+
 /* QA 2026-11-16: filtros e ações do Marketplace tinham só 27–36 px no toque. */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .mkt-filtros .bt, .mkt-atencao .cp-acao, .app-card-actions .bt, .app-card-actions a {
