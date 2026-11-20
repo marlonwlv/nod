@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as esperar } from "node:timers/promises";
-import { ARQUIVOS_DO_MOTOR, ATUALIZACAO_PARADA, motorDiferente, proximoPasso, type Drenagem, type EstadoDaAtualizacao } from "../src/domain/atualizacao-do-motor.ts";
+import { ARQUIVOS_DO_COMPUTADOR, ARQUIVOS_DO_MOTOR, ATUALIZACAO_PARADA, DESTINOS_DO_COMPUTADOR, motorDiferente, proximoPasso, type Drenagem, type EstadoDaAtualizacao } from "../src/domain/atualizacao-do-motor.ts";
 import { log } from "../src/obs/log.ts";
 
 /**
@@ -40,6 +40,15 @@ export async function shaDosArquivos(dir: string): Promise<Record<string, string
   return r;
 }
 
+async function shaDoManifesto(dir: string, manifesto: Readonly<Record<string, string>>, dirComputador: string): Promise<Record<string, string | null>> {
+  const locais = await shaDosArquivos(dir);
+  for (const nome of ARQUIVOS_DO_COMPUTADOR) {
+    if (!(nome in manifesto)) continue;
+    locais[nome] = await readFile(join(dirComputador, DESTINOS_DO_COMPUTADOR[nome])).then((b) => createHash("sha256").update(b).digest("hex"), () => null);
+  }
+  return locais;
+}
+
 /** O servidor de onde o root baixa (gravado na instalação). */
 export const SERVIDOR_DA_INSTALACAO = "/etc/nod-motor/servidor";
 
@@ -65,6 +74,8 @@ export function iniciarAtualizacao(o: {
   url: string;
   /** A pasta dos arquivos do motor em execução (/opt/nod-motor/app). */
   dir: string;
+  /** A pasta dos processos do computador, atualizados junto quando aparecem no manifesto. */
+  dirComputador?: string;
   pastaDoMotor: string;
   turnosRodando: () => number;
   /** ADR-131: dos turnos rodando, os que a pessoa espera agora (pool-lacos `turnosDaPessoa`). */
@@ -100,12 +111,12 @@ export function iniciarAtualizacao(o: {
 
   async function executar(): Promise<void> {
     try {
-      locais ??= await shaDosArquivos(o.dir);
       const r = await buscar(`${o.url}/api/motor/manifesto`, { redirect: "error", signal: AbortSignal.timeout(15_000) }).catch(() => null);
       // Servidor fora ou antigo (sem a rota): fica como está, sem drenar.
       if (!r?.ok) return;
       const manifesto = (await r.json()) as { versao?: string; arquivos?: Record<string, string> };
       if (!manifesto.arquivos) return;
+      locais ??= await shaDoManifesto(o.dir, manifesto.arquivos, o.dirComputador ?? "/opt/nod-motor/computador");
       const diferente = motorDiferente(locais, manifesto.arquivos);
       const p = proximoPasso(estado, { agora: relogio(), diferente, turnosRodando: o.turnosRodando(), turnosDaPessoa: o.turnosDaPessoa() });
       if (p.estado.drenando !== estado.drenando) o.drenar(p.estado.drenando ? "fundo" : false);

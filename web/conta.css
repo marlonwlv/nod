@@ -37,6 +37,9 @@
 .cc-sessoes .cc-meta { color: var(--ink-3); white-space: nowrap; }
 .cc-sessoes .cc-atual { background: var(--surface-selected); }
 .cc-lembrete { background: var(--surface-raised); border-radius: var(--raio-20); padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; font-size: var(--fs-corpo); line-height: 1.5; color: var(--ink); }
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .cc-acoes .bt { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+}
 .cc-lembrete p { margin: 0; }
 .mc-conta { margin: 4px 12px 2px; font-size: var(--fs-corpo-2); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

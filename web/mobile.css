@@ -200,6 +200,7 @@
   .cab-acoes .bt { min-width: 44px; min-height: 44px; padding: 8px 10px; }
   .tela-nova-sala .opcao { min-height: 44px; padding: 6px 0; box-sizing: border-box; }
   .tela-nova-sala [data-act="criar-sala"] { min-height: 44px; }
+  .bot-dialogo .acoes .bt { min-width: 44px; min-height: 44px; }
   /* NOD-381 (protótipo nod-381, aprovado em 2026-10-27): o topo da conversa flutua sobre o chat — o ‹ num círculo de vidro
      à esquerda e a pílula do bot centrada (44 px, avatar 28, nome 15/600 e a presença em 12 px embaixo, sem ponto nem ›).
      Embaixo deles o texto esmaece (--surface sólido até o meio dos botões → transparente em sa+76). Só os botões recebem
@@ -251,6 +252,8 @@
   .bubble { font-size: 15px; }
   .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .bv-cartao,
   .liberar-card { margin-left: 0; max-width: 100%; }
+  .workspace-dialogo button { min-width: 44px; min-height: 44px; }
+  .workspace-dialogo input { min-height: 44px; }
   .bubble pre, .msg-peer pre { max-width: 100%; }
   /* As ações da fala (reagir, responder, reportar e ⋯; ADR-113) só aparecem depois de um toque nela (web/lib/gaveta-bots.ts),
      dentro da coluna, nunca ao lado, com alvos de 44 px: no toque, o ⋯ fica sempre à vista junto das outras. */
@@ -890,4 +893,9 @@
 /* QA 2026-11-17: a chave crua aparece uma vez; copiar e confirmar precisam do alvo móvel inteiro. */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .cfg-chave.chave-emitida .bt { min-width: 44px; min-height: 44px; }
+}
+
+/* QA 2026-11-20: o × que nega e fecha o cartão de aprovação tinha 24 px no toque; ganha 44 px sem mexer no topo do cartão. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .bt.aprov-fechar { width: 44px; height: 44px; min-height: 44px; margin: -10px -10px -10px auto; }
 }

@@ -93,9 +93,9 @@ export const ACOES_BOTS = [
     // NOD-20: restaurar pode trazer de volta a descrição (o prompt do bot): depois de conteúdo de fora, vira cartão.
     lote: { tipo: "restaurar_versao", deFora: () => true },
   },
-  { id: "bots.restaurar", titulo: "Restaurar um bot excluído", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
-  { id: "bots.fixar", titulo: "Fixar um bot no topo", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
-  { id: "bots.ocultar", titulo: "Ocultar um bot da barra", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
+  { id: "bots.restaurar", titulo: "Restaurar um bot excluído", schema: objeto({ bot: BOT }, ["bot"]), risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: VIA, tipoNoLote: "restaurar" }, contrato: CONTRATO }, casoDeUso: "bots.restaurar", lote: { tipo: "restaurar" } },
+  { id: "bots.fixar", titulo: "Fixar um bot no topo", schema: objeto({ bot: BOT, fixado: P.fixado }, ["bot", "fixado"]), risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: VIA, tipoNoLote: "fixar" }, contrato: CONTRATO }, casoDeUso: "bots.fixar", lote: { tipo: "fixar" } },
+  { id: "bots.ocultar", titulo: "Ocultar um bot da barra", schema: objeto({ bot: BOT, oculto: P.oculto }, ["bot", "oculto"]), risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: VIA, tipoNoLote: "ocultar" }, contrato: CONTRATO }, casoDeUso: "bots.ocultar", lote: { tipo: "ocultar" } },
   { id: "bots.definir_inteligencia", titulo: "Escolher a IA, o modelo e o raciocínio de um bot", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "bots.decidir_troca_de_ia", titulo: "Decidir o aviso de troca de IA de um bot", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-400" } },
   { id: "bots.mudar_voz", titulo: "Escolher a voz de um bot", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-397" } },

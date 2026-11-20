@@ -196,6 +196,8 @@
   .lc-linha .cl-menu { position: fixed; left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 75%; overflow-y: auto; z-index: 60; }
   .cfg-chave { padding-left: 14px; }
   .cfg-chave dl { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .cfg-chave-form label { width: 100%; }
+  .cfg-chave-form input, .cfg-chave-form .bt { min-height: 44px; }
   .cfg-fb-cab { flex-direction: column; gap: 14px; }
   .cfg-enviar { min-height: 44px; }
   .cfg-maq-bot .lc-seletor { max-width: 150px; }

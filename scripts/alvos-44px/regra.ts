@@ -94,7 +94,7 @@ export const COLETOR = String.raw`function coletar(seletorRaiz) {
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return false;
     const cs = getComputedStyle(el);
-    return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.05 && !el.closest("[hidden],[inert],[aria-hidden=true]") && !recortado(el, r);
+    return cs.visibility !== "hidden" && cs.display !== "none" && cs.clipPath === "none" && Number(cs.opacity) > 0.05 && !el.closest("[hidden],[inert],[aria-hidden=true]") && !recortado(el, r);
   };
   const nome = (el) => {
     const partes = [el.tagName.toLowerCase()];

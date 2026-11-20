@@ -228,10 +228,20 @@ export const excluirRotinaPeloAgente: CasoNod<Deps, "excluir_rotina"> = async (d
   try {
     const atual = await rotinaDoAgente(deps, input.agenteId, input.rotina_id);
     const resumo = quandoDaRotina(atual);
-    const payload: PayloadPropostaRotinaExclusao = { kind: "rotina_exclusao", rotinaId: atual.id, resumo, instrucao: atual.instrucao, revisao: revisaoAtual(atual) };
-    const { proposta, events } = await propor(deps, input, payload, `Exclusão de rotina proposta: ${resumo} — ${atual.instrucao}`);
+    const revisao = revisaoAtual(atual);
     // ADR-059: excluir é o "apagar" da rotina — o automático só confirma quando a pessoa pediu na conversa.
     const porRegra = await confirmacaoPeloModo(deps, input, { arriscada: true });
+    // QA r102: pedir de novo com o card ainda aberto (o bot repete a chamada) devolve o MESMO card, como em executar_rotina.
+    // Antes nascia um segundo "Excluir rotina"; confirmado o primeiro, o outro seguia pendente para uma rotina já excluída.
+    if (!porRegra) {
+      for (const p of await deps.repos.propostas.pendentesDaConversa(input.conversaId)) {
+        if (p.payload.kind !== "rotina_exclusao" || p.payload.rotinaId !== atual.id || p.payload.revisao !== revisao) continue;
+        const decisao = await deps.repos.decisoes.buscar(p.id);
+        if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { data: { proposta_id: p.id, resumo } };
+      }
+    }
+    const payload: PayloadPropostaRotinaExclusao = { kind: "rotina_exclusao", rotinaId: atual.id, resumo, instrucao: atual.instrucao, revisao };
+    const { proposta, events } = await propor(deps, input, payload, `Exclusão de rotina proposta: ${resumo} — ${atual.instrucao}`);
     if (porRegra) {
       const aplicada = await aplicarExclusaoRotina(deps, { propostaId: proposta.id, porRegra });
       if (aplicada.data.obsoleta) return obsoleta(events, aplicada.events);

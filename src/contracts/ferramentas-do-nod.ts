@@ -15,7 +15,7 @@ import type { ModoAprovacao } from "./agente.ts";
 /** definido em 2026-10-07: um pedido do Nod mexe em até 20 bots — acima disso, é melhor ele dividir e a pessoa ver. */
 export const MAX_ACOES_LOTE = 20;
 
-export const TIPOS_ACAO_LOTE = ["criar", "duplicar", "editar", "mover", "excluir", "criar_rotina", "dar_acesso", "mudar_modo", "restaurar_versao", "excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"] as const;
+export const TIPOS_ACAO_LOTE = ["criar", "duplicar", "editar", "mover", "excluir", "restaurar", "fixar", "ocultar", "criar_rotina", "dar_acesso", "mudar_modo", "restaurar_versao", "excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"] as const;
 /** O que só outra ferramenta põe no card: excluir_time (gerir_times, NOD-437) os de acesso em lote (gerir_acessos, ADA-241) e remover_computador (só a ferramenta remover_computador, ADA-245). */
 const SO_DE_OUTRA_FERRAMENTA: ReadonlySet<string> = new Set(["excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"]);
 /** NOD-437: o que o gerir_bots aceita — o lote sem o que só outra ferramenta põe no card. */
@@ -29,7 +29,7 @@ export const FERRAMENTAS_DO_NOD = {
   gerir_bots: {
     type: "object",
     description:
-      "Muda vários bots da pessoa de uma vez, na ordem: criar, duplicar, editar, mover de time, excluir, criar rotina, dar acesso a um app já conectado, mudar o modo de aprovação e restaurar uma versão antiga do perfil (ver_colegas com o agente lista as últimas versões e o número de cada uma; se falhar com versao_redigida, um segredo sumiria: só a pessoa decide isso, no Histórico do bot). Uma chamada só por pedido. O seu modo decide: o que precisa da pessoa vira UM card com as ações marcáveis; o resto é feito na hora. Para usar um bot criado ou duplicado no mesmo pedido, dê a ele um ref e aponte as ações seguintes para \"@ref\". O bot criado nasce com o acesso padrão de cada app (Apps > Quem pode usar); para tirar o acesso de vários bots ou mudar esse padrão, use gerir_acessos.",
+      "Muda vários bots da pessoa de uma vez, na ordem: criar, duplicar, editar, mover de time, excluir, restaurar, fixar, ocultar, criar rotina, dar acesso a um app já conectado, mudar o modo de aprovação e restaurar uma versão antiga do perfil (ver_colegas com o agente lista as últimas versões e o número de cada uma; se falhar com versao_redigida, um segredo sumiria: só a pessoa decide isso, no Histórico do bot). Uma chamada só por pedido. O seu modo decide: o que precisa da pessoa vira UM card com as ações marcáveis; o resto é feito na hora. Para usar um bot criado ou duplicado no mesmo pedido, dê a ele um ref e aponte as ações seguintes para \"@ref\". O bot criado nasce com o acesso padrão de cada app (Apps > Quem pode usar); para tirar o acesso de vários bots ou mudar esse padrão, use gerir_acessos.",
     properties: {
       resumo: { type: "string", description: "O pedido em uma frase, como a pessoa vai ler no card.", minLength: 1, maxLength: 200 },
       acoes: {
@@ -57,6 +57,8 @@ export const FERRAMENTAS_DO_NOD = {
             nivel: { type: "string", enum: ["leitura", "escrita"], description: "dar_acesso." },
             modo: { type: "string", enum: ["manual", "automatico", "total"], description: "mudar_modo. \"total\" (Ignorar todas as aprovações) sempre espera a pessoa num card." },
             versao: { type: "integer", description: "restaurar_versao: o número (a partir de 1) da versão do perfil a restaurar (o Histórico do perfil do bot). Vira uma versão nova." },
+            fixado: { type: "boolean", description: "fixar: true fixa no topo; false desafixa." },
+            oculto: { type: "boolean", description: "ocultar: true tira da barra lateral; false volta a mostrar." },
           },
           required: ["tipo"],
           additionalProperties: false,
@@ -106,6 +108,8 @@ export type AcaoLote = {
   nivel?: "leitura" | "escrita";
   modo?: ModoAprovacao;
   versao?: number;
+  fixado?: boolean;
+  oculto?: boolean;
   /** NOD-437, só em excluir_time (o gerir_times monta): o time e os nomes dos bots dele, para o card ler sem consultar. */
   time_id?: string;
   membros?: string[];

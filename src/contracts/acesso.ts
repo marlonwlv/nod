@@ -31,3 +31,14 @@ export type ResultadoPedirAcesso =
     estado: "concedido";
     instrucao: "o acesso foi concedido pela aprovação automática: encerre o turno agora; a tarefa retoma sozinha com a ferramenta nova";
   };
+
+/**
+ * 2026-11-19 (QA-99): slug ou capacidade que o bot errou é recuperável por ele. O 400 genérico só dizia "algum dado
+ * não está certo" e o motivo ficava no log; a recusa diz qual campo, sem card nem concessão. Só o caminho do bot
+ * (pedirAcessoDoBot) a devolve; quem chama pedirAcesso direto continua recebendo o ErroDeDominio.
+ */
+export type RecusaPedirAcesso = {
+  estado: "recusado";
+  erro: "conector_desconhecido" | "capacidade_desconhecida";
+  instrucao: string;
+};

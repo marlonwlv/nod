@@ -16,9 +16,10 @@
  */
 
 import { ARQUIVOS_DO_SHELL_VISUAL, VERSAO_SHELL_VISUAL } from "../../../infra/computador/shell-visual-distribuicao.mjs";
+import { ARQUIVOS_DO_COMPUTADOR as CODIGO_DO_COMPUTADOR, DESTINOS_DO_COMPUTADOR } from "../../domain/atualizacao-do-motor.ts";
 
-/** Os arquivos do computador em dist/motor (servidos em /api/motor/arquivos/<nome> só com a flag). */
-const CODIGO_DO_COMPUTADOR = ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"] as const;
+/** Os arquivos do computador em dist/motor (servidos em /api/motor/arquivos/<nome> só com a flag). O código (supervisor,
+ * tela, terminal) vem do domínio, que o motor também usa para se atualizar; o shell visual vem da distribuição dele. */
 export const ARQUIVOS_DO_COMPUTADOR: readonly string[] = [...CODIGO_DO_COMPUTADOR, ...Object.keys(ARQUIVOS_DO_SHELL_VISUAL)];
 export type ArquivoDoComputador = string;
 
@@ -152,9 +153,7 @@ ${endurecimento(true)}
 
 /** O nome em /opt/nod-motor/computador de cada arquivo baixado. */
 const DESTINO: Record<ArquivoDoComputador, string> = {
-  "computador-supervisor.mjs": "supervisor.mjs",
-  "computador-tela.mjs": "tela.mjs",
-  "computador-terminal.mjs": "terminal.mjs",
+  ...DESTINOS_DO_COMPUTADOR,
   ...Object.fromEntries(Object.entries(ARQUIVOS_DO_SHELL_VISUAL).map(([arquivo, relativo]) => [arquivo, `shell-visual/${VERSAO_SHELL_VISUAL}/${relativo}`])),
 };
 

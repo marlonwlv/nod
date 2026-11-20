@@ -333,6 +333,9 @@ describe("a tela de Rotinas", () => {
     expect(toque).toContain("ag-cel");
     expect(toque).toContain('class="ag-folha" role="dialog" aria-modal="true" tabindex="-1"');
     expect(toque).toContain('data-act="agenda-fechar"');
+    expect(toque).toContain('class="ag-folha-pausar"');
+    expect(toque).toContain('data-act="pausar-rotina-escolhida"');
+    expect(toque).toContain('type="datetime-local"');
     expect(toque).not.toContain('class="ag-det"');
     const menu = renderAgendaRotinas(com({ dto: BASE_DTO, ui: { menu: "r1" } }), true);
     expect(menu).toContain('role="menu"');

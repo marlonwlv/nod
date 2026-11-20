@@ -1,4 +1,4 @@
-import type { ResultadoPedirAcesso } from "./acesso.ts";
+import type { RecusaPedirAcesso, ResultadoPedirAcesso } from "./acesso.ts";
 import type { ContratoFerramentasAcessos } from "./ferramentas-acessos.ts";
 import type { ContratoFerramentasApps } from "./ferramentas-apps.ts";
 import type { ContratoFerramentasArtefato } from "./ferramentas-artefato.ts";
@@ -67,7 +67,7 @@ import type { ContratoFerramentasCartoes } from "./ferramentas-cartoes.ts";
 export type ContratoFerramentaNod = ContratoFerramentasCartoes & ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & ContratoFerramentasDecisoes & {
   lembrar: { args: ArgsLembrar; resultado: ResultadoLembrar };
   atualizar_perfil: { args: ArgsAtualizarPerfil; resultado: ResultadoAtualizarPerfil };
-  pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso };
+  pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso | RecusaPedirAcesso };
   criar_rotina: { args: ArgsCriarRotina; resultado: ResultadoCriarRotina };
   listar_rotinas: { args: ArgsListarRotinas; resultado: ResultadoListarRotinas };
   ver_agenda: { args: ArgsVerAgenda; resultado: ResultadoVerAgenda };
