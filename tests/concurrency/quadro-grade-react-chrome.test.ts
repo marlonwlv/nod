@@ -240,4 +240,18 @@ descrever("ADR-180: a grade do quadro em React no Chrome real, arrastando por po
     expect(coluna).not.toBe("revisao");
     expect(escolhido.length).toBeGreaterThan(0);
   }, 60_000);
+
+  it("janela de 720 px (ou zoom de 200%): o filtro por pessoa não esconde quem não coube nem rola de lado", async () => {
+    await montar();
+    for (const w of [720, 900, 1024, 1440]) {
+      await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: w, height: 900, deviceScaleFactor: 1, mobile: false });
+      await esperar(150);
+      const r = await avaliar<{ escondidos: string[]; rola: boolean }>(cdp, `(() => { const p = document.querySelector("#quadro .qm-pes"); const pr = p.getBoundingClientRect();
+        const escondidos = [...p.querySelectorAll(".qm-pes-bt")].filter((b) => { const r = b.getBoundingClientRect(); return r.right > pr.right + 1 || r.bottom > pr.bottom + 1; })
+          .map((b) => b.getAttribute("aria-label") || b.textContent.trim());
+        return { escondidos, rola: p.scrollWidth > p.clientWidth + 1 }; })()`);
+      expect(r, `a ${w} px`).toEqual({ escondidos: [], rola: false });
+    }
+    await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  });
 });
