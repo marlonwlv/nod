@@ -113,6 +113,8 @@ function renderProvedoresContas(estado: Estado): string {
     : "Suas contas de IA numa fila só. Quando uma acaba, o Nod passa para a próxima ligada, na máquina onde o bot trabalha. Arraste para mudar a ordem; desligue a que não deve entrar sozinha.";
   // Tela 19b do Paper: a Nova conta é uma sub-página ("‹ Provedores de IA / Nova conta"), sem o título nem a lista.
   if (estado.contasUi.nova && !filtro && lista.includes('data-form="cl-nova"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-nova">${lista}</section>`;
+  // Jornadas da IA (Paper G2): a conta aberta também é uma sub-página, sem o título nem a lista.
+  if (estado.contasUi.aberta && !filtro && lista.includes('data-pagina="cl-conta"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-conta">${lista}</section>`;
   return `<section class="espaco-secao cfg-secao provedores prov-contas">
       <h2 class="prov-titulo">${pilhaDeAvatares()}Provedores de IA</h2>
       <p class="intro">${intro}</p>

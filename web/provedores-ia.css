@@ -65,3 +65,68 @@
 .cl-np-login .ia-codigo { gap: 8px; }
 .cl-np-login .ia-codigo code { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 8px; font-size: 14px; letter-spacing: .08em; }
 .cl-np-login .ia-codigo .ob-link { height: 28px; padding: 0 10px; border-radius: 8px; background: var(--hover); color: var(--ink); text-decoration: none; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+
+/* Jornadas da IA (Paper G1/G2, 2026-11-19): uma linha por conta — nome e plano, a organização e o resumo das máquinas, o
+   uso empilhado (o rótulo do limite mais apertado e uma linha fina por limite), um estado, o "na fila" e o › que abre a
+   conta. O resto (uso detalhado, máquinas, renomear, remover) mora na conta aberta. */
+.cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 16px 12px 28px minmax(0, 1fr) 132px auto 24px; align-items: center; padding: 10px 14px; }
+.cl-lista .cl-linha.cl-linha-g1 > :is(.cl-alca, .cl-pos) { margin-top: 0; }
+.cl-nome-bt { all: unset; cursor: pointer; border-radius: 4px; }
+.cl-nome-bt:hover b { text-decoration: underline; text-underline-offset: 2px; }
+.cl-nome-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cl-linha-g1 .cl-nome b { white-space: nowrap; }
+.cl-linha-g1 .cl-ident { font-size: 12px; color: var(--ink-3); }
+.cl-uso-col { min-width: 0; }
+.cl-uso-pilha { display: flex; flex-direction: column; gap: 4px; }
+.cl-uso-rot { font-size: 11px; line-height: 14px; color: var(--ink-3); white-space: nowrap; }
+.cl-uso-rot b { font-weight: var(--peso-medio); color: var(--ink); }
+.cl-uso-pilha:is(.f-alerta, .f-limite) .cl-uso-rot, .cl-uso-pilha:is(.f-alerta, .f-limite) .cl-uso-rot b { color: var(--warning); }
+.cl-uso-fios { display: flex; flex-direction: column; gap: 2px; }
+.cl-uso-fio { display: block; height: 3px; border-radius: var(--raio-full); background: var(--hover); overflow: hidden; }
+.cl-uso-fio > span { display: block; height: 100%; background: var(--ink-4); }
+.cl-uso-fio.topo > span { background: var(--ink-2); }
+.cl-uso-fio:is(.f-alerta, .f-limite) > span { background: var(--warning); }
+.cl-lista .cl-linha-g1 .cl-dir { flex-wrap: nowrap; justify-content: flex-end; }
+.cl-abrir-bt { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--raio-full); background: none; color: var(--ink-4); cursor: pointer; }
+.cl-abrir-bt:hover { background: var(--hover); color: var(--ink-2); }
+.cl-abrir-bt svg { width: 14px; height: 14px; }
+.contas-estado.e-aviso { background: var(--warning-soft); color: var(--warning); border-color: var(--warning-line); }
+.contas-estado.e-erro { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-line); }
+.cl-aviso { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--raio-10); background: var(--warning-soft); font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.cl-aviso > i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
+.cl-aviso > span { flex: 1; min-width: 0; }
+.cl-aviso b { color: var(--ink); font-weight: var(--peso-medio); }
+.cl-aviso .ob-link { flex: none; color: var(--ink); font-weight: var(--peso-medio); text-decoration: none; }
+.prov-ordem .cl-seg { margin-right: 8px; }
+
+/* A conta aberta (G2): sub-página com voltar, identidade, Uso, Máquinas e as ações. */
+.cl-conta-pag { display: flex; flex-direction: column; gap: 20px; }
+.cl-conta-id { display: flex; align-items: center; gap: 14px; }
+.cl-conta-id .cl-logo.grande { width: 44px; height: 44px; border-radius: 12px; }
+.cl-conta-id .cl-logo.grande svg { width: 24px; height: 24px; }
+.cl-conta-id-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cl-conta-id-txt .cl-nome b { font-size: 20px; line-height: 26px; font-weight: var(--peso-semibold, 600); }
+.cl-conta-id-txt small { color: var(--ink-3); font-size: var(--fs-corpo-2); }
+.cl-conta-fila { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.cl-conta-limite { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--fs-corpo-2); }
+.cl-conta-sec { display: flex; flex-direction: column; gap: 8px; }
+.cl-conta-sec > h3 { margin: 0; font-size: var(--fs-corpo-2); font-weight: 600; color: var(--ink); }
+.cl-conta-sec .cl-uso.cl-uso-linha { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 0; padding: 4px 14px; border: 1px solid var(--borda); border-radius: var(--raio-12, 12px); }
+.cl-conta-sec .cl-uso-linha .cu-jan { padding: 8px 0; gap: 14px; }
+.cl-conta-sec .cl-uso-linha .cu-jan + .cu-jan { border-top: 1px solid var(--borda-sutil); }
+.cl-conta-sec .cl-uso-linha .cu-cab > span { width: 120px; text-transform: none; font-size: var(--fs-corpo-2); color: var(--ink); }
+.cl-conta-sec .cl-uso-linha .cu-barra { flex: 1; width: auto; }
+.cl-conta-sec .cl-uso-linha .cu-sub { display: block; order: 3; width: 150px; margin: 0; text-align: right; font-size: 12px; color: var(--ink-3); }
+.cl-conta-nota { margin: 0; font-size: 12px; color: var(--ink-3); }
+.cl-maq-lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--borda); border-radius: var(--raio-12, 12px); }
+.cl-maq-linha { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.cl-maq-linha + .cl-maq-linha { border-top: 1px solid var(--borda-sutil); }
+.cl-maq-linha > svg { flex: none; width: 15px; height: 15px; color: var(--ink-2); }
+.cl-maq-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cl-maq-txt b { font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); color: var(--ink); }
+.cl-maq-txt small { font-size: 12px; color: var(--ink-3); }
+.cl-maq-dica { font-size: 12px; color: var(--ink-3); }
+.cl-maq-sair { flex: none; font-size: 12px; color: var(--ink-3); text-decoration: none; }
+.cl-conta-acoes { display: flex; align-items: center; gap: 8px; }
+.cl-conta-acoes-sep { flex: 1; }
+.bt.perigo-txt { color: var(--danger); background: none; border-color: transparent; }

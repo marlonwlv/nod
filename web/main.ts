@@ -7360,7 +7360,11 @@ function gatilhoDoDialogo(): string | null {
   // ADA-245: o "Remover o nod deste computador?" abre do "…" da linha; o foco volta para ele.
   const rm = estado.removerUi.dialogo;
   if (rm) return `[data-act="maq-menu"][data-maquina="${CSS.escape(rm.previa.id)}"]`;
-  if (u.confirmar) return `[data-act="cl-menu"][data-id="${CSS.escape(u.confirmar.contaId)}"]`;
+  // Jornadas da IA (Paper G2): o Sair e o Remover moram na conta aberta; o foco volta para o botão que abriu.
+  if (u.confirmar) {
+    const id = CSS.escape(u.confirmar.contaId);
+    return u.confirmar.tipo === "sair" ? `[data-act="cl-sair"][data-id="${id}"][data-maquina="${CSS.escape(u.confirmar.maquinaId)}"]` : `[data-act="cl-remover"][data-id="${id}"]`;
+  }
   if (u.desconectar) return `[data-act="maq-menu"][data-maquina="${CSS.escape(u.desconectar.maquinaId)}"]`;
   // Revisão NOD-92 (item 16): o excluir abre do ⋯ da máquina ou do "Excluir" da VM que falhou ao ser criada.
   const x = estado.nuvem.excluir;
@@ -9270,6 +9274,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADR-108 (R8): o liga/desliga "na fila" de cada conta (a 2ª da mesma IA e a corporativa pedem os termos antes).
   "cl-fila": (el) => { void contasDaPessoa.naFila(el.dataset.id ?? "", el.getAttribute("aria-checked") !== "true"); },
   "cl-filtro": (el) => contasDaPessoa.filtro(el.dataset.maquina || null),
+  "cl-abrir": (el) => contasDaPessoa.abrirConta(el.dataset.id ?? null),
+  "cl-fechar-conta": () => contasDaPessoa.abrirConta(null),
+  "cl-pendentes": (el) => contasDaPessoa.pendentes(el.dataset.valor === "1"),
   "cl-gerenciar": (el) => { dispatch({ tipo: "contas-ui", mudanca: { maquinaMenu: null } }); abrirEspaco("conexao"); contasDaPessoa.filtro(el.dataset.maquina || null); },
   "cl-login-cancelar": (el) => contasDaPessoa.cancelarLogin(el.dataset.login ?? ""),
   "cl-login-fechar": (el) => contasDaPessoa.fecharLogin(el.dataset.login ?? ""),

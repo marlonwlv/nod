@@ -130,3 +130,22 @@ export function usoDaConta(c: ContaIa, x: ContextoDoUso): string {
   const dica = [q.cincoHoras?.renovaEm ? `5 h: renova ${quandoRenova(q.cincoHoras.renovaEm, x.agora)}` : "", q.semana?.renovaEm ? `Semana: renova ${quandoRenova(q.semana.renovaEm, x.agora)}` : "", `medido ${ha(q.medidoEm, x.agora)}${onde ? ` no ${onde}` : ""}${velho ? " · pode ter mudado" : ""}`].filter(Boolean).join(" · ");
   return `<div class="cl-uso cl-uso-linha" title="${esc(dica)}">${janelas}</div>${velho ? pe : ""}${fila}`;
 }
+
+/**
+ * Jornadas da IA (Paper G1, 2026-11-19): o uso na linha da conta, enxuto para qualquer número de limites. O rótulo diz só
+ * o limite mais apertado ("semana 51%"); cada limite vira uma linha fina embaixo, sem texto, a mais apertada primeiro.
+ * Os detalhes (quando renova, quando foi medido) ficam na conta aberta. `cota` ausente ou nula = nada.
+ */
+export function usoCompacto(c: ContaIa): string {
+  const q = c.cota;
+  if (!q) return "";
+  const janelas = [{ nome: "5 h", falado: "5 horas", j: q.cincoHoras }, { nome: "semana", falado: "semana", j: q.semana }]
+    .filter((x): x is { nome: string; falado: string; j: JanelaDoPlano } => x.j !== null)
+    .sort((a, b) => b.j.utilizacao - a.j.utilizacao);
+  const [topo] = janelas;
+  if (!topo) return "";
+  const faixa = faixaDaJanela(topo.j.utilizacao);
+  const falado = janelas.map((x) => `${x.falado}: ${pctUsado(x.j.utilizacao)}% usado`).join("; ");
+  const barras = janelas.map((x, i) => `<span class="cl-uso-fio${i === 0 ? " topo" : ""} f-${faixaDaJanela(x.j.utilizacao)}"><span style="width:${pctUsado(x.j.utilizacao)}%"></span></span>`).join("");
+  return `<div class="cl-uso-pilha f-${faixa}" role="img" aria-label="${esc(falado)}"><span class="cl-uso-rot" aria-hidden="true">${esc(topo.nome)} <b>${pctUsado(topo.j.utilizacao)}%</b></span><span class="cl-uso-fios" aria-hidden="true">${barras}</span></div>`;
+}

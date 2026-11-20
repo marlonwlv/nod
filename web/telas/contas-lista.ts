@@ -9,14 +9,14 @@ import { VIVO } from "../lib/copiar.ts";
 import { comandoDoTerminal, fraseDaAtualizacao } from "../lib/atualizacao-ia.ts";
 import { logoDaIa, PROVEDOR } from "./cartao-ia.ts";
 import { planoNaTela } from "./contas-ia.ts";
-import { quandoNaTela, usoDaConta } from "./uso-da-conta.ts";
+import { quandoNaTela, usoCompacto, usoDaConta } from "./uso-da-conta.ts";
 
 /**
  * Seu espaço › Provedores de IA, a lista única (definido em 2026-10-13, ADR-102; protótipos G1 e CM1-A aprovados pelo
  * Marlon). Uma linha por conta, sem agrupar por provedor, na ordem de uso (arrasta-se pela alça; a ordem vai a
  * `PUT contas-ia/ordem`). Cada linha: o logo, "Claude · apelido", o plano, o selo Corporativa, o e-mail e a organização
  * (do servidor desde 2026-10-15, ADR-105, em qualquer máquina) e uma pílula por máquina: logada, ou "Entrar na
- * <máquina>" tracejada. O ⋯ abre Renomear, Detalhes, Sair de cada máquina e Remover de todas. Os cliques
+ * <máquina>" tracejada. A conta abre numa tela própria (Paper G2) com Renomear, Sair de cada máquina e Remover. Os cliques
  * (`data-act="cl-…"`) são de web/lib/contas-da-pessoa.ts; o render não guarda nada.
  * ADR-108 (2026-10-16, canvas Main): a lista é a FILA. Cada linha tem o liga/desliga "na fila" (o opt-in de antes, que
  * era só da corporativa, agora vale para toda conta) e o "Perguntar antes / Trocar sozinho" saiu: no lugar, as três
@@ -55,9 +55,13 @@ export type UiContas = {
   desconectar: { maquinaId: string; sair: boolean } | null;
   /** Dentro do app do Mac sem a ponte `contas.detalhes` (anterior a 2026-10-13): a tela de antes, com a faixa. */
   appAntigo: boolean;
+  /** Jornadas da IA (Paper G2): a conta aberta na tela própria (uso, máquinas e ações); null = a lista. */
+  aberta?: string | null;
+  /** Jornadas da IA (Paper G1): a lista só com as contas que precisam da pessoa. */
+  pendentes?: boolean;
 };
 
-export const UI_CONTAS_INICIAL: UiContas = { menu: null, renomear: null, detalhe: null, nova: null, confirmar: null, filtro: null, logins: [], terminal: null, nota: null, maquinaMenu: null, maquinaRenomear: null, desconectar: null, appAntigo: false };
+export const UI_CONTAS_INICIAL: UiContas = { menu: null, renomear: null, detalhe: null, nova: null, confirmar: null, filtro: null, logins: [], terminal: null, nota: null, maquinaMenu: null, maquinaRenomear: null, desconectar: null, appAntigo: false, aberta: null, pendentes: false };
 
 export type ContextoContas = {
   contas: ContasIaDto;
@@ -131,26 +135,6 @@ export function contaEmUso(contas: readonly ContaIa[], agora: number, p: { filtr
   return logadas.find((c) => daIa(c.ia) === c) ?? null;
 }
 
-const ICONE_OK_PIL = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
-
-function pilulas(c: ContaIa, x: ContextoContas): string {
-  return x.maquinas.map((m) => {
-    const v = c.maquinas.find((y) => y.maquinaId === m.id);
-    const nome = nomeCurto(m, x.maquinas);
-    const ic = m.plataforma === "darwin" ? ICONE.laptop : ICONE.servidor;
-    // Rodada 3 (tela 19 do Paper): logada é o chip verde "✓ Mac do Marlon" (o nome inteiro da máquina); fora do ar, cinza.
-    if (v?.estado === "pronta") return `<span class="cl-pil ok${m.conectada ? "" : " fora"}" title="${esc(m.conectada ? `Logada no ${m.nome}` : `${m.nome} fora do ar`)}">${ICONE_OK_PIL}${esc(m.nome)}</span>${alvoPendente(c, m)}`;
-    if (!m.conectada) return "";
-    const entrando = x.ui.logins.some((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === c.id);
-    if (entrando) return `<span class="cl-pil tracejada"><span class="ob-gira" aria-hidden="true"></span>Entrando na ${esc(nome)}…</span>`;
-    // O Mac só entra pelo app aberto nele; noutra tela, a pílula explica.
-    const podeEntrar = m.plataforma !== "darwin" || ehEsteMac(m, x);
-    const texto = v?.estado === "sem_login" ? `Entrar de novo na ${nome}` : `Entrar na ${nome}`;
-    return podeEntrar
-      ? `<button type="button" class="cl-pil tracejada" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">${esc(texto)}</button>`
-      : `<span class="cl-pil tracejada mudo">${ic}${esc(`Entre pelo app do nod no ${nome}`)}</span>`;
-  }).join("");
-}
 
 /**
  * NOD-8 J5 (passo 11): na VM, a IA da conta abaixo do piso (o alvo pendente que a máquina anunciou em `iasDetalhe`) ganha
@@ -282,48 +266,11 @@ function blocoDoPreparo(g: LoginNaMaquina, nome: string, id: string, cab: string
   return `<div class="cl-login" data-login="${id}" role="status">${cab}<ol class="cl-passos">${passo1}${passo2}</ol></div>`;
 }
 
-function menu(c: ContaIa, x: ContextoContas): string {
-  const id = esc(c.id);
-  const nomes = (ids: string[]) => ids.map((mid) => { const m = x.maquinas.find((y) => y.id === mid); return m ? nomeCurto(m, x.maquinas) : ""; }).filter(Boolean);
-  const logadas = c.maquinas.filter((v) => v.estado !== "sem_acesso").map((v) => v.maquinaId);
-  const sair = logadas.map((mid) => {
-    const m = x.maquinas.find((y) => y.id === mid);
-    if (!m) return "";
-    const outras = nomes(logadas.filter((o) => o !== mid));
-    return `<button type="button" data-act="cl-sair" data-id="${id}" data-maquina="${esc(mid)}">${ICONE.sair}<span>Sair d${m.plataforma === "darwin" ? "o" : "a"} ${esc(nomeCurto(m, x.maquinas))}<small>${outras.length ? `continua n${outras.length === 1 && x.maquinas.find((y) => y.id === logadas.find((o) => o !== mid))?.plataforma === "darwin" ? "o" : "a"} ${esc(outras.join(", "))}` : "fica sem nenhuma máquina"}</small></span></button>`;
-  }).join("");
-  return `<div class="cl-menu" aria-label="${esc(nomeDaContaNaTela(c))}">
-      <span class="cl-menu-tit">${esc(nomeDaContaNaTela(c))}</span>
-      <button type="button" data-act="cl-renomear" data-id="${id}">${ICONE.lapis}<span>Renomear</span></button>
-      <button type="button" data-act="cl-detalhe" data-id="${id}">${ICONE.info}<span>Detalhes da conta<small>plano, organização e onde ela está logada</small></span></button>
-      ${sair ? `<hr><span class="cl-menu-tit">Máquinas</span>${sair}` : ""}
-      <hr><button type="button" class="perigo" data-act="cl-remover" data-id="${id}">${ICONE.lixo}<span>Remover de todas as máquinas</span></button>
-    </div>`;
-}
-
 /** NOD-12 (protótipo do Gil, quadro 16): de onde vem o número das barras, nos detalhes para não ocupar a linha. */
 const DE_ONDE_VEM_O_USO: Record<ContaIa["ia"], string> = {
   "claude-cli": "O próprio Claude Code informa o uso a cada trabalho. O nod só lê esse número; não pergunta ao provedor nem gasta cota.",
   "codex-cli": "O próprio Codex informa o uso no fim de cada conversa. O nod só lê esse número; não pergunta ao provedor nem gasta cota.",
 };
-
-function detalhes(c: ContaIa, x: ContextoContas, d:{ email: string | null; organizacao: string | null }): string {
-  const maqs = c.maquinas.map((v) => {
-    const m = x.maquinas.find((y) => y.id === v.maquinaId);
-    const estado = v.estado === "pronta" ? "logada" : v.estado === "sem_login" ? "o login venceu" : "sem acesso";
-    return `<li>${esc(m ? nomeCurto(m, x.maquinas) : v.nome)}: ${esc(estado)}</li>`;
-  }).join("");
-  return `<div class="cl-detalhes">
-      <dl>
-        <dt>Provedor</dt><dd>${esc(PROVEDOR[c.ia].nome)}, pelo ${esc(PROVEDOR[c.ia].cli)}</dd>
-        <dt>Plano</dt><dd>${esc(c.plano ? planoNaTela(c.plano) : "o CLI não disse")}${c.corporativa ? " · corporativa" : ""}</dd>
-        ${d.email || d.organizacao ? `<dt>Conta</dt><dd>${esc([d.email, d.organizacao].filter(Boolean).join(" · "))}</dd>` : ""}
-        <dt>Máquinas</dt><dd>${maqs ? `<ul>${maqs}</ul>` : "nenhuma ainda"}</dd>
-        ${c.cota !== undefined && !x.simulacao ? `<dt>Uso do plano</dt><dd>${esc(DE_ONDE_VEM_O_USO[c.ia])}</dd>` : ""}
-      </dl>
-      <button type="button" class="ob-link" data-act="cl-detalhe" data-id="${esc(c.id)}">Fechar detalhes</button>
-    </div>`;
-}
 
 /**
  * definido em 2026-11-17: "Em uso" sem filtro fazia a pessoa achar que a conta servia a todos os bots, e o bot da VM onde
@@ -338,43 +285,111 @@ export function emUsoOnde(c: ContaIa, x: Pick<ContextoContas, "maquinas">): stri
   return `Em uso na ${primeira}${resto.length ? ` e mais ${resto.length}` : ""}`;
 }
 
+/**
+ * Jornadas da IA (Paper G1, 2026-11-19): a conta precisa da pessoa quando está na fila e alguma máquina dela não está
+ * pronta (login vencido, sem acesso) ou quando ainda não entrou em máquina nenhuma.
+ */
+export function precisaDeVoce(c: ContaIa): boolean {
+  return c.entraNaTrocaAutomatica && (c.maquinas.length === 0 || c.maquinas.some((v) => v.estado !== "pronta"));
+}
+
+/**
+ * Um estado por conta (Paper G1): o limite com a hora; sem acesso ou login vencido em todas as máquinas; quantas faltam
+ * entrar; em uso; disponível; fora da fila. A classe dá a cor do chip.
+ */
+export function estadoDaConta(c: ContaIa, x: Pick<ContextoContas, "agora" | "maquinas" | "ui">, usada: string | null): [classe: string, texto: string] {
+  if (noLimite(c, x.agora)) return ["e-limite", `No limite até ${quandoNaTela(c.noLimiteAte!, x.agora)}`];
+  const v = c.maquinas;
+  if (v.length && v.every((m) => m.estado === "sem_acesso")) return ["e-erro", "Sem acesso"];
+  if (v.length && v.every((m) => m.estado === "sem_login")) return ["e-erro", "Login venceu"];
+  const faltam = v.filter((m) => m.estado !== "pronta").length;
+  if (faltam && c.entraNaTrocaAutomatica) return ["e-aviso", `Falta entrar em ${faltam}`];
+  if (c.id === usada) return ["e-uso", x.ui.filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === x.ui.filtro)!, x.maquinas)}` : emUsoOnde(c, x)];
+  return c.entraNaTrocaAutomatica ? ["e-disp", "Disponível"] : ["e-fora", "Fora da fila"];
+}
+
+/** "Leapy · 2 máquinas", "Pessoal · 2 de 3 máquinas": a organização (quando há) e o resumo das máquinas. */
+function metaDaConta(c: ContaIa, d: { organizacao: string | null }): string {
+  const total = c.maquinas.length;
+  const prontas = c.maquinas.filter((v) => v.estado === "pronta").length;
+  const maqs = total === 0 ? "nenhuma máquina ainda" : prontas === total ? `${total} ${total === 1 ? "máquina" : "máquinas"}` : `${prontas} de ${total} máquinas`;
+  return [d.organizacao, maqs].filter(Boolean).join(" · ");
+}
+
 function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null): string {
   const filtro = x.ui.filtro;
   const fora = filtro !== null && !prontaEm(c, filtro);
   const d = identidadeDe(c, x);
   const nome = nomeDaContaNaTela(c);
-  const [classe, estado] = noLimite(c, x.agora)
-    ? ["e-limite", `No limite até ${quandoNaTela(c.noLimiteAte!, x.agora)}`]
-    : c.id === usada ? ["e-uso", filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas)}` : emUsoOnde(c, x)]
-    : c.entraNaTrocaAutomatica ? ["e-disp", "Disponível"] : ["e-fora", "Fora da fila"];
-  const ident = [d?.email, d?.organizacao ?? null, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
-  const renomear = x.ui.renomear === c.id
-    ? `<form class="cl-renomear" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Apelido de ${esc(nome)}" data-cl-autofoco data-manter-foco="cl-renomear"><button type="submit" class="bt pri sm">Salvar</button><button type="button" class="bt sm" data-act="cl-renomear-fechar">Cancelar</button></form>`
-    : "";
+  const [classe, estado] = estadoDaConta(c, x, usada);
   const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id).map((l) => blocoDoLogin(l, x, c)).join("");
   // No filtro, a conta que não está na máquina vira um botão grande (G2-M2).
   const direita = fora && x.maquinas.find((m) => m.id === filtro)?.conectada && !logins
     ? `<button type="button" class="bt sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(filtro!)}">Entrar na ${esc(nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas))}</button>`
-    : classe === "e-limite"
-      // NOD-280: a conta pode ter voltado antes do prazo — "Tentar de novo" limpa o limite e acorda as falas que esperavam.
-      ? `<span class="contas-estado ${classe}">${esc(estado)}</span><button type="button" class="ob-link" data-act="cl-tentar-de-novo" data-id="${esc(c.id)}">Tentar de novo</button>${chaveDaFila(c)}`
-      : `<span class="contas-estado ${classe}">${esc(estado)}</span>${chaveDaFila(c)}`;
-  return `<li class="cl-linha${fora ? " fora" : ""}${logins ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
+    : `<span class="contas-estado ${classe}">${esc(estado)}</span>${chaveDaFila(c)}`;
+  return `<li class="cl-linha cl-linha-g1${fora ? " fora" : ""}${logins ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
       <button type="button" class="cl-alca" data-alca-ordem aria-label="Mover ${esc(nome)} (setas para cima e para baixo)">${ICONE.alca}</button>
       <span class="cl-pos" aria-hidden="true">${pos}</span>
       ${logoDaIa(c.ia, "cl-logo")}
       <div class="cl-corpo">
-        <div class="cl-nome"><b>${esc(nomeDaContaNaTela(c))}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div>
-        <div class="cl-ident">${ICONE.pessoa}<span>${esc(ident)}</span></div>
-        ${x.simulacao ? "" : usoDaConta(c, { agora: x.agora, contas: x.contas.contas, nomeDaMaquina: (id) => { const m = x.maquinas.find((y) => y.id === id); return m ? nomeCurto(m, x.maquinas) : null; } })}
-        ${filtro ? "" : `<div class="cl-maqs">${pilulas(c, x)}</div>`}
-        ${renomear}
-        ${x.ui.detalhe === c.id ? detalhes(c, x, d) : ""}
+        <div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-abrir" data-id="${esc(c.id)}"><b>${esc(nome)}</b></button>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div>
+        <div class="cl-ident"><span>${esc(metaDaConta(c, d))}</span></div>
         ${logins}
       </div>
+      <div class="cl-uso-col">${x.simulacao ? "" : usoCompacto(c)}</div>
       <div class="cl-dir">${direita}</div>
-      <div class="cl-mais"><button type="button" class="cl-mais-bt" data-act="cl-menu" data-id="${esc(c.id)}" aria-expanded="${x.ui.menu === c.id}" aria-label="Mais ações de ${esc(nome)}">${ICONE.pontos}</button>${x.ui.menu === c.id ? menu(c, x) : ""}</div>
+      <div class="cl-mais"><button type="button" class="cl-abrir-bt" data-act="cl-abrir" data-id="${esc(c.id)}" aria-label="Abrir ${esc(nome)}">${ICONE.seta}</button></div>
     </li>`;
+}
+
+/**
+ * Jornadas da IA (Paper G2, 2026-11-19): a conta aberta numa tela própria, sem dropdown — identidade e o "na fila", o uso
+ * com cada limite e quando renova, as máquinas (uma linha cada, com o estado e a ação ali mesmo) e as ações da conta.
+ * O que antes morava no ⋯ (Renomear, Detalhes, Sair de cada máquina, Remover) vem para cá.
+ */
+function linhaDaMaquina(c: ContaIa, m: MaquinaDto, x: ContextoContas): string {
+  const v = c.maquinas.find((y) => y.maquinaId === m.id);
+  const nome = nomeCurto(m, x.maquinas);
+  const ic = m.plataforma === "darwin" ? ICONE.laptop : ICONE.servidor;
+  const entrando = x.ui.logins.some((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === c.id);
+  const podeEntrar = m.plataforma !== "darwin" || ehEsteMac(m, x);
+  const sair = v && v.estado !== "sem_acesso" ? `<button type="button" class="ob-link cl-maq-sair" data-act="cl-sair" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">Sair</button>` : "";
+  let estado = "";
+  let acao = "";
+  if (v?.estado === "pronta") estado = `<span class="contas-estado ${m.conectada ? "e-uso" : "e-fora"}">${m.conectada ? "Pronta" : "Fora do ar"}</span>`;
+  else if (entrando) estado = '<span class="contas-estado e-disp">Entrando…</span>';
+  else if (v?.estado === "sem_acesso") estado = '<span class="contas-estado e-erro">Sem acesso</span>';
+  else if (!m.conectada) estado = '<span class="contas-estado e-fora">Fora do ar</span>';
+  else if (!podeEntrar) estado = `<span class="cl-maq-dica">Entre pelo app do nod no ${esc(nome)}</span>`;
+  else acao = `<button type="button" class="bt pri sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">${v?.estado === "sem_login" ? "Entrar de novo" : "Entrar"}</button>`;
+  const sub = v?.estado === "sem_login" ? "O login saiu desta máquina" : v?.estado === "sem_acesso" ? "A organização desligou o acesso desta conta" : v?.estado === "pronta" ? (m.conectada ? "Logada" : `${m.nome} fora do ar`) : "Ainda não entrou nesta máquina";
+  return `<li class="cl-maq-linha">${ic}<div class="cl-maq-txt"><b>${esc(m.nome)}</b><small>${esc(sub)}</small></div>${alvoPendente(c, m)}${estado}${acao}${sair}</li>`;
+}
+
+export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string | null): string {
+  const d = identidadeDe(c, x);
+  const nome = nomeDaContaNaTela(c);
+  const [classe, estado] = estadoDaConta(c, x, usada);
+  const posicao = x.contas.contas.findIndex((y) => y.id === c.id) + 1;
+  const ident = [d.email, d.organizacao, `${posicao}ª da fila`, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
+  const maquinas = x.maquinas.filter((m) => m.conectada || c.maquinas.some((v) => v.maquinaId === m.id));
+  const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id).map((l) => blocoDoLogin(l, x, c)).join("");
+  const limite = classe === "e-limite"
+    ? `<div class="cl-conta-limite"><span class="contas-estado e-limite">${esc(estado)}</span><span class="mudo">Se a conta voltou antes, tente de novo.</span><button type="button" class="bt sm" data-act="cl-tentar-de-novo" data-id="${esc(c.id)}">Tentar de novo</button></div>`
+    : "";
+  const uso = x.simulacao ? "" : usoDaConta(c, { agora: x.agora, contas: x.contas.contas, nomeDaMaquina: (id) => { const m = x.maquinas.find((y) => y.id === id); return m ? nomeCurto(m, x.maquinas) : null; } });
+  const renomear = x.ui.renomear === c.id
+    ? `<form class="cl-renomear" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Apelido de ${esc(nome)}" data-cl-autofoco data-manter-foco="cl-renomear"><button type="submit" class="bt pri sm">Salvar</button><button type="button" class="bt sm" data-act="cl-renomear-fechar">Cancelar</button></form>`
+    : "";
+  return `<div class="cl-conta-pag" data-pagina="cl-conta" data-id="${esc(c.id)}">
+      <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-fechar-conta" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit">${esc(nome)}</h2></div>
+      <div class="cl-conta-id">${logoDaIa(c.ia, "cl-logo grande")}<div class="cl-conta-id-txt"><div class="cl-nome"><b>${esc(nome)}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div><small>${esc(ident)}</small></div><span class="contas-estado ${classe}">${esc(estado)}</span><label class="cl-conta-fila"><span>Na fila</span>${chaveDaFila(c)}</label></div>
+      ${renomear}
+      ${limite}
+      <section class="cl-conta-sec" aria-label="Uso"><h3>Uso</h3>${uso || '<p class="mudo">O uso aparece depois do primeiro trabalho com esta conta.</p>'}${c.cota !== undefined && !x.simulacao ? `<p class="cl-conta-nota">${esc(DE_ONDE_VEM_O_USO[c.ia])}</p>` : ""}</section>
+      <section class="cl-conta-sec" aria-label="Máquinas"><h3>Máquinas</h3><ul class="cl-maq-lista">${maquinas.map((m) => linhaDaMaquina(c, m, x)).join("") || '<li class="cl-maq-linha mudo">Nenhuma máquina conectada.</li>'}</ul>${logins}</section>
+      <div class="cl-conta-acoes"><button type="button" class="bt sm" data-act="cl-renomear" data-id="${esc(c.id)}">Renomear</button><span class="cl-conta-acoes-sep"></span><button type="button" class="bt sm perigo-txt" data-act="cl-remover" data-id="${esc(c.id)}">Remover conta</button></div>
+    </div>`;
 }
 
 /**
@@ -520,15 +535,17 @@ function confirmacao(x: ContextoContas): string {
   if (q.tipo === "sair") {
     const m = x.maquinas.find((y) => y.id === q.maquinaId);
     const nm = m ? nomeCurto(m, x.maquinas) : "máquina";
+    // "do Mac", "da vm-bots": o artigo segue a máquina (o Sair agora mora na conta aberta, Paper G2).
+    const o = m?.plataforma === "darwin" ? "o" : "a";
     const outrasMaqs = c.maquinas.filter((v) => v.maquinaId !== q.maquinaId && v.estado === "pronta").map((v) => { const o = x.maquinas.find((y) => y.id === v.maquinaId); return o ? nomeCurto(o, x.maquinas) : v.nome; });
     const outrasContas = x.contas.contas.filter((o) => o.id !== c.id && prontaEm(o, q.maquinaId)).map(nomeDaContaNaTela);
     const bots = x.botsNaMaquina(q.maquinaId);
-    titulo = `Sair da ${nome} na ${nm}?`;
-    corpo = `${avisoDasFrentes(x, q.frentes, "sair")}<p>A ${esc(nm)} esquece o login desta conta.${outrasMaqs.length ? ` Na ${esc(outrasMaqs.join(", "))} ela continua.` : ""}</p>
+    titulo = `Sair da ${nome} n${o} ${nm}?`;
+    corpo = `${avisoDasFrentes(x, q.frentes, "sair")}<p>${o.toUpperCase()} ${esc(nm)} esquece o login desta conta.${outrasMaqs.length ? ` Na ${esc(outrasMaqs.join(", "))} ela continua.` : ""}</p>
       ${bots.length ? `<div class="cl-caixa">${outrasContas.length
         ? `Os bots da ${esc(nm)} (${esc(bots.join(", "))}) seguem com as outras contas logadas lá: ${outrasContas.map((o) => `<b>${esc(o)}</b>`).join(" e ")}.`
         : `A ${esc(nm)} fica sem conta de IA: os bots dela (${esc(bots.join(", "))}) esperam até você entrar numa conta lá.`}</div>` : ""}`;
-    botao = `<button type="button" class="bt perigo" data-act="cl-confirmar"${q.frentes === undefined ? " disabled aria-busy=\"true\"" : ""}>Sair da ${esc(nm)}</button>`;
+    botao = `<button type="button" class="bt perigo" data-act="cl-confirmar"${q.frentes === undefined ? " disabled aria-busy=\"true\"" : ""}>Sair d${o} ${esc(nm)}</button>`;
   } else {
     const nomes = c.maquinas.map((v) => { const o = x.maquinas.find((y) => y.id === v.maquinaId); return o ? nomeCurto(o, x.maquinas) : v.nome; });
     titulo = `Remover a ${nome}?`;
@@ -575,13 +592,31 @@ function seletorDeMaquina(x: ContextoContas): string {
   return `<label class="qd-sr" for="cl-maq-sel">Máquina</label><select id="cl-maq-sel" class="cl-maq-sel" data-cl-filtro>${ops.map((o) => `<option value="${esc(o.id)}"${(x.ui.filtro ?? "") === o.id ? " selected" : ""}>${esc(o.nome)}</option>`).join("")}</select>`;
 }
 
+/** "Um login venceu e uma máquina ainda não entrou." — o que há com as contas que precisam da pessoa. */
+function motivoDosPendentes(cs: readonly ContaIa[]): string {
+  const vinc = cs.flatMap((c) => c.maquinas);
+  const partes = [
+    vinc.some((v) => v.estado === "sem_login") ? "login vencido" : "",
+    vinc.some((v) => v.estado === "sem_acesso") ? "acesso perdido" : "",
+    cs.some((c) => c.maquinas.length === 0) ? "conta sem máquina" : "",
+  ].filter(Boolean);
+  return partes.length ? `${partes.join(", ").replace(/^./, (l) => l.toUpperCase())}.` : "";
+}
+
 export function renderListaDeContas(x: ContextoContas): string {
   const filtro = x.ui.filtro ? x.maquinas.find((m) => m.id === x.ui.filtro) ?? null : null;
   // Tela 19b do Paper: com a Nova conta aberta (e uma máquina que receba o login), a página é só ela.
   if (x.ui.nova && !filtro) { const f = formNova(x); if (f.includes('data-form="cl-nova"')) return `${f}${confirmacao(x)}`; }
   const usada = emUso(x);
-  const linhas = x.contas.contas.map((c, i) => linha(c, i + 1, x, usada)).join("");
+  const aberta = x.ui.aberta && !filtro ? x.contas.contas.find((c) => c.id === x.ui.aberta) ?? null : null;
+  if (aberta) return `${renderContaAberta(aberta, x, usada)}${confirmacao(x)}`;
+  const pendentes = filtro ? [] : x.contas.contas.filter(precisaDeVoce);
+  const soPendentes = !!x.ui.pendentes && pendentes.length > 0;
+  const linhas = x.contas.contas.map((c, i) => (soPendentes && !precisaDeVoce(c) ? "" : linha(c, i + 1, x, usada))).join("");
   const n = x.contas.contas.length;
+  const k = pendentes.length;
+  const aviso = k ? `<div class="cl-aviso" role="status"><i aria-hidden="true"></i><span><b>${k === 1 ? "1 conta precisa" : `${k} contas precisam`} de você.</b> ${esc(motivoDosPendentes(pendentes))}</span><button type="button" class="ob-link" data-act="cl-pendentes" data-valor="${soPendentes ? "0" : "1"}">${soPendentes ? "Ver todas" : "Ver"}</button></div>` : "";
+  const segmento = k ? `<div class="segmentado cl-seg" role="group" aria-label="Quais contas"><button type="button" class="seg${soPendentes ? "" : " ativo"}" aria-pressed="${!soPendentes}" data-act="cl-pendentes" data-valor="0">Todas · ${n}</button><button type="button" class="seg${soPendentes ? " ativo" : ""}" aria-pressed="${soPendentes}" data-act="cl-pendentes" data-valor="1">Precisam de você · ${k}</button></div>` : "";
   const abas = filtro
     ? `<div class="cl-filtro"><div class="segmentado" role="group" aria-label="Máquina">${[{ id: "", nome: "Todas as máquinas" }, ...x.maquinas.map((m) => ({ id: m.id, nome: m.plataforma === "darwin" && ehEsteMac(m, x) ? "Este Mac" : nomeCurto(m, x.maquinas) }))].map((o) => `<button type="button" class="seg${(x.ui.filtro ?? "") === o.id ? " ativo" : ""}" aria-pressed="${(x.ui.filtro ?? "") === o.id}" data-act="cl-filtro" data-maquina="${esc(o.id)}">${esc(o.nome)}</button>`).join("")}</div><button type="button" class="ob-link" data-act="secao-espaco" data-secao="maquinas">‹ Voltar para Máquinas</button></div>`
     : "";
@@ -594,8 +629,9 @@ export function renderListaDeContas(x: ContextoContas): string {
     : "";
   const nota = x.ui.nota ? `<p class="cl-nota" role="status">${esc(x.ui.nota)}</p>` : "";
   return `${abas}
+    ${aviso}
     ${vazio}
-    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span class="prov-ordem-titulo">${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span class="prov-ordem-dica">arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
+    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem">${segmento}<span class="prov-ordem-titulo">${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span class="prov-ordem-dica">arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
     <ol class="espaco-cartao cl-lista" data-ordem-lista="contas" aria-label="Suas contas de IA, em ordem de uso">${linhas}${loginsSemConta(x)}</ol>` : ""}
     ${nota}
     ${filtro || (!x.ui.nova && (n > 0 || x.ui.logins.length > 0)) ? "" : formNova(x)}

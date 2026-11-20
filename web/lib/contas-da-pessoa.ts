@@ -174,6 +174,10 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
     renomear(id: string | null): void { d.mudar({ renomear: id, menu: null }); },
     detalhe(id: string): void { d.mudar({ detalhe: d.ui().detalhe === id ? null : id, menu: null }); },
     filtro(maquinaId: string | null): void { d.mudar({ filtro: maquinaId, menu: null }); },
+    /** Jornadas da IA (Paper G2): abre a conta na tela própria; fechar volta à lista. */
+    abrirConta(id: string | null): void { d.mudar({ aberta: id, menu: null, renomear: null, nova: null }); },
+    /** Paper G1: a lista só com as contas que precisam da pessoa. */
+    pendentes(sim: boolean): void { d.mudar({ pendentes: sim }); },
     terminal(loginId: string): void { d.mudar({ terminal: d.ui().terminal === loginId ? null : loginId }); },
 
     async salvarApelido(id: string, apelido: string): Promise<void> {
