@@ -60,6 +60,11 @@ export type DepsCanaisVoz = {
     web(escopo: Escopo, agenteId: string, canal: LadoVivoWs, modo?: { assistir: boolean }): void;
     motor(sessao: string, token: string, canal: LadoVivoWs): boolean;
   };
+  /**
+   * ADR-190: o navegador do bot ao vivo, só da dona (cookie, tenant do caminho, `Origin` do mesmo host); JSON nos dois
+   * sentidos (src/adapters/navegador/vivo.ts). Ausente, o caminho dá 404.
+   */
+  navegadorVivo?: { web(escopo: Escopo, agenteId: string, canal: CanalVoz): void };
   /** Teste: encurta a reconferência da sessão (RECONFERIR_SESSAO_MS). */
   reconferirSessaoMs?: number;
 };
@@ -69,6 +74,7 @@ const CEREBRO = /^\/api\/interno\/voz\/v1\/cerebro$/;
 const DITADO = /^\/api\/t\/([^/]+)\/voz\/v1\/ditado$/;
 const VIVO_WEB = /^\/api\/t\/([^/]+)\/agentes\/([^/]+)\/computador\/vivo$/;
 const VIVO_MOTOR = /^\/api\/maquina\/computador\/vivo\/([0-9a-f]{32})$/;
+const NAVEGADOR_VIVO = /^\/api\/t\/([^/]+)\/agentes\/([^/]+)\/navegador\/vivo$/;
 /**
  * NOD-95 (revisão do PR #599): o que um lado da tela ao vivo pode ter na fila de saída antes de cair. O VNC só manda o
  * que o cliente pede, então isto só enche com um par que parou de ler; aí a sessão fecha em vez de crescer a memória.
@@ -163,7 +169,7 @@ export function lerJson(texto: string): Record<string, unknown> | null {
 
 export type CanaisVoz = { fechar(): Promise<void> };
 
-/** Liga o upgrade dos caminhos (mídia, cérebro, ditado e a tela ao vivo) ao servidor HTTP. Qualquer outro caminho de upgrade é recusado com 404. */
+/** Liga o upgrade dos caminhos (mídia, cérebro, ditado, a tela ao vivo e o navegador do bot) ao servidor HTTP. Qualquer outro caminho de upgrade é recusado com 404. */
 export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MENSAGEM_MAX_BYTES, perMessageDeflate: false });
 
@@ -207,6 +213,25 @@ export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz 
           ws.on("error", (e) => log("aviso", "computador_vivo_erro_socket", { erro: e.name }));
           const assistir = new URL(req.url ?? "/", "http://127.0.0.1").searchParams.get("modo") === "assistir";
           vivo.web(escopo, agenteId, ladoDeSocket(ws), { assistir });
+        });
+      });
+      return;
+    }
+    // ADR-190: o navegador do bot ao vivo — as três conferências da mídia; a dona do bot, o canal confere.
+    const navegadorVivo = NAVEGADOR_VIVO.exec(caminho);
+    if (navegadorVivo) {
+      if (!deps.navegadorVivo) return recusar(socket, 404, caminho);
+      const vivo = deps.navegadorVivo;
+      const agenteId = decodificar(navegadorVivo[2]!);
+      if (agenteId === null || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agenteId)) return recusar(socket, 404, caminho);
+      void Promise.resolve().then(() => deps.resolverEscopo(req)).catch(() => null).then((escopo) => {
+        if (!escopo) return recusar(socket, 401, caminho);
+        if (escopo.tenantId !== navegadorVivo[1]) return recusar(socket, 404, caminho);
+        if (!origemDoMesmoHost(req)) return recusar(socket, 403, caminho);
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          vigiarSessao(ws, req, escopo);
+          ws.on("error", (e) => log("aviso", "navegador_vivo_erro_socket", { erro: e.name }));
+          vivo.web(escopo, agenteId, canalDeSocket(ws));
         });
       });
       return;
