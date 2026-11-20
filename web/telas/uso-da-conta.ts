@@ -133,13 +133,19 @@ export function usoDaConta(c: ContaIa, x: ContextoDoUso): string {
 
 /**
  * Jornadas da IA (Paper G1, 2026-11-19): o uso na linha da conta, enxuto para qualquer número de limites. O rótulo diz só
- * o limite mais apertado ("semana 51%"); cada limite vira uma linha fina embaixo, sem texto, a mais apertada primeiro.
+ * o limite mais apertado ("semana 51%"); cada limite vira uma linha fina embaixo, sem texto, a mais apertada primeiro
+ * (a que renovou desde a leitura fica vazia, não some).
  * Os detalhes (quando renova, quando foi medido) ficam na conta aberta. `cota` ausente ou nula = nada.
  */
 export function usoCompacto(c: ContaIa): string {
   const q = c.cota;
   if (!q) return "";
-  const janelas = [{ nome: "5 h", falado: "5 horas", j: q.cincoHoras }, { nome: "semana", falado: "semana", j: q.semana }]
+  // A janela que renovou desde a leitura continua na linha, vazia: o limite existe, só não foi usado de novo ainda.
+  const renovada = (t: number | null | undefined): JanelaDoPlano | null => (t ? { utilizacao: 0, renovaEm: null } : null);
+  const janelas = [
+    { nome: "5 h", falado: "5 horas", j: q.cincoHoras ?? renovada(q.renovou?.cincoHoras) },
+    { nome: "semana", falado: "semana", j: q.semana ?? renovada(q.renovou?.semana) },
+  ]
     .filter((x): x is { nome: string; falado: string; j: JanelaDoPlano } => x.j !== null)
     .sort((a, b) => b.j.utilizacao - a.j.utilizacao);
   const [topo] = janelas;

@@ -656,6 +656,17 @@ describe("controlador da lista (ADR-102)", () => {
 });
 
 describe("o uso de cada conta na lista (NOD-302 CA12; NOD-12)", () => {
+  it("Paper G1: a janela que renovou desde a leitura fica na linha como um fio vazio, não some", () => {
+    const comCota = { ...CONTAS, contas: [
+      { ...PESSOAL, cota: { cincoHoras: null, semana: { utilizacao: 0.74, renovaEm: AGORA + 86_400_000 }, renovou: { cincoHoras: AGORA - 3_600_000, semana: null }, situacao: "livre" as const, voltaEm: null, medidoEm: AGORA - 5 * 3_600_000 } },
+    ] };
+    const lista = renderListaDeContas(ctx({ contas: comCota }));
+    expect(lista).toContain("semana <b>74%</b>");
+    expect(lista).toContain('aria-label="semana: 74% usado; 5 horas: 0% usado"');
+    expect(lista.match(/class="cl-uso-fio[ "]/g)).toHaveLength(2);
+    expect(lista).toContain('<span style="width:0%"></span>');
+  });
+
   it("Paper G1: a linha mostra o limite mais apertado e um fio por limite; a conta aberta, as barras de 5 h e da semana; sem `cota` nada", () => {
     const volta = AGORA + 2 * 3_600_000;
     const comCota = { ...CONTAS, contas: [
