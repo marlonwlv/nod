@@ -201,7 +201,7 @@
    fornecedor ("Claude ·") fica fixo na frente; o campo cresce com o texto e o texto não sai do lugar ao focar. */
 .cl-conta-pag .cl-nome { gap: 6px; }
 .cl-conta-pag .cl-nome-prov { font-size: 20px; line-height: 26px; font-weight: 600; color: var(--ink); }
-.cl-conta-pag .cl-nome-campo { height: 26px; min-width: 6ch; max-width: 320px; margin: 0 0 0 -4px; padding: 0 4px; font-size: 20px; line-height: 26px; font-weight: 600; field-sizing: content; }
+.cl-conta-pag .cl-nome-campo { height: 26px; min-width: 2ch; max-width: 320px; margin: 0 0 0 -4px; padding: 0 4px; font-size: 20px; line-height: 26px; font-weight: 600; field-sizing: content; }
 .cl-remover-link { margin-left: auto; color: var(--danger); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); text-decoration: none; }
 .cl-remover-link:hover { text-decoration: underline; }
 /* A1/A1b/A2: os estados à direita da máquina numa linha (o `.cl-maq span` de navegacao.css os empilhava). */
