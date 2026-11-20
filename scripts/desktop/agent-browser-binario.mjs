@@ -31,7 +31,7 @@ for (const arch of archs) {
     const x = tgz ? spawnSync("tar", ["-xzf", join(temporario, tgz), "-C", temporario], { encoding: "utf8" }) : null;
     origem = join(temporario, "package", "bin", "agent-browser");
     if (!x || x.status !== 0 || !existsSync(origem)) {
-      console.warn(`agent-browser ${versao} para darwin-${arch} não veio (sem rede?): o app dessa arquitetura sai sem o navegador do bot.`);
+      process.stderr.write(`agent-browser ${versao} para darwin-${arch} não veio (sem rede?): o app dessa arquitetura sai sem o navegador do bot.\n`);
       rmSync(temporario, { recursive: true, force: true });
       continue;
     }
@@ -39,5 +39,5 @@ for (const arch of archs) {
   copyFileSync(origem, join(destino, "agent-browser"));
   chmodSync(join(destino, "agent-browser"), 0o755);
   if (temporario) rmSync(temporario, { recursive: true, force: true });
-  console.log(`agent-browser ${versao} darwin-${arch} → ${destino}/agent-browser`);
+  process.stdout.write(`agent-browser ${versao} darwin-${arch} → ${destino}/agent-browser\n`);
 }
