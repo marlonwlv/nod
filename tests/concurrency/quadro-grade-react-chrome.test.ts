@@ -17,7 +17,7 @@ import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts"
  *  - a releitura que chega no meio do arrasto: a grade é o mesmo nó (o desenho grava em volta dela) e o arrasto termina;
  *  - apertar no Responder e arrastar seleciona o texto e não pega o card;
  *  - soltar um arquivo no quadro anexa na pílula (o dnd-kit não come o arrasto nativo de arquivo);
- *  - o "Mover para…" pelo teclado: Enter abre, a seta escolhe, Enter move; Esc fecha e devolve o foco ao botão.
+ *  - o "Mover para…" pelo teclado: Enter abre, a seta escolhe, Enter move (o foco segue o card, QA-146); Esc fecha e devolve o foco ao botão.
  * Sem Chrome na máquina, o teste é pulado; no CI (NOD_QA_EXIGE_CHROME=1) a falta é erro.
  */
 
@@ -234,5 +234,7 @@ descrever("ADR-180: a grade do quadro em React no Chrome real, arrastando por po
     const [, coluna] = await avaliar<[string, string]>(cdp, `window.__mudancas.find((m) => m[0] === "t3")`);
     expect(coluna).not.toBe("revisao");
     expect(escolhido.length).toBeGreaterThan(0);
+    // QA-146: o foco segue o card até a coluna nova (antes caía no <body> e o Tab recomeçava do topo da página).
+    await ate(`document.activeElement === document.querySelector('#quadro section.qd-col[data-coluna="${coluna}"] li.qd-card[data-tarefa="t3"] .rx-qd-mover')`);
   }, 60_000);
 });
