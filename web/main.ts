@@ -6652,6 +6652,20 @@ let botPedidoNaUrl = modoQuickChat ? botDaUrl(window.location.search) : null;
 let botsNaMesa: string[] = [];
 if (modoQuickChat) void window.nodDesktop?.naMesa?.().then((ids) => { botsNaMesa = ids; assinaturaQuickChat = ""; render(); }).catch(() => undefined);
 let assinaturaQuickChat = "";
+/**
+ * ADR-179 (item 4): o topo do Quick Chat e o avatar da mesa em React (web/react/janelas/), só nessas janelas; até o módulo
+ * chegar, e com `?janelas-react=0`, o desenho por string.
+ */
+let janelasRx: { topo?: (t: import("./react/janelas/quick-chat.tsx").TopoDoQuickChat) => void; avatar?: (a: { bot: { id: string; nome: string }; mascote: string } | null) => void; modulo: typeof import("./react/janelas/quick-chat.tsx") } | null = null;
+const montarNaMesaDoQuick = (id: string): void => { void window.nodDesktop?.montarNaMesa?.(id).then((ok) => { if (ok && !botsNaMesa.includes(id)) botsNaMesa = [...botsNaMesa, id]; assinaturaQuickChat = ""; render(); }); };
+const desmontarDaMesaDoQuick = (id: string): void => { void window.nodDesktop?.desmontarDaMesa?.(id).then(() => { botsNaMesa = botsNaMesa.filter((b) => b !== id); assinaturaQuickChat = ""; render(); }); };
+const escolherBotDoQuick = (id: string): void => {
+  const bot = (estado.frota?.agentes ?? []).find((a) => a.id === id);
+  if (bot) navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+};
+if ((modoQuickChat || modoAvatar) && reactNaRegiao("janelas", window.location.href, guardadoDoNavegador())) {
+  void import("./react/janelas/quick-chat.tsx").then((m) => { janelasRx = { modulo: m }; assinaturaQuickChat = ""; render(); }, () => undefined);
+}
 /** ADR-173: os ajustes do Mac (Configurações › Máquinas); null fora do app do Mac. */
 let ajustesMac: AjustesMac | null = null;
 async function carregarAjustesMac(): Promise<void> {
@@ -6699,7 +6713,17 @@ function pintarQuickChat(): void {
   assinaturaQuickChat = assinatura;
   let topo = document.getElementById("quick-chat-topo");
   if (!topo) { topo = document.createElement("div"); topo.id = "quick-chat-topo"; document.body.prepend(topo); }
-  topo.innerHTML = htmlTopoQuickChat(bots, atual, { pode: Boolean(window.nodDesktop?.montarNaMesa), montado: atual !== null && botsNaMesa.includes(atual) }, doAtual ? htmlMascote(doAtual, "sm") : "");
+  const mesa = { pode: Boolean(window.nodDesktop?.montarNaMesa), montado: atual !== null && botsNaMesa.includes(atual) };
+  const avatar = doAtual ? htmlMascote(doAtual, "sm") : "";
+  if (janelasRx) {
+    janelasRx.topo ??= janelasRx.modulo.criarTopoDoQuickChat(topo, {
+      escolherBot: escolherBotDoQuick, montar: montarNaMesaDoQuick, desmontar: desmontarDaMesaDoQuick,
+      expandir: () => void window.nodDesktop?.quickChatExpandir?.(), fechar: () => void window.nodDesktop?.quickChatEsconder?.(),
+    });
+    janelasRx.topo({ bots, atual, mesa, avatar });
+    return;
+  }
+  topo.innerHTML = htmlTopoQuickChat(bots, atual, mesa, avatar);
 }
 /** `?janela=avatar&bot=<id>`: só o mascote do bot, num fundo transparente. */
 function pintarAvatarDaMesa(): void {
@@ -6710,6 +6734,11 @@ function pintarAvatarDaMesa(): void {
   assinaturaQuickChat = assinatura;
   let raiz = document.getElementById("avatar-mesa");
   if (!raiz) { raiz = document.createElement("div"); raiz.id = "avatar-mesa"; document.body.prepend(raiz); }
+  if (janelasRx) {
+    janelasRx.avatar ??= janelasRx.modulo.criarAvatarDaMesa(raiz, { abrir: (b) => void window.nodDesktop?.quickChatAbrir?.(b), tirar: (b) => void window.nodDesktop?.desmontarDaMesa?.(b) });
+    janelasRx.avatar(bot ? { bot, mascote: htmlMascote(bot, "xl") } : null);
+    return;
+  }
   raiz.innerHTML = bot ? htmlAvatarDaMesa(bot, htmlMascote(bot, "xl")) : "";
 }
 async function capturarParaOComposer(): Promise<void> {
@@ -6729,8 +6758,8 @@ document.addEventListener("click", (ev) => {
   if (alvo.dataset.act === "capturar-tela") void capturarParaOComposer();
   else if (alvo.dataset.act === "avatar-abrir") void ponte?.quickChatAbrir?.(id);
   else if (alvo.dataset.act === "avatar-tirar") void ponte?.desmontarDaMesa?.(id);
-  else if (alvo.dataset.act === "quick-montar") void ponte?.montarNaMesa?.(id).then((ok) => { if (ok && !botsNaMesa.includes(id)) botsNaMesa = [...botsNaMesa, id]; render(); });
-  else if (alvo.dataset.act === "quick-desmontar") void ponte?.desmontarDaMesa?.(id).then(() => { botsNaMesa = botsNaMesa.filter((b) => b !== id); render(); });
+  else if (alvo.dataset.act === "quick-montar") montarNaMesaDoQuick(id);
+  else if (alvo.dataset.act === "quick-desmontar") desmontarDaMesaDoQuick(id);
   else if (alvo.dataset.act === "quick-expandir") void window.nodDesktop?.quickChatExpandir?.();
   else void window.nodDesktop?.quickChatEsconder?.();
 });
@@ -6741,9 +6770,9 @@ document.addEventListener("change", (ev) => {
 });
 document.addEventListener("change", (ev) => {
   const sel = ev.target as HTMLSelectElement;
-  if (!sel.matches?.('select[data-quick="bot"]')) return;
-  const bot = (estado.frota?.agentes ?? []).find((a) => a.id === sel.value);
-  if (bot) navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+  // O do React troca pela prop (onChange): aqui só o desenho por string.
+  if (!sel.matches?.('select[data-quick="bot"]') || janelasRx) return;
+  escolherBotDoQuick(sel.value);
 });
 document.addEventListener("keydown", (ev) => {
   // Esc no Quick Chat esconde a janela, salvo quando outro Esc está em uso (menu, diálogo, sugestão do composer).

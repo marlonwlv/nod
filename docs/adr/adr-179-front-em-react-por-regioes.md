@@ -165,6 +165,11 @@ contagem da janela andam por redesenho a cada segundo (0,6 ms por tique no Chrom
 nó (o conversor). As frases e os botões da rede de segurança viraram dado (`semIaNaTela`, `textoIaVoltou`), que a string
 e o JSX leem — o HTML por string saiu idêntico em 1.155 estados.
 
+**As janelas pequenas do app do Mac** (item 4; 2026-11-19), em JSX (`web/react/janelas/quick-chat.tsx`), com a volta
+`?janelas-react=0`: o topo do Quick Chat (ADR-173: a pílula do bot com o `<select>` nativo por baixo, o alfinete da mesa,
+⤢ e ✕) e o avatar solto na mesa, com o mesmo DOM de `htmlTopoQuickChat` e `htmlAvatarDaMesa` e as ações por prop. O
+módulo só baixa nessas janelas; a assinatura do main segue decidindo quando redesenhar.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

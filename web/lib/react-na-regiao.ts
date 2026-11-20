@@ -7,7 +7,7 @@
  * da ADR-179 ("a região volta ao desenho por string"), sem deploy: desligada, a região segue por `regiao()` como antes e o
  * módulo React nem é baixado.
  */
-export type RegiaoReact = "barra" | "conversa" | "cabecalho" | "detalhes" | "espaco" | "telas" | "composer" | "dialogos" | "ligacao";
+export type RegiaoReact = "barra" | "conversa" | "cabecalho" | "detalhes" | "espaco" | "telas" | "composer" | "dialogos" | "ligacao" | "janelas";
 
 export const chaveGuardada = (nome: RegiaoReact): string => `nod.${nome}.react`;
 
