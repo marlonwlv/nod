@@ -198,7 +198,8 @@ descrever("NOD-442 no Chrome real", () => {
       voce: document.querySelector('#quadro .qd-so-largo [data-id="t2"]').closest(".qd-card").textContent,
       pr: document.querySelector('#quadro .qd-so-largo [data-id="t3"]').closest(".qd-card").textContent,
       meta: document.querySelector("#quadro .qd-conteudo").textContent }))()`);
-    expect(r.cards).toBe(4);
+    // O t4 está no Feito, que começa recolhido mesmo com tarefa (Paper K6-a): ficam os 3 das colunas abertas.
+    expect(r.cards).toBe(3);
     // ADR-162: o card que espera a pessoa fica na coluna dele; 2026-11-10: com o chip com sino (a pergunta está na tarefa).
     expect(r.voce).toContain("Esperando você responder");
     expect(r.pr).toContain("PR #612");

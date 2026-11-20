@@ -1086,7 +1086,26 @@ a.qd-chip:hover { background: var(--surface-raised); }
 .qd-vista > .qd-conteudo:has(.qd-grade) { flex: 1 0 auto; }
 .qd-vista > .qd-conteudo:has(.qd-grade) > .qd-quadro { flex: 1 0 auto; }
 .qd-vista > .qd-conteudo .qd-quadro > .qd-grade { flex: 1 0 auto; min-height: 0; }
-.qd-vista > .qd-conteudo .qd-col-cab > .qd-col-bt { flex: 0 1 auto; min-width: 0; }
+/* O nome da coluna tem a vez: o chip da passagem é que encolhe (fica o mascote e "Prod…"), como no Paper K6-a. */
+.qd-vista > .qd-conteudo .qd-col-cab > .qd-col-bt { flex: 0 0 auto; min-width: 0; max-width: calc(100% - 64px); }
+.qd-vista > .qd-conteudo .qd-col-cab:not(:has(.qd-col-passa-com)) > .qd-col-bt { max-width: 100%; }
+/* As tiras presas à direita (Feito, Cancelado) cobrem a grade que rola por baixo: fundo opaco, senão os cards aparecem. */
+.qd-vista > .qd-conteudo .qd-grade > .qd-col-recolhida.qd-fixa { background: var(--qd-fundo); }
+/* Paper K6-a: o estado do card fica numa linha só, à direita do código, a 11 px ("na fila · 3 min"); o texto inteiro
+   fica no title. Antes ele quebrava em até 3 linhas no canto do card. Como no Paper, quem corta é o line-clamp, sem
+   travar a linha: o aviso da linha 1 segue quebrando (j4-5). */
+.qd-vista > .qd-conteudo .qd-card-l1:not(:has(.qd-aviso)) { flex-wrap: nowrap; }
+.qd-vista > .qd-conteudo .qd-card-l1 > :is(.qd-id, .qm-pri-bt, svg) { flex: none; }
+.qd-vista > .qd-conteudo .qd-card-l1 > :is(.qd-estado, .qd-selo) { flex: 0 1 auto; min-width: 0; margin-left: auto; font-size: var(--fs-legenda); line-height: var(--lh-legenda); }
+.qd-vista > .qd-conteudo .qd-card-l1 > .qd-estado > span:last-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; overflow: hidden; overflow-wrap: anywhere; }
+/* Paper K6-a: o Responder do card bloqueado num campo de 28 com borda e o Enviar num botão cinza de 28, lado a lado.
+   Só com ponteiro fino: no toque valem os alvos de 44 (NOD-420). */
+@media (pointer: fine) {
+  .qd-vista > .qd-conteudo .qd-card-resp { align-items: center; gap: 6px; }
+  .qd-vista > .qd-conteudo .qd-card-resp-in { min-height: 28px; padding: 4px 10px; border: 1px solid var(--borda); border-radius: var(--raio-8); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); resize: none; field-sizing: content; max-height: 120px; }
+  .qd-vista > .qd-conteudo .qd-card-resp-bt { min-height: 28px; height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--raio-8); background: var(--hover); color: var(--ink); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+  .qd-vista > .qd-conteudo .qd-card-resp-bt:hover { background: var(--borda); }
+}
 /* ---- Tela 18c do Paper: o popover da passagem com 378 px, as saídas em linha (rótulo à esquerda, seletor compacto à
    direita), selects de 28 a 36 px com borda fina e os botões em pílula. ---- */
 .qd-vista > .qd-conteudo .qd-pop-passa { width: 378px; box-sizing: border-box; padding: 16px; border-color: var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); box-shadow: var(--sombra-popover); }
