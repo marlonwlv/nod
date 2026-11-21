@@ -745,6 +745,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return m ?? null;
       },
       async travar() {},
+      async travarConteudo() {},
+      async existeIgual(agenteId, tipo, texto) {
+        return doTenant(b.memorias).some((m) => m.agenteId === agenteId && m.tipo === tipo && m.texto === texto);
+      },
     },
 
     // NOD-58: o diário da memória só existe no Postgres (CTE na escrita); aqui, vazio.
