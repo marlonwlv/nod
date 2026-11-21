@@ -1,3 +1,4 @@
+import { htmlRodapeLegal } from "./telas/rodape-legal.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
 import { marcarEstadoDaPagina } from "./lib/estado-da-pagina.ts";
@@ -4439,13 +4440,13 @@ async function abrirDoMenuConta(qual: string): Promise<void> {
 function renderEntrada(): string {
   const m = entrada.modo;
   // NOD-345: a página do link de recuperação vale com ou sem modo lido.
-  if (entrada.redefinir) return `<section class="tela entrar"><h1>nod</h1>${htmlEntradaConta()}</section>`;
+  if (entrada.redefinir) return `<section class="tela entrar"><h1>nod</h1>${htmlEntradaConta()}${htmlRodapeLegal()}</section>`;
   const pedido = pedidoPendente();
   const doMac = pedido ? `<p class="mudo">Depois de entrar, você confirma a conexão do Mac <b>${esc(pedido.nome)}</b>.</p>` : "";
   const recusa = entrada.recusado
     ? `<p class="erro" role="alert">Não foi possível entrar com essa conta. Se ela ainda não tem acesso ao nod, peça para ser cadastrada.</p>`
     : "";
-  if (!m) return `<section class="tela entrar"><h1>nod</h1><p class="mudo">carregando…</p></section>`;
+  if (!m) return `<section class="tela entrar"><h1>nod</h1><p class="mudo">carregando…</p>${htmlRodapeLegal()}</section>`;
   if (entrada.primeiro && m.contas) {
     const p = entrada.primeiro;
     return htmlEntrarPrimeiro({
@@ -4459,12 +4460,12 @@ function renderEntrada(): string {
   }
   if (m.modo === "google") {
     // NOD-345: com contas, quem não é da equipe entra com o e-mail (o Google da equipe continua aqui).
-    return `<section class="tela entrar"><h1>nod</h1><p>Entre com a sua conta Google.</p>${doMac}${recusa}<a class="bt pri" href="${esc(sessaoApi.urlGoogle)}">Entrar com Google</a>${m.contas ? htmlEntradaConta() : ""}</section>`;
+    return `<section class="tela entrar"><h1>nod</h1><p>Entre com a sua conta Google.</p>${doMac}${recusa}<a class="bt pri" href="${esc(sessaoApi.urlGoogle)}">Entrar com Google</a>${m.contas ? htmlEntradaConta() : ""}${htmlRodapeLegal()}</section>`;
   }
   const pessoas = m.pessoas.length
     ? m.pessoas.map((p, i) => botao("entrar", `Entrar como ${esc(p.nome)}`, { classe: i === 0 ? "pri" : undefined, dados: { pessoa: p.id } })).join(" ")
     : '<p class="mudo">Nenhuma pessoa no cadastro. Rode <code>npm run db:seed</code>.</p>';
-  return `<section class="tela entrar"><h1>nod</h1><p>Login de desenvolvimento (só nesta máquina): entre como uma pessoa do cadastro.</p>${pessoas}${m.contas ? htmlEntradaConta() : ""}</section>`;
+  return `<section class="tela entrar"><h1>nod</h1><p>Login de desenvolvimento (só nesta máquina): entre como uma pessoa do cadastro.</p>${pessoas}${m.contas ? htmlEntradaConta() : ""}${htmlRodapeLegal()}</section>`;
 }
 
 /**
