@@ -360,3 +360,47 @@ describeIntegracao("times de bots (NOD-437)", () => {
     });
   });
 });
+
+describeIntegracao("times: o card do excluir aprovado depois que o time mudou (QA r179)", () => {
+  const recibo = async (trx: Tx, conversaId: string) => (await trx<{ texto: string }[]>`select texto from mensagens where conversa_id = ${conversaId} and assunto = 'aprovacao.recibo' order by criado_em desc limit 1`)[0]?.texto;
+
+  it("o time excluído pela tela antes do ok: o recibo diz que já tinha saído, sem código cru nem bots que não se moveram", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, ctx } = await montar(trx);
+      const r = await gerirTimes(d, { ...ctx, resumo: "x", acoes: [{ tipo: "excluir", time: "Produção" }] });
+      if (!r.data.ok || !r.data.decisao_id) throw new Error("sem card");
+      await executar(d, EXECUTORES_TIMES["times.excluir"], { timeId: await idDe(d, "Produção") });
+      await executar(d, decidirLoteDeBots, { decisaoId: r.data.decisao_id, recusar: false });
+      const texto = await recibo(trx, ctx.conversaId);
+      expect(texto).toContain("✗ Excluir o time Produção — não deu certo (o time já tinha sido excluído)");
+      expect(texto).not.toContain("nao_encontrado");
+      expect(texto).not.toContain("foram para Sem time");
+      const proposta = await d.repos.propostas.buscar(r.data.decisao_id);
+      expect(proposta?.payload).toMatchObject({ acoes: [{ estado: "falhou", erro: "o time já tinha sido excluído" }] });
+    });
+  });
+
+  it("dois cards do mesmo time: o segundo ok diz que o time já tinha saído", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, ctx } = await montar(trx);
+      const r1 = await gerirTimes(d, { ...ctx, resumo: "x", acoes: [{ tipo: "excluir", time: "Produção" }] });
+      const r2 = await gerirTimes(d, { ...ctx, resumo: "x", acoes: [{ tipo: "excluir", time: "Produção" }] });
+      if (!r1.data.ok || !r1.data.decisao_id || !r2.data.ok || !r2.data.decisao_id) throw new Error("sem card");
+      await executar(d, decidirLoteDeBots, { decisaoId: r1.data.decisao_id, recusar: false });
+      await executar(d, decidirLoteDeBots, { decisaoId: r2.data.decisao_id, recusar: false });
+      expect(await recibo(trx, ctx.conversaId)).toContain("(o time já tinha sido excluído)");
+    });
+  });
+
+  it("o time renomeado pela tela antes do ok: o recibo usa o nome de agora", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, ctx } = await montar(trx);
+      const r = await gerirTimes(d, { ...ctx, resumo: "x", acoes: [{ tipo: "excluir", time: "Produção" }] });
+      if (!r.data.ok || !r.data.decisao_id) throw new Error("sem card");
+      await executar(d, EXECUTORES_TIMES["times.renomear"], { timeId: await idDe(d, "Produção"), nome: "Vendas" });
+      await executar(d, decidirLoteDeBots, { decisaoId: r.data.decisao_id, recusar: false });
+      expect(await recibo(trx, ctx.conversaId)).toContain("✓ Excluir o time Vendas (Otto e Nara foram para Sem time)");
+      expect(await nomes(d)).toEqual(["", "Produto"]);
+    });
+  });
+});
