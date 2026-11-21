@@ -306,8 +306,8 @@ export function cartaoDoTempoDaFrente(t: TrabalhoDto, agora: number, cor?: strin
 }
 
 function aberturaDaTask(t: TrabalhoDto, estado: Estado): string {
-  const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome ?? "colega";
-  const texto = t.origem === "colega" ? `pedido do ${quem} · a resposta volta para o ${quem}` : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
+  const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome;
+  const texto = t.origem === "colega" ? quem ? `pedido de ${quem} · a resposta volta para ${quem}` : "pedido do colega · a resposta volta para o colega" : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
   return `<div class="time-sep">${esc(hora(t.criadoEm))} · ${esc(texto)}</div>`;
 }
 

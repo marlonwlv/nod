@@ -30,7 +30,7 @@ const doBot = (id: string, criadoEm: number, turno: string): Mensagem => msg(id,
 
 /** Uma execução de rotina sem novidade: a fala do meio ficou gravada (ADR-067) e a do fim foi suprimida (silêncio). */
 const execucaoSilenciosa = (i: number, criadoEm: number): Mensagem[] => [msg(`r${i}`, criadoEm, { turnoId: `tr${i}`, origemTurno: "rotina", trabalhoId: `tb-r${i}`, fimDoTurno: true, texto: "Li o #suporte: nada para o Marlon" })];
-/** O pedido do Chico recebido pela Clarice: o pedido e duas falas do turno de delegação. */
+/** O pedido de Chico recebido pela Clarice: o pedido e duas falas do turno de delegação. */
 const pedidoDoChico = (criadoEm: number): Mensagem[] => [
   msg("k1", criadoEm, { autoria: { ...autoriaBot("chico"), sob_procuracao_de: "p" }, turnoId: "tk", origemTurno: "delegacao", trabalhoId: "tb-k", payload: { kind: "peer_pedido", conversaOrigemId: "c-chico", turnoOrigemId: "t-chico" }, texto: "Clarice, revisa o #505" }),
   msg("k2", criadoEm + MIN, { turnoId: "tk", origemTurno: "delegacao", trabalhoId: "tb-k", texto: "Vou olhar" }),

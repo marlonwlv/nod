@@ -62,7 +62,7 @@ export function tituloCurto(titulo: string): string {
 /** A etiqueta de origem ("de você", "rotina", "pedido do Chico"): a mesma na faixa, na gaveta e em "Todos os trabalhos". */
 export function etiquetaOrigem(t: Pick<TrabalhoDto, "origem" | "pedidoPorNome">): string {
   if (t.origem === "rotina") return "rotina";
-  if (t.origem === "colega") return `pedido do ${t.pedidoPorNome ?? "colega"}`;
+  if (t.origem === "colega") return t.pedidoPorNome ? `pedido de ${t.pedidoPorNome}` : "pedido do colega";
   return "de você";
 }
 
