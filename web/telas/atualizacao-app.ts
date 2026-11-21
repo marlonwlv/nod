@@ -106,9 +106,15 @@ function destaque(t: TelaAtualizacao): string {
   return caixa("O nod está atualizado", `Você usa a ${e.versaoAtual}.`);
 }
 
-/** Configurações › Sobre o nod. `t` null com ponte = carregando; sem ponte = a web no navegador. */
-export function renderSobre(t: TelaAtualizacao | null, temPonte: boolean, agora: number): string {
+/**
+ * Configurações › Sobre o nod. `t` null com ponte = carregando; sem ponte = a web no navegador, ou (`noApp`) um app de
+ * antes da 1.0.0-rc.9, que não passa a versão para a página (2026-11-19: a tela dizia "No navegador" dentro do app).
+ */
+export function renderSobre(t: TelaAtualizacao | null, temPonte: boolean, agora: number, noApp = false): string {
   const topo = `<h2>Sobre o nod</h2><p class="intro">A versão do nod neste computador e como ele se atualiza. O nod baixa as versões novas sozinho; reiniciar é o único passo.</p>`;
+  if (!temPonte && noApp) {
+    return `<section class="espaco-secao cfg-secao cfg-sobre"><h2>Sobre o nod</h2><p class="intro">Este app é de uma versão anterior à 1.0.0-rc.9, que ainda não mostra aqui a versão. No Mac, para atualizar, use o menu nod › Procurar atualizações… e depois Reiniciar para atualizar. Na versão nova, a versão e a atualização aparecem nesta tela.</p><p class="lc-nota">Para ver a versão agora, no Mac: Finder › Aplicativos › nod › Obter Informações.</p></section>`;
+  }
   if (!temPonte) {
     return `<section class="espaco-secao cfg-secao cfg-sobre"><h2>Sobre o nod</h2><p class="intro">No navegador, o nod já está sempre na versão mais nova: ela entra quando a página recarrega. O app do Mac e do Windows mostra aqui a versão dele e como ele se atualiza.</p></section>`;
   }
