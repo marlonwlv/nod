@@ -348,7 +348,8 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await atePedidos(bot.id, 1);
     await falar(bot, `Grave novo. [[tool: pedir_aprovacao ${pedirGravar("substituido-novo")}]] [[texto: pedi novo]]`);
     await atePedidos(bot.id, 1);
-    await ate(`[...document.querySelectorAll("#timeline .cartao-encolhido .ce-resultado")].some((e) => e.textContent === "Sem resposta")`, "o recibo do pedido substituído");
+    // ADR-191 (2026-11-20): o pedido substituído vira a linha cinza no lugar do cartão, "… · não gravado · Pedir de novo".
+    await ate(`[...document.querySelectorAll("#timeline .msg-dispensado .pd-texto")].some((e) => e.textContent.includes("substituido-antigo") && e.textContent.includes("não gravado"))`, "o recibo do pedido substituído");
     expect(await avaliar<number>(cdp, `document.querySelectorAll("#timeline li.decisao.aprov-card[data-decisao]").length`)).toBe(1);
     expect(await existe("#timeline li.aprov-iguais[data-iguais]")).toBe(false);
     expect(gravados().some((l) => l.includes("substituido-antigo"))).toBe(false);

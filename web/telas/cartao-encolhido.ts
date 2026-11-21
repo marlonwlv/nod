@@ -278,7 +278,7 @@ export function pedidoDoRecibo(m: Mensagem): string | null {
 export type LinhaDispensada = { decisaoId: string; icone: "ponto" | "app" | "pagamento"; titulo: string; sufixo: string; acao: string; slug?: string };
 
 /** "Pagar R$ 249,90 na loja" → "não pago": o particípio do verbo do pedido; sem verbo conhecido, "nada rodou". */
-const NAO_FEITO: Readonly<Record<string, string>> = { pagar: "não pago", apagar: "não apagado", excluir: "não excluído", enviar: "não enviado", mandar: "não enviado", publicar: "não publicado", comprar: "não comprado", rodar: "não rodou", executar: "não rodou", criar: "não criado", mover: "não movido", transferir: "não transferido" };
+const NAO_FEITO: Readonly<Record<string, string>> = { pagar: "não pago", apagar: "não apagado", excluir: "não excluído", enviar: "não enviado", mandar: "não enviado", publicar: "não publicado", comprar: "não comprado", rodar: "não rodou", executar: "não rodou", criar: "não criado", gravar: "não gravado", salvar: "não salvo", atualizar: "não atualizado", agendar: "não agendado", mover: "não movido", transferir: "não transferido" };
 
 export function naoFeito(titulo: string): string {
   const verbo = titulo.trim().split(/\s+/u)[0]?.toLocaleLowerCase("pt-BR") ?? "";
