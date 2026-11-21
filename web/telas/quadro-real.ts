@@ -551,19 +551,19 @@ export type ExtrasDaTarefa = {
   vivo?: boolean;
   /** Rodada 4 (tela 18b do Paper): o nome de quem lê (as iniciais do "Você" no "Pedida por"). */
   voceNome?: string | null;
-  /** Rodada 4: quem criou a tarefa (o `criadaPor` dos comentários: "Ada" ou "Você, pela Ada") e os nomes dos bots. */
+  /** Rodada 4: quem criou a tarefa (o `criadaPor` dos comentários: "Ada" ou "Você, via Ada") e os nomes dos bots. */
   criadaPor?: string | null;
   nomesDosBots?: readonly string[];
 };
 
 /**
- * Rodada 4 (tela 18b do Paper): "Pedida por" é quem pediu e, se um bot criou a tarefa no lugar dela, "pela <bot>"
- * ("Você, pela Ada"). Quem pediu vem do `pedidoPorNome` (o quadro de várias pessoas) ou do "X, pela Y" do criadaPor; o bot
+ * Rodada 4 (tela 18b do Paper): "Pedida por" é quem pediu e, se um bot criou a tarefa no lugar dela, "via <bot>"
+ * ("Você, via Ada"). Quem pediu vem do `pedidoPorNome` (o quadro de várias pessoas) ou do "X, via Y" do criadaPor; o bot
  * vem do criadaPor quando ele é um dos bots. Sem quem pediu, a linha não aparece (como antes).
  */
 export function pedidaPor(t: Pick<TarefaDto, "pedidoPorNome">, criadaPor: string | null | undefined, bots: readonly string[] = []): { quem: string; via: string | null; voce: boolean } | null {
   const c = (criadaPor ?? "").trim();
-  const pela = /^(.+), pela (.+)$/.exec(c);
+  const pela = /^(.+), (?:via|pela) (.+)$/.exec(c);
   const bot = pela ? pela[2]!.trim() : c && bots.includes(c) ? c : null;
   const quem = t.pedidoPorNome?.trim() || (pela ? pela[1]!.trim() : "");
   if (!quem) return null;
@@ -652,7 +652,7 @@ export function tarefaAberta(o: { t: TarefaDto; q: QuadroDto; agente: AgenteDoQu
     (aVista.has("prioridade") ? `<dt><label for="qd-t-pri">Prioridade</label></dt><dd>${campoDePrioridade(t)}</dd>` : "") +
     `${propriedadesDeLabelEPrazo(t, o.q, { agora: o.agora ?? Date.now(), fuso: o.fuso ?? fusoDoAparelho(), so: aVista })}` +
     `${extras}<dt>Quadro</dt><dd>${o.projeto ? `${esc(o.projeto)} / ` : ""}${esc(o.q.nome?.trim() || o.q.agenteNome)}${o.q.meta ? ` · ${esc(o.q.meta)}` : ""}</dd>${campoMover}${linear}` +
-    `${pedida ? `<dt>Pedido por</dt><dd><span class="ta-pedida">${anel(pedida.voce ? (o.voceNome ? iniciais(o.voceNome) || "V" : "V") : iniciais(pedida.quem) || "?", pedida.quem)}<span>${esc(pedida.via ? `${pedida.quem}, pela ${pedida.via}` : pedida.quem)}</span></span></dd>` : ""}` +
+    `${pedida ? `<dt>Pedido por</dt><dd><span class="ta-pedida">${anel(pedida.voce ? (o.voceNome ? iniciais(o.voceNome) || "V" : "V") : iniciais(pedida.quem) || "?", pedida.quem)}<span>${esc(pedida.via ? `${pedida.quem}, via ${pedida.via}` : pedida.quem)}</span></span></dd>` : ""}` +
     `${t.branch ? `<dt>Branch</dt><dd><code class="qd-branch">${esc(t.branch)}</code></dd>` : ""}</dl>${maisPropriedade(escondidas, !!o.menuProp)}</section>`;
   const historico = secaoDoHistorico(o.historico);
   const secHistorico = historico ? `<section class="qd-lado-sec ta-lado-sec" data-sec="hist"><h2 class="qd-rotulo"><button type="button" class="ta-sec-tg" data-act="lado-sec" data-sec="hist" aria-expanded="${aberta("hist")}">${SETA_TA(aberta("hist"))}Histórico de campos</button></h2>${aberta("hist") ? historico.replace(/<h2 class="qd-t-sec">Histórico<\/h2>/, "") : ""}</section>` : "";

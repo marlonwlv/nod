@@ -473,10 +473,10 @@ describe("NOD-430: o bot sozinho, quem fez e as candidatas", () => {
   });
   it("quem fez: Você, Você pela Ada, ou só o bot", () => {
     expect(quemFez({ tipo: "pessoa" }, null, null)).toBe("Você");
-    expect(quemFez({ tipo: "agente", agenteId: ADA.id }, "p", "Ada")).toBe("Você, pela Ada");
+    expect(quemFez({ tipo: "agente", agenteId: ADA.id }, "p", "Ada")).toBe("Você, via Ada");
     expect(quemFez({ tipo: "agente", agenteId: ADA.id }, null, "Ada")).toBe("Ada");
     // Merge NOD-430 × NOD-443: quem pediu foi outra pessoa do quadro, não quem lê.
-    expect(quemFez({ tipo: "agente", agenteId: ADA.id }, "p2", "Bia", "Ana")).toBe("Ana, pela Bia");
+    expect(quemFez({ tipo: "agente", agenteId: ADA.id }, "p2", "Bia", "Ana")).toBe("Ana, via Bia");
     expect(quemFez({ tipo: "pessoa" }, "p2", null, "Ana")).toBe("Ana");
   });
   it("título repetido lista até 5 candidatas com código, coluna e responsável, sem o título", () => {

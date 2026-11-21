@@ -346,7 +346,7 @@ export const quadrosCompartilhados: CasoDeUso<Record<string, never>, { quadros: 
 
 /**
  * NOD-443 (D1, D8): o mural de Atividade. Só os lotes que alguém pediu (a tarefa que um bot andou sozinho não entra),
- * agrupados e assinados ("Ana, pela Ada"). Filtros: a pessoa e a tarefa (código).
+ * agrupados e assinados ("Ana, via Ada"). Filtros: a pessoa e a tarefa (código).
  */
 export const muralDoQuadro: CasoDeUso<{ agenteId?: string; quadroId?: string; quadro?: string | null; pessoa?: string; tarefa?: string }, { linhas: LinhaMuralDto[] }> = async (deps, input) => {
   const linhas = await comQuadro(deps, input, async (dd, q, leitor) => {

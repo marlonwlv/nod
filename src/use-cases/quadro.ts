@@ -85,7 +85,7 @@ export type PedidoLote = {
    * a própria dona (pela tela ou por um bot dela).
    */
   pedidoPor?: string;
-  /** NOD-443: o nome do bot de quem participa, pelo qual ela pediu ("Ana, pela Ada"). O escopo da dona não lê o bot dela. */
+  /** NOD-443: o nome do bot de quem participa, pelo qual ela pediu ("Ana, via Ada"). O escopo da dona não lê o bot dela. */
   viaNome?: string | null;
   /**
    * NOD-443 (revisão 2 do PR #628, achado 2): o lote é do bot da dona no turno que o pedido de quem participa abriu (sob a

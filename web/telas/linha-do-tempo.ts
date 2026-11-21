@@ -129,15 +129,15 @@ type Autor = { avatar: string; nome: string; meu: boolean; agenteId: string | nu
 
 export function autorDoComentario(c: ComentarioDto, agente: AgenteDoQuadro, voce?: string | null): Autor {
   if (c.autor.tipo === "linear") return { avatar: anel((c.autorNome ?? "L").slice(0, 1), c.autorNome ?? "Linear", false), nome: `${c.autorNome ?? "Linear"} · no Linear`, meu: false, agenteId: null };
-  // 2026-11-11: quem participa do quadro (pessoa com `pedidoPor`) assina com o nome dele ("Ana, pela Lia"); não é seu.
+  // 2026-11-11: quem participa do quadro (pessoa com `pedidoPor`) assina com o nome dele ("Ana, via Lia"); não é seu.
   if (c.autor.tipo === "pessoa" && c.pedidoPor) return { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Alguém do quadro", false), nome: c.autorNome ?? "Alguém do quadro", meu: false, agenteId: null };
   // Rodada 4 (tela 18b do Paper): "Você" é o anel neutro com as iniciais de quem lê (sem elas, "V").
   if (c.autor.tipo === "pessoa") return { avatar: anel(voce || "V", "Você", false), nome: "Você", meu: true, agenteId: null };
   // ADR-162: a espera que o próprio quadro deixou (o bot parou sem saída, o freio) é do quadro, não de um bot.
   if (c.autor.tipo === "sistema") return { avatar: anel("Q", "Quadro", false), nome: "Quadro", meu: false, agenteId: null };
   const a = agente(c.autor.agenteId) ?? { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Bot", false), nome: c.autorNome ?? "Bot" };
-  // NOD-430: o bot que comentou a pedido da pessoa assina "Você, pela Ada" (e é dela: edita e apaga).
-  return c.pedidoPor ? { avatar: a.avatar, nome: `Você, pela ${a.nome}`, meu: true, agenteId: c.autor.agenteId } : { avatar: a.avatar, nome: a.nome, meu: false, agenteId: c.autor.agenteId };
+  // NOD-430: o bot que comentou a pedido da pessoa assina "Você, via Ada" (e é dela: edita e apaga).
+  return c.pedidoPor ? { avatar: a.avatar, nome: `Você, via ${a.nome}`, meu: true, agenteId: c.autor.agenteId } : { avatar: a.avatar, nome: a.nome, meu: false, agenteId: c.autor.agenteId };
 }
 
 const avatarDoRun = (r: RunDaTarefa, agente: AgenteDoQuadro): { avatar: string; nome: string } =>
@@ -450,9 +450,9 @@ export function linhaDoTempo(d: DadosDaLinha): string {
   type Item = { em: number; html: string; ev?: { id: string; chave: string } };
   const topo: Item[] = eventosDaTarefa(d.t, d.colunas, d.agora, d).map((e) => ({ em: e.em, html: e.html, ev: { id: e.id, chave: e.chave ?? e.id } }));
   // Rodada 4 (tela 18b do Paper): "Quadro · ontem 9:14 / Ada criou a tarefa a partir das notas da call de ontem." Quem
-  // criou é o bot quando foi "Você, pela Ada" (o pedido mora no "Pedida por" da lateral).
+  // criou é o bot quando foi "Você, via Ada" (o pedido mora no "Pedida por" da lateral).
   if (d.criadaPor && d.criadaEm) {
-    const quem = /, pela (.+)$/.exec(d.criadaPor)?.[1] ?? d.criadaPor;
+    const quem = /, (?:via|pela) (.+)$/.exec(d.criadaPor)?.[1] ?? d.criadaPor;
     const resumo = (d.criadaResumo ?? "").trim();
     const oque = /^criou o card\b/i.test(resumo) ? resumo.replace(/^criou/i, "criou") : /^criou a tarefa\b/i.test(resumo) ? resumo.replace(/^criou a tarefa/i, "criou o card") : "criou o card";
     topo.push({ em: d.criadaEm - 1, ev: { id: "criada", chave: "criada" }, html: itemDoQuadro({ em: d.criadaEm, agora: d.agora, texto: esc(frase(`${quem} ${oque}`)) }) });

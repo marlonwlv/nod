@@ -55,7 +55,7 @@ describeIntegracao("quadro com várias pessoas pela rota (NOD-443, revisão 1)",
   };
   const lote = (d: Deps, anfitriaoId: string, ops: OpQuadro[]) => executar(d, aplicarLoteQuadro, { autor: { tipo: "pessoa" }, anfitriaoId, executor: "catcher", ops });
 
-  /** O quadro do Marlon (a Ada anfitriã, T1 da dona e "Da Ana" que a Ana pediu, as duas esperando quem decide). */
+  /** O quadro de Marlon (a Ada anfitriã, T1 da dona e "Da Ana" que a Ana pediu, as duas esperando quem decide). */
   async function montar(trx: Tx) {
     const sufixo = Math.random().toString(36).slice(2, 7);
     const da = await como(trx, ANA);

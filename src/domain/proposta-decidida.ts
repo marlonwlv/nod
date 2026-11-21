@@ -42,7 +42,7 @@ export function tituloDaProposta(p: Pick<Proposta, "payload">): string {
     case "quadro_exclusao":
       return tituloDaExclusaoDoQuadro(c);
     case "assumir_quadro":
-      return `O quadro do ${c.anfitriaoNome} assume a esteira`;
+      return `O quadro de ${c.anfitriaoNome} assume a esteira`;
     // NOD-50: o título do cartão aberto, sem o valor (o payload nunca o tem).
     case "credencial":
       return c.alvo === "github_token" ? "Token do GitHub" : c.alvo === "composio" ? "Chave do Composio do time" : `Chave para ${c.app}`;

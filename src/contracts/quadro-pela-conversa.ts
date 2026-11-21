@@ -4,7 +4,7 @@
  */
 
 /**
- * A Atividade da tarefa aberta (os lotes que a tocaram); `quem` = "Você", "Você, pela Ada" ou o nome do bot.
+ * A Atividade da tarefa aberta (os lotes que a tocaram); `quem` = "Você", "Você, via Ada" ou o nome do bot.
  * `campos` (2026-11-10): o que o lote mudou na prioridade, no prazo e nas labels da tarefa (a linha do tempo mostra como
  * eventos discretos); ausente = nada disso (ou a foto do lote é de antes desses campos).
  */

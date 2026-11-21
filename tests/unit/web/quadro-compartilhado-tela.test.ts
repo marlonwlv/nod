@@ -36,14 +36,14 @@ describe("a tela da participante", () => {
 
   it("mostra o quadro da dona e nada do que é só dela (pessoas, modo, colunas, meta, PR, GitHub)", () => {
     const h = html(vista(q([minha, daAna], { avisoGithub: "x" } as Partial<QuadroDto>)));
-    expect(h).toContain("Quadro do Marlon");
+    expect(h).toContain("Quadro de Marlon");
     expect(h).toContain("compartilhado com você");
     expect(h).toContain("Lançar o app");
     for (const proibido of ["qc-pessoas", "qc-modo", "qc-colunas", "qc-meta", "pr_url", "prUrl", "avisoGithub", "qd-aviso-gh", "data-act=\"qc-", "arrastavel", "draggable"]) {
       expect(h, proibido).not.toContain(proibido);
     }
     expect(h).toContain('data-form="qcp-pedir"');
-    expect(h).toContain("Pedir algo ao quadro do Marlon");
+    expect(h).toContain("Pedir algo ao quadro de Marlon");
   });
 
   it("na tarefa dela: Editar e Excluir; na da Ana: só a linha, sem os botões (ausentes, não desligados)", () => {
@@ -88,7 +88,7 @@ describe("a tela da participante", () => {
     const det = html(vista(quadro, { aberta: "1" }));
     expect(det).not.toContain("qcp-editar");
     expect(det).not.toContain('data-campo="qcp-status"');
-    expect(html(vista(q([], { modoConversa: "so_dono" })))).toContain("Nada no quadro do Marlon ainda. Deixe um recado.");
+    expect(html(vista(q([], { modoConversa: "so_dono" })))).toContain("Nada no quadro de Marlon ainda. Deixe um recado.");
   });
 
   it("desfaz só o lote dela", () => {
@@ -98,7 +98,7 @@ describe("a tela da participante", () => {
   });
 
   it("os estados: vazio, carregando, erro e sem acesso (este sem nome nenhum)", () => {
-    expect(html(vista(q([])))).toContain("Nada no quadro do Marlon ainda. Peça algo aqui embaixo.");
+    expect(html(vista(q([])))).toContain("Nada no quadro de Marlon ainda. Peça algo aqui embaixo.");
     expect(html({ ...vista(q([])), carga: { tipo: "carregando" } })).toContain("qcp-esqueleto");
     const erro = html({ ...vista(q([])), carga: { tipo: "erro" } });
     expect(erro).toContain("Não deu para carregar o quadro");
@@ -138,16 +138,16 @@ describe("a tela da participante", () => {
     expect(html(vista(quadro, { aberta: "1" }))).not.toContain('<option value="voce"');
   });
 
-  it("o card assina como o mural do servidor ('Ana, pela Lia'), não inventa o bot da dona; o Responsável é o bot da dona", () => {
+  it("o card assina como o mural do servidor ('Ana, via Lia'), não inventa o bot da dona; o Responsável é o bot da dona", () => {
     const linha = (id: string, assinatura: string, codigos: string[], criadoEm: number, desfeito = false) => ({ id, pessoaId: ANA, assinatura, resumo: "r", codigos, mudancas: 1, criadoEm, desfeito });
     const quadro = q([t("1", { pedidoPor: ANA, pedidoPorNome: "Ana", agenteId: "z" }), t("2", { pedidoPor: EU, pedidoPorNome: "você" }), t("3", { pedidoPor: null })], { agenteId: "z", agenteNome: "Zé" });
-    const mural = [linha("l1", "Ana", ["ZE-1"], 1), linha("l2", "Ana, pela Lia", ["ZE-1"], 3), linha("l3", "Marlon, pela Zé", ["ZE-3"], 2), linha("l4", "Ana, pela Ada", ["ZE-1"], 9, true)];
+    const mural = [linha("l1", "Ana", ["ZE-1"], 1), linha("l2", "Ana, via Lia", ["ZE-1"], 3), linha("l3", "Marlon, via Zé", ["ZE-3"], 2), linha("l4", "Ana, via Ada", ["ZE-1"], 9, true)];
     const h = html(vista(quadro, { carga: { tipo: "pronto", q: quadro, mural } }));
     // A mais recente que não foi desfeita, com o bot daquele pedido.
     const quandos = [...h.matchAll(/qd-quando">([^<]*)</g)].map((x) => x[1]);
-    // A da dona também assina; a dela, sem linha no mural, diz "Você" (nunca "você, pela Zé").
+    // A da dona também assina; a dela, sem linha no mural, diz "Você" (nunca "você, via Zé").
     // NOD-419 (main): a linha da lista estreita também mostra o "quando", então cada assinatura sai na grade e na lista.
-    const assinaturas = ["Ana, pela Lia", "Você", "Marlon, pela Zé"];
+    const assinaturas = ["Ana, via Lia", "Você", "Marlon, via Zé"];
     expect(quandos).toEqual([...assinaturas, ...assinaturas]);
     // Sem mural ainda: só quem pediu, sem bot.
     const semMural = html(vista(quadro, { carga: { tipo: "pronto", q: quadro, mural: null } }));
@@ -269,7 +269,7 @@ describe("o controlador", () => {
     expect(caixa.innerHTML).toContain("qcp-esqueleto");
     await esperar();
     expect(lidos).toEqual(["q1"]);
-    expect(caixa.innerHTML).toContain("Quadro do Marlon");
+    expect(caixa.innerHTML).toContain("Quadro de Marlon");
     expect(caixa.dataset["qid"]).toBe("q1");
   });
 
@@ -290,7 +290,7 @@ describe("o controlador", () => {
     expect(caixa.innerHTML).toContain("Não deu para carregar o quadro");
     disparar("click", botao("qcp-reler"));
     await esperar();
-    expect(caixa.innerHTML).toContain("Nada no quadro do Marlon ainda.");
+    expect(caixa.innerHTML).toContain("Nada no quadro de Marlon ainda.");
   });
 
   it("excluir a própria tarefa que virou da Ana: volta o card, aberto, com 'Não excluí: agora é da Ana'", async () => {
@@ -378,8 +378,8 @@ describe("o controlador", () => {
     await esperar();
     solta({ quadro: q([]) });
     await esperar();
-    expect(caixa.innerHTML).toContain("Quadro do Lia");
-    expect(caixa.innerHTML).not.toContain("Quadro do Marlon");
+    expect(caixa.innerHTML).toContain("Quadro de Lia");
+    expect(caixa.innerHTML).not.toContain("Quadro de Marlon");
   });
 
   it("clique fora do #qcp não faz nada", async () => {
@@ -507,7 +507,7 @@ describe("o controlador", () => {
     c.aoFrame(frame(1));
     await esperar();
     expect(n).toBe(2);
-    expect(caixa.innerHTML).toContain("Quadro do Marlon");
+    expect(caixa.innerHTML).toContain("Quadro de Marlon");
   });
 
   it("uma rajada de frames vira uma releitura só; o reler (SSE reconectou) também relê", async () => {

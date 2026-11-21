@@ -119,7 +119,7 @@ describeIntegracao("quadro com várias pessoas (NOD-443, ADR-143)", () => {
     });
   });
 
-  it("paridade a partir de qualquer bot: a Ana pela tela e pelo bot dela (a Lia) faz o mesmo; o mural assina Ana, pela Lia (e Você, para ela)", async () => {
+  it("paridade a partir de qualquer bot: a Ana pela tela e pelo bot dela (a Lia) faz o mesmo; o mural assina Ana, via Lia (e Você, para ela)", async () => {
     await withRollback(DONA.escopo, async (trx) => {
       const m = await montar(trx);
       await porNaAna(m);
@@ -146,10 +146,10 @@ describeIntegracao("quadro com várias pessoas (NOD-443, ADR-143)", () => {
       expect(estado("Pela tela")).toEqual(["d", "afazer", ANA.id, ANA.nome]);
       expect(estado("Pelo bot")).toEqual(estado("Pela tela"));
       const muralDona = (await executar(await como(trx, DONA.escopo), muralDoQuadro, { agenteId: m.ada.agenteId, pessoa: ANA.id })).data.linhas;
-      expect(muralDona.map((l) => l.assinatura)).toContain(`${ANA.nome}, pela ${m.liaNome}`);
+      expect(muralDona.map((l) => l.assinatura)).toContain(`${ANA.nome}, via ${m.liaNome}`);
       expect(muralDona.map((l) => l.assinatura)).toContain(ANA.nome);
       const muralAna = (await executar(await como(trx, ANA.escopo), muralDoQuadro, { quadroId: m.qid })).data.linhas;
-      expect(muralAna.map((l) => l.assinatura)).toContain(`Você, pela ${m.liaNome}`);
+      expect(muralAna.map((l) => l.assinatura)).toContain(`Você, via ${m.liaNome}`);
       // A dona também aparece no mural da Ana (o quadro_mudou levou a Ana nos membros).
       expect(muralAna.some((l) => l.pessoaId === DONA.id)).toBe(true);
     });
@@ -207,7 +207,7 @@ describeIntegracao("quadro com várias pessoas (NOD-443, ADR-143)", () => {
       // 2026-11-11: o comentário vai à conversa da tarefa (NOD-417), assinado por ela e de fora; no "só a dona" não aciona bot.
       const t1 = q.tarefas.find((t) => t.titulo === "T1")!.id;
       const naTarefa = await (await como(trx, DONA.escopo)).repos.quadroComentarios.daTarefa(t1);
-      expect(naTarefa).toEqual([expect.objectContaining({ texto: "Pode subir a T1?", autor: { tipo: "pessoa" }, pedidoPor: ANA.id, autorNome: `${ANA.nome}, pela ${m.liaNome}`, deFora: true, acionados: [] })]);
+      expect(naTarefa).toEqual([expect.objectContaining({ texto: "Pode subir a T1?", autor: { tipo: "pessoa" }, pedidoPor: ANA.id, autorNome: `${ANA.nome}, via ${m.liaNome}`, deFora: true, acionados: [] })]);
       expect(q.comentarios ?? []).toEqual([]);
     });
   });
@@ -731,7 +731,7 @@ describeIntegracao("quadro com várias pessoas (NOD-443, ADR-143)", () => {
     await withRollback(DONA.escopo, async (trx) => {
       const m = await montar(trx);
       await porNaAna(m);
-      // A Ana, pela Lia, num turno limpo: o quadro é da dona.
+      // A Ana, via Lia, num turno limpo: o quadro é da dona.
       const da = await como(trx, ANA.escopo);
       const ctx = await turnoDe(da, m.lia.agenteId, m.lia.conversaId);
       expect((await executar(da, gerirQuadro, { ...ctx, quadro: m.qid, acoes: [{ tipo: "comentar", tarefa: "T1", texto: "Vi a T1" }] })).data).toMatchObject({ ok: true });
