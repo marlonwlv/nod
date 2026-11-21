@@ -123,8 +123,8 @@ export function TelaConectoresAvancado({ loja, acoes }: { loja: Loja<Estado>; ac
                 )}
                 {c.catalogo.length > 0 && agentes.length > 0 && (
                   <form className="form linha" data-id={c.id} onSubmit={enviar("conceder")}>
-                    <select name="agenteId">{agentes.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</select>
-                    <select name="capacidade">{c.catalogo.map((cap) => <option key={cap.nome} value={cap.nome}>{cap.nome}</option>)}</select>
+                    <select name="agenteId" aria-label="Bot">{agentes.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</select>
+                    <select name="capacidade" aria-label="Ação">{c.catalogo.map((cap) => <option key={cap.nome} value={cap.nome}>{cap.nome}</option>)}</select>
                     <button className="bt pri" type="submit">Conceder</button>
                   </form>
                 )}
