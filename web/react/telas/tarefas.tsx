@@ -10,7 +10,7 @@ import { quemPediu } from "../../lib/dono.ts";
 import { agente } from "../../telas/trabalhos.ts";
 import {
   botsDaNovaTarefa, contasDoBot, esperasDaConversa, GRUPOS_DO_BOT, GRUPOS_DO_ESTADO, ICONE_DO_GRUPO, iconeDaTarefa, linhasDosBots, origemNaTela,
-  passoDaTarefa, plural, prontas, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
+  passoDaTarefa, plural, prontas, semBotQueSaiu, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
 } from "../../telas/tela-tarefas.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
@@ -43,7 +43,7 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
   conversor.current ??= criarConversor();
   useLayoutEffect(() => conversor.current?.fecharQuadro());
   const html: Html = (h) => (h ? conversor.current!.converter(h) : null);
-  const tela: TelaTarefas = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" };
+  const tela: TelaTarefas = semBotQueSaiu(estado, estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" });
   if (!estado.trabalhos) return <section className="tela-tarefas" aria-label="Tarefas"><p className="tf-vazio">carregando…</p></section>;
   const porBot = temDonos(estado) && !tela.filtro;
   const todos = estado.trabalhos.trabalhos.filter((t) => !tela.bot || t.agenteId === tela.bot);
