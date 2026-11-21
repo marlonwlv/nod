@@ -3210,6 +3210,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async prosaDe() {
         return null;
       },
+      async travarDoNod() {},
+      async doNodIgualNoTurno() {
+        return null;
+      },
       async contarDoNodDesde(desde) {
         return doTenant(b.relatos).filter((r) => r.ownerId === escopo.pessoaId && r.origem === "nod" && r.criadoEm >= desde).length;
       },
