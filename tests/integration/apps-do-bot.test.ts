@@ -221,6 +221,40 @@ describeIntegracao("apps do bot (NOD-445)", () => {
     });
   });
 
+  it("QA-138: remover e restaurar repetidos pelo chat devolvem ja_estava, sem evento e sem mexer na ordem", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const { d, bot } = await montar(trx);
+      const vagas = (await criarDireto(d, bot.agenteId, "Vagas"))!;
+      await criarDireto(d, bot.agenteId, "Leituras");
+      const rm1 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "remover", app: vagas.id });
+      expect(rm1.data).toMatchObject({ ok: true, app_id: vagas.id });
+      expect(rm1.data).not.toHaveProperty("ja_estava");
+      const fora = (await paginas(d, bot.agenteId)).ordem;
+      for (const ref of [vagas.id, "vagas"]) {
+        const rm2 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "remover", app: ref });
+        expect(rm2.data).toMatchObject({ ok: true, ja_estava: true, app_id: vagas.id });
+        expect(rm2.events ?? []).toHaveLength(0);
+      }
+      expect((await paginas(d, bot.agenteId)).ordem).toEqual(fora);
+      const rs1 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "restaurar", app: vagas.id });
+      expect(rs1.data).toMatchObject({ ok: true, app_id: vagas.id });
+      expect(rs1.data).not.toHaveProperty("ja_estava");
+      const volta = (await paginas(d, bot.agenteId)).ordem;
+      for (const ref of [vagas.id, "Vagas"]) {
+        const rs2 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "restaurar", app: ref });
+        expect(rs2.data).toMatchObject({ ok: true, ja_estava: true, app_id: vagas.id });
+        expect(rs2.events ?? []).toHaveLength(0);
+      }
+      expect((await paginas(d, bot.agenteId)).ordem).toEqual(volta);
+      // A tela também: o duplo clique no Desfazer não vira erro.
+      await executar(d, EXECUTORES_APPS["paginas.restaurar_app"], { agenteId: bot.agenteId, app: vagas.id });
+      // O que nunca existiu segue nao_encontrado.
+      expect((await executar(d, gerirApps, { ...(await turno(d, bot)), op: "remover", app: "Nunca" })).data).toMatchObject({ ok: false, erro: "nao_encontrado" });
+      expect((await executar(d, gerirApps, { ...(await turno(d, bot)), op: "restaurar", app: "Nunca" })).data).toMatchObject({ ok: false, erro: "nao_encontrado" });
+    });
+  });
+
   it("revisão 4 do #626: restaurar pelo chat aceita o nome (sem acento nem caixa) e traz o removido mais recente com ele", async () => {
     await withRollback(MARLON, async (trx) => {
       trxAtual = trx;
