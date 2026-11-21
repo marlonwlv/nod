@@ -73,6 +73,17 @@ aprovação mantém o placeholder dela.
 
 **G. O cartão ganha 10 px de respiro acima e abaixo** (28 px no lugar de 18). Os balões seguidos não mudam.
 
+### Revisão de 2026-11-21 (teste do dono): onde o cartão aparece e o espaço dele
+
+- **Embaixo da fala do turno que pediu, sem pular.** Antes o cartão surgia embaixo da mensagem da pessoa enquanto o turno
+  rodava e, quando a fala final chegava, pulava para baixo dela ("o balão do bot sobe por cima do cartão"). Agora o pedido
+  do turno vivo que ainda não falou fica segurado e aparece de uma vez embaixo da fala (`ancoraDoPedido`, `comPedidosAncorados`,
+  `comPropostasAncoradas`). O dono aceitou os poucos segundos a mais.
+- **A aprovação aparece na hora.** O turno espera a decisão antes de falar (a fala vem depois); segurá-la a esconderia para
+  sempre. Ela não pula: nada do bot chega antes da decisão.
+- **O espaço de um balão.** O cartão (aberto, ancorado ou a linha cinza) segue a regra de `.message[data-group-start]`:
+  16 px de margem e 2 px de folga. O respiro de 28 px da primeira versão saiu.
+
 ## Alternativas descartadas
 
 - **Manter o cartão aberto até vencer** (como era): a conversa acumula pedidos que a pessoa já deixou para trás, e o
