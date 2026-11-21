@@ -162,6 +162,11 @@ function obsoleta(daProposta: readonly RuntimeEvent[], daAplicacao: readonly Run
   return { data: { erro: erroRotinaMudou().codigo }, events: [...semCard(daProposta), ...(daAplicacao ?? [])] };
 }
 
+/** QA r141: o que a mudança pede, sem o que varia com o relógio (próxima execução). Dois pedidos iguais, mesma chave. */
+function chaveDaMudanca(p: PayloadPropostaRotinaAtualizacao): string {
+  return JSON.stringify([p.revisao, p.cron, p.fusoIana, p.instrucao, p.fonte, p.entregavel, p.limitesAprovacao, p.politicaSemDado, p.acessos ?? null]);
+}
+
 /**
  * `atualizar_rotina`: NADA é aplicado — nasce proposta 'rotina_atualizacao' com o payload já
  * normalizado (sobrevive a reinício sem reinterpretar, E7.1). Diferente de pausar, mudar QUANDO ou
@@ -206,11 +211,22 @@ export const atualizarRotinaPeloAgente: CasoNod<Deps, "atualizar_rotina"> = asyn
       // NOD-159: a confirmação só aplica se a rotina ainda for a que o card mostra.
       revisao: revisaoAtual(atual),
     };
-    const precisa = payload.acessos?.length ? ` · precisa de ${payload.acessos.map((a) => `${nomeDoApp(a.conector)} (${a.nivel})`).join(", ")}` : "";
-    const { proposta, events } = await propor(deps, input, payload, `Mudança de rotina proposta: de ${payload.antes.resumo} para ${normalizada.resumo}${ehWebhook(atual) ? "" : ` · próxima execução ${carimbo(normalizada.proximaExecucao, normalizada.fusoIana)}`}${precisa}`);
     // ADR-059 (emenda de 2026-09-30): no automático e no total o modo confirma na hora — a proposta fica como
     // registro do que mudou, fechada pela regra, e a rotina já vale.
     const porRegra = await confirmacaoPeloModo(deps, input, { arriscada: false, gravaInstrucao: true });
+    // QA r141: a MESMA mudança pedida de novo com o card ainda aberto (o bot repete a chamada) devolve o mesmo card,
+    // como em excluir_rotina e executar_rotina. Antes nascia um segundo card igual; confirmado o primeiro, o outro
+    // virava "a rotina mudou" ao clicar. Outra mudança da mesma rotina segue abrindo o próprio card.
+    if (!porRegra) {
+      const chave = chaveDaMudanca(payload);
+      for (const p of await deps.repos.propostas.pendentesDaConversa(input.conversaId)) {
+        if (p.payload.kind !== "rotina_atualizacao" || p.payload.rotinaId !== atual.id || chaveDaMudanca(p.payload) !== chave) continue;
+        const decisao = await deps.repos.decisoes.buscar(p.id);
+        if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { data: { proposta_id: p.id, resumo: normalizada.resumo } };
+      }
+    }
+    const precisa = payload.acessos?.length ?` · precisa de ${payload.acessos.map((a) => `${nomeDoApp(a.conector)} (${a.nivel})`).join(", ")}` : "";
+    const { proposta, events } = await propor(deps, input, payload, `Mudança de rotina proposta: de ${payload.antes.resumo} para ${normalizada.resumo}${ehWebhook(atual) ? "" : ` · próxima execução ${carimbo(normalizada.proximaExecucao, normalizada.fusoIana)}`}${precisa}`);
     if (porRegra) {
       const aplicada = await aplicarAtualizacaoRotina(deps, { propostaId: proposta.id, porRegra });
       if (aplicada.data.obsoleta) return obsoleta(events, aplicada.events);
