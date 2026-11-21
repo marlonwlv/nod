@@ -203,12 +203,14 @@ describe("o campo com um pedido aberto (item F)", () => {
 describe("o respiro em volta do cartão (item G)", () => {
   const css = readFileSync(new URL("../../../web/chat.css", import.meta.url), "utf8");
 
-  it("o cartão aberto e a linha ganham 10 px acima e abaixo; os balões seguidos não mudam", () => {
-    expect(css).toContain(".timeline .pedido-que-espera { margin: 28px 0; }");
+  // revisto em 2026-11-21 (teste do dono): o cartão segue a regra de um balão — 16 px de margem e 2 px de folga.
+  it("o cartão aberto e a linha têm o mesmo espaço de um balão (16 px + 2 px de folga); os balões não mudam", () => {
+    expect(css).toContain(".timeline .pedido-que-espera { margin: 16px 0 0; padding: 2px 0; }");
     expect(css).toContain(".timeline .pedido-que-espera > :is(.cp, .cp-linha, .cp-erro) { margin-top: 0; margin-bottom: 0; }");
-    expect(css).toContain(".timeline .pedidos-dispensados { display: flex; flex-direction: column; gap: 6px; margin: 26px 0; }");
+    expect(css).toContain(".timeline .pedidos-dispensados { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 0; padding: 2px 0; }");
+    expect(css).toContain(".timeline .message[data-group-start] { margin-top: 16px; }");
+    expect(css).toContain(".timeline .message { padding: 2px 0; margin: 0;");
     const casca = readFileSync(new URL("../../../web/casca.css", import.meta.url), "utf8");
-    expect(casca).toContain(".timeline .decisoes-ancoradas { margin: 28px 0; width: min(560px, 100%); }");
-    expect(casca).toContain(".timeline .message { margin: 0 0 18px; gap: 0; }");
+    expect(casca).toContain(".timeline .decisoes-ancoradas { margin: 16px 0 0; padding: 2px 0; width: min(560px, 100%); }");
   });
 });

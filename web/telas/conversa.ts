@@ -1821,11 +1821,14 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
   // turno da pessoa.
   const vistas = new Set(mensagens.map((m) => m.id));
   const turnosSegurados = new Set(c.mensagens.filter((m) => m.turnoId && !vistas.has(m.id)).map((m) => m.turnoId as string));
-  const { blocos: comDecisoes, ancoradas } = comPedidosAncorados(comEncolhidosNaAncora(blocosDasMensagens(co.mensagens, estado, sala, c.conversa.agenteId ? { agenteId: c.conversa.agenteId, acoes: c.acoesDoModo } : undefined), co), co, estado, idsDasPropostas, turnosSegurados, vivos, c.mensagens);
+  // Revisto em 2026-11-21 (teste do dono): o cartão do turno que ainda roda (ou cuja fala ainda não chegou) também fica
+  // segurado e aparece embaixo da fala final, sem pular (`ancoraDoPedido`).
+  const emAndamento = new Set([...turnosSegurados, ...vivos.turnos]);
+  const { blocos: comDecisoes, ancoradas } = comPedidosAncorados(comEncolhidosNaAncora(blocosDasMensagens(co.mensagens, estado, sala, c.conversa.agenteId ? { agenteId: c.conversa.agenteId, acoes: c.acoesDoModo } : undefined), co), co, estado, idsDasPropostas, emAndamento, vivos, c.mensagens);
   // ADR-191 (definido em 2026-11-20, pedido do dono): a proposta aberta também fica onde nasceu, pela regra dos pedidos
   // (`ancoraDoPedido`); só a que não acha âncora vai para o fim, como antes. As linhas dos pedidos dispensados vizinhas
   // ficam juntas.
-  const { blocos: comPropostas, soltas } = comPropostasAncoradas(comDecisoes, co, estado, abertas, c.propostas, turnosSegurados);
+  const { blocos: comPropostas, soltas } = comPropostasAncoradas(comDecisoes, co, estado, abertas, c.propostas, emAndamento);
   const blocos = juntarDispensados(comPropostas);
   return [
     // Chat limpo (PR 6; plano, Parte 5): o divisor do topo e um a cada pausa de 30 min ou troca de dia entre itens à vista,
@@ -1871,13 +1874,15 @@ export function renderFalaPendente(p: FalaPendente, c: ConversaEstado, estado: E
 }
 
 /**
- * A mensagem embaixo da qual o pedido fica: a última que já existia quando ele nasceu (revisto em 2026-11-21, teste do
- * dono). Antes (2026-10-03) era a última fala do turno que pediu, e com o turno rodando a mensagem que o disparou: o cartão
- * aparecia embaixo da mensagem da pessoa e, quando a fala final do bot chegava, pulava para baixo dela — o balão do bot
- * "subia" por cima do cartão. Pela ordem do tempo o cartão fica onde apareceu e a fala que vem depois entra embaixo dele,
- * como no app de referência. O recibo de outro pedido (o cartão encolhido) não é âncora. Sem nenhuma, a seção do fim.
+ * A mensagem embaixo da qual o pedido fica: a última fala do turno que pediu (revisto em 2026-11-21, teste do dono: "pode ser
+ * sempre embaixo, não tem problema demorar uns segundinhos"). Enquanto o turno roda ou a fala dele ainda não chegou, o
+ * cartão fica segurado (`comPedidosAncorados`, `comPropostasAncoradas`) e aparece de uma vez embaixo da fala final — antes
+ * ele surgia embaixo da mensagem da pessoa e pulava para baixo da fala quando ela chegava. Sem fala do turno (ou sem
+ * turno), a última mensagem que já existia quando ele nasceu. O recibo de outro pedido (o cartão encolhido) não é âncora.
  */
 function ancoraDoPedido(d: { turnoId: string | null; criadoEm: string }, c: ConversaEstado): string | undefined {
+  const doTurno = d.turnoId ? c.mensagens.filter((m) => m.turnoId === d.turnoId && pedidoDoRecibo(m) === null).at(-1)?.id : undefined;
+  if (doTurno) return doTurno;
   const criado = Date.parse(d.criadoEm);
   return c.mensagens.filter((m) => m.criadoEm <= criado && pedidoDoRecibo(m) === null).at(-1)?.id;
 }
@@ -2019,7 +2024,9 @@ function comPropostasAncoradas(blocos: BlocoDaTimeline[], c: ConversaEstado, est
     const decisao = estado.suaVez?.itens.find((i) => i.decisao.id === p.id)?.decisao;
     const turnoId = decisao?.turnoId ?? ("turnoId" in p.payload ? (p.payload.turnoId ?? null) : null);
     const criadoEm = decisao?.criadoEm ?? new Date(p.criadoEm).toISOString();
-    const ancora = turnoId !== null && turnosSegurados.has(turnoId) ? undefined : ancoraDoPedido({ turnoId, criadoEm }, c);
+    // Segurada com o turno que ainda roda: não vai para o fim, aparece depois embaixo da fala final.
+    if (turnoId !== null && turnosSegurados.has(turnoId)) continue;
+    const ancora = ancoraDoPedido({ turnoId, criadoEm }, c);
     const alvo = ancora === undefined ? undefined : posicao.get(ancora);
     let bloco = -1;
     if (alvo !== undefined) inicioDe.forEach((inicio, i) => { if (inicio !== undefined && inicio <= alvo) bloco = i; });
