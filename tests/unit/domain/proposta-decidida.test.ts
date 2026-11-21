@@ -16,8 +16,8 @@ describe("tituloDaProposta", () => {
     expect(t({ kind: "acesso", conector: "gmail", capacidades: [], nivel: "leitura", naoPedido: [] })).toBe("Acesso a conector · gmail");
     expect(t({ kind: "pasta", candidatas: [{ caminho: "/x/acme", nome: "acme", git: true }], motivo: "m", buscaTermo: "acme-site" })).toBe("Abrir o projeto acme");
     expect(t({ kind: "lote_bots", resumo: "criar 2 bots", acoes: [] })).toBe("Mudanças nos bots · criar 2 bots");
-    expect(t({ kind: "quadro_exclusao", quadroId: "q", anfitriaoId: "a", anfitriaoNome: "Ana", quadroNome: "Site", tarefas: 0, colunas: 5, temMeta: false, revisao: "{}" })).toBe('Excluir o quadro "Site" do Ana');
-    expect(t({ kind: "quadro_exclusao", quadroId: "q", anfitriaoId: "a", anfitriaoNome: "Ana", tarefas: 0, colunas: 5, temMeta: false, revisao: "{}" })).toBe("Excluir o quadro do Ana");
+    expect(t({ kind: "quadro_exclusao", quadroId: "q", anfitriaoId: "a", anfitriaoNome: "Ana", quadroNome: "Site", tarefas: 0, colunas: 5, temMeta: false, revisao: "{}" })).toBe('Excluir o quadro "Site" de Ana');
+    expect(t({ kind: "quadro_exclusao", quadroId: "q", anfitriaoId: "a", anfitriaoNome: "Ana", tarefas: 0, colunas: 5, temMeta: false, revisao: "{}" })).toBe("Excluir o quadro de Ana");
   });
 
   it("sem o detalhe (perfil só com título, pasta sem candidata), o nome sozinho ou o termo da busca", () => {

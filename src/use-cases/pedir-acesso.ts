@@ -200,7 +200,7 @@ async function pedirAcessoParaBot(deps: Deps, input: ContextoFerramenta & ArgsPe
     capacidades: pedido.capacidades,
     nivel: pedido.nivel,
     naoPedido: pedido.naoPedido,
-    para: pedido.para ?? `Usado pelo ${alvo.nome}`,
+    para: pedido.para ?? `Usado por ${alvo.nome}`,
   };
   // O mesmo pedido já aberto para o bot (a Nina repetiu): devolve o card que está na tela.
   for (const p of await deps.repos.propostas.pendentesDaConversa(alvo.conversaId)) {

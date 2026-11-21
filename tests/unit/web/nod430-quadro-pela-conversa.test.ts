@@ -26,11 +26,11 @@ const PAYLOAD: PayloadPropostaQuadroExclusao = { kind: "quadro_exclusao", quadro
 describe("card de excluir o quadro (NOD-430)", () => {
   it("aberto: o que sai, o que fica, sem Desfazer, Excluir e Agora não", () => {
     const h = renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, PAYLOAD, true);
-    expect(h).toContain("Excluir o quadro do EngApp");
-    // ADA-14: com N quadros, o card diz qual (o sem nome segue "o quadro do EngApp").
-    expect(renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, { ...PAYLOAD, quadroNome: "Site" }, true)).toContain("Excluir o quadro &quot;Site&quot; do EngApp");
+    expect(h).toContain("Excluir o quadro de EngApp");
+    // ADA-14: com N quadros, o card diz qual (o sem nome segue "o quadro de EngApp").
+    expect(renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, { ...PAYLOAD, quadroNome: "Site" }, true)).toContain("Excluir o quadro &quot;Site&quot; de EngApp");
     expect(h).toContain("Sai: 12 cards, 5 colunas, a meta e o histórico");
-    expect(h).toContain("Fica: a conversa e a memória do EngApp");
+    expect(h).toContain("Fica: a conversa e a memória de EngApp");
     expect(h).toContain("Não dá para desfazer.");
     expect(h).toMatch(/data-act="decidir-proposta"[^>]*>Excluir</);
     expect(h).toMatch(/data-act="recusar-decisao"[^>]*>Agora não</);

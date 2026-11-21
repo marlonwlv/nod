@@ -16,9 +16,9 @@ export function limparNome(nome: string): string {
   return nome.replace(/\s+/g, " ").trim();
 }
 
-/** O título do card: "Excluir o quadro "Site" do Ana" (o sem nome, ou o card de antes, segue "o quadro do Ana"). */
+/** O título do card: "Excluir o quadro "Site" de Ana" (sem nome de quadro, "Excluir o quadro de Ana"); sem artigo antes do nome do bot (QA-185). */
 export function tituloDaExclusaoDoQuadro(c: Pick<PayloadPropostaQuadroExclusao, "anfitriaoNome" | "quadroNome">): string {
-  return c.quadroNome ? `Excluir o quadro "${c.quadroNome}" do ${c.anfitriaoNome}` : `Excluir o quadro do ${c.anfitriaoNome}`;
+  return c.quadroNome ? `Excluir o quadro "${c.quadroNome}" de ${c.anfitriaoNome}` : `Excluir o quadro de ${c.anfitriaoNome}`;
 }
 
 /** O nome que a tela e o chat mostram. */

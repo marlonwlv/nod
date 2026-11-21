@@ -60,7 +60,7 @@ async function rotinasDoQuadro(deps: Deps, q: Quadro, agentes: readonly Agente[]
   return { rotinas, fora };
 }
 
-const jaAssumiu = (nome: string) => falha("entrada_invalida", `o quadro do ${nome} já assumiu a esteira: para voltar, desfaça o assumir`);
+const jaAssumiu = (nome: string) => falha("entrada_invalida", `o quadro de ${nome} já assumiu a esteira: para voltar, desfaça o assumir`);
 
 /** A prévia da tela (GET .../quadro/assumir): a mesma lista do card. Só lê. */
 export const previaAssumir: CasoDeUso<{ agenteId: string; quadro?: string | null }, PreviaAssumir | Falha> = async (deps, input) => {
@@ -79,7 +79,7 @@ async function criarCard(deps: Deps, a: Achado, lista: { rotinas: RotinaDoAssumi
   if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
   const agora = deps.agora();
   const n = lista.rotinas.length;
-  const frase = `O quadro do ${a.anfitriaoNome} assume a esteira: ${n === 0 ? "nenhuma rotina a pausar" : `pausar ${n} ${n === 1 ? "rotina" : "rotinas"}`}`;
+  const frase = `O quadro de ${a.anfitriaoNome} assume a esteira: ${n === 0 ? "nenhuma rotina a pausar" : `pausar ${n} ${n === 1 ? "rotina" : "rotinas"}`}`;
   const decisao = await deps.repos.decisoes.criar({ id: proposta.id, tipo: "assumir_quadro", agenteId: onde.agenteId, conversaId: onde.conversaId, turnoId: onde.turnoId, prazoDecisaoEm: agora + PRAZO_DECISAO_PADRAO_MS, frase: frase.slice(0, 500) });
   const ctx = { autoria: onde.autoria, agora, conversaId: onde.conversaId, ...(onde.turnoId ? { turnoId: onde.turnoId } : {}) };
   const events: RuntimeEvent[] = [evento(deps.escopo, { kind: "proposta_criada", ...ctx, dados: { proposta_id: proposta.id, kind: "assumir_quadro" } })];
@@ -118,12 +118,12 @@ export const decidirAssumirQuadro: CasoDeUso<{ decisaoId: string; recusar: boole
   const nome = payload.anfitriaoNome;
   const agora = deps.agora();
   const events: RuntimeEvent[] = [];
-  let texto = `Nada pausado: o quadro do ${nome} não assumiu a esteira.`;
+  let texto = `Nada pausado: o quadro de ${nome} não assumiu a esteira.`;
   let pausadas: string[] | null = null;
   let obsoleta = false;
   if (!input.recusar) {
-    if (!q) { obsoleta = true; texto = `O quadro do ${nome} já não existe: nada foi pausado.`; }
-    else if (await deps.repos.quadroImportacoes.assumido(q.id)) { obsoleta = true; texto = `O quadro do ${nome} já tinha assumido a esteira: nada mais foi pausado.`; }
+    if (!q) { obsoleta = true; texto = `O quadro de ${nome} já não existe: nada foi pausado.`; }
+    else if (await deps.repos.quadroImportacoes.assumido(q.id)) { obsoleta = true; texto = `O quadro de ${nome} já tinha assumido a esteira: nada mais foi pausado.`; }
     else {
       pausadas = [];
       const so = input.soEstas ? new Set(input.soEstas) : null;
@@ -132,7 +132,7 @@ export const decidirAssumirQuadro: CasoDeUso<{ decisaoId: string; recusar: boole
         if (rotinaFora(r.id, ROTINAS_FORA)) continue;
         const atual = await deps.repos.rotinas.buscar(r.id);
         if (!atual || atual.estado !== "ativa" || atual.excluidoEm !== null) continue;
-        const x = await pausarRotina(deps, { rotinaId: r.id, estado: "pausada", texto: `Pausada: o quadro do ${nome} assumiu a esteira.` });
+        const x = await pausarRotina(deps, { rotinaId: r.id, estado: "pausada", texto: `Pausada: o quadro de ${nome} assumiu a esteira.` });
         // Já estava pausada (a pessoa ou o varredor pausou entre a leitura e aqui): não entra no Desfazer, que só
         // reativa o que este assumir pausou. O pausarRotina volta sem eventos quando o estado não muda.
         if (x.events === undefined) continue;
@@ -142,7 +142,7 @@ export const decidirAssumirQuadro: CasoDeUso<{ decisaoId: string; recusar: boole
       if (!(await deps.repos.quadroImportacoes.marcarAssumido(q.id, agora))) throw new ErroDeDominio("nao_encontrado", { cause: "quadro" });
       events.push(eventoQuadro(deps, { autor: { tipo: "pessoa" }, conversaId: proposta.conversaId }, q, null, []));
       const n = pausadas.length;
-      texto = `O quadro do ${nome} assumiu a esteira. ${n === 0 ? "Nenhuma rotina estava ativa para pausar." : `${n === 1 ? "Pausei 1 rotina" : `Pausei ${n} rotinas`}: ${pausadas.map(idCurto).join(", ")}.`} Desfazer reativa só ${n === 1 ? "essa" : "essas"}.`;
+      texto = `O quadro de ${nome} assumiu a esteira. ${n === 0 ? "Nenhuma rotina estava ativa para pausar." : `${n === 1 ? "Pausei 1 rotina" : `Pausei ${n} rotinas`}: ${pausadas.map(idCurto).join(", ")}.`} Desfazer reativa só ${n === 1 ? "essa" : "essas"}.`;
     }
   }
   const decidida = await deps.repos.decisoes.decidir(input.decisaoId, { por: deps.escopo.pessoaId, agora });
@@ -164,7 +164,7 @@ export async function desfazerAssumir(deps: Deps, p: Pedido & { autoria?: Autori
   const a = await acharParaAssumir(deps, p);
   if (!a.ok) return { data: a, events: [] };
   const q = await deps.repos.quadros.buscarTravado(a.quadro.id);
-  if (!q || (await deps.repos.quadroImportacoes.assumidoEm(q.id)) === null) return { data: falha("entrada_invalida", `o quadro do ${a.anfitriaoNome} não assumiu a esteira: nada a desfazer`), events: [] };
+  if (!q || (await deps.repos.quadroImportacoes.assumidoEm(q.id)) === null) return { data: falha("entrada_invalida", `o quadro de ${a.anfitriaoNome} não assumiu a esteira: nada a desfazer`), events: [] };
   const proposta = (await deps.repos.propostas.assumirDoQuadro(q.id, "confirmada")).find((x) => x.payload.kind === "assumir_quadro" && !x.payload.desfeitoEm);
   const payload = proposta?.payload.kind === "assumir_quadro" ? proposta.payload : null;
   const events: RuntimeEvent[] = [];
@@ -172,7 +172,7 @@ export async function desfazerAssumir(deps: Deps, p: Pedido & { autoria?: Autori
   for (const id of payload?.pausadas ?? []) {
     const atual = await deps.repos.rotinas.buscar(id);
     if (!atual || atual.estado !== "pausada" || atual.excluidoEm !== null) continue;
-    const x = await pausarRotina(deps, { rotinaId: id, estado: "ativa", texto: `Reativada: o quadro do ${a.anfitriaoNome} deixou de assumir a esteira.`, ...(p.autoria ? { autoria: p.autoria } : {}) });
+    const x = await pausarRotina(deps, { rotinaId: id, estado: "ativa", texto: `Reativada: o quadro de ${a.anfitriaoNome} deixou de assumir a esteira.`, ...(p.autoria ? { autoria: p.autoria } : {}) });
     events.push(...(x.events ?? []));
     reativadas.push(id);
   }
@@ -180,7 +180,7 @@ export async function desfazerAssumir(deps: Deps, p: Pedido & { autoria?: Autori
   if (proposta && payload) {
     await deps.repos.propostas.atualizarPayload(proposta.id, { ...payload, desfeitoEm: deps.agora() });
     const n = reativadas.length;
-    await recibo(deps, proposta.conversaId, `O quadro do ${a.anfitriaoNome} deixou de assumir a esteira. ${n === 0 ? "Nenhuma rotina a reativar." : `${n === 1 ? "Reativei 1 rotina" : `Reativei ${n} rotinas`}: ${reativadas.map(idCurto).join(", ")}.`}`, events);
+    await recibo(deps, proposta.conversaId, `O quadro de ${a.anfitriaoNome} deixou de assumir a esteira. ${n === 0 ? "Nenhuma rotina a reativar." : `${n === 1 ? "Reativei 1 rotina" : `Reativei ${n} rotinas`}: ${reativadas.map(idCurto).join(", ")}.`}`, events);
   }
   events.push(eventoQuadro(deps, { autor: p.autor, conversaId: proposta?.conversaId ?? null, turnoId: p.turnoId ?? null }, q, null, []));
   log("info", "nod_quadro_assumir_desfeito", { quadro_id: q.id, reativadas: reativadas.length });

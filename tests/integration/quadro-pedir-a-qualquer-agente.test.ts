@@ -65,7 +65,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       expect(data.tarefas).toEqual([expect.objectContaining({ tarefa_id: t!.id, codigo, titulo: "Revisar o PR 12", link: `nod-tarefa:${m.eng.agenteId}:${t!.id}` })]);
       expect(data.instrucao).toContain(`[${codigo}](nod-tarefa:${m.eng.agenteId}:${t!.id})`);
       expect(data.instrucao).not.toContain("Revisar o PR 12");
-      expect(data.instrucao).toContain(`no quadro do ${m.nomeEng}`);
+      expect(data.instrucao).toContain(`no quadro de ${m.nomeEng}`);
       // O lote guarda quem pediu; a Atividade da tarefa aberta assina "Você, pela Ada".
       const lote = await m.d.repos.quadros.ultimoLote((await m.quadroEng())!.id);
       expect(lote).toMatchObject({ autor: { tipo: "agente", agenteId: m.ada.agenteId }, pedidoPor: MARLON.pessoaId });
@@ -250,7 +250,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       expect(obs.data).toMatchObject({ aplicado: false, obsoleta: true });
       expect((await m.d.repos.propostas.buscar(p2))?.estado).toBe("recusada");
       const recibos = await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId);
-      expect(JSON.stringify(recibos)).toContain(`Não excluí: o quadro do ${m.nomeEng} ganhou 1 tarefa depois do pedido.`);
+      expect(JSON.stringify(recibos)).toContain(`Não excluí: o quadro de ${m.nomeEng} ganhou 1 tarefa depois do pedido.`);
       expect(await m.quadroEng()).not.toBeNull();
       // Confirmar: exclui pelo remover_quadro, com a pessoa como autora; o frame diz `removido`.
       const p3 = await pede();
@@ -259,7 +259,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       expect(fim.events.find((e) => e.kind === "quadro_mudou")?.dados).toMatchObject({ agenteId: m.eng.agenteId, removido: true, autor: "pessoa" });
       expect(await m.quadroEng()).toBeNull();
       expect(await m.d.repos.agentes.buscar(m.eng.agenteId)).toMatchObject({ id: m.eng.agenteId });
-      expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Quadro do ${m.nomeEng} excluído. ${m.nomeEng} voltou a ser um agente comum.`);
+      expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Quadro de ${m.nomeEng} excluído. ${m.nomeEng} voltou a ser um agente comum.`);
     });
   });
 
@@ -341,7 +341,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       await m.d.repos.agentes.definirModoAprovacao(m.ada.agenteId, "automatico");
       const r = ok(await m.pela([{ tipo: "remover_quadro", bot: m.nomeEng }], { plano: { modoTurno: "conversa", confiancaEntrada: "confiavel" } }));
       expect(r.data).toMatchObject({ aplicada: true });
-      expect((r.data as { instrucao: string }).instrucao).toContain(`Excluí o quadro do ${m.nomeEng}`);
+      expect((r.data as { instrucao: string }).instrucao).toContain(`Excluí o quadro de ${m.nomeEng}`);
       expect(r.events.map((e) => e.kind)).not.toContain("decisao_criada");
       expect(await m.quadroEng()).toBeNull();
     });
@@ -565,7 +565,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
         expect(r.status, await r.clone().text()).toBe(200);
         expect(await m.quadroEng()).not.toBeNull();
         expect((await m.d.repos.propostas.buscar(id))?.estado).toBe("recusada");
-        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Quadro do ${m.nomeEng} mantido.`);
+        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Quadro de ${m.nomeEng} mantido.`);
         trxAtual = null;
       });
     });
@@ -579,7 +579,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
         expect(await m.quadroEng()).not.toBeNull();
         expect((await m.d.repos.propostas.buscar(id))?.estado).toBe("recusada");
         expect((await m.d.repos.decisoes.buscar(id))?.estado).toBe("decidida");
-        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Quadro do ${m.nomeEng} mantido.`);
+        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Quadro de ${m.nomeEng} mantido.`);
         expect((await servidor.chamar(sessao, "POST", `propostas/${id}/recusar`)).status).toBe(409);
         trxAtual = null;
       });
@@ -612,7 +612,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
         expect(((await r.json()) as ErroDto).codigo).toBe("estado_invalido");
         expect(await m.quadroEng()).not.toBeNull();
         expect((await m.d.repos.propostas.buscar(id))?.estado).toBe("recusada");
-        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Não excluí: o quadro do ${m.nomeEng} ganhou 1 tarefa depois do pedido.`);
+        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`Não excluí: o quadro de ${m.nomeEng} ganhou 1 tarefa depois do pedido.`);
         trxAtual = null;
       });
     });
@@ -645,7 +645,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
         expect(r.status).toBe(409);
         expect(((await r.json()) as ErroDto).codigo).toBe("estado_invalido");
         expect((await m.d.repos.propostas.buscar(id))?.estado).toBe("recusada");
-        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`O quadro do ${m.nomeEng} já não existe: nada a excluir.`);
+        expect(JSON.stringify(await m.d.repos.mensagens.listarDaConversa(m.ada.conversaId))).toContain(`O quadro de ${m.nomeEng} já não existe: nada a excluir.`);
         trxAtual = null;
       });
     });

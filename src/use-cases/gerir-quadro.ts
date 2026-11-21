@@ -360,7 +360,7 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
       const d = await desfazerAssumir(deps, { autor: { tipo: "agente", agenteId: input.agenteId }, turnoId: turno.id, autoria: autoriaDoAgente(deps.escopo, input.agenteId), ...noQuadro });
       if (!d.data.ok) return { data: { ok: false, erro: d.data.erro, instrucao: `${d.data.detalhe}. ${INSTRUCAO[d.data.erro]}` }, events: d.events };
       const n = d.data.reativadas.length;
-      return { data: { ok: true, quadro: null, lote_id: null, comecaram: [], instrucao: `Desfeito: o quadro do ${d.data.anfitriaoNome} deixou de assumir a esteira e ${n === 0 ? "nenhuma rotina precisou voltar" : `${n === 1 ? "1 rotina voltou" : `${n} rotinas voltaram`} a rodar`}. Diga isso em uma frase.` }, events: d.events };
+      return { data: { ok: true, quadro: null, lote_id: null, comecaram: [], instrucao: `Desfeito: o quadro de ${d.data.anfitriaoNome} deixou de assumir a esteira e ${n === 0 ? "nenhuma rotina precisou voltar" : `${n === 1 ? "1 rotina voltou" : `${n} rotinas voltaram`} a rodar`}. Diga isso em uma frase.` }, events: d.events };
     }
     const pa = await proporAssumirQuadro(deps, { agenteId: input.agenteId, conversaId: input.conversaId, turnoId: turno.id, ...noQuadro });
     if (!pa.data.ok) return { data: { ok: false, erro: pa.data.erro, instrucao: `${pa.data.detalhe}. ${INSTRUCAO[pa.data.erro]}` }, events: pa.events };
@@ -368,7 +368,7 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
     return {
       data: {
         ok: true, quadro: null, lote_id: null, comecaram: [], proposta_id: pa.data.propostaId,
-        instrucao: `Nada mudou ainda: o quadro do ${pa.data.payload.anfitriaoNome} assumir a esteira (${n === 0 ? "nenhuma rotina a pausar" : `pausar ${n} ${n === 1 ? "rotina" : "rotinas"}`}) espera a pessoa ${pa.data.jaAberto ? "num card já aberto" : "no card desta conversa"}. Diga isso em uma frase e encerre.`,
+        instrucao: `Nada mudou ainda: o quadro de ${pa.data.payload.anfitriaoNome} assumir a esteira (${n === 0 ? "nenhuma rotina a pausar" : `pausar ${n} ${n === 1 ? "rotina" : "rotinas"}`}) espera a pessoa ${pa.data.jaAberto ? "num card já aberto" : "no card desta conversa"}. Diga isso em uma frase e encerre.`,
       },
       events: pa.events,
     };
@@ -384,12 +384,12 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
     if (!ex.data.ok) return { data: { ok: false, erro: ex.data.erro, instrucao: `${ex.data.detalhe}. ${INSTRUCAO[ex.data.erro]}` }, events: ex.events };
     const nome = ex.data.payload.anfitriaoNome;
     const instrucao = ex.data.aplicada
-      ? `Excluí o quadro do ${nome}: ${nome} voltou a ser um agente comum (a conversa e a memória ficaram). Não tem Desfazer. Diga em uma frase: "Excluí o quadro do ${nome}."`
+      ? `Excluí o quadro de ${nome}: ${nome} voltou a ser um agente comum (a conversa e a memória ficaram). Não tem Desfazer. Diga em uma frase: "Excluí o quadro de ${nome}."`
       : ex.data.obsoleta
-        ? `Nada mudou: o quadro do ${nome} mudou enquanto o pedido saía. Diga isso e pergunte se ela ainda quer.`
+        ? `Nada mudou: o quadro de ${nome} mudou enquanto o pedido saía. Diga isso e pergunte se ela ainda quer.`
         : ex.data.jaAberto
-          ? `Nada mudou ainda: excluir o quadro do ${nome} já espera a pessoa num card aberto (Excluir / Agora não; está também na Sua vez). Não abri outro. Diga isso em uma frase e encerre.`
-          : `Nada mudou ainda: excluir o quadro do ${nome} espera a pessoa no card desta conversa (Excluir / Agora não). Diga isso em uma frase e encerre.`;
+          ? `Nada mudou ainda: excluir o quadro de ${nome} já espera a pessoa num card aberto (Excluir / Agora não; está também na Sua vez). Não abri outro. Diga isso em uma frase e encerre.`
+          : `Nada mudou ainda: excluir o quadro de ${nome} espera a pessoa no card desta conversa (Excluir / Agora não). Diga isso em uma frase e encerre.`;
     return { data: { ok: true, quadro: null, lote_id: null, comecaram: [], proposta_id: ex.data.propostaId, instrucao, ...(ex.data.aplicada ? { aplicada: true } : {}) }, events: ex.events };
   }
   // 2026-11-13 (0176; quadro: mover em lote): o 1º gerir_quadro do turno devolve o quadro e, se ele tem tarefa escrita
@@ -472,7 +472,7 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
   // (NOD-416) não tem lote: o link é o dela no quadro de destino.
   const tocadas = new Set(lote?.tarefaIds ?? (r.data.comentario ? [r.data.comentario.tarefaId] : r.data.movida ? [r.data.movida.tarefaId] : []));
   const tarefas = quadro && !desfeito ? linksDasTarefas(quadro, tocadas) : [];
-  if (tarefas.length) partes.push(`Na resposta, cite cada tarefa pelo link (o título de cada uma está em tarefas): ${tarefas.map((t) => `[${t.codigo}](${t.link})`).join(", ")}${quadro && quadro.agenteId !== input.agenteId ? ` (no quadro do ${quadro.agenteNome})` : ""}.`);
+  if (tarefas.length) partes.push(`Na resposta, cite cada tarefa pelo link (o título de cada uma está em tarefas): ${tarefas.map((t) => `[${t.codigo}](${t.link})`).join(", ")}${quadro && quadro.agenteId !== input.agenteId ? ` (no quadro de ${quadro.agenteNome})` : ""}.`);
   return {
     data: {
       ok: true,
