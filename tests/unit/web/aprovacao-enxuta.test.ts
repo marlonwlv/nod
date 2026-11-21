@@ -48,15 +48,16 @@ describe("a pílula dos pedidos fora da tela", () => {
     expect(pilulaDosPedidos({ decisaoId: "", nome: "", total: 2, posicao: "visivel" })).toBe("");
   });
 
+  // revisto em 2026-11-20 (ADR-191): "A Vera espera você", com o que ela pede quando o cartão diz.
   it("um pedido fora: o nome do bot e leva ao cartão", () => {
     const html = pilulaDosPedidos({ decisaoId: "d1", nome: "Vera", total: 1, posicao: "acima" });
-    expect(html).toContain("Vera precisa de você");
+    expect(html).toContain("A Vera espera você");
     expect(html).toContain('data-act="ver-decisao"');
     expect(html).toContain('data-id="d1"');
   });
 
   it("vários: a contagem", () => {
-    expect(pilulaDosPedidos({ decisaoId: "d1", nome: "Vera", total: 3, posicao: "abaixo" })).toContain("3 pedidos precisam de você");
+    expect(pilulaDosPedidos({ decisaoId: "d1", nome: "Vera", total: 3, posicao: "abaixo" })).toContain("3 pedidos esperam você");
   });
 });
 

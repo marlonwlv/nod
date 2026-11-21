@@ -250,11 +250,16 @@ describe("quadro-real (o html)", () => {
     expect(cardDaTarefa(t("1", { prUrl: "https://github.com/o/r/pull/3" }), agente).tags).toEqual(["PR #3"]);
   });
 
-  it("coluna recolhida por padrão abre quando tem tarefa; vazia continua recolhida", () => {
+  it("o Backlog recolhido abre quando tem tarefa; Feito e Cancelado ficam recolhidos mesmo com tarefa (Paper K6-a)", () => {
+    const desenhar = (status: string) => quadroDaMeta({ q: q([t("1"), t("2", { status })]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set() });
     const vazio = quadroDaMeta({ q: q([t("1")]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set() });
-    const comCancelada = quadroDaMeta({ q: q([t("1", { status: "cancelado" })]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set() });
-    const recolhidas = (h: string) => (h.match(/qd-col-recolhida/g) ?? []).length;
-    expect(recolhidas(comCancelada)).toBe(recolhidas(vazio) - 1);
+    const recolhidas = (h: unknown) => (String(h).match(/qd-col-recolhida/g) ?? []).length;
+    expect(recolhidas(desenhar("backlog"))).toBe(recolhidas(vazio) - 1);
+    expect(recolhidas(desenhar("feito"))).toBe(recolhidas(vazio));
+    expect(recolhidas(desenhar("cancelado"))).toBe(recolhidas(vazio));
+    // Um clique inverte: a pessoa abre o Feito com tarefa.
+    const aberto = quadroDaMeta({ q: q([t("1"), t("2", { status: "feito" })]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(["feito"]), acesas: new Set() });
+    expect(recolhidas(aberto)).toBe(recolhidas(vazio) - 1);
   });
 
   it("a faixa: aguardando mostra o giro; resposta com lote mostra Desfazer; sem lote, não", () => {
@@ -573,15 +578,14 @@ describe("NOD-460: a barra do quadro em tela cheia", () => {
 
   it("revisão 2 do PR #645: a busca que só acha numa coluna recolhida diz onde está e oferece abrir (não deixa a grade em branco)", () => {
     const comFeita = [...ts, t("9", { titulo: "Zebra feita", status: "feito" })];
-    // A pessoa recolheu o Feito (com tarefa, ele nasce aberto).
-    const rec = new Set(["feito"]);
-    const html = String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", alternadas: rec }));
+    // O Feito nasce recolhido mesmo com tarefa (Paper K6-a).
+    const html = String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra" }));
     expect(html).toContain("Nada nas colunas abertas; 1 card em Feito.");
     expect(html).toContain(`data-act="abrir-coluna" data-status="feito">Abrir Feito</button>`);
     // Sem as recolhidas à vista (Exibir), o mesmo.
-    expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", alternadas: rec, exibir: { recolhidas: false, compacto: false } }))).toContain("1 card em Feito.");
-    // Aberta a coluna, a tarefa aparece e a linha some.
-    expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra" }))).not.toContain("qd-vazio-1");
+    expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", exibir: { recolhidas: false, compacto: false } }))).toContain("1 card em Feito.");
+    // Aberta a coluna (a pessoa inverteu o padrão), a tarefa aparece e a linha some.
+    expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", alternadas: new Set(["feito"]) }))).not.toContain("qd-vazio-1");
   });
 
   it("o card rodando diz \"Trabalhando · há N min\"; Exibir compacto e sem recolhidas mudam a grade", () => {

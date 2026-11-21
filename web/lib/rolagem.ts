@@ -126,20 +126,26 @@ export function pilulaDaPergunta(p: PerguntaNaJanela | null): string {
   return `<button type="button" class="pilula-novas pilula-pergunta" data-act="ver-pergunta" data-id="${esc(p.decisaoId)}" title="Ir para a pergunta"><span class="pp-ponto" aria-hidden="true"></span><span>${esc(p.nome)} perguntou algo</span>${seta}</button>`;
 }
 
-/** Os cartões de aprovação abertos na conversa, vistos da janela: quantos há e o mais perto fora dela (ou nenhum fora). */
-export type PedidosNaJanela = { decisaoId: string; nome: string; total: number; posicao: "abaixo" | "acima" | "visivel" };
+/**
+ * Os cartões que esperam a pessoa na conversa, vistos da janela: quantos há, o MAIS ANTIGO (o alvo do "Ver") e onde ele
+ * está, ou "visivel" quando algum está à vista. `frase` é o que ele pede ("entrar no Drive"), vazia quando o cartão não diz.
+ */
+export type PedidosNaJanela = { decisaoId: string; nome: string; frase?: string; total: number; posicao: "abaixo" | "acima" | "visivel" };
 
 /**
- * A pílula dos pedidos fora da tela (item 10 dos acessos devolvidos, rodada 2, 2026-11-16; o "N itens precisam de você" do
- * app de referência): no lugar da pílula fixa "N esperam você", que ficava solta acima do campo, a mesma pílula da pergunta
- * fora da tela — só quando NENHUM cartão de aprovação aberto está à vista; leva ao mais perto (`ver-decisao`). Com um
- * cartão à vista, nada: o cartão já é o aviso.
+ * A pílula "o que espera você" (item 10 dos acessos devolvidos, rodada 2, 2026-11-16: o "N itens precisam de você" do app
+ * de referência; revisto em 2026-11-20, ADR-191, pedido do dono). Só quando NENHUM cartão que espera a pessoa está à vista
+ * (a pessoa rolou para cima, ou o bot escreveu muito depois do cartão): acima do campo, "A Ada espera você: entrar no
+ * Drive · Ver ↓"; com dois ou mais, "2 pedidos esperam você · Ver ↓", que leva ao mais antigo (`ver-decisao`). Com um
+ * cartão à vista, nada: o cartão já é o aviso. Antes eram só as aprovações ("Vera precisa de você").
  */
 export function pilulaDosPedidos(p: PedidosNaJanela | null): string {
   if (!p || p.posicao === "visivel" || p.total === 0) return "";
   const seta = p.posicao === "abaixo" ? SETA_BAIXO : SETA_CIMA;
-  const texto = p.total === 1 ? `${p.nome} precisa de você` : `${p.total} pedidos precisam de você`;
-  return `<button type="button" class="pilula-novas pilula-pergunta pilula-pedidos" data-act="ver-decisao" data-id="${esc(p.decisaoId)}" title="Ir para o pedido"><span class="pp-ponto" aria-hidden="true"></span><span>${esc(texto)}</span>${seta}</button>`;
+  const texto = p.total === 1
+    ? `A ${esc(p.nome)} espera você${p.frase ? `: <b>${esc(p.frase)}</b>` : ""}`
+    : `${p.total} pedidos esperam você`;
+  return `<button type="button" class="pilula-novas pilula-pergunta pilula-pedidos" data-act="ver-decisao" data-id="${esc(p.decisaoId)}" title="Ir para o pedido"><span class="pp-ponto" aria-hidden="true"></span><span class="pp-texto">${texto}</span><span class="pp-ver">${p.total === 1 ? "" : '<span aria-hidden="true">· </span>'}Ver ${seta}</span></button>`;
 }
 
 const SETA_BAIXO = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg>';

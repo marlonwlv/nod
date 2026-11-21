@@ -22,6 +22,8 @@ export const ASSUNTOS = [
   "aprovacao.total_credenciais",
   "proposta.obsoleta",
   "proposta.resultado",
+  // ADR-191: o pedido que a pessoa deixou para trás ao seguir conversando (a linha cinza no lugar do cartão).
+  "pedido.dispensado",
   "artefato",
   "ligacao",
   "sessao.nova",

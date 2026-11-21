@@ -99,7 +99,9 @@ describeIntegracao("varredor de lease (ADR-010/021, E9.4; ADR-045): conversa com
       expect(r2.interrompidos).toEqual([t2]);
       const abertas = (await deps.repos.decisoes.pendentesDaConversa(criado.conversa.id)).filter((d) => d.tipo === "retomar_turno");
       expect(abertas.map((d) => d.turnoId)).toEqual([t2]);
-      expect(await deps.repos.decisoes.buscar(r1.decisoes[0] ?? "")).toMatchObject({ estado: "decidida", desfecho: { tipo: "decidida_por_regra", regra: "regra:retomada_substituida", regraVersao: 1 } });
+      // revisto em 2026-11-20 (ADR-191): a "segunda" mensagem da pessoa já dispensou o Retomar reaberto (ela seguiu
+      // conversando), antes da segunda queda; a regra:retomada_substituida cobre a queda sem mensagem no meio.
+      expect(await deps.repos.decisoes.buscar(r1.decisoes[0] ?? "")).toMatchObject({ estado: "decidida", desfecho: { tipo: "dispensada", por: MARLON.pessoaId, antes: "reaberta" } });
       expect(t1).not.toBe(t2);
       const avisos = await deps.repos.incidentes.visiveis(0);
       expect(avisos).toHaveLength(1);

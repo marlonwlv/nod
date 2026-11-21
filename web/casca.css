@@ -163,8 +163,10 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .timeline .message.bot .bubble + .bubble { margin-top: 10px; }
 /* Item 10, rodada 2 (2026-11-16): os cartões da conversa seguem a coluna do bot. O recuo de 52 px era o do mascote ao lado
    da fala, que saiu daqui (regra de cima); sem ele o cartão começava 52 px para dentro e grudava no balão de quem pediu
-   (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala. */
-.timeline .decisoes-ancoradas { margin: 16px 0 18px; width: min(560px, 100%); }
+   (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala.
+   revisto em 2026-11-21 (teste do dono): o cartão segue a mesma regra de um balão — 16 px de margem e 2 px de folga, como
+   `.message[data-group-start]` (chat.css); a fala que vem depois já traz os 16 dela. */
+.timeline .decisoes-ancoradas { margin: 16px 0 0; padding: 2px 0; width: min(560px, 100%); }
 .timeline :is(.cp, .cp-linha, .cp-erro) { --cp-recuo: 0px; }
 /* O recibo do pedido decidido ("Permitido uma vez · …") tinha margem de cima negativa (-6) e entrava 4 px no balão da
    fala de cima, que aqui tem fundo. Agora: 10 px abaixo do balão, e um recibo logo abaixo do outro a 10 px (as falas
