@@ -1,3 +1,4 @@
+import { comFraseDoTeto, FRASE_TETO_ROTINAS, FRASE_TETO_TOKENS_MCP } from "./lib/frase-do-teto.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
 import { marcarEstadoDaPagina } from "./lib/estado-da-pagina.ts";
@@ -9953,7 +9954,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   "gerar-token-mcp": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
-      const emitido = await api!.gerarTokenMcp(nome);
+      const emitido = await api!.gerarTokenMcp(nome).catch((e: unknown) => { throw comFraseDoTeto(e, FRASE_TETO_TOKENS_MCP); });
       form.reset();
       dispatch({ tipo: "mcp-token-emitido", emitido });
     }),
@@ -9969,7 +9970,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     }),
   "criar-rotina": (form) => { const d = new FormData(form); const naGaveta = !!form.closest("#detalhes"); return agir(async () => {
     const [hora, minuto] = String(d.get("horario")).split(":").map(Number);
-    await api!.criarRotina({ agenteId: String(d.get("agenteId")), cron: String(d.get("frequencia")).startsWith("intervalo:") ? `*/${String(d.get("frequencia")).split(":")[1]} * * * *` : d.get("frequencia") === "hora" ? "0 * * * *" : `${minuto} ${hora} * * ${d.get("frequencia")}`, fusoIana: String(d.get("fusoIana")), instrucao: String(d.get("instrucao")), fonte: String(d.get("fonte")), entregavel: String(d.get("entregavel")), limitesAprovacao: String(d.get("limitesAprovacao")), politicaSemDado: String(d.get("politicaSemDado")) });
+    await api!.criarRotina({ agenteId: String(d.get("agenteId")), cron: String(d.get("frequencia")).startsWith("intervalo:") ? `*/${String(d.get("frequencia")).split(":")[1]} * * * *` : d.get("frequencia") === "hora" ? "0 * * * *" : `${minuto} ${hora} * * ${d.get("frequencia")}`, fusoIana: String(d.get("fusoIana")), instrucao: String(d.get("instrucao")), fonte: String(d.get("fonte")), entregavel: String(d.get("entregavel")), limitesAprovacao: String(d.get("limitesAprovacao")), politicaSemDado: String(d.get("politicaSemDado")) }).catch((e: unknown) => { throw comFraseDoTeto(e, FRASE_TETO_ROTINAS); });
     dispatch({ tipo: "invalidar", quais: ["rotinas"] });
     // Da gaveta, a rotina criada aparece na visão geral do bot; da tela cheia, na lista de rotinas.
     if (naGaveta) fecharNivel();
