@@ -198,6 +198,7 @@ import { voltaDaTela } from "./lib/volta.ts";
 import { cabecalhoSecao, CHAVE_SECOES_RECOLHIDAS, chaveDaSecao, definirSecaoRecolhida, ESPERA, estadoDaSecao, gruposDaBarra, lerSecoesRecolhidas, type AvisoBot } from "./lib/secoes.ts";
 import { faixaDeConectores, faixaDoUso, provedoresDoMenu, type AvisoDoUso, type DadosMenuConta } from "./telas/menu-conta.ts";
 import { renderConectores } from "./telas/conectores.ts";
+import { umEnvioPorVez } from "./lib/envio-unico.ts";
 import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
@@ -10360,6 +10361,16 @@ document.addEventListener("keydown", (ev) => {
   dispatch({ tipo: "contas-ui", mudanca });
   focarGatilho(volta);
 }, true);
+
+// QA-189: os formulários que criam algo no servidor mandavam dois POSTs no duplo clique (ou Enter + clique): dois tokens
+// MCP (só o último aparecia, o outro ficava válido sem ninguém ter visto), duas rotinas iguais, duas salas, duas memórias.
+// A chave de máquina já tinha `umaPorVez`; aqui vale a mesma trava (QA-186) para os outros, inclusive a Nova sala e a Nova
+// rotina em React, que chamam estes handlers.
+const FORMS_QUE_CRIAM = ["gerar-token-mcp", "criar-rotina", "criar-sala", "criar-memoria", "criar-agente"] as const;
+for (const qual of FORMS_QUE_CRIAM) {
+  const tratar = FORMS[qual];
+  if (tratar) FORMS[qual] = (form) => umEnvioPorVez(`cria:${qual}`, form, () => tratar(form));
+}
 
 document.addEventListener("submit", (ev) => {
   const form = (ev.target as HTMLElement).closest<HTMLFormElement>("form[data-form]");
