@@ -442,3 +442,32 @@ describe("NOD-377: a espera de colega vencida na pílula (protótipo aprovado)",
     expect(p.partes.corpo).not.toContain("p377-acoes");
   });
 });
+
+describe("ADR-190 (Paper 5c, 3): a pílula do campo lista também os lugares ativos", () => {
+  const ADA = { agenteId: "orq", rotulo: "Navegador da Ada", estado: "ao vivo", ponto: "vivo" as const, site: "Google Voos" };
+  const NOVA = { atalho: "⌘N", aria: "Meta+N" };
+
+  it("sem tarefas, a pílula é o lugar ('● Navegador da Ada · ao vivo ⌃') e o clique abre a aba dele", () => {
+    const p = pilulaNaConversa(estadoCom([], dono()), "orq", SEM_PROGRESSO, null, [ADA]);
+    if (p.tipo !== "vazia") throw new Error(p.tipo);
+    expect(p.html).toContain('class="pf-botao pf-lugar" data-act="navegador-abrir-aba" data-agente="orq"');
+    expect(p.html).toContain('<span class="pf-ponto-lugar" data-ponto="vivo" aria-hidden="true"></span><span class="pf-texto">Navegador da Ada</span><span class="pf-resto">· ao vivo</span>');
+    expect(p.html).toContain('aria-label="Abrir Navegador da Ada, ao vivo"');
+    expect(p.html).toContain("pf-seta");
+    // Com a tarefa nova à mão, o "+" ao lado (como na aba que conta); sem lugar, a aba "+ Nova tarefa" de sempre.
+    const comMais = pilulaNaConversa(estadoCom([], dono()), "orq", SEM_PROGRESSO, NOVA, [ADA]);
+    expect(comMais.tipo === "vazia" && comMais.html).toContain('class="pf-mais" data-act="nova-tarefa"');
+    const semLugar = pilulaNaConversa(estadoCom([], dono()), "orq", SEM_PROGRESSO, NOVA);
+    expect(semLugar.tipo === "vazia" && semLugar.html).toContain("+ Nova tarefa");
+    // Sem o dono no servidor também (o legado não tinha o que contar).
+    expect(pilulaNaConversa(estadoCom([], null), "orq", SEM_PROGRESSO, null, [ADA]).tipo).toBe("vazia");
+  });
+
+  it("com tarefas, o lugar entra no fim do texto e no topo da lista aberta", () => {
+    const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono({ principal: "trabalhando", frentes: 2 })), "orq", progresso(HEROS.map((h) => h.id)), null, [ADA]));
+    expect(p.escondida).toBe(false);
+    expect(p.partes.botao).toMatch(/pf-resto[^>]*>· .* · Navegador da Ada ao vivo<\/span>/);
+    expect(p.partes.corpo).toMatch(/^<h3 class="pf-secao">Lugares<\/h3><ul class="pf-lista"><li class="tv-item"><button type="button" class="tv-linha pf-lugar-linha" data-act="navegador-abrir-aba" data-agente="orq"/);
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Navegador da Ada</span><span class="tv-estado">Google Voos · ao vivo</span>');
+  });
+});

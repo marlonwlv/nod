@@ -1,3 +1,6 @@
+import { pedirHabilidades, telaDasHabilidades } from "../lib/habilidades.ts";
+import { htmlHabilidades } from "../lib/navegador-cartoes.ts";
+import { htmlLinhaDoLugarNoPainel } from "../lib/navegador-lugar-tela.ts";
 import { avisoErro } from "../lib/card-proposta.ts";
 import { secaoOnboardingDetalhes } from "./onboarding.ts";
 import type { RotinaDto } from "../../src/contracts/api.ts";
@@ -179,11 +182,13 @@ function avatarDoPainel(estado: Estado, a: Bot): ReturnType<typeof avatarDoBot> 
 
 function identidade(estado: Estado, a: Bot, dona: boolean): string {
   if (!identidadeEditavel(dona)) {
-    return `<div class="gv-identidade gvn-id">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2><span class="gvn-sub-fixo">${esc(a.titulo || (dona ? "Seu bot" : "Bot da equipe"))}</span></div>`;
+    return `<div class="gv-identidade gvn-id" data-chave="gvn-id:${esc(a.id)}">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2><span class="gvn-sub-fixo">${esc(a.titulo || (dona ? "Seu bot" : "Bot da equipe"))}</span></div>`;
   }
   const aberto = estado.avatarAberto?.agenteId === a.id;
   const avatar = `<div class="gvn-avatar-wrap"><button type="button" class="gvn-avatar" data-act="gaveta-avatar" data-id="${esc(a.id)}" aria-haspopup="dialog"${aberto ? ' aria-controls="gvn-pop"' : ""} aria-expanded="${aberto}" aria-label="Editar avatar de ${esc(a.nome)}" aria-describedby="gvn-dica">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<span class="gvn-lapis" aria-hidden="true">${ICONE.lapis}</span></button><span class="gvn-dica" id="gvn-dica" role="tooltip">Editar avatar</span>${aberto ? popoverAvatar(a) : ""}</div>`;
-  return `<div class="gv-identidade gvn-id">${avatar}
+  // A chave do bot (J2, 2026-11-20): no React (ADR-189) o campo vira `defaultValue` e, com a mesma chave para todo bot, o
+  // nó do bot anterior era reaproveitado com o nome dele ("Vera" na conversa da Ada). Outro bot, outro nó.
+  return `<div class="gv-identidade gvn-id" data-chave="gvn-id:${esc(a.id)}">${avatar}
     ${nomeEditavel(a, dona) ? campoDeNome({ dono: "bot", campo: "nome", id: a.id, valor: a.nome, rotulo: "Nome do bot", maxlength: 60, inputId: "gvn-nome", classe: "gvn-nome", descritoPor: "gvn-erro" }) : `<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2>`}
     ${campoDeNome({ dono: "bot", campo: "titulo", id: a.id, valor: a.titulo, rotulo: "Subtítulo do bot", maxlength: 80, inputId: "gvn-sub", classe: "gvn-sub", placeholder: "Adicionar um rótulo", descritoPor: "gvn-erro" })}
     <span class="gvn-erro-linha"><span class="gvn-erro-icone" aria-hidden="true">${ICONE.alerta}</span><span class="gvn-erro" id="gvn-erro" role="status"></span></span>${nomeEditavel(a, dona) ? statusDesfazer(a, estado.historicoPerfil[a.id], "identidade") : ""}</div>`;
@@ -237,7 +242,9 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
     ? linha(`${ICONE_ESCUDO}<span class="gv-linha-txt">Aprovações<small>${esc(subtituloDasAprovacoes(a))}</small></span>`, `data-act="modo-aprovacao" data-id="${esc(a.id)}" title="${esc(`${modo.titulo}: ${descricao(a.modoAprovacao ?? "manual", estado.frota?.revisor === true)}`)}"`, ICONE_CHEVRON)
     : "";
   const quadro = estado.experimentos.quadro ? linha(`${ICONE_QUADRO_P}<span class="gv-linha-txt">Quadro<small>${esc(resumoDoQuadro(estado, a.id))}</small></span>`, `data-act="abrir-tarefas" data-agente="${esc(a.id)}"`, ICONE_CHEVRON) : "";
-  const ajustes = `<section class="gv-secao gv-ajustes">${ajustesCab}${aprov || quadro ? `<div class="gv-cartao">${aprov}${quadro}</div>` : ""}</section>`;
+  // ADR-190 (M1/J2/N2): "Com o Mac desligado" (ou "Onde a Ada trabalha", sem o app), só para a dona e com o navegador.
+  const lugar = dona ? htmlLinhaDoLugarNoPainel(estado.lugaresNavegador[a.id], { agenteId: a.id, nome: a.nome, aberto: estado.lugarNavegadorAberto === `painel:${a.id}` }) : "";
+  const ajustes = `<section class="gv-secao gv-ajustes">${ajustesCab}${aprov || lugar || quadro ? `<div class="gv-cartao${estado.lugarNavegadorAberto === `painel:${a.id}` ? " nvl-com-lista" : ""}">${aprov}${lugar}${quadro}</div>` : ""}</section>`;
   // ADR-077: durante a configuração guiada, o painel da guia mostra o que a pessoa contou e o que já foi montado.
   const o = estado.onboarding;
   const onboarding = estado.onboardingAberto && o && o.guia?.id === a.id && (o.etapa === "entrevista" || o.etapa === "configurando" || o.etapa === "concluido") ? secaoOnboardingDetalhes(o) : "";
@@ -446,7 +453,10 @@ export function nivelAjustes(estado: Estado, a: Bot, dona: boolean, celular = fa
     ? `<section class="gv-secao pfc-na-lista"><h3>Na lista</h3><div class="gv-cartao"><div class="gv-linha">${ICONE.olho}<span class="gv-linha-txt">Ocultar da lista</span>${chaveCelular(a.oculto === true, "perfil-ocultar", a.id, "Ocultar da lista")}</div></div></section>`
     : "";
   const dev = estado.modoDev.ligado ? `<section class="gv-secao gv-dev"><h3>Modo dev</h3><div class="gv-dev-corpo">${renderSeloModoDev(estado, a.conversaId, a.nome)}</div></section>` : "";
-  return { titulo: "Ajustes", corpo: atalhos + perfil + naLista + acessosHtml + ambienteHtml + dev };
+  // ADR-190 (T3): Habilidades — as tarefas que a dona ensinou no navegador do bot (Ver, Apagar com Desfazer).
+  if (dona) pedirHabilidades(a.id);
+  const habilidades = dona ? htmlHabilidades(telaDasHabilidades(a.id), { agenteId: a.id, nome: a.nome, temNavegador: estado.navegadores[a.id] != null }) : "";
+  return { titulo: "Ajustes", corpo: atalhos + perfil + habilidades + naLista + acessosHtml + ambienteHtml + dev };
 }
 
 /**

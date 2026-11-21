@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { aprovacoesAbertasDaConversa, PLACEHOLDER_COM_APROVACAO } from "../../../web/lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, PLACEHOLDER_COM_APROVACAO, placeholderComAprovacao } from "../../../web/lib/recusa-da-aprovacao.ts";
 import { pilulaDosPedidos } from "../../../web/lib/rolagem.ts";
 import { comandoEmUmaLinha, porqueCurto } from "../../../web/telas/sua-vez.ts";
 
@@ -71,6 +71,11 @@ describe("mensagem com aprovação aberta", () => {
 
   it("o campo diz o que mandar mensagem faz", () => {
     expect(PLACEHOLDER_COM_APROVACAO).toBe("Ou diga o que fazer em vez disso");
+  });
+
+  it("com o navegador aberto ao lado, o curto (a conversa estreita cortava o completo); fechado, o completo", () => {
+    expect(placeholderComAprovacao(false)).toBe("Ou diga o que fazer em vez disso");
+    expect(placeholderComAprovacao(true)).toBe("Ou diga o que fazer");
   });
 });
 

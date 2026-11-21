@@ -13,6 +13,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
+import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaMacDesligado, RespostaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -281,6 +282,40 @@ export function criarApi(escopo: Escopo) {
       }
     },
     operarComputador: (operacao: OperacaoPessoa) => post<unknown>("computador", { operacao }),
+    /** ADR-190: a vista do navegador do bot e se ele roda neste servidor (404: servidor de antes ou bot de outra pessoa). */
+    navegador: (agenteId: string) => get<RespostaNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador`),
+    /** ADR-190: ligar, encerrar, retomar, recarregar e passar o controle (409 traz `motivo` em MOTIVOS_DO_NAVEGADOR). */
+    operarNavegador: (agenteId: string, operacao: OperacaoNavegador) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador`, { operacao }),
+    /** ADR-190: a pessoa no controle digita na barra de endereço. */
+    irParaNoNavegador: (agenteId: string, url: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/endereco`, { url }),
+    /** ADR-190: a pessoa no controle troca de aba (o id da aba na vista, `t1`). */
+    trocarAbaDoNavegador: (agenteId: string, aba: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/aba`, { aba }),
+    /** ADR-190 (T): começar, descartar, desfazer o descarte e salvar a tarefa ensinada. */
+    ensinarNoNavegador: (agenteId: string, operacao: OperacaoEnsinar, nome?: string) => post<RespostaEnsinar>(`agentes/${encodeURIComponent(agenteId)}/navegador/ensinar`, nome === undefined ? { operacao } : { operacao, nome }),
+    /** ADR-190 (M, N): onde o navegador do bot mora — a pergunta, as máquinas e os textos prontos. */
+    lugarDoNavegador: (agenteId: string) => get<RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`),
+    /** ADR-190 (N): muda o lugar (o interruptor, a máquina, "nod", "Só na …"); a mesma rota do Desfazer da conversa. */
+    mudarLugarDoNavegador: (agenteId: string, mudar: MudancaLugarNavegador) => post<{ ok: true } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`, mudar),
+    /** ADR-190 (K1): "Fazer agora" ou "Quando o Mac ligar" no cartão "Seu Mac está desligado". */
+    responderMacDesligado: (agenteId: string, turnoId: string, resposta: RespostaMacDesligado) => post<{ ok: true; turnoId: string | null } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/mac-desligado`, { turnoId, resposta }),
+    /**
+     * ADR-190 (L1, L2): a escolha do cartão de login. Com o 1Password, o Bitwarden ou o Chrome, `aviso` = "Confirme no seu
+     * Mac" e o preenchimento segue no servidor (a vista muda pelo `navegador.mudou`). Nenhum segredo vai neste corpo.
+     */
+    escolherLoginNoNavegador: (agenteId: string, decisaoId: string, escolha: EscolhaLoginNavegador) => post<RespostaLoginNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/login`, { decisaoId, escolha }),
+    /** ADR-190 (L4): o código de uso único do campo privado do cartão, direto para a página. */
+    codigoNoNavegador: (agenteId: string, decisaoId: string, codigo: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/codigo`, { decisaoId, codigo }),
+    /** ADR-190 (L5): "Guardar no cofre?" — `guardar: false` descarta (o texto sai da memória do servidor). */
+    guardarLoginDoNavegador: (agenteId: string, guardar: boolean, destino?: FonteCofre) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/guardar-login`, destino ? { guardar, destino } : { guardar }),
+    /** ADR-190 (decisão 6): o cofre do nod — site, usuário mascarado e data; a senha nunca volta. */
+    cofreLogins: () => get<{ logins: LoginDoCofreNaTela[] }>("cofre/logins"),
+    guardarNoCofre: (login: { site: string; usuario: string; senha: string }) => post<{ ok: true; login: LoginDoCofreNaTela }>("cofre/logins", login),
+    apagarDoCofre: (id: string) => del<{ ok: true }>(`cofre/logins/${encodeURIComponent(id)}`),
+    /** ADR-190 (T3): as habilidades do bot — as tarefas que a pessoa ensinou no navegador dele. */
+    tarefasEnsinadas: (agenteId: string) => get<{ tarefas: TarefaEnsinada[] }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades`),
+    apagarTarefaEnsinada: (agenteId: string, id: string) => del<{ ok: true }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades/${encodeURIComponent(id)}`),
+    /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
+    urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,
     trocarLugarDoComputador: (maquinaId: string, semLogins: boolean) => post<{ ok: true }>("computador/lugar", { maquinaId, semLogins }),
     urlEventos: `${base}/eventos`,
     frota: () => get<FrotaDto>("frota"),

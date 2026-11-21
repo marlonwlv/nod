@@ -108,6 +108,12 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
     return { saida: { data: { estado: "recusada", erros: ["Destino de computador não é conector de aprovação. Nada foi executado. Use diretamente a ferramenta computador_* disponível. Se a pessoa pediu confirmação antes, use pedir_a_pessoa e espere a resposta. Não contorne aprovação pendente nem falha de autorização."],
       instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
   }
+  // ADR-190 (2026-11-20): o navegador também tem portão próprio; a classe sai do alvo que o servidor resolveu.
+  if (!computador && input.itens.some((i) => i.destino.conector === "navegador" ||
+    (i.destino.conector === "nod" && i.destino.ferramenta.startsWith("navegador_")))) {
+    return { saida: { data: { estado: "recusada", erros: ["Destino de navegador não é conector de aprovação. Nada foi executado. Use diretamente a ferramenta navegador_* disponível: o portão do navegador pede a aprovação quando o ponto é sem volta."],
+      instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
+  }
   const propostas: PropostaItem[] = [];
   const conectorIdPorIdx: (string | null)[] = [];
   // ADR-059: a capacidade de destino é arriscada (apagar, merge, aprovar PR)? Lido do catálogo do CONECTOR.
@@ -126,7 +132,7 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   const nivelPorIdx: (NivelFerramenta | undefined)[] = [];
   const barrados: string[] = [];
   for (const [idxItem, item] of input.itens.entries()) {
-    if (!computador && (item.destino.conector === "computador" || item.destino.conector === "terminal")) {
+    if (!computador && (item.destino.conector === "computador" || item.destino.conector === "terminal" || item.destino.conector === "navegador")) {
       return { saida: { data: { estado: "recusada", erros: [`itens[${idxItem}]: ${item.destino.conector} usa o adaptador direto`], instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
     }
     if (item.destino.conector === "computador") {
@@ -142,6 +148,17 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
       envioPorIdx.push(false);
       nivelPorIdx.push(undefined);
       if (ajustes.soLeitura) barrados.push(`itens[${idxItem}]: ${FRASE_SO_LEITURA}`);
+      continue;
+    }
+    // ADR-190: a ação do navegador vai cifrada no próprio item (`acao`); só o portão do navegador a cria.
+    if (item.destino.conector === "navegador") {
+      const id = item.destino.argumentos?.acaoId;
+      if (typeof id !== "string" || !/^[a-f0-9-]{36}$/.test(id) || typeof item.destino.argumentos?.acao !== "string" || item.destino.ferramenta !== "executar") throw new ErroDeDominio("entrada_invalida");
+      propostas.push({ texto: item.texto, destino: item.destino, origemSensivel: false });
+      conectorIdPorIdx.push(null);
+      arriscadaPorIdx.push(false);
+      envioPorIdx.push(false);
+      nivelPorIdx.push(undefined);
       continue;
     }
     const conector = await deps.repos.conectores.buscarPorSlug(item.destino.conector);

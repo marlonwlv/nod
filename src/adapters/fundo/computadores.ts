@@ -162,7 +162,7 @@ async function reservarCom(lugar: Lugar, d: Deps, c: Vaga, acao: AcaoComputador,
   return { computador: c, operacao, acao, autor, registroId: registro, turnoId, aprovado: Boolean(registroId), ...(c.telaId && autor === "bot" ? { esperaAte: d.agora() + JANELA_ESPERA_TELA_MS } : {}) };
 }
 /** revisto em 2026-10-01 (ADR-067): sem o `prazoEm` — o turno vivo usa o computador enquanto não acabou, sem relógio. */
-async function turnoPermitido(d: Deps, turnoId: string, agenteId: string, aprovado = false): Promise<boolean> {
+export async function turnoPermitido(d: Deps, turnoId: string, agenteId: string, aprovado = false): Promise<boolean> {
   const t = await d.repos.turnos.buscar(turnoId);
   return Boolean(t && (aprovado || (t.estado !== "concluido" && t.estado !== "interrompido")) && t.agenteId === agenteId && t.ownerId === d.escopo.pessoaId && !t.pararSolicitadoEm &&
     t.motivoInterrupcao !== "parado_pela_pessoa" && !(await d.repos.agentes.execucaoBloqueada(turnoId)) &&

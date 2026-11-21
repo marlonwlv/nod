@@ -54,6 +54,10 @@ import { cifrarCodigo } from "./lib/cifra.ts";
 import { criarInstalarSsh, type CampoSegredo } from "./lib/instalar-ssh.ts";
 import type { ContasIaDto } from "../src/contracts/contas-ia.ts";
 import type { Mensagem } from "../src/contracts/mensagem.ts";
+import type { EscolhaLoginNavegador, FonteCofre, MudancaLugarNavegador, VistaNavegador } from "../src/contracts/navegador-do-bot.ts";
+import { lembrarFonteDoLogin, NOME_DA_FONTE } from "./lib/navegador-cartoes.ts";
+import { barraSoComAvatares, comArtigo } from "./lib/navegador-vista.ts";
+import { registrarHabilidades } from "./lib/habilidades.ts";
 import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
@@ -73,7 +77,7 @@ import { baixaveis } from "./lib/midia.ts";
 import { botDaFala, citacaoDaFala, htmlMenuDaFala, htmlSeletorDeReacao, linhaDeEmojis, reacoesDaFala, textoAbrirTask, textoParaLembrar } from "./telas/acoes-da-fala.ts";
 import { podeAbrirCartao, TEXTO_DA_RECUSA } from "./telas/desfazer.ts";
 import { renderChipModo } from "./telas/aprovacoes.ts";
-import { controleDaFolha, linhasDoBot, linhasVisiveis, renderFolhaMais, rotuloDoMais, travarToqueDuploEm, type EscolhaDaFolhaMais, type LinhasDaFolhaMais } from "./telas/folha-mais.ts";
+import { controleDaFolha, htmlMenuDoMais, linhasDoBot, linhasVisiveis, renderFolhaMais, rotuloDoMais, travarToqueDuploEm, type EscolhaDaFolhaMais, type LinhasDaFolhaMais } from "./telas/folha-mais.ts";
 import { abrirMenuModo } from "./lib/menu-modo.ts";
 import { abrirMenuIa } from "./lib/menu-ia.ts";
 import { dadosDoSeletor, mioloDoSeletor, pedidoDoSeletor, renderMenuIa, rotuloDoSeletor } from "./telas/seletor-ia.ts";
@@ -215,6 +219,7 @@ import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncid
 import { aparenciaDoComposer, topoDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
 import { DURACAO_AVISO_LOTE_MS, mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { criarTrocaDePasso } from "./lib/navegador-troca-de-passo.ts";
 import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
 import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
 import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
@@ -242,7 +247,7 @@ import { pedidosQueEsperam } from "./lib/pedidos-que-esperam.ts";
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
-import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO } from "./lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO, placeholderComAprovacao } from "./lib/recusa-da-aprovacao.ts";
 import { atalhoEnviarTodos } from "./telas/rascunhos-de-envio.ts";
 import { criarEnvios, enviarUmaVez } from "./lib/envio-idempotente.ts";
 import { iniciarMotorLigacao } from "./lib/ligacao.ts";
@@ -292,6 +297,7 @@ import { abaDoDestino, alvoDoFocoNaTabBar, contagemDaAbaSuaVez, criarHistoricoDa
 import { botDasTarefas, resumoDoQuadro, resumosDosQuadros, tarefasEmAndamento } from "./lib/tarefas-da-barra.ts";
 import { renderAbaQuadros, renderAbaSuaVez, renderFolhaRecentes, renderTabBar, renderTituloCompacto, renderTituloGrande } from "./telas/tab-bar-celular.ts";
 import { ligarTecladoVisivel } from "./lib/teclado-visivel.ts";
+import { criarNavegadorNaTela, type LugarAtivo } from "./telas/navegador.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
 import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
@@ -449,7 +455,7 @@ function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; bu
 /** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
 function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; sobre: () => string } {
-  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
+  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
 }
 /** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
 let termoAjustes = "";
@@ -661,7 +667,47 @@ function botsDaTelaAprovacoes(): BotDaTela[] {
 }
 const htmlAprovacoes = (): string => renderConfigAprovacoes(telaAprovacoes.estado(), botsDaTelaAprovacoes());
 /** Paper 07 (rodada 2): Configurações › Cofre, lido ao abrir a seção (web/lib/cofre.ts). */
-const telaCofre = criarTelaCofre({ api: () => api, render: () => render() });
+const telaCofre = criarTelaCofre({
+  api: () => api,
+  render: () => render(),
+  avisar: (texto, desfazer) => { mostrarAvisoDesfazer(desfazer ? { texto, aoDesfazer: desfazer } : { texto }); },
+  aoErro: (e) => mostrarErro(e),
+});
+/** ADR-190 (T3): Ajustes do bot › Habilidades — as tarefas ensinadas no navegador (web/lib/habilidades.ts). */
+const habilidades = registrarHabilidades({
+  api: () => api,
+  render: () => render(),
+  avisar: (texto, desfazer) => { mostrarAvisoDesfazer({ texto, aoDesfazer: desfazer }); },
+  aoErro: (e) => mostrarErro(e),
+});
+
+/** A vista que uma rota do navegador devolveu (login, código, guardar): entra no estado como a do REST. */
+function hidratarVistaDoNavegador(agenteId: string, vista: VistaNavegador): void {
+  dispatch({ tipo: "hidratar-navegador", agenteId, navegador: { vista, disponivel: estado.navegadores[agenteId]?.disponivel ?? true } });
+}
+
+/**
+ * O "Não" de uma aprovação do navegador (pílula e cartão): numa decisão `aprovacao`, recusar é desmarcar os itens (o
+ * `recusar: true` vale para pergunta e proposta, e numa aprovação seria lido como "aprovar o que está marcado"). Os ids
+ * dos itens vêm de "Sua vez"; sem ela à mão (outra tela), relê antes.
+ */
+async function corpoDaRecusaDoNavegador(decisaoId: string): Promise<{ itens: { id: string; selecionado: false }[] }> {
+  let item = estado.suaVez?.itens.find((i) => i.decisao.id === decisaoId);
+  if (!item && api) {
+    const suaVez = await api.suaVez(naFrente());
+    dispatch({ tipo: "hidratar-sua-vez", suaVez });
+    item = suaVez.itens.find((i) => i.decisao.id === decisaoId);
+  }
+  const itens = itensDaRecusa([], item?.itensAprovacao ?? []);
+  if (!itens) throw new ErroApi(409, "estado_invalido", "Este pedido já foi respondido.");
+  return { itens };
+}
+
+/** O que muda na conversa e em Sua vez quando um pedido do navegador é respondido. */
+function invalidarPedidoDoNavegador(): void {
+  const conversa = conversaAtual();
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversa ? [`conversa:${conversa.conversaId}` as Invalidacao] : [])] });
+}
 const telaAprovacoes = criarTelaAprovacoes({
   api: () => api,
   bots: botsDaTelaAprovacoes,
@@ -779,7 +825,18 @@ function guardarModoAbas(agenteId: string, ligado: boolean): void {
 }
 /** A Conversa deste bot mostra a fileira: modo abas ligado e alguma aba guardada (a lista, não a tela, que pode estar lendo). */
 function fileiraNaConversa(agenteId: string): boolean {
-  return modoAbas.has(agenteId) && abasDeTarefa.some((a) => a.agenteId === agenteId);
+  // ADR-190 (D7): a aba de lugar (o navegador do bot) também mantém a fileira.
+  return modoAbas.has(agenteId) && (abasDeTarefa.some((a) => a.agenteId === agenteId) || navegadorNaTela.abaAberta(agenteId));
+}
+/** ADR-190 (1c, item 1): o botão da tela no canto do cabeçalho, só com o navegador do bot (e só da dona). */
+function cantoDoNavegador(agenteId: string): string {
+  return botGerido(agenteId)?.ownerId === estado.sessao?.pessoaId ? navegadorNaTela.htmlBotaoDoCanto(agenteId) : "";
+}
+/** ADR-190 (Paper 5c, 2 e 3): os lugares ativos do bot (o navegador vivo ou esperando), para o botão de abas e a pílula. */
+function lugaresAtivos(agenteId: string): LugarAtivo[] {
+  if (botGerido(agenteId)?.ownerId !== estado.sessao?.pessoaId) return [];
+  const l = navegadorNaTela.lugarAtivo(agenteId);
+  return l ? [l] : [];
 }
 /** A aba com o nome em edição (duplo clique, F2 ou "Renomear"): o campo é redesenhado com o texto e o cursor de agora. */
 let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: number | null } | null = null;
@@ -854,9 +911,17 @@ function medidasDaBarra(): { janela: number; painel: number } {
   const painel = window.innerWidth >= 1100 && !!app?.classList.contains("com-detalhes") && !app.classList.contains("detalhes-ocultos") && !document.body.classList.contains("com-raio-x") ? PAINEL_DETALHES : 0;
   return { janela: window.innerWidth, painel };
 }
+/** D6 B: o painel do navegador cobre a conversa (preenchido depois que a tela do navegador existe). */
+let navegadorCobrindo: () => boolean = () => false;
+/** A barra como a tela mostra: a guardada, ou só com avatares enquanto o painel do navegador cobre a conversa (D6 B). */
+function barraNaTela(): Barra {
+  return !celular.ativo() && barraSoComAvatares(window.innerWidth, navegadorCobrindo()) ? { ...barraAtual, compacta: true } : barraAtual;
+}
+let compactaNaTela = barraAtual.compacta;
 function pintarBarraAgora(): void {
   const m = medidasDaBarra();
-  pintarBarra(barraAtual, document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "", m.janela, m.painel);
+  compactaNaTela = barraNaTela().compacta;
+  pintarBarra(barraNaTela(), document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "", m.janela, m.painel);
   const borda = document.getElementById("borda-barra");
   if (borda) atualizarBorda(borda, barraAtual, m);
 }
@@ -882,7 +947,8 @@ function animarTrocaDaBarra(compacta: boolean): void {
   timerAnimBarra = window.setTimeout(() => { delete h.dataset.barraAnim; }, 320);
 }
 // A janela mudou: o máximo da barra também (o chat nunca fica com menos de 424 px).
-window.addEventListener("resize", () => pintarBarraAgora());
+// D6 B: a janela cruzou 900 ou 1180 px com o painel cobrindo: a barra troca de desenho (o render repinta).
+window.addEventListener("resize", () => { if (barraNaTela().compacta !== compactaNaTela) render(); else pintarBarraAgora(); });
 // A etiqueta e a prévia só valem com a barra desenhada compacta (com a busca por cima, a barra está aberta).
 const recolhida = () => document.documentElement.dataset.largura === "recolhida";
 let etiquetaDaBarra: { esconder(): void } | null = null;
@@ -1390,6 +1456,62 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
   aoSair: () => navegar({ tipo: "inicio" }),
   aoPerderAcesso: (qid) => { compartilhados = compartilhados.filter((c) => c.id !== qid); render(); void lerCompartilhados(); },
 });
+/**
+ * ADR-190 (Paper "Navegador, computador e seu Mac"): a vista do navegador do bot no painel ao lado, na aba de lugar, na
+ * tela cheia e na folha do celular (web/telas/navegador.ts). Vive fora do reducer (o canal ao vivo e os quadros); a vista
+ * em si vem de `estado.navegadores` (o REST e o `navegador.mudou`).
+ */
+const navegadorNaTela = criarNavegadorNaTela({
+  api: () => api,
+  nome: (id) => botGerido(id)?.nome ?? "o bot",
+  avatar: (id) => { const b = botGerido(id); return b ? htmlMascote(b, "sm") : ""; },
+  temComputador: () => estado.computadorPessoa !== null && estado.computadorPessoa !== undefined,
+  abrirComputador: (id) => { const el = document.createElement("button"); el.dataset.id = id; void ACOES["abrir-computador"]?.(el); },
+  lerVista: (id) => {
+    const sessao = api;
+    if (!sessao) return;
+    void sessao.navegador(id)
+      .then((navegador) => dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador }))
+      .catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: null }); });
+  },
+  guardarVista: (id, r) => { if (estado.navegadores[id] !== r) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: r }); },
+  // Tocar a tela azul do login = "Entrar eu mesmo" do cartão (L1, D4 D): o cartão fecha e o controle vai para a pessoa.
+  entrarEuMesmo: async (agenteId, decisaoId) => {
+    if (!api || !agenteId) return null;
+    lembrarFonteDoLogin(agenteId, null);
+    try {
+      const r = await api.escolherLoginNoNavegador(agenteId, decisaoId, "eu_mesmo");
+      hidratarVistaDoNavegador(agenteId, r.vista);
+      if (r.aviso) anunciar(r.aviso);
+      return r.vista;
+    } finally { invalidarPedidoDoNavegador(); }
+  },
+  decidir: async (decisaoId, aprovar, sempre) => {
+    await decidirAprovacaoReconciliando(decisaoId, aprovar ? (sempre ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(decisaoId));
+    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+  },
+  mandarRecado: async (id, texto) => {
+    const bot = botGerido(id);
+    if (!api || !bot?.conversaId) return;
+    await api.enviar(bot.conversaId, texto);
+    dispatch({ tipo: "invalidar", quais: [`conversa:${bot.conversaId}`] });
+  },
+  // D1c: "Logins deste site…" abre o Cofre já filtrado pelo site da aba.
+  abrirLogins: (_id, url) => { abrirEspaco("cofre"); telaCofre.filtrar(url); requestAnimationFrame(() => document.getElementById("cofre-logins")?.scrollIntoView({ block: "start" })); },
+  abrirFora: (url) => {
+    const desk = (window as { nodDesktop?: { abrirNoNavegador?: (u: string) => void } }).nodDesktop;
+    if (desk?.abrirNoNavegador) desk.abrirNoNavegador(url);
+    else window.open(url, "_blank", "noopener,noreferrer");
+  },
+  aoErro: (e) => mostrarErro(e),
+  modoAbas: (id) => modoAbas.has(id),
+  // Achado 14 do crítico: o "Abrir em aba" do navegador liga o modo abas com a fileira entrando em 300 ms, na curva do projeto.
+  ligarModoAbas: (id) => { if (!modoAbas.has(id)) sanfonaDoNavegador = true; guardarModoAbas(id, true); },
+  render: () => render(),
+  pessoaId: () => estado.sessao?.pessoaId ?? null,
+  celular: () => ehCelular(),
+});
+navegadorCobrindo = () => navegadorNaTela.cobrindo();
 /** Tela 18d do Paper: a página Tarefas de todos os bots (a linha "Tarefas" da barra abre `{ tipo: "tarefas" }`). */
 const depsDasTarefas: DepsDasTarefas = {
   api: () => {
@@ -2758,6 +2880,18 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
   }
   if (q.startsWith("diario:")) return { tipo: "hidratar-diario", agenteId: q.slice(7), pagina: await api.diarioMemoria(q.slice(7)) };
   if (q.startsWith("concessoes:")) return { tipo: "hidratar-concessoes", agenteId: q.slice(11), ...(await api.concessoes(q.slice(11))) };
+  // ADR-190: a vista do navegador do bot (404: servidor de antes ou bot de outra pessoa — fica indisponível, sem faixa).
+  if (q.startsWith("navegador:")) {
+    const agenteId = q.slice(10);
+    const navegador = await api.navegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
+    return { tipo: "hidratar-navegador", agenteId, navegador };
+  }
+  // ADR-190 (M, N): onde o navegador do bot mora (404: servidor de antes ou bot de outra pessoa — sem a linha).
+  if (q.startsWith("lugar-navegador:")) {
+    const agenteId = q.slice(16);
+    const lugar = await api.lugarDoNavegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
+    return { tipo: "hidratar-lugar-navegador", agenteId, lugar };
+  }
   if (q.startsWith("execucoes:")) return { tipo: "hidratar-execucoes", rotinaId: q.slice(10), execucoes: (await api.execucoes(q.slice(10))).execucoes };
   // ADR-114 (chat limpo, PR 2): a página do dia da Atividade (404: servidor de antes ou bot de outra pessoa — fica
   // indisponível, sem faixa de erro) e o "N hoje", que é informativo: qualquer falha deixa a linha sem número.
@@ -2962,6 +3096,9 @@ function relevante(q: Invalidacao): boolean {
   if (q.startsWith("memoria:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(8) && (estado.gaveta.nivel.tipo === "memoria" || estado.gaveta.nivel.tipo === "ajustes");
   if (q.startsWith("diario:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(7) && estado.gaveta.nivel.tipo === "memoria" && estado.gaveta.nivel.aba === "historico" && (estado.frota?.agentes.some((a) => a.id === q.slice(7) && a.ownerId === estado.sessao?.pessoaId) ?? false);
   if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores" || modalDoMarketplace !== null;
+  // ADR-190: só relê o navegador do bot cuja vista a tela já leu (a tela do navegador, na próxima etapa, faz a 1ª leitura).
+  if (q.startsWith("navegador:")) return Object.hasOwn(estado.navegadores, q.slice(10));
+  if (q.startsWith("lugar-navegador:")) return t.tipo === "conversa" && t.agenteId === q.slice(16);
   // 2026-09-21: o painel de detalhes (tela conversa) também mostra o histórico — é onde a pessoa
   // confere que uma rotina silenciosa (desfecho sem_novidade, que não escreve no chat) rodou.
   if (q.startsWith("execucoes:")) return t.tipo === "rotinas" || t.tipo === "conversa";
@@ -3088,7 +3225,7 @@ function renderSidebar(estado: Estado): string {
   // flutuante de Buscar). O HTML do computador não muda.
   const ehCelular = celular.ativo();
   // NOD-119: na barra recolhida a etiqueta própria (web/lib/borda-barra.ts) substitui o title.
-  const semTitle = !ehCelular && barraAtual.compacta && !(buscaAberta || termoBusca() !== "");
+  const semTitle = !ehCelular && barraNaTela().compacta && !(buscaAberta || termoBusca() !== "");
   const agentes = estado.frota?.agentes ?? [];
   const abertas = abertasPorAgente(estado);
   const perguntas = perguntasPorAgente(estado);
@@ -3320,7 +3457,7 @@ function renderSidebar(estado: Estado): string {
     </div>
     ${ambiente}
     ${avisoDoMotor}
-    ${cartaoAtualizacao(atualizacaoNaWeb.tela(), barraAtual.compacta)}
+    ${cartaoAtualizacao(atualizacaoNaWeb.tela(), barraNaTela().compacta)}
     <div class="rodape">
       <button type="button" class="me conta-pilula${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${menuContaAberto() ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta${nomeRodape ? ` de ${esc(nomeRodape)}` : ""}: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="${esc(nomeRodape || "Menu da conta")}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
       ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Cards" data-etiqueta="Cards">${IC_QUADRO}</button>` : ""}
@@ -3646,11 +3783,11 @@ function renderPrincipal(): void {
       // Paper 10b e 10c A: no modo abas a Conversa também tem a fileira, começando pela pílula; no modo pílula, a pílula de
       // sempre com o botão de abas ao lado (quando há tarefas).
       if (fileiraNaConversa(t.agenteId)) {
-        cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)(botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
+        cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)((navegadorNaTela.abaAberta(t.agenteId) ? "" : cantoDoNavegador(t.agenteId)) + botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
         comAbas = true;
       } else {
         guardarModoAbas(t.agenteId, false);
-        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId) ?? "" });
+        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId, lugaresAtivos(t.agenteId)) ?? "" }) + cantoDoNavegador(t.agenteId);
       }
       partes = partesDaTimeline();
       {
@@ -3678,6 +3815,7 @@ function renderPrincipal(): void {
   document.querySelector(".app")?.classList.toggle("detalhes-ocultos", painelOculto());
   const donoDaTela = t.tipo === "conversa" && botGerido(t.agenteId)?.ownerId === estado.sessao?.pessoaId;
   definirTelaDoBot(donoDaTela ? api : null, donoDaTela && t.tipo === "conversa" ? t.agenteId : null);
+  navegadorNaTela.sincronizar({ agenteId: donoDaTela && t.tipo === "conversa" ? t.agenteId : null, navegadores: estado.navegadores });
   // ADR-094: um cabeçalho só. No celular o ☰ da gaveta de bots entra no próprio cabeçalho da tela; tela sem cabeçalho
   // ganha uma faixa só com ele (`so-menu`, que no computador não aparece).
   // NOD-42: a busca é da tela em que abriu (fecha ANTES do render: o "buscando" sai do cabeçalho junto). Aberta, o
@@ -3735,6 +3873,8 @@ function renderPrincipal(): void {
   // NOD-348: o tempo da fala viva é escrito logo depois do render (a parte trocada nasce vazia) e o anunciador vê o estado novo.
   relogioDaFala.tocar();
   anunciadorDoTurno.observar(falasNaTela());
+  // D8: a troca de passo na linha de atividade do navegador (sobe/entra em 160 ms, no máximo uma por segundo).
+  trocaDePasso.aplicar();
   agendarTrocaDoIndicador(tomarTrocaDoIndicador());
   // ADR-083 (#195): a faixa de Trabalhos fica colada em cima do campo, só na conversa e só com trabalho aberto do bot.
   // ADR-099 (parte 5): virou a linha do dono; chat limpo (PR 8): virou a pílula que se alarga, que some com a fala à vista.
@@ -4012,6 +4152,8 @@ function placeholderPadrao(): string {
   // Spec do botão + (tela 5): com o cartão de boas-vindas aberto, o campo também responde a ele.
   const bot = botGerido(t.agenteId);
   if (bot && faseDasBoasVindasDe(bot) === "pergunta") return PLACEHOLDER_DA_PERGUNTA;
+  // ADR-190 (Paper 1+5, D7): com a aba de lugar à vista, o campo manda um recado ao bot que trabalha no navegador.
+  if (navegadorNaTela.abaAtiva(t.agenteId)) return `Mande um recado para ${comArtigo(nome)}…`;
   // ADR-167 (Paper 02): "Mensagem para Ada", sem reticências.
   return `Mensagem para ${nome}`;
 }
@@ -4044,7 +4186,10 @@ function atualizarComposer(): void {
   // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
   const comPedido = (a.placeholder === placeholderPadrao() || espera.length > 0) && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
   const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
-  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? rotulo : placeholderComArquivo(rotulo);
+  // ADR-190: com o navegador aberto ao lado (painel ou aba de lugar), o curto; o aria-label segue o completo.
+  const t = estado.tela;
+  const navegadorAberto = t.tipo === "conversa" && (navegadorNaTela.painelAberto(t.agenteId) || navegadorNaTela.abaAtiva(t.agenteId));
+  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? placeholderComAprovacao(navegadorAberto) : placeholderComArquivo(rotulo);
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
   if (ta.getAttribute("aria-label") !== rotulo) ta.setAttribute("aria-label", rotulo);
   // Plano "tela limpa" (2026-10-16, T5): a dica "Enter envia…" saiu. Plano "pergunta com botões" (2026-10-18): a nota do
@@ -4252,12 +4397,24 @@ function travarToqueDuplo(): void {
   requestAnimationFrame(() => { const menus = document.querySelectorAll<HTMLElement>(".rx-menu"); const m = menus[menus.length - 1]; if (m) travarToqueDuploEm(m); });
 }
 
+/**
+ * ADR-190 (T1): o bot da conversa à vista, se "Ensinar uma tarefa" vale nele — só no computador, só bot da pessoa e só com
+ * o navegador do bot conhecido pela tela.
+ */
+function ensinarNoMais(): { agenteId: string; nome: string } | null {
+  if (ehCelular()) return null;
+  const t = estado.tela;
+  const bot = t.tipo === "conversa" ? botGerido(t.agenteId) : undefined;
+  if (!bot || bot.ownerId !== estado.sessao?.pessoaId || !navegadorNaTela.tem(bot.id)) return null;
+  return { agenteId: bot.id, nome: bot.nome };
+}
+
 /** O + só aparece quando a folha teria o que mostrar (bot de outra pessoa sem anexo, frota ainda chegando: escondido). */
 function atualizarMais(): void {
   const mais = document.querySelector<HTMLButtonElement>("#composer .mais-campo");
   if (!mais) return;
   const l = linhasDaFolhaMais();
-  const vazio = linhasVisiveis(l).length === 0;
+  const vazio = linhasVisiveis(l).length === 0 && ensinarNoMais() === null;
   if (mais.hidden !== vazio) mais.hidden = vazio;
   // Revisão 2: o aviso do modo total continua no campo (ADR-059) e o rótulo diz o que a folha tem. Revisão 5: o aviso
   // vale para quem conversa com o bot, dona ou colega (o colega é quem manda o texto que o faz agir sozinho).
@@ -4275,7 +4432,27 @@ function atualizarMais(): void {
  */
 function abrirFolhaMais(el: HTMLElement): void {
   const l = linhasDaFolhaMais();
-  if (linhasVisiveis(l).length === 0) return;
+  const ensinar = ensinarNoMais();
+  if (linhasVisiveis(l).length === 0 && !ensinar) return;
+  if (!ehCelular() && ensinar) {
+    // T1: o menu pequeno acima do + (Foto ou arquivo · Nova tarefa · Ensinar uma tarefa).
+    const r = el.getBoundingClientRect();
+    const t = estado.tela;
+    const novaTarefa = t.tipo === "conversa" && botAceitaTarefa(estado, t.agenteId) ? ATALHO_NOVA_TAREFA : null;
+    el.setAttribute("aria-expanded", "true");
+    const html = htmlMenuDoMais({ anexar: l.anexar, novaTarefa, ensinar });
+    const aoEscolher = (b: HTMLButtonElement) => {
+      const q = b.dataset.maisPc;
+      if (q === "anexar") document.getElementById("composer-arquivos")?.click();
+      else if (q === "nova-tarefa") abrirNovaTarefa(el);
+      else if (q === "ensinar") void navegadorNaTela.ensinar(b.dataset.agente ?? ensinar.agenteId);
+    };
+    const aoFechar = () => el.setAttribute("aria-expanded", "false");
+    // Abre para cima: o campo fica embaixo da tela.
+    if (moduloDosDialogos) moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { html, ancora: el, lado: "top", alinhar: "start", distancia: 8, aoEscolher, aoFechar });
+    else abrirMenuDaBarra(html, el, { x: r.left - 4, y: Math.max(12, r.top - 8 - 140) }, aoEscolher, false, aoFechar);
+    return;
+  }
   if (!ehCelular()) { document.getElementById("composer-arquivos")?.click(); return; }
   fecharMenuIa();
   const chave = composerDe;
@@ -4479,6 +4656,8 @@ function agendarViradaDoMascote(): void {
   viradaDoMascote = em === null ? null : { em, timer: window.setTimeout(() => { viradaDoMascote = null; dispatch({ tipo: "tick", agora: Date.now() }); }, Math.max(0, em - Date.now()) + 50) };
 }
 
+const trocaDePasso = criarTrocaDePasso({ agora: () => Date.now(), agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => window.clearTimeout(id), reduzido: () => movimentoReduzido(), raiz: () => document });
+
 function render(): void {
   lojaDoEstado.avisar();
   // O modal do Marketplace também lê o que mora fora do reducer (o padrão do app, o nível otimista): a foto dele só
@@ -4623,7 +4802,7 @@ function prenderFocoNaGaveta(slug: string | null): void {
  * (digitar na busca filtra direto, no ouvinte de input).
  */
 function redesenharSidebar(): void {
-  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraAtual.compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : "", JSON.stringify(atualizacaoNaWeb.tela())], renderSidebar);
+  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraNaTela().compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : "", JSON.stringify(atualizacaoNaWeb.tela())], renderSidebar);
   // NOD-119/ADR-179: no celular a barra é a gaveta de sempre; o <html> só leva a largura no computador (virar o aparelho muda).
   pintarBarraAgora();
   if (!regiaoMudaria("sidebar", html)) return;
@@ -5450,11 +5629,16 @@ function opcoesDaCapsula(agenteId: string): { comQuadro: boolean; paginas: Retur
  * e o painel no fim; numa tarefa, a pílula simples, que volta para a conversa.
  */
 function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = false): (fim: string) => string {
-  const pilula = naConversa
-    ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
+  // ADR-190 (D7): com a aba de lugar à vista, a pílula fica apagada e volta para a conversa (como numa tarefa).
+  const lugarAVista = naConversa && navegadorNaTela.abaAtiva(agenteId);
+  const pilula = naConversa && !lugarAVista
+    ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId, lugaresAtivos(agenteId)) ?? "" }
     : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
+  const lugares = navegadorNaTela.abaNaFileira(agenteId) ?? undefined;
+  const fechados = navegadorNaTela.lugaresFechados(agenteId);
   return (fim) => renderFileiraDeAbas(estado, {
-    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu,
+    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu, ...(lugares ? { lugares } : {}),
+    ...(fechados ? { lugaresFechados: { quantos: fechados.quantos, ponto: fechados.ponto } } : {}),
     renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
     novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
   });
@@ -5472,6 +5656,8 @@ function mostrarEmAbas(agenteId: string): void {
   }
   const abertas = trabalhosConhecidos(estado).filter((t) => t.agenteId === agenteId && aberto(t)).sort((a, b) => a.criadoEm - b.criadoEm).map((t) => ({ id: t.id, agenteId }));
   guardarAbas(abasAoMostrar(abasDeTarefa, abertas));
+  // ADR-190 (Paper 5c, 2): o lugar ativo vem junto para a fileira (a aba dele, sem abrir: a Conversa continua à vista).
+  if (lugaresAtivos(agenteId).length) navegadorNaTela.porNaFileira(agenteId);
   guardarModoAbas(agenteId, true);
   render();
 }
@@ -5541,7 +5727,14 @@ function animarAbasNovas(antes: Set<string> | null): void {
   }
 }
 const SANFONA_CURVA = "cubic-bezier(.32, .72, 0, 1)";
-function animarSanfona(de: DOMRect): void {
+/**
+ * ADR-190 (achado 14 do crítico, 2026-11-20): quando quem liga o modo abas é o "Abrir em aba" do navegador, a fileira entra
+ * em 300 ms com a curva do projeto (--curva), não nos 520 ms da sanfona das tarefas: a vista já está viajando junto.
+ */
+const SANFONA_NAVEGADOR_MS = 300;
+const CURVA_DO_PROJETO = "cubic-bezier(.22, 1, .36, 1)";
+let sanfonaDoNavegador = false;
+function animarSanfona(de: DOMRect, ms = SANFONA_MS, curva = SANFONA_CURVA): void {
   const el = pecaDaSanfona();
   if (!el) return;
   const r = el.getBoundingClientRect();
@@ -5552,23 +5745,27 @@ function animarSanfona(de: DOMRect): void {
     el.animate([
       { transform: `translate(${de.left - r.left}px, ${de.top - r.top}px)`, width: `${de.width}px`, height: `${de.height}px`, borderRadius: `${de.height / 2}px` },
       { transform: "none", width: `${r.width}px`, height: `${r.height}px`, borderRadius: "8px" },
-    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+    ], { duration: ms, easing: curva });
   } else {
     // Ao lado da pílula, mudar a largura empurraria a pílula (as duas centradas juntas): o "Fechar abas" encolhe em escala.
     el.animate([
       { transformOrigin: "0 0", transform: `translate(${de.left - r.left}px, ${de.top - r.top}px) scale(${de.width / r.width}, ${de.height / r.height})`, borderRadius: "8px" },
       { transformOrigin: "0 0", transform: "none", borderRadius: `${r.height / 2}px` },
-    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+    ], { duration: ms, easing: curva });
   }
   // O miolo (o × e "Fechar abas", ou o ícone de abas) entra depois que a peça já andou um pouco.
-  for (const filho of el.children) (filho as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: SANFONA_MS, easing: "ease-out" });
+  for (const filho of el.children) (filho as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: ms, easing: "ease-out" });
 }
 function botDoTopo(): string | null {
   const t = estado.tela;
   return t.tipo === "conversa" || t.tipo === "nova-tarefa" ? t.agenteId : t.tipo === "trabalho" ? trabalhoPorId(estado, t.id)?.agenteId ?? null : null;
 }
 function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
+  const doNavegador = sanfonaDoNavegador;
+  sanfonaDoNavegador = false;
   if (!antes || reduzirMovimento()) return;
+  const ms = doNavegador ? SANFONA_NAVEGADOR_MS : SANFONA_MS;
+  const curva = doNavegador ? CURVA_DO_PROJETO : SANFONA_CURVA;
   const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
   const naFileira = !!el?.closest(".abas-com-pilula");
   if (!el || naFileira === antes.naFileira || antes.bot !== botDoTopo()) return;
@@ -5576,9 +5773,9 @@ function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
   const dx = antes.rect.left - r.left;
   const dy = antes.rect.top - r.top;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: SANFONA_MS, easing: SANFONA_CURVA });
-  if (antes.sanfona) animarSanfona(antes.sanfona);
-  if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
+  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: ms, easing: curva });
+  if (antes.sanfona) animarSanfona(antes.sanfona, ms, curva);
+  if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando", ...(doNavegador ? ["nv-rapido"] : []));
 }
 
 /** O painel do bot entrando ou saindo (validação de 2026-11-18): a classe dura a animação do CSS (painel-entra/sai). */
@@ -5686,8 +5883,9 @@ function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
   const outras = outrasDaFileira(estado, abasDeTarefa, agenteId, t.tipo === "trabalho" ? t.id : null);
   const feitas = feitasDaFileira(estado, abasDeTarefa, agenteId);
   const r = ancora.getBoundingClientRect();
-  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
-    if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
+  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length, navegadorNaTela.lugaresFechados(agenteId)?.html ?? ""), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+    if (b.dataset.lugarAgente) navegadorNaTela.reabrirFechada(b.dataset.lugarAgente);
+    else if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
     else if (b.hasAttribute("data-tirar-feitas")) tirarAsFeitas(agenteId, feitas);
     else if (b.dataset.id) abrirTrabalho(b.dataset.id);
   });
@@ -7179,6 +7377,9 @@ function verPergunta(decisaoId: string): void {
 /** Rola até o balão/card, põe o foco nele e (se `realcar`) realça (web/lib/levar-ao-alvo.ts) — a lista redesenhada não o perde. */
 function levarAo(alvo: AlvoDoAtalho, realcar = true): void {
   rolagem.soltar();
+  // ADR-190 (L1): o pedido do navegador é um cartão de borda azul dentro da mensagem; o realce vai nele, não na largura
+  // inteira da mensagem (a moldura laranja de ponta a ponta que a prancheta não tem).
+  if (alvo instanceof HTMLElement) alvo = alvo.querySelector<HTMLElement>(":scope > .bubble-wrap > .nvc, :scope > .bubble-wrap > .nvl-cartao") ?? alvo;
   levarAoAlvo(alvo, { reduzido: movimentoReduzido(), agendar: (fn, ms) => window.setTimeout(fn, ms), realcar });
 }
 
@@ -7364,7 +7565,7 @@ function desenharPilula(): void {
   // subir ou descer quando a sanfona abre ou fecha.
   const noTopo = fileiraNaConversa(t.agenteId);
   document.getElementById("faixa-trabalhos")?.classList.toggle("pf-no-topo", noTopo);
-  const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t));
+  const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t), lugaresAtivos(t.agenteId));
   if (p.tipo !== "pilula") {
     if (p.tipo === "nada" || p.tipo === "vazia") {
       const ao = aoSumir({ aberta: estado.faixaTrabalhosAberta === t.agenteId, focoDentro: pilula.focoDentro() });
@@ -8733,6 +8934,44 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // definido em 2026-09-24 (emenda da ADR-037): "Tentar de novo" é o mesmo ligar do computador; falhou, a
   // frota relê e o cartão continua dizendo o motivo.
   "religar-computador": (el) => ligarComputador(el.dataset.id ?? "", "religar"),
+  // ADR-190 (N): o botão da linha "o navegador mudou de lugar" (Desfazer, "Só na vm-sp, mesmo que atrase").
+  "navegador-lugar": (el) => agir(async () => {
+    let mudar: MudancaLugarNavegador = {};
+    try { mudar = JSON.parse(el.dataset.mudar ?? "{}") as MudancaLugarNavegador; } catch { return; }
+    const r = await api!.mudarLugarDoNavegador(el.dataset.id ?? "", mudar);
+    el.setAttribute("disabled", "");
+    el.textContent = "Feito";
+    dispatch({ tipo: "hidratar-lugar-navegador", agenteId: el.dataset.id ?? "", lugar: r });
+  }),
+  // ADR-190 (N3): a lista "Com o Mac desligado, a Ada continua" (a linha do painel, a frase do cartão, "Trocar").
+  "nv-lugar-abrir": (el) => {
+    const chave = el.dataset.chave ?? null;
+    dispatch({ tipo: "lugar-navegador-aberto", chave: estado.lugarNavegadorAberto === chave ? null : chave });
+    if (estado.lugarNavegadorAberto) requestAnimationFrame(() => document.querySelector<HTMLElement>(`.nvl-pop[data-chave="${CSS.escape(estado.lugarNavegadorAberto ?? "")}"] .nvl-item[aria-checked="true"]`)?.focus());
+  },
+  // ADR-190 (M1, J2, N3): o interruptor, um item da lista, os botões do cartão-pergunta e o Desfazer da resposta.
+  "nv-lugar-mudar": (el) => agir(async () => {
+    let mudar: MudancaLugarNavegador = {};
+    try { mudar = JSON.parse(el.dataset.mudar ?? "{}") as MudancaLugarNavegador; } catch { return; }
+    const agenteId = el.dataset.id ?? "";
+    const antes = estado.lugaresNavegador[agenteId] ?? null;
+    const r = await api!.mudarLugarDoNavegador(agenteId, mudar);
+    dispatch({ tipo: "lugar-navegador-aberto", chave: null });
+    dispatch({ tipo: "hidratar-lugar-navegador", agenteId, lugar: r });
+    // O interruptor do painel (M1): aviso com Desfazer, que volta ao que era.
+    if (el.classList.contains("nvl-chave") && antes) {
+      const desfazer: MudancaLugarNavegador = { continuaSemMac: antes.continuaSemMac };
+      mostrarAvisoDesfazer({ texto: r.subtitulo, aoDesfazer: () => agir(async () => dispatch({ tipo: "hidratar-lugar-navegador", agenteId, lugar: await api!.mudarLugarDoNavegador(agenteId, desfazer) })) });
+    }
+  }),
+  // ADR-190 (K1): "Fazer agora" ou "Quando o Mac ligar".
+  "nv-mac-desligado": (el) => agir(async () => {
+    const agenteId = el.dataset.id ?? "";
+    const resposta = el.dataset.resposta === "ao_ligar" ? "ao_ligar" : "agora";
+    const r = await api!.responderMacDesligado(agenteId, el.dataset.turno ?? "", resposta);
+    dispatch({ tipo: "hidratar-lugar-navegador", agenteId, lugar: r });
+  }),
+  "nv-ver-maquinas": () => { dispatch({ tipo: "lugar-navegador-aberto", chave: null }); abrirEspaco("maquinas"); },
   // ADR-125: Acordar, na aba Computador, é o mesmo ligar; o pulso seguinte lê o estado novo.
   "computador-acordar": (el) => ligarComputador(el.dataset.id ?? "", "acordar"),
   // ADR-125 (NOD-349): o topo da gaveta, as abas e o popover do avatar.
@@ -9245,7 +9484,78 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   },
   "menu-aba-tarefa": (el) => abrirMenuDaAba(el.dataset.id ?? "", el.closest<HTMLElement>(".at-aba") ?? el),
   "fechar-aba-tarefa": (el) => fecharAbaDeTarefa(el.dataset.id ?? ""),
-  "aba-conversa": (el) => voltarParaAConversa(el.dataset.agente ?? ""),
+  "aba-conversa": (el) => {
+    // ADR-190 (D7): da aba de lugar, a pílula volta para a conversa do mesmo bot (a aba fica na fileira).
+    const id = el.dataset.agente ?? "";
+    if (navegadorNaTela.abaAtiva(id)) { navegadorNaTela.desativarAba(id); render(); return; }
+    voltarParaAConversa(id);
+  },
+  // ADR-190: o navegador do bot — o "Ver" da linha de atividade, o botão do canto e a aba de lugar (D7).
+  "navegador-ver": (el) => navegadorNaTela.ver(el.dataset.agente ?? ""),
+  "navegador-alternar": (el) => navegadorNaTela.alternar(el.dataset.agente ?? ""),
+  // ADR-190 (L1, L2): a escolha do cartão de login. Nenhum segredo passa aqui: só a fonte e a referência do item do cofre.
+  "nv-login": (el) => agir(async () => {
+    const agenteId = el.dataset.agente ?? "";
+    const decisaoId = el.dataset.decisao ?? "";
+    const e = el.dataset.escolha;
+    const escolha: EscolhaLoginNavegador = e === "eu_mesmo" || e === "chrome" ? e : { fonte: (el.dataset.fonte ?? "nod") as FonteCofre, ref: el.dataset.ref ?? "" };
+    lembrarFonteDoLogin(agenteId, typeof escolha === "object" ? escolha.fonte : null);
+    for (const b of el.closest(".nvc")?.querySelectorAll<HTMLButtonElement>("button") ?? []) b.disabled = true;
+    try {
+      const r = await api!.escolherLoginNoNavegador(agenteId, decisaoId, escolha);
+      hidratarVistaDoNavegador(agenteId, r.vista);
+      if (r.aviso) anunciar(r.aviso);
+      // D4, D: "Entrar eu mesmo" — o cartão fecha e a pílula assume; a vista abre para a pessoa digitar.
+      if (escolha === "eu_mesmo") navegadorNaTela.ver(agenteId);
+    } finally {
+      for (const b of document.querySelectorAll<HTMLButtonElement>(`.nvc[data-decisao="${CSS.escape(decisaoId)}"] button:not([aria-disabled="true"])`)) b.disabled = false;
+      invalidarPedidoDoNavegador();
+    }
+  }),
+  // ADR-190 (A1–A3): a mesma decisão da pílula. O "Não perguntar de novo" marcado vai como `sempre`.
+  "nv-decidir": (el) => agir(async () => {
+    const id = el.dataset.decisao ?? "";
+    const aprovar = el.dataset.aprovar === "1";
+    const lembrar = el.closest(".nvc")?.querySelector<HTMLInputElement>(".nvc-lembrar-caixa")?.checked === true;
+    marcarDecidida(el, id);
+    await decidirAprovacaoReconciliando(id, aprovar ? (lembrar ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(id));
+  }),
+  // ADR-190 (L5): "Guardar no cofre?" — o destino escolhido (só quando há mais de um) ou "Não".
+  "nv-guardar": (el) => agir(async () => {
+    const agenteId = el.dataset.agente ?? "";
+    const guardar = el.dataset.guardar === "1";
+    const destino = (el.closest(".nvc-guardar")?.querySelector<HTMLInputElement | HTMLSelectElement>(".nvc-destino")?.value ?? "nod") as FonteCofre;
+    const r = await api!.guardarLoginDoNavegador(agenteId, guardar, guardar ? destino : undefined);
+    hidratarVistaDoNavegador(agenteId, r.vista);
+    if (guardar) mostrarAvisoDesfazer({ texto: `Login guardado n${NOME_DA_FONTE[destino]}` });
+  }),
+  "nv-assumir": (el) => navegadorNaTela.assumir(el.dataset.agente ?? ""),
+  "nv-resolver": (el) => agir(async () => { await navegadorNaTela.resolver(el.dataset.agente ?? ""); invalidarPedidoDoNavegador(); }),
+  // ADR-190 (T1): "Ensinar uma tarefa" do + do campo.
+  "nv-ensinar": (el) => void navegadorNaTela.ensinar(el.dataset.agente ?? ""),
+  // ADR-190 (T3): Ajustes do bot › Habilidades.
+  "nv-habilidade-ver": (el) => habilidades.alternar(el.dataset.agente ?? "", el.dataset.tarefa ?? ""),
+  "nv-habilidade-apagar": (el) => habilidades.apagar(el.dataset.agente ?? "", el.dataset.tarefa ?? ""),
+  "nv-habilidades-reler": (el) => void habilidades.reler(el.dataset.agente ?? ""),
+  // ADR-190 (decisão 6): Configurações › Cofre › Logins de sites.
+  "cofre-adicionar-login": () => { telaCofre.adicionando(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.cofre-form input[name="site"]')?.focus()); },
+  "cofre-cancelar-login": () => { for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-form input')) c.value = ""; telaCofre.adicionando(false); document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus(); },
+  "cofre-ver-todos": () => telaCofre.filtrar(""),
+  "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
+  // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
+  "cofre-mostrar-senha": (el) => {
+    const campo = el.closest(".cofre-senha")?.querySelector<HTMLInputElement>('input[name="senha"]');
+    if (!campo) return;
+    const mostrar = campo.type === "password";
+    campo.type = mostrar ? "text" : "password";
+    el.setAttribute("aria-pressed", String(mostrar));
+    el.setAttribute("aria-label", mostrar ? "Ocultar a senha" : "Mostrar a senha");
+    el.title = mostrar ? "Ocultar" : "Mostrar";
+  },
+  "navegador-aba": (el) => navegadorNaTela.mostrarAba(el.dataset.agente ?? ""),
+  // Paper 5c (3): o lugar na pílula do campo abre a aba dele (o modo abas, com ela à vista).
+  "navegador-abrir-aba": (el) => navegadorNaTela.abrirAba(el.dataset.agente ?? ""),
+  "navegador-fechar-aba": (el) => navegadorNaTela.fecharAba(el.dataset.agente ?? ""),
   "mostrar-em-abas": (el) => mostrarEmAbas(el.dataset.agente ?? ""),
   "fechar-abas": (el) => fecharAbas(el.dataset.agente ?? ""),
   "abas-outras": (el) => abrirMenuDasOutras(el.dataset.agente ?? "", el),
@@ -9590,7 +9900,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "cl-conectar-vm": (el) => { contasDaPessoa.fecharNova(); abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
   // NOD-89 (corte 1): o atalho "Conectar uma máquina sempre ligada" da linha "Roda em" e da execução que não rodou abre
   // Máquinas › Conectar, no padrão do `cl-conectar-vm`. O fluxo da nuvem (NOD-92) entra no PR B.
-  "conectar-sempre-ligada": (el) => { abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
+  "conectar-sempre-ligada": (el) => { if (estado.lugarNavegadorAberto) dispatch({ tipo: "lugar-navegador-aberto", chave: null }); abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
   "cl-nova-fechar": (el) => contasDaPessoa.fecharNova(el.dataset.recente),
   "cl-nova-na-maquina": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void contasDaPessoa.novaNaMaquina(ia, el.dataset.maquina ?? ""); },
   // ADR-108 (R8): o liga/desliga "na fila" de cada conta (a 2ª da mesma IA e a corporativa pedem os termos antes).
@@ -10073,6 +10383,38 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     form.reset();
     dispatch({ tipo: "aviso-conexao", texto: "GitHub App da organização guardado. As rotinas de quem não conectou o próprio GitHub passam a usá-lo." });
   }),
+  // ADR-190 (L4): o código vai do campo privado do cartão direto para a página (POST navegador/codigo). Não passa por
+  // estado, storage nem conversa; o campo é limpo assim que o servidor responde.
+  "nv-codigo": async (form) => {
+    const agenteId = form.dataset.agente ?? "";
+    const decisaoId = form.dataset.decisao ?? "";
+    const campo = form.querySelector<HTMLInputElement>('input[name="codigo"]');
+    const bt = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (!campo || !api || !campo.value.trim()) { campo?.focus(); return; }
+    campo.disabled = true;
+    if (bt) { bt.disabled = true; bt.textContent = "Enviando…"; }
+    try {
+      const r = await api.codigoNoNavegador(agenteId, decisaoId, campo.value.trim());
+      campo.value = "";
+      if (bt) bt.textContent = "Código enviado";
+      hidratarVistaDoNavegador(agenteId, r.vista);
+      invalidarPedidoDoNavegador();
+    } catch (e) {
+      campo.disabled = false;
+      if (bt) { bt.disabled = false; bt.textContent = "Enviar"; }
+      mostrarErro(e);
+      campo.focus();
+    }
+  },
+  // ADR-190 (decisão 6): o login novo do Cofre. A senha sai do campo direto para o POST e o formulário é limpo em seguida.
+  "cofre-guardar-login": async (form) => {
+    const d = new FormData(form);
+    const senha = form.querySelector<HTMLInputElement>('input[name="senha"]');
+    const ok = await telaCofre.guardarLogin({ site: String(d.get("site") ?? ""), usuario: String(d.get("usuario") ?? ""), senha: String(d.get("senha") ?? "") });
+    if (senha) senha.value = "";
+    if (ok) document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus();
+    else document.querySelector<HTMLInputElement>('.cofre-form input[name="senha"]')?.focus();
+  },
   // NOD-50: o valor sai do campo direto para POST propostas/:id/credencial e não passa por estado, storage nem conversa.
   // Recusada ou mal formatada: o campo volta vazio e recebe o foco. Rede: o valor fica no campo e o botão vira "Tentar de novo".
   "guardar-credencial": async (form) => {
@@ -10151,7 +10493,7 @@ document.addEventListener("keydown", (ev) => {
 
 // NOD-119: o seletor segmentado das Configurações (radiogroup): setas, Home e End escolhem a opção ao lado e levam o foco.
 document.addEventListener("keydown", (ev) => {
-  const el = (ev.target as HTMLElement | null)?.closest<HTMLElement>('.segmentado [role="radio"]');
+  const el = (ev.target as HTMLElement | null)?.closest?.<HTMLElement>('.segmentado [role="radio"]');
   if (!el) return;
   const opcoes = [...(el.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [])];
   const prox = proximoDoSegmentado(opcoes.indexOf(el), opcoes.length, ev.key);
@@ -12780,3 +13122,18 @@ function realcarMaquina(id: string, tentativa = 0): void {
   linha.classList.add("maq-realce");
   setTimeout(() => linha.classList.remove("maq-realce"), 2400);
 }
+
+// ADR-190 (N3): a lista do lugar fecha com um toque fora dela (ou no que a abriu, que alterna) e com Esc, que devolve o foco.
+document.addEventListener("pointerdown", (ev) => {
+  if (!estado.lugarNavegadorAberto) return;
+  const alvo = ev.target as HTMLElement | null;
+  if (alvo?.closest?.(".nvl-pop, [data-act='nv-lugar-abrir']")) return;
+  dispatch({ tipo: "lugar-navegador-aberto", chave: null });
+}, true);
+document.addEventListener("keydown", (ev) => {
+  const chave = estado.lugarNavegadorAberto;
+  if (!chave || ev.key !== "Escape") return;
+  ev.preventDefault();
+  dispatch({ tipo: "lugar-navegador-aberto", chave: null });
+  document.querySelector<HTMLElement>(`[data-act="nv-lugar-abrir"][data-chave="${CSS.escape(chave)}"]`)?.focus();
+});

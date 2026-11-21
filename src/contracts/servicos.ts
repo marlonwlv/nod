@@ -48,6 +48,15 @@ export interface ServicesNod<Trx> extends ServicosLinear {
     esperandoPor?(turnoId: string): string | null;
   };
   /**
+   * ADR-190 (2026-11-20): o navegador do bot (adapters/fundo/navegadores.ts). `disponivel` = algum lugar roda o Chrome
+   * agora (o plano oferece as navegador_*); `executarAprovado` roda a ação cifrada no item da decisão.
+   */
+  navegadores?: {
+    disponivel(): boolean;
+    /** `lembrar` (A3): a pessoa deixou marcado "Não perguntar de novo para …" (o `sempre` do cartão). */
+    executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void>;
+  };
+  /**
    * definido em 2026-10-07 (ADR-083): o que só o processo sabe dos trabalhos — a última ferramenta de cada turno vivo
    * (o "último passo" da faixa) e a pressão de memória dos Macs da pessoa (#194). Ausente = nada a mostrar.
    */

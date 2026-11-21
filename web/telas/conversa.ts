@@ -36,6 +36,10 @@ import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";
 import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
 import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
+import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
+import { htmlCartaoDaPergunta } from "../lib/navegador-lugar-tela.ts";
+import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
+import { htmlLinhaGuardar, linhaDaRespostaDoNavegador } from "../lib/navegador-cartoes.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -51,7 +55,7 @@ import { renderCardAcesso, tituloDoPedidoDeAcesso } from "./card-acesso.ts";
 import { ehCartaoCredencial, renderCardCredencial } from "./card-credencial.ts";
 import { renderBarraRascunhos } from "./rascunhos-de-envio.ts";
 import { renderMensagemCartoes } from "./cartoes-ricos.ts";
-import { acaoHumana, cartaoDoPedidoDeAjuda, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
+import { acaoHumana, cartaoDoPedidoDeAjuda, cartaoDoPedidoDoNavegador, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
 import { renderCardPasta } from "./card-pasta.ts";
 import { dadosDoEncolhido, linhaDispensada, pedidoDoRecibo, renderCartaoEncolhido, renderLinhaDispensada, turnoDoEncolhido } from "./cartao-encolhido.ts";
 import { renderCardLote } from "./card-lote.ts";
@@ -259,6 +263,14 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
     if (bot && !aindaFora) return linhaProposta({ tipo: "ok", texto: `O computador do bot voltou a responder <span class="mudo">· ficou fora desde ${esc(dataHora(p.desde))}</span>`, classe: "msg-computador-fora" });
     const acoes = aindaFora && dono ? `${botao("religar-computador", "Tentar de novo", { id: p.agenteId, classe: "cp-acao sm" })}${botao("abrir-computador", "Abrir computador", { id: p.agenteId, classe: "cp-acao sm" })}` : "";
     return avisoErro({ frase: `Computador do bot fora do ar desde ${dataHora(p.desde)}.`, ...(m.texto.trim() ? { mais: m.texto.trim() } : {}), acoes, classe: "msg-computador-fora" });
+  }
+  // ADR-190 (N): o navegador do bot mudou de lugar sozinho; a linha cinza diz onde e traz o botão (Desfazer, "Só na …").
+  if (p?.kind === "navegador_lugar") return htmlLinhaDoLugarDoNavegador(p, m.texto, agenteDe(estado, p.agenteId)?.ownerId === estado.sessao?.pessoaId);
+  // ADR-190 (M2/J1, J2, M3/K1, K2): os cartões do Mac desligado; o estado de agora vem do lugar lido (GET …/navegador/lugar).
+  if (p?.kind === "navegador_pergunta") {
+    const bot = agenteDe(estado, p.agenteId);
+    const dono = bot?.ownerId === estado.sessao?.pessoaId;
+    return htmlCartaoDaPergunta(p, dono ? estado.lugaresNavegador[p.agenteId] : null, { nome: bot?.nome ?? "O bot", mensagemId: m.id, texto: m.texto, aberto: estado.lugarNavegadorAberto === `cartao:${m.id}` });
   }
   // NOD-97 PR 5: o Chrome preencheu a senha salva; a linha cinza leva o selo "‹bot› não vê a senha".
   if (p?.kind === "computador_senha_preenchida") return htmlLinhaSenhaSalva(agenteDe(estado, p.agenteId)?.nome ?? "O bot");
@@ -532,9 +544,25 @@ function urlDoAnexo(tenant: string, m: Mensagem, id: string): string {
 const ehCaptura = (m: Mensagem, a: { mime: string; origem?: string }): boolean => m.autoria.autor_tipo !== "pessoa" && a.origem !== "bot" && a.mime.startsWith("image/");
 
 /** ADR-046: arquivos que a pessoa mandou, acima do balão. A captura (NOD-56) e a mídia do bot (NOD-323) não entram aqui. */
+/** T3: o anexo dos passos de "Ensinar uma tarefa" ("passos-gravados (6 passos).txt"); null = outro arquivo. */
+export function passosDoAnexo(nome: string): number | null {
+  const r = /^passos-gravados \((\d{1,3}) passos?\)\.txt$/u.exec(nome);
+  return r ? Number(r[1]) : null;
+}
+
+/** T3 (Paper Y27-0): o chip embaixo do balão, "passos-gravados.txt · 6 passos", que abre o arquivo. */
+function chipsDosPassos(m: Mensagem, estado: Estado): string {
+  const tenant = estado.sessao?.tenantId;
+  if (!tenant || m.autoria.autor_tipo !== "pessoa") return "";
+  return (m.anexos ?? []).map((a) => {
+    const n = passosDoAnexo(a.nome);
+    return n === null ? "" : `<a class="msg-passos" href="${esc(urlDoAnexo(tenant, m, a.id))}" target="_blank" rel="noopener"><span>passos-gravados.txt</span><small>· ${n} ${n === 1 ? "passo" : "passos"}</small></a>`;
+  }).join("");
+}
+
 function anexosDe(m: Mensagem, estado: Estado): string {
   const tenant = estado.sessao?.tenantId;
-  const anexos = (m.anexos ?? []).filter((a) => !ehCaptura(m, a) && a.origem !== "bot");
+  const anexos = (m.anexos ?? []).filter((a) => !ehCaptura(m, a) && a.origem !== "bot" && !(m.autoria.autor_tipo === "pessoa" && passosDoAnexo(a.nome) !== null));
   if (!anexos.length || !tenant) return "";
   return renderAnexosDaMensagem(anexos, (id) => urlDoAnexo(tenant, m, id));
 }
@@ -767,6 +795,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   if (linhaDaAjuda) return linhaDoDispensadoHtml(m.id, linhaDaAjuda, estado);
   const resposta = ehPessoa && m.payload?.kind === "resposta_a_pedido" ? m.payload : null;
   if (resposta && respostaPorOpcao(m, estado)) return "";
+  // ADR-190: a resposta que o portão do navegador gravou ao fechar um pedido (login preenchido, código enviado) é para o
+  // bot; na conversa, a pergunta já virou a linha discreta com o que aconteceu.
+  if (resposta && linhaDaRespostaDoNavegador(m.texto) !== null) return "";
   // Sala e tela da task (que passa o `chipDaFala`) não têm Cancelar.
   const fila = sala || opcoes.chipDaFala !== undefined ? null : situacaoNaFila(m, estado);
   if (fila?.tipo === "oculta") return "";
@@ -803,14 +834,17 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
   const ajuda = motivoTela !== null && estado.computadorPessoa ? cartaoDoPedidoDeAjuda(m, estado) : null;
   if (ajuda?.linha) return ajuda.html;
-  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
+  // ADR-190 (L1–L4): o pedido do navegador (login, código, ajuda) é o cartão do navegador; resolvido, vira linha.
+  const doNavegador = pergunta && motivoTela === null ? cartaoDoPedidoDoNavegador(m, estado) : null;
+  if (doNavegador?.linha) return doNavegador.html;
+  const balao = doNavegador ? doNavegador.html : ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
   // ADR-191: a ajuda do computador aberta espera a pessoa — a marca da pílula "A Ada espera você: entrar no Drive".
   const espera = pergunta && motivoTela !== null && telaAberta ? atributosDaEspera({ id: pergunta.decisaoId, nome: agente?.nome ?? "O bot", frase: fraseCurta(motivoTela) }) : "";
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${espera}${emVoo}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? chipsDosPassos(m, estado) : ""}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 
@@ -1725,6 +1759,8 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
+    { chave: "navegador", html: linhaDoNavegador(c, estado) },
+    { chave: "navegador-guardar", html: linhaGuardarDoNavegador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
@@ -1749,6 +1785,31 @@ function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   // O erro só aparece no chat de quem estava usando ou esperando o computador.
   if (falha) return dto.telas.some((t) => t.agenteId === id) || mem.esperas[id] ? falha : "";
   return mem.fechadas?.agentes.includes(id) && dto.operacao ? htmlLinhaTelaFechada(mem.fechadas.tipo, nomes[id] ?? "o bot") : "";
+}
+
+/**
+ * ADR-190 (Paper, linha 1, 1c, item 2): "● Navegador da Ada · Google Voos · lendo os voos diretos · Ver" embaixo do turno,
+ * enquanto o bot usa o navegador (ou precisa da pessoa nele). "Ver" abre o painel; no modo abas, a aba de lugar. Só no chat
+ * de um bot da pessoa e só com a vista já lida (`estado.navegadores`).
+ */
+function linhaDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id) return "";
+  const a = agenteDe(estado, id);
+  const r = estado.navegadores[id];
+  if (!a || a.ownerId !== estado.sessao?.pessoaId || !r || !linhaDoNavegadorVisivel(r.vista, estado.agora || Date.now())) return "";
+  return htmlLinhaDoNavegador(a.nome, id, r.vista, { modoAbas: false });
+}
+
+/**
+ * ADR-190 (L5): "Você entrou no Bradesco digitando. Guardar no cofre? Guardar | Não" — a linha discreta no fim da conversa
+ * do bot enquanto a oferta vale (5 min no servidor). Só no chat de um bot da pessoa.
+ */
+function linhaGuardarDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return "";
+  const oferta = estado.navegadores[id]?.vista.ofertaGuardar;
+  return oferta ? htmlLinhaGuardar({ oferta, agenteId: id, agora: estado.agora || Date.now() }) : "";
 }
 
 export function renderHistoricoDaTimeline(c: ConversaEstado, estado: Estado): string {

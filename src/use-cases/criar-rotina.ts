@@ -14,6 +14,7 @@ import { validarRotinaNormalizada, type RotinaNormalizada } from "../domain/roti
 import { agenteVisivel, assertUuid, autoriaAgente, autoriaPessoa, carimbo, evento, eventoDeRotina, PRAZO_DECISAO_MS, textoRotinaAtiva } from "./apoio-l7.ts";
 import { ativarRotina } from "./ativar-rotina.ts";
 import { confirmacaoPeloModo } from "./confirmar-pelo-modo.ts";
+import { perguntarNaRotina } from "./navegador-mac-desligado.ts";
 import { alvoDoParaBot } from "./onboarding-contexto.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 
@@ -244,6 +245,8 @@ export const criarRotinaPelaPessoa: CasoDeUso<EntradaRotina & { agenteId: string
     payload: eventoDeRotina(rotina, "criada"),
     confianca: "confiavel",
   });
+  // ADR-190 (M2/J1): a rotina numa hora em que o Mac costuma estar desligado traz a pergunta, uma vez por bot.
+  await perguntarNaRotina(deps, rotina);
   return {
     data: { rotina, proposta: null, decisao: null },
     events: [evento(deps, "rotina_criada", autoria, { rotinaId: rotina.id, proximaExecucao: rotina.proximaExecucao, fusoIana: rotina.fusoIana }, { conversaId: conversa.id })],

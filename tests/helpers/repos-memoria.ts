@@ -14,6 +14,9 @@ import type { CatalogoDeComandos } from "../../src/contracts/comandos.ts";
 import type { UsoDoPlano } from "../../src/contracts/uso-do-plano.ts";
 import { ESTADO_MAX_BYTES_ARTEFATO, type Artefato, type EstadoArtefato, type VersaoArtefato } from "../../src/contracts/artefato.ts";
 import { randomUUID } from "node:crypto";
+import type { TarefaEnsinada } from "../../src/contracts/navegador-do-bot.ts";
+import { lerLiberacoes, SEM_LIBERACOES } from "../../src/domain/navegador-aprovacao.ts";
+import type { PreferenciasNavegador } from "../../src/repositories/navegador.repo.ts";
 import { MARCAR_USO_A_CADA_MS } from "../../src/repositories/maquina-tokens.repo.ts";
 import type { Agente } from "../../src/contracts/agente.ts";
 import type { PermissaoPermanente } from "../../src/contracts/permissao-permanente.ts";
@@ -3581,7 +3584,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async registrarPlataforma(id, plataforma) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
-        if (l) l.plataforma = plataforma;
+        if (!l || l.plataforma === plataforma) return false;
+        l.plataforma = plataforma;
+        return true;
       },
       async removida(id, em) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
@@ -4426,6 +4431,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // ADR-166: as regras do revisor, os níveis e o teto em memória (o Postgres é provado em tests/integration/ajustes-aprovacao.test.ts).
     ajustesAprovacao: ajustesEmMemoria(b, escopo),
     // 0174: VM do Nod, vez na sala, memória de time e passkey são só do Postgres (tests/integration/vm-sala-memoria-passkey.test.ts).
+    // 0180 (ADR-190): o navegador do bot em memória (o Postgres é provado em tests/integration/navegador-repos.test.ts);
+    // o cofre do nod só existe no Postgres.
+    ...navegadorEmMemoria(b, escopo),
+    cofreLogins: reposSoNoPostgres("cofreLogins"),
     vmsDoNod: reposSoNoPostgres("vmsDoNod"),
     vezNaSala: reposSoNoPostgres("vezNaSala"),
     memoriaDeTime: reposSoNoPostgres("memoriaDeTime"),
@@ -4455,8 +4464,45 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
 /** ADR-166: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */
 const AJUSTES_EM_MEMORIA = new WeakMap<object, { regras: RegraRevisor[]; niveis: (NivelDeFerramenta & { ownerId: string })[]; tetos: { ownerId: string; teto: TetoModo }[] }>();
 /** Repo que só existe no Postgres: qualquer chamada em memória é erro do teste, nunca um vazio silencioso. */
-function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys">(nome: K): Repos[K] {
+function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys" | "cofreLogins">(nome: K): Repos[K] {
   return new Proxy({}, { get: (_, m) => () => { throw new Error(`${nome}.${String(m)} só existe no Postgres`); } }) as Repos[K];
+}
+
+/** 0180: as preferências e as tarefas do navegador do bot, por banco de mentira. */
+type NavegadorEmMemoria = { prefs: Map<string, PreferenciasNavegador>; tarefas: (TarefaEnsinada & { chave: string })[] };
+const NAVEGADOR_EM_MEMORIA = new WeakMap<object, NavegadorEmMemoria>();
+function navegadorEmMemoria(b: object, escopo: Escopo): Pick<Repos, "navegadorPreferencias" | "navegadorTarefas"> {
+  const st: NavegadorEmMemoria = NAVEGADOR_EM_MEMORIA.get(b) ?? { prefs: new Map(), tarefas: [] };
+  NAVEGADOR_EM_MEMORIA.set(b, st);
+  const chave = (agenteId: string) => `${escopo.tenantId}:${escopo.pessoaId}:${agenteId}`;
+  return {
+    navegadorPreferencias: {
+      buscar: async (agenteId) => st.prefs.get(chave(agenteId)) ?? null,
+      daPessoa: async () => [...st.prefs.entries()].filter(([k]) => k.startsWith(`${escopo.tenantId}:${escopo.pessoaId}:`)).map(([, v]) => v).sort((a, b) => a.agenteId.localeCompare(b.agenteId)),
+      liberacoes: async (agenteId) => st.prefs.get(chave(agenteId))?.liberacoes ?? SEM_LIBERACOES,
+      gravar: async (agenteId, p, agora) => {
+        const antes = st.prefs.get(chave(agenteId)) ?? { agenteId, continuaSemMac: false, maquinaId: null, noNod: false, soNaMaquina: false, liberacoes: SEM_LIBERACOES, perguntadoEm: null, respondidoEm: null, retomarTurnoId: null, atualizadoEm: agora };
+        const depois: PreferenciasNavegador = { ...antes, ...p, ...(p.liberacoes ? { liberacoes: lerLiberacoes(p.liberacoes) } : {}), agenteId, atualizadoEm: agora };
+        st.prefs.set(chave(agenteId), depois);
+        return depois;
+      },
+    },
+    navegadorTarefas: {
+      criar: async (t) => {
+        const nova = { id: randomUUID(), nome: t.nome.trim(), passos: [...t.passos], criadaEm: Date.now() + st.tarefas.length, chave: chave(t.agenteId) };
+        st.tarefas.push(nova);
+        const { chave: _c, ...tarefa } = nova;
+        return tarefa;
+      },
+      doAgente: async (agenteId) => st.tarefas.filter((t) => t.chave === chave(agenteId)).sort((x, y) => y.criadaEm - x.criadaEm).map(({ chave: _c, ...t }) => t),
+      apagar: async (agenteId, id) => {
+        const i = st.tarefas.findIndex((t) => t.chave === chave(agenteId) && t.id === id);
+        if (i < 0) return false;
+        st.tarefas.splice(i, 1);
+        return true;
+      },
+    },
+  };
 }
 
 function ajustesEmMemoria(b: object, escopo: Escopo): Repos["ajustesAprovacao"] {

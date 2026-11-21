@@ -269,6 +269,10 @@ vários bots rodam `npm run check` ao mesmo tempo sem um contaminar o tenant pad
   `POST /api/conta/codigo` (conta sem senha, identidade `email`), o Google no app (`/api/conta/google {app,porta,estado}`
   → loopback → `POST /api/conta/google/trocar` com a prova) e a conversa por texto no lugar da ligação. O modo da sessão
   diz `contas.onboardingTexto`. Desligada, a rota de código responde 404 e tudo segue como antes.
+- **Navegador do bot na máquina da pessoa atrás de flag** (ADR-190, decisão 5): `NOD_NAVEGADOR_NA_MAQUINA=1` (só com
+  `NOD_MODO=compartilhado`) liga a fila `navegador/*` da ponte, o motor remoto, a vista que a máquina abre e o lugar
+  decidido por bot (Mac, máquina sempre ligada ou o nod). Desligada, o navegador só roda no servidor
+  (`NOD_NAVEGADOR_NO_SERVIDOR=1`) e as rotas `navegador/*` da máquina dão 404 (o app e o motor tentam de novo em 10 min).
 - **PRs do GitHub no quadro atrás de env** (NOD-421): `NOD_QUADRO_GITHUB_REPOS="dono/repo,…"` (até 5) liga o laço
   `src/adapters/fundo/prs-do-quadro.ts`. A cada 30 s ele lê os PRs de cada repo, com `NOD_QUADRO_GITHUB_TOKEN` por uma
   chamada GraphQL (produção: a imagem não tem `gh`; o token vem do segredo `nod-github-quadro-token`; a base é
