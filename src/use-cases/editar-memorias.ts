@@ -106,6 +106,12 @@ export const desfazerEntradaDiario: CasoDeUso<{ agenteId: string; entradaId: str
     memoria = await deps.repos.memorias.atualizar(entrada.memoriaId, { texto: entrada.antes.texto, tipo: entrada.antes.tipo }, op);
     if (!memoria) throw new ErroDeDominio("mudou_depois");
   } else if (entrada.acao === "apagada" && entrada.antes) {
+    // QA-183: o bot pode ter lembrado o mesmo fato depois do apagar (o `lembrar` deduplica pelo conteúdo, com a
+    // mesma trava). Recriar a antiga deixaria duas iguais no prompt.
+    await deps.repos.memorias.travarConteudo(agente.id, entrada.antes.tipo, entrada.antes.texto);
+    if (await deps.repos.memorias.existeIgual(agente.id, entrada.antes.tipo, entrada.antes.texto)) {
+      throw new ErroDeDominio("mudou_depois", { cause: "já há memória igual" });
+    }
     memoria = await deps.repos.memorias.criar(
       { id: entrada.memoriaId, agenteId: agente.id, tipo: entrada.antes.tipo, texto: entrada.antes.texto, origem: entrada.memoriaOrigem, criadoEm: entrada.memoriaCriadoEm },
       op,
