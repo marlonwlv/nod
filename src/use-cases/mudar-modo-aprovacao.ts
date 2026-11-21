@@ -41,8 +41,13 @@ export const mudarModoAprovacao: CasoDeUso<{ agenteId: string; modo: unknown; co
   const existente = await deps.repos.agentes.buscar(input.agenteId);
   if (!existente) throw new ErroDeDominio("nao_encontrado");
   if (existente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_permitido");
+  // QA r167 (2026-11-21): compara com a linha TRAVADA até o fim da transação. Sem a trava, o duplo clique no modo (a tela
+  // não desliga o botão), duas abas ou a tela e o chat juntos liam o modo antigo nos dois pedidos: os dois voltavam
+  // `mudou: true` e a conversa do bot ganhava duas linhas "mudou as aprovações". Com ela, o segundo espera e vê o novo.
+  const travado = await deps.repos.agentes.buscarParaAtualizar(input.agenteId);
+  if (!travado) throw new ErroDeDominio("nao_encontrado");
   // ADR-166: compara com o modo PEDIDO (o efetivo pode estar cortado pelo teto do admin).
-  if ((existente.modoPedido ?? existente.modoAprovacao ?? "manual") === input.modo) return { data: { agente: existente, mudou: false, aviso: avisoDoTeto(input.modo, existente) } };
+  if ((travado.modoPedido ?? travado.modoAprovacao ?? "manual") === input.modo) return { data: { agente: travado, mudou: false, aviso: avisoDoTeto(input.modo, travado) } };
   const agente = await deps.repos.agentes.definirModoAprovacao(input.agenteId, input.modo);
   if (!agente) throw new ErroDeDominio("nao_permitido");
 
