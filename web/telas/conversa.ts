@@ -1871,18 +1871,15 @@ export function renderFalaPendente(p: FalaPendente, c: ConversaEstado, estado: E
 }
 
 /**
- * A mensagem embaixo da qual o pedido fica (definido em 2026-10-03, canvas "Uma conversa de verdade · depois"): a
- * última fala do turno que pediu (`Mensagem.turnoId`); com o turno ainda rodando, a mensagem que o disparou
- * (`turnosEmCurso`); sem turno, a última mensagem anterior ao pedido. Sem nenhuma, o pedido fica na seção do fim.
+ * A mensagem embaixo da qual o pedido fica: a última que já existia quando ele nasceu (revisto em 2026-11-21, teste do
+ * dono). Antes (2026-10-03) era a última fala do turno que pediu, e com o turno rodando a mensagem que o disparou: o cartão
+ * aparecia embaixo da mensagem da pessoa e, quando a fala final do bot chegava, pulava para baixo dela — o balão do bot
+ * "subia" por cima do cartão. Pela ordem do tempo o cartão fica onde apareceu e a fala que vem depois entra embaixo dele,
+ * como no app de referência. O recibo de outro pedido (o cartão encolhido) não é âncora. Sem nenhuma, a seção do fim.
  */
 function ancoraDoPedido(d: { turnoId: string | null; criadoEm: string }, c: ConversaEstado): string | undefined {
-  // O recibo de outro pedido do mesmo turno (chat limpo, PR 4) não é âncora: ele já é o cartão encolhido, que fica na fala.
-  const doTurno = d.turnoId ? c.mensagens.filter((m) => m.turnoId === d.turnoId && pedidoDoRecibo(m) === null).at(-1)?.id : undefined;
-  if (doTurno) return doTurno;
-  const origem = d.turnoId ? c.turnosEmCurso.find((t) => t.id === d.turnoId)?.mensagemId : undefined;
-  if (origem && c.mensagens.some((m) => m.id === origem)) return origem;
   const criado = Date.parse(d.criadoEm);
-  return c.mensagens.filter((m) => m.criadoEm <= criado).at(-1)?.id;
+  return c.mensagens.filter((m) => m.criadoEm <= criado && pedidoDoRecibo(m) === null).at(-1)?.id;
 }
 
 /** Prefixo da chave do cartão encolhido que saiu da posição do recibo para a âncora do pedido. */
