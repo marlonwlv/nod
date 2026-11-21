@@ -35,7 +35,7 @@ const nomeDoBot = (l: LinhaRotina) => l.bot?.nome ?? "bot";
 const titulo = (r: RotinaDto) => tituloDaRotina(r.rotina.instrucao, 64);
 
 export function renderAgendaRotinas(estado: Estado, celular = false): string {
-  const a = estado.agenda;
+  const a = { ...estado.agenda, ui: semBotQueSaiu(estado) };
   const ctx: Ctx = { estado, ui: a.ui, celular, agora: estado.agora };
   const semRotina = estado.rotinas.length === 0 && (!a.dto || a.dto.rotinas.length === 0);
   const lista = montarLista({ rotinas: estado.rotinas, dto: a.dto, agentes: estado.frota?.agentes ?? [], filtro: { visao: a.ui.visao, bots: a.ui.bots, soProblema: a.ui.soProblema }, pessoaId: estado.sessao?.pessoaId ?? null, agora: estado.agora });
@@ -50,6 +50,19 @@ export function renderAgendaRotinas(estado: Estado, celular = false): string {
     ${filtros}
     <div class="ag-corpo">${corpo}</div>
   </section>`;
+}
+
+/**
+ * QA-172: o "Filtrar por bot" guarda o id. Se o bot escolhido não tem mais rotina na lista (foi excluído em outra aba ou
+ * pelo chat, ou a última rotina dele saiu), o select não tem a opção dele e o navegador mostra "Todos os bots" enquanto a
+ * lista seguia filtrada e vazia, com as abas em 0. O filtro que deixou de existir vale como "Todos os bots" (como nos Relatos).
+ */
+function semBotQueSaiu(estado: Estado): Estado["agenda"]["ui"] {
+  const ui = estado.agenda.ui;
+  if (ui.bots.length === 0) return ui;
+  const comRotina = new Set(estado.rotinas.map((r) => r.rotina.agenteId)); // a mesma fonte das linhas do `montarLista`
+  const bots = ui.bots.filter((id) => comRotina.has(id));
+  return bots.length === ui.bots.length ? ui : { ...ui, bots };
 }
 
 /** "O que seus bots fazem sozinhos, num horário. 14 rotinas de 9 bots." */
