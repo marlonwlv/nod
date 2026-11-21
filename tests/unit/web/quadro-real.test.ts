@@ -640,8 +640,8 @@ describe("NOD-443: o quadro com várias pessoas na tela", () => {
 
   it("D7: os comentários da tarefa aparecem nela, com a assinatura (escapados)", () => {
     const tt = t("c");
-    const h = String(tarefaAberta({ t: tt, q: q([tt], { comentarios: [{ id: "k", tarefaId: "c", texto: MAL, assinatura: "Ana, pela Lia", deFora: true, criadoEm: 1 }, { id: "k2", tarefaId: "outra", texto: "não", assinatura: "Bruno", deFora: false, criadoEm: 1 }] }), agente }));
-    expect(h).toContain("Ana, pela Lia");
+    const h = String(tarefaAberta({ t: tt, q: q([tt], { comentarios: [{ id: "k", tarefaId: "c", texto: MAL, assinatura: "Ana, via Lia", deFora: true, criadoEm: 1 }, { id: "k2", tarefaId: "outra", texto: "não", assinatura: "Bruno", deFora: false, criadoEm: 1 }] }), agente }));
+    expect(h).toContain("Ana, via Lia");
     expect(h).not.toContain("<img");
     expect(h).not.toContain(">não<");
   });
@@ -663,8 +663,8 @@ describe("NOD-443: o quadro com várias pessoas na tela", () => {
   });
 
   it("D1, D8: o mural mostra os pedidos com a assinatura; o desfeito aparece marcado", () => {
-    const h = String(pessoasDoQuadro(q([]), { painel: "atividade", hora, mural: [{ id: "l", pessoaId: "ana", assinatura: "Ana, pela Lia", resumo: "moveu a SEC-1", codigos: ["SEC-1"], mudancas: 1, criadoEm: 1, desfeito: true }] }));
-    expect(h).toContain("Ana, pela Lia");
+    const h = String(pessoasDoQuadro(q([]), { painel: "atividade", hora, mural: [{ id: "l", pessoaId: "ana", assinatura: "Ana, via Lia", resumo: "moveu a SEC-1", codigos: ["SEC-1"], mudancas: 1, criadoEm: 1, desfeito: true }] }));
+    expect(h).toContain("Ana, via Lia");
     expect(h).toContain("moveu a SEC-1 (desfeito)");
     expect(String(pessoasDoQuadro(q([]), { painel: "atividade", hora, mural: [] }))).toContain("Nada ainda.");
   });

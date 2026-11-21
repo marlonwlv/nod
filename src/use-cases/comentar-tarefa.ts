@@ -252,10 +252,10 @@ export async function comentarTarefa(deps: Deps, p: PedidoLote, op: Comentar, ex
   };
 }
 
-/** "Ana" (pela tela) ou "Ana, pela Lia" (pelo bot dela): como o comentário de quem participa assina na tarefa. */
+/** "Ana" (pela tela) ou "Ana, via Lia" (pelo bot dela): como o comentário de quem participa assina na tarefa. */
 async function assinaturaDoMembro(deps: Deps, membro: string, p: PedidoLote): Promise<string> {
   const nome = (await deps.repos.pessoas.buscar(membro))?.nome ?? "Alguém do quadro";
-  return (p.autor.tipo === "agente" && p.viaNome ? `${nome}, pela ${p.viaNome}` : nome).slice(0, 200);
+  return (p.autor.tipo === "agente" && p.viaNome ? `${nome}, via ${p.viaNome}` : nome).slice(0, 200);
 }
 
 /**
@@ -276,7 +276,7 @@ export async function mudarComentario(deps: Deps, p: PedidoLote, op: Extract<OpQ
   if ("erro" in achada) return falha(achada.erro.includes("não está no quadro") ? "nao_encontrado" : "entrada_invalida", achada.erro);
   const c = ehUuid(op.comentario) ? await deps.repos.quadroComentarios.buscar(achada.id, op.comentario) : null;
   if (!c || c.apagado) return falha("nao_encontrado", "esse comentário não está nesta tarefa");
-  // O bot edita o próprio; a pessoa, o dela (e o "Você, pela X"). O bot a pedido da pessoa na conversa com ele (paridade:
+  // O bot edita o próprio; a pessoa, o dela (e o "Você, via X"). O bot a pedido da pessoa na conversa com ele (paridade:
   // "apaga meu comentário") vale como a pessoa.
   // O de quem participa (pessoa com `pedidoPor` de outra) é dela: a dona não reescreve.
   const daPessoa = (c.autor.tipo === "pessoa" && (c.pedidoPor ?? deps.escopo.pessoaId) === deps.escopo.pessoaId) || (c.autor.tipo === "agente" && c.pedidoPor === deps.escopo.pessoaId);
@@ -384,7 +384,7 @@ async function pararDoAgente(deps: Deps, p: PedidoLote, t: TarefaQuadro, agenteI
 
 /**
  * O que a tarefa aberta mostra embaixo (NOD-417; NOD-430): os comentários, a Atividade (os lotes que a tocaram, com quem
- * fez: "Você", "Você, pela Ada" ou o bot sozinho) e quem a criou (o primeiro desses lotes).
+ * fez: "Você", "Você, via Ada" ou o bot sozinho) e quem a criou (o primeiro desses lotes).
  */
 export const verComentarios: CasoDeUso<{ agenteId: string; tarefaId: string }, { comentarios: ComentarioDto[]; atividade: AtividadeTarefa[]; criadaPor: string | null; runs: RunDaTarefa[] }> = async (deps, input) => {
   if (!(await experimentoLigado(deps))) throw new ErroDeDominio("nao_permitido", { cause: "experimento quadro desligado" });

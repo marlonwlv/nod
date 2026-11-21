@@ -110,7 +110,7 @@ export type LoteQuadro = {
   criadoEm: number;
   /** NOD-443/NOD-430 (0143): quem pediu (a dona ou quem participa). Null = o bot sozinho ou procuração: lido como da dona. */
   pedidoPor?: string | null;
-  /** NOD-443: o nome do bot pelo qual a pessoa pediu ("Ana, pela Ada"), do momento. Null = pela tela. */
+  /** NOD-443: o nome do bot pelo qual a pessoa pediu ("Ana, via Ada"), do momento. Null = pela tela. */
   viaNome?: string | null;
 };
 

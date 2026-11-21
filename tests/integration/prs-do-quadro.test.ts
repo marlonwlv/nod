@@ -404,7 +404,7 @@ describeIntegracao("PRs na tarefa (NOD-421)", () => {
       const doMarlon = await contar();
       expect(doMarlon.prs).toBeGreaterThanOrEqual(1);
 
-      // Ana, mesmo tenant: não enxerga o PR, a linha nem o aviso do quadro do Marlon; o mesmo PR liga só na tarefa dela.
+      // Ana, mesmo tenant: não enxerga o PR, a linha nem o aviso do quadro de Marlon; o mesmo PR liga só na tarefa dela.
       await vincularEscopo(trx, ANA);
       expect(await trx`select 1 from quadro_tarefa_prs where quadro_id = ${marlon.q.id}`).toHaveLength(0);
       expect(await trx`select 1 from quadros where id = ${marlon.q.id}`).toHaveLength(0);

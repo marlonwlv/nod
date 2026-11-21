@@ -23,7 +23,7 @@ import type { Tx } from "../../src/shared/types.ts";
 
 /**
  * NOD-430: a pessoa pede a QUALQUER bot (a Ada) para mexer no quadro de outro (o do EngApp). Na conversa e num turno
- * limpo, o controle é o da tela, com o pedido assinado "Você, pela Ada" e o link de cada tarefa; sozinho (rotina,
+ * limpo, o controle é o da tela, com o pedido assinado "Você, via Ada" e o link de cada tarefa; sozinho (rotina,
  * colega, turno contaminado) o bot só cria no Backlog e mexe no que é dele. Excluir o quadro é o único card.
  */
 describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", () => {
@@ -52,7 +52,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
   const ok = <T extends { data: { ok: boolean } }>(r: T): T => { expect(r.data, JSON.stringify(r.data)).toMatchObject({ ok: true }); return r; };
   const texto = (r: { data: unknown }) => JSON.stringify(r.data);
 
-  it("a Ada cria no quadro do EngApp: a resposta traz o link de cada tarefa e o histórico diz Você, pela Ada", async () => {
+  it("a Ada cria no quadro do EngApp: a resposta traz o link de cada tarefa e o histórico diz Você, via Ada", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
       ok(await m.pessoa([{ tipo: "criar_quadro" }]));
@@ -66,12 +66,12 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       expect(data.instrucao).toContain(`[${codigo}](nod-tarefa:${m.eng.agenteId}:${t!.id})`);
       expect(data.instrucao).not.toContain("Revisar o PR 12");
       expect(data.instrucao).toContain(`no quadro de ${m.nomeEng}`);
-      // O lote guarda quem pediu; a Atividade da tarefa aberta assina "Você, pela Ada".
+      // O lote guarda quem pediu; a Atividade da tarefa aberta assina "Você, via Ada".
       const lote = await m.d.repos.quadros.ultimoLote((await m.quadroEng())!.id);
       expect(lote).toMatchObject({ autor: { tipo: "agente", agenteId: m.ada.agenteId }, pedidoPor: MARLON.pessoaId });
       const v = await executar(m.d, verComentarios, { agenteId: m.eng.agenteId, tarefaId: t!.id });
-      expect(v.data.criadaPor).toBe(`Você, pela ${m.nomeAda}`);
-      expect(v.data.atividade.map((a) => a.quem)).toEqual([`Você, pela ${m.nomeAda}`]);
+      expect(v.data.criadaPor).toBe(`Você, via ${m.nomeAda}`);
+      expect(v.data.atividade.map((a) => a.quem)).toEqual([`Você, via ${m.nomeAda}`]);
     });
   });
 
@@ -120,7 +120,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
     });
   });
 
-  it("o comentário pela Ada assina Você, pela Ada; o do bot sozinho, só o nome dele", async () => {
+  it("o comentário pela Ada assina Você, via Ada; o do bot sozinho, só o nome dele", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
       ok(await m.pessoa([{ tipo: "criar_quadro" }, { tipo: "criar_tarefa", titulo: "A", agente: m.nomeAda }]));
@@ -486,7 +486,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       const v = await executar(m.d, verComentarios, { agenteId: m.eng.agenteId, tarefaId: t!.id });
       expect(v.data.atividade).toHaveLength(50);
       expect(v.data.atividade.every((a) => a.quem === "Você")).toBe(true);
-      expect(v.data.criadaPor).toBe(`Você, pela ${m.nomeAda}`);
+      expect(v.data.criadaPor).toBe(`Você, via ${m.nomeAda}`);
     });
   });
 

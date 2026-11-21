@@ -65,7 +65,7 @@ describe("o gate da participante", () => {
     expect(podeDesfazer(quadro)).toBe(false);
     expect(podePedir(quadro)).toBe(false);
     expect(campoDePedir(quadro)).toEqual({ tipo: "recado", placeholder: "Deixar recado para Marlon", botao: "Deixar recado" });
-    expect(textoDoVazio(quadro)).toBe("Nada no quadro do Marlon ainda. Deixe um recado.");
+    expect(textoDoVazio(quadro)).toBe("Nada no quadro de Marlon ainda. Deixe um recado.");
     expect(linhaDaTarefaAlheia(quadro, daAna)).toBe("Card da Ana: você comenta");
   });
 
@@ -103,7 +103,7 @@ describe("o gate da participante", () => {
 
   it("o campo, o vazio e o rótulo curto do modo", () => {
     expect(campoDePedir(q([])).tipo).toBe("pedir");
-    expect(textoDoVazio(q([]))).toBe("Nada no quadro do Marlon ainda. Peça algo aqui embaixo.");
+    expect(textoDoVazio(q([]))).toBe("Nada no quadro de Marlon ainda. Peça algo aqui embaixo.");
     expect(rotuloCurtoDoModo({ modo: "so_dono", donaNome: "Marlon" })).toBe("Só a Marlon");
     expect(rotuloCurtoDoModo({ modo: "individual", donaNome: "Marlon" })).toBeNull();
   });

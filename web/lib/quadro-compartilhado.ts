@@ -89,12 +89,12 @@ export function linhaDaTarefaAlheia(q: QuadroDto, t: TarefaDto): string | null {
 export function campoDePedir(q: QuadroDto): { tipo: "pedir" | "recado"; placeholder: string; botao: string } {
   return soComenta(q)
     ? { tipo: "recado", placeholder: `Deixar recado para ${nomeDaDona(q)}`, botao: "Deixar recado" }
-    : { tipo: "pedir", placeholder: `Pedir algo ao quadro do ${nomeDaDona(q)}`, botao: "Pedir" };
+    : { tipo: "pedir", placeholder: `Pedir algo ao quadro de ${nomeDaDona(q)}`, botao: "Pedir" };
 }
 
 /** O vazio (sem tarefas). */
 export function textoDoVazio(q: QuadroDto): string {
-  return soComenta(q) ? `Nada no quadro do ${nomeDaDona(q)} ainda. Deixe um recado.` : `Nada no quadro do ${nomeDaDona(q)} ainda. Peça algo aqui embaixo.`;
+  return soComenta(q) ? `Nada no quadro de ${nomeDaDona(q)} ainda. Deixe um recado.` : `Nada no quadro de ${nomeDaDona(q)} ainda. Peça algo aqui embaixo.`;
 }
 
 /** O rótulo curto do modo, no celular ("Só a <dona>"); null no individual. */
