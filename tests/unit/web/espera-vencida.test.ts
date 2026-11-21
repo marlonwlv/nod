@@ -47,7 +47,7 @@ describe("htmlDasAcoes", () => {
   it("Cobrar e Desistir, com o pedido no botão", () => {
     const h = htmlDasAcoes(base);
     expect(h).toContain('data-act="espera-cobrar" aria-label="Cobrar Leo" data-agente="a" data-tarefa="t1" data-colega="Leo">Cobrar</button>');
-    expect(h).toContain('aria-label="Desistir do pedido ao Leo" data-agente="a" data-tarefa="t1" data-colega="Leo">Desistir</button>');
+    expect(h).toContain('aria-label="Desistir do pedido a Leo" data-agente="a" data-tarefa="t1" data-colega="Leo">Desistir</button>');
   });
   it("sem nome: 'ao colega', nunca 'ao o colega' (revisão do PR #544)", () => {
     expect(aoColega("")).toBe("ao colega");
@@ -76,11 +76,11 @@ describe("as ações", () => {
     return { local, deps, acoes: criarAcoesDaEspera(deps) };
   };
 
-  it("Cobrar: chama a rota, anuncia 'Pedido reentregue ao Leo', marca cobrado e relê; a tela tira o Cobrar até o servidor reler", async () => {
+  it("Cobrar: chama a rota, anuncia 'Pedido reentregue a Leo', marca cobrado e relê; a tela tira o Cobrar até o servidor reler", async () => {
     const { local, deps, acoes } = montar();
     await acoes["espera-cobrar"]!(el);
     expect(deps.cobrar).toHaveBeenCalledWith("a", "t1");
-    expect(deps.anunciar).toHaveBeenCalledWith("Pedido reentregue ao Leo");
+    expect(deps.anunciar).toHaveBeenCalledWith("Pedido reentregue a Leo");
     expect(deps.invalidar).toHaveBeenCalled();
     const visto = comAcaoLocal(espera(), local);
     expect(visto?.colega).toMatchObject({ vencida: false, podeCobrar: false });
@@ -109,12 +109,12 @@ describe("as ações", () => {
     expect(cobrar).toHaveBeenCalledTimes(1);
   });
 
-  it("Desistir: sem confirmação, some na hora, anuncia 'Pedido ao Leo encerrado' e foca o campo", async () => {
+  it("Desistir: sem confirmação, some na hora, anuncia 'Pedido a Leo encerrado' e foca o campo", async () => {
     const { local, deps, acoes } = montar();
     await acoes["espera-desistir"]!(el);
     expect(deps.desistir).toHaveBeenCalledWith("a", "t1");
     expect(comAcaoLocal(espera(), local)).toBeNull();
-    expect(deps.anunciar).toHaveBeenCalledWith("Pedido ao Leo encerrado");
+    expect(deps.anunciar).toHaveBeenCalledWith("Pedido a Leo encerrado");
     expect(deps.focarCampo).toHaveBeenCalled();
   });
 

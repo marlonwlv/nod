@@ -26,7 +26,7 @@ export function familiaWeb(mime: string): FamiliaWeb {
 
 export type OpcoesMidia = {
   url: (id: string) => string;
-  /** O nome do bot que falou ("Fica na pasta do Chico"); sem nome, "do bot". */
+  /** O nome do bot que falou ("Fica na pasta de Chico", sem artigo: o gênero do nome não se sabe); sem nome, "do bot". */
   bot?: string;
   /** O id da máquina deste app do Mac; null no navegador e no celular (sem Finder). */
   esteMac?: string | null;
@@ -164,7 +164,7 @@ function cartaoGrande(a: AnexoDaConversa, o: OpcoesMidia): string {
   const limite = LIMITE_WEB[fam === "gif" ? "imagem" : fam];
   const icone = iconeDoArquivo(fam === "arquivo" ? familiaDoArquivo(a.mime, a.nome) : fam === "imagem" || fam === "gif" ? "imagem" : "outro");
   const detalhe = `${tamanhoHumano(a.tamanho)} · passa do limite de ${Math.round(limite / MIB)} MB para ${ROTULO_FAMILIA[fam]} no chat`;
-  const doBot = o.bot ? `do ${o.bot}` : "do bot";
+  const doBot = o.bot ? `de ${o.bot}` : "do bot";
   const aqui = !!o.esteMac && a.maquina?.id === o.esteMac;
   const acao = aqui
     ? `<button type="button" class="bt link sm msg-midia-card-acao" data-act="midia-finder" data-anexo-id="${esc(a.id)}">Mostrar no Finder</button>`
@@ -175,7 +175,7 @@ function cartaoGrande(a: AnexoDaConversa, o: OpcoesMidia): string {
 
 /** O cartão de quando o arquivo grande saiu da pasta do bot (j5-5): tracejado, apagado, sem Baixar. */
 export function cartaoSumiu(nome: string, bot?: string): string {
-  return `<div class="msg-arquivo alto mudo"><div class="msg-arquivo-abrir">${iconeDoArquivo("outro")}<span class="anexo-info"><b>${esc(nome)}</b><span>Não está mais na pasta ${esc(bot ? `do ${bot}` : "do bot")}.</span></span></div></div>`;
+  return `<div class="msg-arquivo alto mudo"><div class="msg-arquivo-abrir">${iconeDoArquivo("outro")}<span class="anexo-info"><b>${esc(nome)}</b><span>Não está mais na pasta ${esc(bot ? `de ${bot}` : "do bot")}.</span></span></div></div>`;
 }
 
 /**
@@ -233,11 +233,11 @@ const TEXTO_RECUSA_WEB: Record<MotivoRecusaMidia, [string, string]> = {
 };
 export const MOTIVOS_RECUSA_WEB = Object.keys(TEXTO_RECUSA_WEB) as MotivoRecusaMidia[];
 
-/** "1 arquivo não foi anexado: fica fora da pasta do Chico." — sem caminho nenhum (o chat não mostra caminho da máquina). */
+/** "1 arquivo não foi anexado: fica fora da pasta de Chico." — sem caminho nenhum (o chat não mostra caminho da máquina). */
 export function textoRecusas(recusas: RecusasMidia | undefined, bot?: string): string | null {
   const validas = (recusas ?? []).filter((r) => TEXTO_RECUSA_WEB[r.motivo] && r.n > 0);
   if (validas.length === 0) return null;
-  const doBot = bot ? `do ${bot}` : "do bot";
+  const doBot = bot ? `de ${bot}` : "do bot";
   const frase = (r: { motivo: MotivoRecusaMidia; n: number }) => TEXTO_RECUSA_WEB[r.motivo][r.n === 1 ? 0 : 1].replace("{bot}", doBot);
   const total = validas.reduce((s, r) => s + r.n, 0);
   const cabeca = total === 1 ? "1 arquivo não foi anexado" : `${total} arquivos não foram anexados`;

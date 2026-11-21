@@ -206,7 +206,7 @@ const marcaDoEstado = (e: EstadoCanvasDto, cur: boolean): string =>
 export function htmlMenuNome(o: { lista: readonly CanvasItemDto[]; aberto: string | null; busca: string; nome: string }): string {
   const grupos = agruparPorEstado(o.lista, o.busca);
   return `<div class="cv-menu cv-menu-nome" role="dialog" aria-label="Trocar de canvas">` +
-    `<label class="cv-busca cv-menu-busca">${ICONES.busca}<input id="cv-busca-menu" placeholder="Buscar canvas do ${esc(o.nome)}" aria-label="Buscar canvas" value="${esc(o.busca)}"></label>` +
+    `<label class="cv-busca cv-menu-busca">${ICONES.busca}<input id="cv-busca-menu" placeholder="Buscar canvas de ${esc(o.nome)}" aria-label="Buscar canvas" value="${esc(o.busca)}"></label>` +
     `<button type="button" class="cv-menu-todos" data-cv="todos"><span class="cv-mi-est">${ICONES.todos}</span><span>Todos os canvas</span><span class="cv-mi-info">${o.lista.length} <span aria-hidden="true">›</span></span></button>` +
     (grupos.length ? grupos.map((g) => `<h4>${ROTULO_DO_ESTADO[g.estado]}</h4><ul>${g.itens.map((c) =>
       `<li><button type="button" class="cv-mi${c.id === o.aberto ? " cv-mi-cur" : ""}" data-cv="abrir" data-id="${esc(c.id)}"><span class="cv-mi-est">${marcaDoEstado(c.estado, c.id === o.aberto)}</span>` +
@@ -237,7 +237,7 @@ export function htmlDaLista(o: { lista: readonly CanvasItemDto[]; filtro: Filtro
       `<span class="cv-lin-txt"><b>${c.issue ? `${esc(c.issue)} · ` : ""}${esc(c.titulo)}</b><span>v${c.versao} · ${plural(c.jornadas, "jornada", "jornadas")} · ${plural(c.telas, "tela", "telas")}</span></span>` +
       `<span class="cv-lin-est">${est}</span><time>${esc(quando(c.atualizadoEm).replace(/^hoje /, ""))}</time></button></li>`;
   };
-  return `<div class="cv-lista"><div class="cv-lista-in"><div class="cv-lista-cab"><h2>Canvas do ${esc(o.nome)}</h2><span class="cv-mudo">${plural(o.lista.length, "canvas", "canvas")}${prod ? ` · ${prod} em produção agora` : ""}</span></div>` +
+  return `<div class="cv-lista"><div class="cv-lista-in"><div class="cv-lista-cab"><h2>Canvas de ${esc(o.nome)}</h2><span class="cv-mudo">${plural(o.lista.length, "canvas", "canvas")}${prod ? ` · ${prod} em produção agora` : ""}</span></div>` +
     `<div class="cv-lista-ctl"><div class="cv-filtros" role="tablist" aria-label="Filtrar canvas">${filtros.map(([f, r, n]) =>
       `<button type="button" role="tab" aria-selected="${o.filtro === f}" class="cv-filtro" data-cv="filtro" data-filtro="${f}">${r} <i>${n}</i></button>`).join("")}</div>` +
     `<label class="cv-busca">${ICONES.busca}<input id="cv-busca-lista" placeholder="Buscar por issue ou nome" aria-label="Buscar canvas" value="${esc(o.busca)}"></label></div>` +
@@ -365,7 +365,7 @@ export function balaoComFrame(b: Balao, f: { tipo: string; dados: Record<string,
 export function htmlDoComp(o: { chip: string | null; nome: string; escrevendo: boolean; enviando: boolean }): string {
   return `<form class="cv-comp${o.escrevendo ? " cv-comp-escrevendo" : ""}" data-cv-form="perguntar"><div class="cv-comp-box">` +
     (o.chip ? `<i class="cv-chip" title="A tela no centro">${esc(o.chip)}</i>` : "") +
-    `<textarea id="cv-comp-in" rows="1" maxlength="8000" placeholder="Peça ao ${esc(o.nome)} sobre esta tela…" aria-label="Pedir ao ${esc(o.nome)}"${o.enviando ? " disabled" : ""}></textarea>` +
+    `<textarea id="cv-comp-in" rows="1" maxlength="8000" placeholder="Peça a ${esc(o.nome)} sobre esta tela…" aria-label="Pedir a ${esc(o.nome)}"${o.enviando ? " disabled" : ""}></textarea>` +
     `<button type="submit" class="cv-comp-enviar" aria-label="Enviar"${o.enviando ? " disabled" : ""}>${ICONES.enviar}</button></div></form>`;
 }
 
@@ -376,7 +376,7 @@ export function htmlDoBalao(b: Balao, mascote: string | null = null): string {
   const cab = b.fim ? `Trabalhou por ${duracao(b.agora - b.inicio)}${feitas ? ` · ${plural(feitas, "ação", "ações")}` : ""}`
     : `${esc(((e) => e?.agora ?? e?.texto)([...b.etapas].reverse().find((e) => e.estado === "rodando")) ?? (b.chip ? `Olhando a ${b.chip}` : "Pensando"))} · ${duracao(b.agora - b.inicio)}`;
   const lista = b.etapas.map((e) => `<li class="pensar-acao" data-estado="${e.estado}"><i class="pensar-ic" aria-hidden="true"></i><span>${esc(e.texto)}</span></li>`).join("");
-  return `<div class="cv-bal" role="log" aria-label="Conversa com o ${esc(b.nome)} neste canvas"><button type="button" class="cv-aviso-x cv-bal-x" data-cv="fechar-balao" aria-label="Fechar">×</button>` +
+  return `<div class="cv-bal" role="log" aria-label="Conversa com ${esc(b.nome)} neste canvas"><button type="button" class="cv-aviso-x cv-bal-x" data-cv="fechar-balao" aria-label="Fechar">×</button>` +
     `<p class="cv-bal-voce"><span>${esc(b.pergunta)}</span>${b.chip ? `<i class="cv-chip">${esc(b.chip)}</i>` : ""}</p>` +
     `<div class="cv-bal-bot">${mascote ? `<span class="cv-av-mascote" aria-hidden="true">${mascote}</span>` : `<span class="cv-av cv-av-bot" aria-hidden="true">${esc(iniciais(b.nome))}</span>`}<div class="cv-bal-corpo">` +
     `<details class="pensar"${b.fim ? "" : " open"} data-fase="${b.fim ? "pronto" : ""}"><summary class="pensar-cab"><span class="fala-viva-estado">${cab}</span><span class="pensar-seta" aria-hidden="true"></span></summary>` +

@@ -55,7 +55,7 @@ describe("pedido de colega na conversa (ADR-047/058)", () => {
     // Protótipo "Nod — tempo da tarefa" (aprovado em 2026-10-08): uma linha; motivo e atalho para a task dele em "detalhes".
     expect(html).toContain('<summary><span>Dev 1 não conseguiu terminar o pedido</span><span class="pf-detalhes">detalhes</span></summary>');
     expect(html).toContain("<span>você pediu para parar</span>");
-    expect(html).toContain('data-act="abrir-trabalho" data-id="w-dev1">Ver a tarefa do Dev 1</button>');
+    expect(html).toContain('data-act="abrir-trabalho" data-id="w-dev1">Ver a tarefa de Dev 1</button>');
     expect(html).not.toContain("msg-peer\"");
   });
 });

@@ -134,7 +134,7 @@ export function passos(app: string, bot: string, ativo: 1 | 2): string {
     const estado = n < ativo ? "feito" : n === ativo ? "ativo" : "depois";
     return `<li class="passo passo-${estado}"><span class="passo-num">${n < ativo ? CHECK : n}</span>${esc(rotulo)}</li>`;
   };
-  return `<ol class="passos" aria-label="Passos">${passo(1, `Entrar no ${app}`)}${passo(2, `Permitir ao ${bot}`)}</ol>`;
+  return `<ol class="passos" aria-label="Passos">${passo(1, `Entrar no ${app}`)}${passo(2, `Permitir a ${bot}`)}</ol>`;
 }
 
 /** O bloco "esperando você entrar" (card do chat, gaveta e cartão do marketplace). */

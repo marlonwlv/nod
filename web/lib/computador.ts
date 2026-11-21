@@ -131,7 +131,7 @@ export function aoFecharATela(controla: boolean, ajudaDecisaoId: string | null):
 export function rotuloDoFechar(nome: string, controla: boolean, ajudaDecisaoId: string | null, celular = ehCelular()): { rotulo: string; dica: string | null } {
   const efeito = aoFecharATela(controla, ajudaDecisaoId);
   // NOD-383: no celular não há Esc.
-  if (efeito === "devolver") return { rotulo: `Fechar e devolver ao ${nome}${celular ? "" : " (Esc)"}`, dica: `Fechar devolve ao ${nome}` };
+  if (efeito === "devolver") return { rotulo: `Fechar e devolver a ${nome}${celular ? "" : " (Esc)"}`, dica: `Fechar devolve a ${nome}` };
   if (efeito === "esperar") return { rotulo: "Fechar (o pedido continua aberto)", dica: celular ? "Fechar não encerra o pedido" : "Esc fecha; o pedido continua aberto" };
   return { rotulo: "Fechar computador", dica: null };
 }
@@ -158,7 +158,7 @@ export function telaFechadaNaAjuda(decisaoId: string): boolean {
  * Mora aqui, sem DOM, para o teste do servidor não puxar o diálogo.
  */
 export function htmlDialogoComputador(nome: string): string {
-  return `<header class="computador-header"><div><span class="computador-kicker computador-dev-only">COMPUTADOR DO BOT</span><h2>${esc(nome)}</h2><p class="computador-sub computador-dev-only">Privado de ${esc(nome)} · separado do seu Mac e dos outros bots</p></div><span class="computador-dev-selo computador-dev-only">Modo dev</span><span class="computador-status" role="status">Conectando…</span><span class="computador-fechar-dica" hidden>Fechar devolve ao ${esc(nome)}</span><button type="button" class="computador-fechar" data-c="fechar" aria-label="Fechar computador" title="Fechar computador">✕</button></header>
+  return `<header class="computador-header"><div><span class="computador-kicker computador-dev-only">COMPUTADOR DO BOT</span><h2>${esc(nome)}</h2><p class="computador-sub computador-dev-only">Privado de ${esc(nome)} · separado do seu Mac e dos outros bots</p></div><span class="computador-dev-selo computador-dev-only">Modo dev</span><span class="computador-status" role="status">Conectando…</span><span class="computador-fechar-dica" hidden>Fechar devolve a ${esc(nome)}</span><button type="button" class="computador-fechar" data-c="fechar" aria-label="Fechar computador" title="Fechar computador">✕</button></header>
     <div class="computador-toolbar computador-dev-only"><button data-c="iniciar">Ligar computador</button><button data-c="assumir">Assumir controle</button><button data-c="devolver">Devolver ao bot</button><button data-c="parar">Desligar</button><button data-c="atualizar">Atualizar tela</button><label>Bot pode agir<select aria-label="Permissão do bot"><option value="supervisionado">Com aprovação por ação</option><option value="autonomo">Nas tarefas que eu pedir</option></select></label></div>
     <p class="computador-ajuda computador-dev-only" role="status">Seu navegador, logins e arquivos ficam neste computador.</p><p class="computador-erro" role="alert"></p>
     <div class="computador-layout"><section class="computador-desktop"><form class="computador-url computador-dev-only"><label class="sr-only" for="computador-url">Endereço do navegador</label><input id="computador-url" name="url" placeholder="https://…" autocomplete="off" /><button>Abrir</button></form>

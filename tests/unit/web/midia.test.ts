@@ -92,7 +92,7 @@ describe("renderMidiasDoBot (NOD-323)", () => {
     expect(noMac).toContain('data-midia-local="1"');
     const naWeb = renderMidiasDoBot([grande], { url, bot: "Chico", esteMac: null });
     expect(naWeb).not.toContain("midia-finder");
-    expect(naWeb).toContain("Fica na pasta do Chico no MacBook.");
+    expect(naWeb).toContain("Fica na pasta de Chico no MacBook.");
     expect(renderMidiasDoBot([grande], { url, esteMac: "outro" })).toContain("Fica na pasta do bot no MacBook.");
     expect(naWeb).not.toContain("/u/x");
     expect(baixaveis([grande, img("a", 1, 1), img("p", 1, 1, { origem: "pessoa" })]).map((a) => a.id)).toEqual(["a"]);
@@ -117,7 +117,7 @@ describe("renderMidiasDoBot (NOD-323)", () => {
 
 describe("linha do que não entrou (j5-6)", () => {
   it("singular, plural e vários motivos, sem caminho", () => {
-    expect(textoRecusas([{ motivo: "fora_da_pasta", n: 1 }], "Chico")).toBe("1 arquivo não foi anexado: fica fora da pasta do Chico.");
+    expect(textoRecusas([{ motivo: "fora_da_pasta", n: 1 }], "Chico")).toBe("1 arquivo não foi anexado: fica fora da pasta de Chico.");
     expect(textoRecusas([{ motivo: "credencial", n: 2 }])).toBe("2 arquivos não foram anexados: são arquivos de credencial.");
     expect(textoRecusas([{ motivo: "nao_existe", n: 1 }, { motivo: "vazio", n: 2 }])).toBe("3 arquivos não foram anexados: 1 não foi encontrado; 2 estão vazios.");
     expect(textoRecusas([])).toBeNull();
@@ -167,7 +167,7 @@ describe("na conversa (renderMensagem)", () => {
   it("fala só com mídia não desenha balão vazio; as recusas aparecem na linha discreta", () => {
     const html = renderMensagem(msg({ texto: "", anexos: [img("g", 10, 10)], midiaRecusas: [{ motivo: "fora_da_pasta", n: 1 }] }), estado());
     expect(html).not.toContain('class="bubble"');
-    expect(html).toContain("1 arquivo não foi anexado: fica fora da pasta do Chico.");
+    expect(html).toContain("1 arquivo não foi anexado: fica fora da pasta de Chico.");
   });
 
   it("o render é determinístico (o bloco da mensagem não é refeito à toa)", () => {

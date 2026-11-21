@@ -170,7 +170,7 @@ describe("a tela da tarefa (#195, K2/K7)", () => {
     expect(html).toContain('<span class="tk-chip"><span class="ponto-trabalho c-green pulso-trab"');
     expect(html).toContain('<span class="tk-titulo">Login do app</span><button type="button" class="tk-status" data-act="tempo-task" data-id="login" aria-expanded="false" title="Ver o tempo da tarefa">trabalhando<svg');
     expect(html).not.toContain("tk-pop");
-    expect(html).toContain("Tarefa do Dev 1, pedida pelo Chico · com os acessos do Dev 1 · pasta ~/nod/Dev 1/lumen-86akr9u9u");
+    expect(html).toContain("Tarefa de Dev 1, pedida por Chico · com os acessos de Dev 1 · pasta ~/nod/Dev 1/lumen-86akr9u9u");
     expect(html).toContain("esperando o computador do Dev 1 (em uso por: Soft delete)");
   });
 
@@ -223,7 +223,7 @@ describe("a tela da tarefa (#195, K2/K7)", () => {
   it("o Parar do chat com tasks abertas lista antes", () => {
     // QA do épico (2026-10-08): os títulos vão numa lista no corpo; o título do diálogo fica curto.
     const duas = [{ titulo: "Migrar relatórios" }, { titulo: "Dashboard <churn>" }];
-    expect(textoPararTasks(duas, "Dev 1")).toBe("Parar as 2 tarefas do Dev 1?");
+    expect(textoPararTasks(duas, "Dev 1")).toBe("Parar as 2 tarefas de Dev 1?");
     expect(listaPararTasks(duas)).toBe('<ul class="parar-lista"><li>Migrar relatórios</li><li>Dashboard &lt;churn&gt;</li></ul>');
     expect(textoPararTasks([{ titulo: "Migrar relatórios" }], "Dev 1")).toBe("Parar a tarefa Migrar relatórios?");
     expect(listaPararTasks([{ titulo: "Migrar relatórios" }])).toBe("");
