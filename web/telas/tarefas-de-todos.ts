@@ -19,7 +19,7 @@ export type OpcoesDaTela = {
   filtros: FiltrosDasTarefas;
   /** O mascote do bot (o controlador recebe do main; o tamanho é do CSS). */
   avatar: (agenteId: string | null) => string;
-  /** QA-180: o nome de quem lê, para as iniciais do "Você" (ausente = "V"). */
+  /** QA-181: o nome de quem lê, para as iniciais do "Você" (ausente = "V"). */
   voceNome?: string | null;
 };
 

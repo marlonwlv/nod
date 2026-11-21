@@ -79,7 +79,7 @@ describe("Tarefas de todos os bots (tela 18d do Paper)", () => {
     expect(html).toContain("página Quadro de ada");
   });
 
-  it("QA-180: o Você da linha sem bot leva as iniciais de quem lê (não um MW fixo) e o leitor de tela ouve o você", () => {
+  it("QA-181: o Você da linha sem bot leva as iniciais de quem lê (não um MW fixo) e o leitor de tela ouve o você", () => {
     const grupos = gruposDasTarefas(QS, "quadro", { busca: "", emAberto: true, porPrioridade: false }, AGORA);
     const opcoes = { carga: { tipo: "pronto" as const, grupos, resumo: resumoDosQuadros(QS), perguntaram: 1, total: 2 }, vista: "quadro" as const, filtros: { busca: "", emAberto: true, porPrioridade: false }, avatar: () => "<i></i>" };
     const daBeatriz = renderTarefasDeTodos({ ...opcoes, voceNome: "Beatriz Souza" });

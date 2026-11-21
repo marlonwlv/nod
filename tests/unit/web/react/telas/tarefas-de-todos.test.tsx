@@ -74,7 +74,7 @@ describe("Tarefas de todos em React", () => {
     });
   }
 
-  it("QA-180: o Você leva as iniciais de quem lê, como a tela por string", () => {
+  it("QA-181: o Você leva as iniciais de quem lê, como a tela por string", () => {
     const d = { quadros: QS, erro: null };
     const { container } = render(<TelaTarefasDeTodos acoes={{ ...acoesDe(d), voce: () => "Beatriz Souza" }} />);
     expect([...container.querySelectorAll(".tdt-voce")].map((e) => e.textContent)).toEqual(["BS"]);

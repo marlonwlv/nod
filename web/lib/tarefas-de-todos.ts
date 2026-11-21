@@ -84,12 +84,12 @@ export function direitaDaTarefa(t: TarefaDto, agora: number): DireitaDaLinha {
   return { texto: haQuanto(t.mudadoEm, agora), tom: "neutro" };
 }
 
-/** QA-180: as iniciais do "Você" na linha sem bot são as de quem lê (eram "MW" fixo); sem nome, "V", como no quadro. */
+/** QA-181: as iniciais do "Você" na linha sem bot são as de quem lê (eram "MW" fixo); sem nome, "V", como no quadro. */
 export function iniciaisDeVoce(nome: string | null | undefined): string {
   return (nome ? iniciais(nome) : "") || "V";
 }
 
-/** QA-180: o rótulo da linha para o leitor de tela diz quem responde, inclusive quando é a pessoa ("você"). */
+/** QA-181: o rótulo da linha para o leitor de tela diz quem responde, inclusive quando é a pessoa ("você"). */
 export function rotuloDaLinha(l: Pick<LinhaDaTarefa, "codigo" | "titulo" | "coluna" | "agenteId" | "agenteNome" | "direita">): string {
   const quem = l.agenteId ? l.agenteNome ?? "" : "você";
   return `${l.codigo} ${l.titulo}, ${l.coluna}${quem ? `, ${quem}` : ""}, ${l.direita.texto}`;

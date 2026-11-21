@@ -19,7 +19,7 @@ export type ApiDasTarefas = {
 export type DepsDasTarefas = {
   api: () => ApiDasTarefas;
   avatar: (agenteId: string | null) => string;
-  /** QA-180: o nome de quem lê (as iniciais do "Você" nas linhas sem bot). */
+  /** QA-181: o nome de quem lê (as iniciais do "Você" nas linhas sem bot). */
   voce?: () => string | null;
   /** Abre a tarefa no quadro do dono (a conversa dele, página Tarefas, a tarefa aberta). */
   abrirTarefa: (donoId: string, tarefaId: string, quadroId: string) => void;

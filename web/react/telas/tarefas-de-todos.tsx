@@ -15,7 +15,7 @@ export interface AcoesDasTarefas {
   fonte: Pick<TarefasDeTodosNaTela, "dados" | "assinar" | "tentarDeNovo">;
   /** O mascote do bot (o HTML do main). */
   avatar: (agenteId: string | null) => string;
-  /** QA-180: o nome de quem lê (as iniciais do "Você" nas linhas sem bot; ausente = "V"). */
+  /** QA-181: o nome de quem lê (as iniciais do "Você" nas linhas sem bot; ausente = "V"). */
   voce?: () => string | null;
   abrirTarefa: (donoId: string, tarefaId: string, quadroId: string) => void;
   abrirPagina: (agenteId: string, quadroId: string | null) => void;
