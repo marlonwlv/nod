@@ -90,13 +90,13 @@ describe("o arquivo grande no Mac (J5)", () => {
   });
   it("noutro aparelho: onde ele está, sem Finder nem conferência", () => {
     const h = renderMidiasDoBot([grande], { url, esteMac: null, bot: "Faustino" });
-    expect(h).toContain("Fica na pasta do Faustino no MacBook.");
+    expect(h).toContain("Fica na pasta de Faustino no MacBook.");
     expect(h).not.toContain("data-midia-local");
   });
   it("o que sumiu da pasta vira o cartão apagado, sem ação", () => {
     const h = renderMidiasDoBot([grande], { url, esteMac: "m1", bot: "Faustino", sumiram: new Set(["g"]) });
     expect(h).toContain('class="msg-arquivo alto mudo"');
-    expect(h).toContain("Não está mais na pasta do Faustino.");
+    expect(h).toContain("Não está mais na pasta de Faustino.");
     expect(h).not.toContain("midia-finder");
   });
 });

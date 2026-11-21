@@ -31,10 +31,10 @@ export function htmlDoHandoff(d: DadosDoHandoff, agora: number): string {
   const run = !a ? ""
     : a.estado === "rodando"
       ? `<div class="qd-ho-run"><p class="qd-ho-run-tit">${esc(`${a.agenteNome} ainda está trabalhando (${haQuanto(a.desde, agora)})`)}</p>` +
-        `<label class="qd-ho-op"><input type="checkbox" name="parar"> ${esc(`Parar o run do ${a.agenteNome}`)}</label>` +
+        `<label class="qd-ho-op"><input type="checkbox" name="parar"> ${esc(`Parar o run de ${a.agenteNome}`)}</label>` +
         `<p class="qd-ho-dica">O que ele já fez fica; se não parar, os dois trabalham no card ao mesmo tempo.</p></div>`
-      : `<div class="qd-ho-run"><p class="qd-ho-run-tit">${esc(`O run do ${a.agenteNome} está na fila`)}</p>` +
-        `<label class="qd-ho-op"><input type="checkbox" name="parar"> ${esc(`Cancelar o run na fila do ${a.agenteNome}`)}</label>` +
+      : `<div class="qd-ho-run"><p class="qd-ho-run-tit">${esc(`O run de ${a.agenteNome} está na fila`)}</p>` +
+        `<label class="qd-ho-op"><input type="checkbox" name="parar"> ${esc(`Cancelar o run na fila de ${a.agenteNome}`)}</label>` +
         `<p class="qd-ho-dica">Se não cancelar, ele ainda começa depois.</p></div>`;
   const recebe = d.texto && d.paraNome
     ? `<details class="qd-ho-recebe"><summary>${esc(`O que o ${d.paraNome} recebe`)}</summary><pre class="qd-ho-texto">${esc(d.texto)}</pre></details>`

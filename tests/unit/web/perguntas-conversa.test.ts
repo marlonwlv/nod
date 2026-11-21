@@ -395,7 +395,7 @@ describe("'Sua vez' com o cartão (Parte 4, tela S4)", () => {
     const e = cenario([], [item("d1", { pedido: { texto: "Qual é o processo de lançamento do gamefik? Pode ser um link ou duas linhas.", origem: "peer" }, fio: { id: "d0", rodada: 2 } })]);
     const html = renderSuaVez(e);
     expect(html).toContain("Qual é o processo de lançamento do gamefik?");
-    expect(html).toContain('<div class="pq-campo"><input class="resposta" data-resposta="d1" placeholder="Responder à Nina" aria-label="Sua resposta" autocomplete="off" />');
+    expect(html).toContain('<div class="pq-campo"><input class="resposta" data-resposta="d1" placeholder="Responder a Nina" aria-label="Sua resposta" autocomplete="off" />');
     expect(html).toContain('data-act="responder" data-id="d1"');
     // O envio é o ↑ redondo da tela S4 (QA do PR #389), com nome para o leitor de tela.
     expect(html).toMatch(/<button type="button" class="bt pri pq-enviar" data-act="responder" data-id="d1" title="Enviar" aria-label="Enviar resposta"><svg [^>]*aria-hidden="true">/);

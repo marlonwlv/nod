@@ -71,8 +71,8 @@ describe("NOD-383: textos por aparelho fora das Configurações (critérios 1 e 
   });
 
   it("✕ do computador do bot: sem Esc no celular", () => {
-    expect(rotuloDoFechar("Ana", true, null, true).rotulo).toBe("Fechar e devolver ao Ana");
-    expect(rotuloDoFechar("Ana", true, null, false).rotulo).toBe("Fechar e devolver ao Ana (Esc)");
+    expect(rotuloDoFechar("Ana", true, null, true).rotulo).toBe("Fechar e devolver a Ana");
+    expect(rotuloDoFechar("Ana", true, null, false).rotulo).toBe("Fechar e devolver a Ana (Esc)");
     expect(rotuloDoFechar("Ana", true, "d1", true).dica).toBe("Fechar não encerra o pedido");
     expect(rotuloDoFechar("Ana", true, "d1", false).dica).toContain("Esc");
   });

@@ -651,7 +651,7 @@ function renderItemPergunta(item: Item, estado: Estado): string {
   // "Abrir conversa" abre já apontando o campo para ESTA pergunta (com duas ou mais abertas, a caixa "Respondendo" mostra).
   const abrir = daMinhaConversa && agente ? botao("responder-na-conversa", "Abrir conversa", { classe: "link sm", id: d.id, dados: { conversa: d.conversaId, agente: d.agenteId } }) : "";
   const cab = `<div class="sv-cab">${agente ? iconeAgente(agente, "sm") : ""}<span class="sv-quem"><b>${esc(item.agenteNome)}</b> ${esc(haQuanto(item.aguardandoHaMs))}${origem ? ` · ${esc(origem)}` : ""}</span><span class="sv-acoes">${rodada > 1 ? `<span class="sv-rodada">${rodada}ª rodada</span>` : ""}${abrir}</span></div>`;
-  const campo = `<div class="pq-campo"><input class="resposta" data-resposta="${esc(d.id)}" placeholder="${esc(`Responder à ${item.agenteNome}`)}" aria-label="Sua resposta" autocomplete="off" />${botao("responder", SETA_ENVIAR, { classe: "pri pq-enviar", id: d.id, aria: "Enviar resposta", titulo: "Enviar" })}</div>`;
+  const campo = `<div class="pq-campo"><input class="resposta" data-resposta="${esc(d.id)}" placeholder="${esc(`Responder a ${item.agenteNome}`)}" aria-label="Sua resposta" autocomplete="off" />${botao("responder", SETA_ENVIAR, { classe: "pri pq-enviar", id: d.id, aria: "Enviar resposta", titulo: "Enviar" })}</div>`;
   const ajuda = pedido?.ajudaDoComputador === true;
   // Spec D, item 6: o pedido de ajuda aberto da própria pessoa é o cartão do computador, também em "Sua vez".
   const motivoAjuda = ajuda && aberta && daMinhaConversa && agente ? motivoDoPedidoDeTela(pedido?.texto ?? d.frase) : null;

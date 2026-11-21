@@ -429,13 +429,13 @@ export function juntar(nomes: readonly string[]): string {
 }
 
 /**
- * O Parar das tasks (a pílula das frentes) pergunta antes (#195): "Parar a task Migrar relatórios?" ou "Parar as 3 tasks do
+ * O Parar das tasks (a pílula das frentes) pergunta antes (#195): "Parar a task Migrar relatórios?" ou "Parar as 3 tasks de
  * Dev 1?". revisto em 2026-10-22 (NOD-311): o Parar do chat não para mais as tasks e não usa estas listas. definido em 2026-10-08 (QA do épico): com várias tasks, os títulos iam todos no título do diálogo — quatro
  * títulos reais viravam um parágrafo em letra de título; agora vão numa lista no corpo (`listaPararTasks`).
  */
-export function textoPararTasks(lista: readonly Pick<TrabalhoDto, "titulo">[], nomeDoBot = "bot"): string {
+export function textoPararTasks(lista: readonly Pick<TrabalhoDto, "titulo">[], nomeDoBot?: string): string {
   if (lista.length === 1) return `Parar a tarefa ${lista[0]?.titulo ?? ""}?`;
-  return `Parar as ${lista.length} tarefas do ${nomeDoBot}?`;
+  return `Parar as ${lista.length} tarefas ${nomeDoBot?.trim() ? `de ${nomeDoBot}` : "do bot"}?`;
 }
 
 /** Os títulos das tasks que o Parar da pílula vai parar, um por linha (vazio com uma task só: o título já diz). */
