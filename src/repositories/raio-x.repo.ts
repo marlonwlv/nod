@@ -102,6 +102,25 @@ export function raioXRepo(conn: Conn, escopo: Escopo) {
       return j !== null && Number.isFinite(j) && j > 0 ? j : null;
     },
 
+    /**
+     * Issue #168: a execução do turno anterior da pessoa com o bot na mesma conversa (origem `conversa`, fora de frente e
+     * de procuração: os que rodam na sessão da conversa), para o aviso de contexto cheio saber se o histórico já estava
+     * acima do limite. Pula turno sem execução (Codex, ou que caiu antes do `result`).
+     */
+    async execucaoAnterior(conversaId: string, agenteId: string, turnoId: string): Promise<ExecucaoRaioX | null> {
+      const [l] = await conn<{ execucao: ExecucaoRaioX }[]>`
+        select r.execucao
+        from turnos t
+        join turno_raio_x r on r.tenant_id = t.tenant_id and r.turno_id = t.id
+        where t.tenant_id = ${escopo.tenantId} and t.conversa_id = ${conversaId} and t.agente_id = ${agenteId}
+          and t.origem = 'conversa' and t.trabalho_id is null and t.sob_procuracao_de is null
+          and t.id <> ${turnoId} and r.execucao is not null
+          and t.criado_em < (select a.criado_em from turnos a where a.tenant_id = ${escopo.tenantId} and a.id = ${turnoId})
+        order by t.criado_em desc
+        limit 1`;
+      return l?.execucao ?? null;
+    },
+
     /** Os turnos mais recentes da conversa, sem a composição (a faixa dev só precisa da execução). */
     async daConversa(conversaId: string, limite: number): Promise<TurnoComRaioX[]> {
       const linhas = await conn<Linha[]>`

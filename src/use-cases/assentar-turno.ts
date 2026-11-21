@@ -8,6 +8,7 @@ import type { Entrega } from "../contracts/ponte.ts";
 import type { ContaNoLimite, MotivoRecomeco, Turno } from "../contracts/turno.ts";
 import { comandoDaConversa, textoDaCompactacao, traduzirSaidaDoComando } from "../domain/comandos.ts";
 import { custoDoTurno } from "../domain/custo-turno.ts";
+import { avisoDeContexto, textoDoAvisoDeContexto } from "../domain/aviso-contexto.ts";
 import { assuntoDaInterrupcao } from "../domain/destino-no-chat.ts";
 import { causaDaEntrega } from "../domain/stream-json.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
@@ -37,6 +38,7 @@ import { decidirEsperaNoFundo } from "../domain/espera-no-fundo.ts";
 import { TENTATIVAS_TRANSITORIAS_MAX } from "../shared/constantes.ts";
 import { rotinaDoTurno } from "./apoio-l7.ts";
 import { registrarDesfechoRotina } from "./disparar-rotina.ts";
+import { emSavepoint } from "./savepoint.ts";
 import { avisarEsperaAoRemetente } from "./entregar-resposta-peer.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { aposQuedaDaMaquina, aposTetoDosBastidores } from "./interromper-por-maquina.ts";
@@ -345,6 +347,20 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   if (resultado.execucao) {
     const { versaoApp: _daExecucao, ...execucao } = resultado.execucao;
     await deps.repos.raioX.gravarExecucao(turno.id, versaoAppValida(entrega.versaoApp) ? { ...execucao, versaoApp: entrega.versaoApp } : execucao);
+  }
+  // Issue #168: o histórico da conversa cruzou o limite do aviso neste turno — uma linha no chat com o tamanho e o que
+  // fazer (/compactar ou /nova-sessao). Só no turno da fala da pessoa na conversa própria do bot, que roda na sessão da
+  // conversa (sessao-do-turno.ts): sala, frente, rotina, colega, delegação e procuração têm sessão própria.
+  // A leitura do turno anterior roda num savepoint: o aviso nunca derruba a entrega; sem a leitura, não avisa (avisar
+  // contra zero repetiria a linha a cada turno enquanto a leitura falhasse).
+  if (resultado.execucao && !tardia && turno.origem === "conversa" && !turno.trabalhoId && !turno.sobProcuracaoDe) {
+    const anterior = await emSavepoint(deps, () => deps.repos.raioX.execucaoAnterior(turno.conversaId, turno.agenteId, turno.id)).catch(() => undefined);
+    const aviso = anterior === undefined ? null : avisoDeContexto({ atual: resultado.execucao, anterior, modelo: turno.modelo });
+    if (aviso) {
+      const agente = await deps.repos.agentes.buscar(turno.agenteId);
+      const linha = await deps.repos.mensagens.criar({ conversaId: turno.conversaId, turnoId: turno.id, autoria, kind: "sistema", assunto: "contexto.cheio", texto: textoDoAvisoDeContexto(agente?.nome ?? "o bot", aviso), confianca: "confiavel" });
+      if (linha) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: linha.id, kind: "sistema" } }));
+    }
   }
   // O "/" do chat (0038): o catálogo do Mac, quando o app mandou um novo.
   if (resultado.comandos) await deps.repos.comandos.gravar(resultado.comandos);
