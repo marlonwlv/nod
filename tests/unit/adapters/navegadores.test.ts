@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { criarNavegadores, DESFAZER_DESCARTE_MS, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
+import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
@@ -39,6 +39,7 @@ let retomadas: { decisaoId: string; texto: string }[];
 let mensagens: MensagemDaPessoa[];
 let elemento: ElementoNaPagina | null;
 let caixaNaPagina: { x: number; y: number; w: number; h: number } | null;
+let desafio: string | null;
 
 const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
   get(_t, op: string) {
@@ -56,12 +57,14 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
+        case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : undefined;
         default: return undefined;
       }
     };
   },
 });
-const ops = () => chamadas.map((c) => c.op);
+// A conferência do CAPTCHA (DETECTAR_DESAFIO) roda depois de cada passo que pode mostrar um: fica fora da lista de operações.
+const ops = () => chamadas.filter((c) => !(c.op === "avaliar" && c.args[0] === DETECTAR_DESAFIO)).map((c) => c.op);
 
 const deps = () => ({
   escopo: MARLON,
@@ -88,7 +91,7 @@ const deps = () => ({
 function criar(o: Partial<OpcoesNavegadores> = {}) {
   return criarNavegadores({
     dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(deps() as never),
-    motor: () => motor, cifrar: (s) => `c:${s}`, decifrar: (s) => s.slice(2), agora: () => agora,
+    motor: () => motor, cifrar: (s) => `c:${s}`, decifrar: (s) => s.slice(2), agora: () => agora, msDesafio: 0,
     aoMudar: (_e, v) => { vistas.push(v); },
     retomarPedido: async (_e, decisaoId, texto) => { retomadas.push({ decisaoId, texto }); },
     mandarMensagem: async (_d, m) => { mensagens.push(m); },
@@ -136,6 +139,7 @@ beforeEach(() => {
   mensagens = [];
   elemento = null;
   caixaNaPagina = null;
+  desafio = null;
 });
 
 describe("negações do portão (molde de computadores.chamar)", () => {
@@ -418,18 +422,18 @@ describe("controle e pedidos à pessoa", () => {
     expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true });
   });
 
-  it("pedir ajuda e entrar criam o pedido, põem o controle em precisa_de_voce e a resposta devolve ao bot", async () => {
+  it("pedir ajuda e entrar criam o pedido, já entregam o navegador à pessoa e a resposta devolve ao bot", async () => {
     const n = criar();
     const r = await n.chamar(MARLON, plano(A), "navegador_entrar", { site: "gmail.com", motivo: "ler a fatura" });
     expect(corpo(r)).toMatchObject({ estado: "pendente", decisao_id: "pedido-1" });
     expect(pedidosAPessoa[0]!.texto).toContain("gmail.com");
     expect(pedidosAPessoa[0]!.texto).toContain("não passa por mim");
-    expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "login", site: "gmail.com" } });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "login", site: "gmail.com" } });
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "aguardando_pessoa" });
     decisoes.set("pedido-1", { estado: "respondida" });
     expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true, confianca: "nao_confiavel" });
     expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot", pedido: null });
-    expect(chamadas.map((c) => c.op)).toEqual(["ler"]);
+    expect(ops()).toEqual(["ler"]);
   });
 
   it("entrar com a URL inteira: o cartão e a fala ficam com o domínio (prova real: 'precisa entrar no https://…/login')", async () => {
@@ -579,7 +583,8 @@ describe("operações da pessoa (POST /agentes/:id/navegador)", () => {
   it("devolver com login aberto fecha o pedido e retoma o turno; com aprovação aberta, volta a esperar por ela", async () => {
     const n = criar();
     await n.chamar(MARLON, plano(A), "navegador_entrar", { site: "gmail.com", motivo: "ler a fatura" });
-    expect(await n.operar(MARLON, A, "assumir")).toMatchObject({ controle: "pessoa" });
+    // O pedido de login já entrega o navegador (sem "assumir"): devolver fecha o pedido e retoma.
+    await expect(n.operar(MARLON, A, "assumir")).rejects.toThrow("estado_invalido");
     expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "bot", pedido: null });
     expect(retomadas).toEqual([{ decisaoId: "pedido-1", texto: expect.stringContaining("devolvi o controle") }]);
     await expect(n.operar(MARLON, A, "devolver")).rejects.toThrow("estado_invalido");
@@ -673,7 +678,7 @@ describe("o lugar decidido a cada chamada (ADR-190, decisão 5)", () => {
     get(_t, op: string) {
       if (op === "lugar") return MAC;
       return async (...args: unknown[]) => {
-        doMac.push(op);
+        if (!(op === "avaliar" && args[1] === DETECTAR_DESAFIO)) doMac.push(op);
         if (op === "abrir") return { url: String(args[1]), titulo: "No Mac" };
         if (op === "url") return String(urlAgora);
         if (op === "ler") return leitura;
@@ -768,5 +773,45 @@ describe("o lugar decidido a cada chamada (ADR-190, decisão 5)", () => {
     const r = await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://exemplo.com" });
     expect(corpo(r)).toMatchObject({ erro: "indisponivel", instrucao: expect.stringContaining("continua com o Mac desligado") });
     expect(n.disponivel()).toBe(true);
+  });
+});
+
+describe("CAPTCHA na página (prova real de 2026-11-20: o modelo pediu no chat, sem navegador_pedir_ajuda)", () => {
+  it("abrir uma página com CAPTCHA entrega o navegador à pessoa, com o pedido na conversa, e manda o bot encerrar", async () => {
+    desafio = "texto";
+    const n = criar();
+    const r = await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://duckduckgo.com/?q=dune" });
+    expect(corpo(r)).toMatchObject({ ok: true, desafio_humano: true, instrucao: expect.stringContaining("Encerre o turno") });
+    expect(pedidosAPessoa).toHaveLength(1);
+    expect(pedidosAPessoa[0]!.texto).toContain("duckduckgo.com");
+    expect(pedidosAPessoa[0]!.texto).toContain("CAPTCHA");
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "ajuda", decisaoId: "pedido-1" } });
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "aguardando_pessoa" });
+  });
+
+  it("devolvido na mesma página, o bot segue sem entregar de novo (o detector pode errar)", async () => {
+    desafio = "recaptcha";
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/entrar" });
+    expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "bot", pedido: null });
+    expect(retomadas).toEqual([{ decisaoId: "pedido-1", texto: expect.stringContaining("devolvi") }]);
+    const r = await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(corpo(r)).not.toHaveProperty("desafio_humano");
+    expect(pedidosAPessoa).toHaveLength(1);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot" });
+  });
+
+  it("página sem CAPTCHA: nada muda", async () => {
+    const n = criar();
+    const r = await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/" });
+    expect(corpo(r)).not.toHaveProperty("desafio_humano");
+    expect(pedidosAPessoa).toEqual([]);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot", pedido: null });
+  });
+
+  it("navegador_pedir_ajuda também entrega o navegador na hora", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_pedir_ajuda", { motivo: "resolver o CAPTCHA" });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "ajuda", motivo: "resolver o CAPTCHA" } });
   });
 });

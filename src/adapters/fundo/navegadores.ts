@@ -71,6 +71,8 @@ export type OpcoesNavegadores = {
   agora?: () => number;
   /** D2 C e D8: quanto o anel fica no alvo antes do clique (padrão MS_MIRAR_ANTES, 300 ms; os testes passam 0). */
   msMirar?: number;
+  /** Quanto o nod espera antes de conferir de novo um CAPTCHA visto (o do Cloudflare às vezes passa sozinho; padrão MS_DESAFIO_CONFERIR, os testes passam 0). */
+  msDesafio?: number;
   /** A vista de um bot mudou (estado, controle, abas, passo): o canal ao vivo manda a vista e o SSE avisa a web. */
   aoMudar?(escopo: Escopo, vista: VistaNavegador): void;
   /** O executor vivo (o da retomada do turno e da mensagem "Ensinei: …"); ausente = catcher. */
@@ -133,6 +135,8 @@ type Estado = {
   /** D3, 5 e N4: o turno que mexeu por último e o último passo dele; o turno acabado põe a vista em "terminou". */
   turnoId: string | null;
   ultimoPasso: PassoNavegador | null;
+  /** A URL em que o nod já entregou um CAPTCHA à pessoa: se ela devolve na mesma página, o bot segue (sem entregar de novo). */
+  desafioEm: string | null;
 };
 
 /** L5: o usuário e a senha que a pessoa digitou (cada um cifrado), o campo em que ela está e a URL de quando começou. */
@@ -235,6 +239,31 @@ const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v
 
 /** definido em 2026-11-20 (D2 C, D8): o anel aparece no alvo 300 ms antes do clique. */
 export const MS_MIRAR_ANTES = 300;
+/**
+ * definido em 2026-11-20 (prova real: o DuckDuckGo abriu um CAPTCHA, o modelo viu no print e pediu no chat, sem
+ * navegador_pedir_ajuda, e a tela não ficou azul): depois de abrir, ler, ver, clicar ou apertar uma tecla, o nod confere se
+ * a página mostra uma verificação de humano e, se mostra, entrega o navegador à pessoa ele mesmo, com o pedido de ajuda
+ * na conversa (o mesmo de navegador_pedir_ajuda). Só o que se vê conta: o reCAPTCHA invisível de um formulário não
+ * dispara (quadro de 40 px ou mais, visível). O texto só conta em página curta, para um artigo sobre CAPTCHA não disparar.
+ */
+export const DETECTAR_DESAFIO = `(() => {
+  const ve = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width >= 40 && r.height >= 40 && s.visibility !== "hidden" && s.display !== "none" && Number(s.opacity) > 0.1; };
+  for (const f of document.querySelectorAll("iframe")) {
+    const src = f.src || "";
+    if (/size=invisible/.test(src) || !ve(f)) continue;
+    if (/recaptcha\\/(api2|enterprise)\\/(anchor|bframe)/.test(src)) return "recaptcha";
+    if (/hcaptcha\\.com/.test(src)) return "hcaptcha";
+    if (/challenges\\.cloudflare\\.com/.test(src)) return "cloudflare";
+    if (/captcha/i.test(src)) return "captcha";
+  }
+  const t = (document.body && document.body.innerText || "").slice(0, 6000);
+  if (t.length < 6000 && /bots use DuckDuckGo too|I'm not a robot|I am not a robot|n[ãa]o sou um rob[ôo]|verify (that )?you('re| are) (a )?human|confirm (that )?(this search was made by|you('re| are)) a human|prove you('re| are) (a )?human|verifique se voc[êe] [ée] (um )?humano|complete the security check/i.test(t)) return "texto";
+  return null;
+})()`;
+export const MS_DESAFIO_CONFERIR = 2500;
+/** Depois destas, a página pode ter virado um CAPTCHA (ou o bot pode tê-lo visto). */
+const CONFEREM_DESAFIO: ReadonlySet<string> = new Set(["navegador_abrir", "navegador_ler", "navegador_ver", "navegador_clicar", "navegador_tecla", "navegador_procurar", "navegador_historico"]);
+export const INSTRUCAO_DO_DESAFIO = "A página mostra uma verificação de humano (CAPTCHA). O nod já passou o navegador para a pessoa, com o pedido na conversa: não peça no chat nem tente resolver. Encerre o turno; ela devolve e você continua.";
 /** As ferramentas cujo alvo a pessoa vê na imagem: o passo leva a caixa dele (o cursor com o nome e o anel, D2 C). */
 const FERRAMENTAS_COM_ALVO_NA_TELA: ReadonlySet<string> = new Set(["navegador_clicar", "navegador_preencher", "navegador_digitar", "navegador_selecionar", "navegador_marcar", "navegador_passar_mouse", "navegador_baixar", "navegador_enviar_arquivo", "navegador_rolar"]);
 
@@ -324,6 +353,7 @@ export async function mandarMensagemPadrao(d: Deps, p: MensagemDaPessoa & { exec
 export function criarNavegadores(o: OpcoesNavegadores) {
   const agora = o.agora ?? (() => Date.now());
   const msMirar = o.msMirar ?? MS_MIRAR_ANTES;
+  const msDesafio = o.msDesafio ?? MS_DESAFIO_CONFERIR;
   const max = Math.max(1, o.max ?? MAX_PADRAO);
   const aprovar = o.pedirAprovacao ?? pedirAprovacaoComputador;
   const perguntar = o.pedirAPessoa ?? pedirAPessoa;
@@ -351,7 +381,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
       abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null, ultimoTexto: null,
-      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null,
+      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
@@ -616,7 +646,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const decisao = await d.repos.decisoes.buscar(decisaoId);
       return decisao !== null && (decisao.estado === "pendente" || decisao.estado === "reaberta");
     });
-    if (!aberta) { mudar(est, { pedido: null, controle: est.vista.controle === "precisa_de_voce" ? "bot" : est.vista.controle }); throw new ErroDeDominio("estado_invalido", { cause: "sem_pedido" }); }
+    if (!aberta) { mudar(est, { pedido: null, controle: est.vista.controle === "precisa_de_voce" || est.vista.controle === "pessoa" ? "bot" : est.vista.controle }); throw new ErroDeDominio("estado_invalido", { cause: "sem_pedido" }); }
     return p as Extract<PedidoDaVistaNavegador, { tipo: T }>;
   }
 
@@ -973,6 +1003,36 @@ export function criarNavegadores(o: OpcoesNavegadores) {
    * L1: o cartão "A Ada precisa entrar no Itaú". O site para casar os cofres é o da aba (a página onde o login vai), ou o
    * que o bot disse quando a aba ainda não abriu nada; o preenchimento confere de novo que a aba não mudou de site.
    */
+  /** O pedido de ajuda (captcha, código, app do banco): a fala na conversa e o navegador com a pessoa (borda azul). */
+  async function pedirAjuda(d: Deps, plano: Pick<PlanoTurno, "turnoId" | "agenteId" | "conversaId">, est: Estado, motivo: string, codigo: boolean) {
+    // L4: o código de uso único entra pelo campo privado do cartão, nunca pelo chat (o pedido não aceita texto).
+    const p = await (codigo ? perguntarSemTexto : perguntar)(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto: codigo ? FALA_DO_CODIGO(motivo) : FALA_DA_AJUDA(motivo) });
+    if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
+    // definido em 2026-11-20 (teste do dono): quem pede ajuda já entrega o navegador. A pessoa clica, rola e digita na hora,
+    // sem um passo de "assumir"; a borda segue azul porque há pedido aberto, e devolver retoma o turno.
+    mudar(est, { controle: "pessoa", passo: null, pedido: { tipo: "ajuda", decisaoId: p.data.decisao_id, motivo, codigo }, atividadeEm: agora() });
+    return p.data;
+  }
+
+  /**
+   * Depois de um passo que pode mostrar um CAPTCHA: se a página mostra um, o nod entrega o navegador à pessoa. Uma vez por
+   * URL (devolvido na mesma página, o bot segue). Visto, confere de novo depois de `msDesafio`: o que passa sozinho some.
+   */
+  async function conferirDesafio(c: Contexto, saida: Saida): Promise<void> {
+    if (c.est.urlDoSegredo) return;
+    const s = sessao(c.plano.agenteId);
+    const ver = async () => { const r = await c.motor.avaliar(s, DETECTAR_DESAFIO).catch(() => null); return typeof r === "string" && r ? r : null; };
+    if (!(await ver())) return;
+    const url = await c.motor.url(s).catch(() => c.est.url);
+    if (url && url === c.est.desafioEm) return;
+    if (msDesafio > 0) { await new Promise((ok) => setTimeout(ok, msDesafio)); if (!(await ver())) return; }
+    if (!botPodeAgir(c.est.vista.controle)) return;
+    c.est.desafioEm = url || null;
+    const host = hostDe(url) || "o site";
+    const p = await o.dentro(c.escopo, (d) => pedirAjuda(d, c.plano, c.est, `${host} pede para provar que é gente (CAPTCHA). Resolva na tela e devolva para mim.`, false));
+    saida.conteudo = { ...saida.conteudo, desafio_humano: true, pedido: p, instrucao: INSTRUCAO_DO_DESAFIO };
+  }
+
   async function pedirLogin(escopo: Escopo, plano: PlanoTurno, est: Estado, site: string, motivo: string): Promise<ResultadoChamada> {
     const daAba = /^https?:/i.test(est.url) ? hostDe(est.url) : "";
     const host = daAba || hostDoSite(site);
@@ -985,8 +1045,10 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const p = await perguntarSemTexto(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto });
       if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
       est.loginHost = host || null;
-      limparCaptura(est);
-      mudar(est, { controle: "precisa_de_voce", passo: null, pedido: { tipo: "login", decisaoId: p.data.decisao_id, site, motivo, opcoes, podeTrazerDoChrome, etapa: "escolher", erro: null } });
+      // definido em 2026-11-20 (teste do dono): o pedido de login já entrega o navegador à pessoa. O cartão segue com o
+      // cofre, o 1Password e o Bitwarden; se ela digitar na página, a captura (L5) já está ligada para o "Guardar no cofre?".
+      if (host) comecarCaptura(est, host); else limparCaptura(est);
+      mudar(est, { controle: "pessoa", atividadeEm: agora(), passo: null, pedido: { tipo: "login", decisaoId: p.data.decisao_id, site, motivo, opcoes, podeTrazerDoChrome, etapa: "escolher", erro: null } });
       return { ok: true, conteudo: JSON.stringify(p.data), confianca: "confiavel" };
     });
   }
@@ -1013,7 +1075,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
 
   /** O pedido aberto para a pessoa já foi respondido (ou venceu): o controle volta ao bot. */
   async function pedidoResolvido(d: Deps, est: Estado): Promise<boolean> {
-    if (est.vista.controle !== "precisa_de_voce" || !est.vista.pedido) return false;
+    if ((est.vista.controle !== "precisa_de_voce" && est.vista.controle !== "pessoa") || !est.vista.pedido) return false;
     const decisao = await d.repos.decisoes.buscar(est.vista.pedido.decisaoId);
     return !decisao || (decisao.estado !== "pendente" && decisao.estado !== "reaberta");
   }
@@ -1074,13 +1136,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         // L1: o cartão de login monta as opções fora da transação (o Mac pode levar uns segundos para listar o cofre).
         if (ferramenta === "navegador_entrar") return { entrar: { est, site: String(args.site).slice(0, 300), motivo: String(args.motivo).slice(0, 300) } };
         if (ferramenta === "navegador_pedir_ajuda") {
-          const motivo = String(args.motivo).slice(0, 300);
-          const codigo = args.codigo === true;
-          // L4: o código de uso único entra pelo campo privado do cartão, nunca pelo chat (o pedido não aceita texto).
-          const p = await (codigo ? perguntarSemTexto : perguntar)(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto: codigo ? FALA_DO_CODIGO(motivo) : FALA_DA_AJUDA(motivo) });
-          if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
-          mudar(est, { controle: "precisa_de_voce", passo: null, pedido: { tipo: "ajuda", decisaoId: p.data.decisao_id, motivo, codigo } });
-          return { ok: true, conteudo: JSON.stringify(p.data), confianca: "confiavel" };
+          const p = await pedirAjuda(d, plano, est, String(args.motivo).slice(0, 300), args.codigo === true);
+          return { ok: true, conteudo: JSON.stringify(p), confianca: "confiavel" };
         }
         if (ferramenta === "navegador_combinar") return combinar(d, escopo, plano, est, argsDaFerramenta);
         const modo = modoNoTurno(agente?.modoAprovacao, plano.autoria) ?? "manual";
@@ -1094,7 +1151,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if (r.est.vista.estado === "terminou") mudar(r.est, { estado: "ao_vivo", atividadeEm: agora() });
       try {
         if (r.ferramenta === "navegador_rodar_script") return await script(r, Array.isArray(r.args.passos) ? r.args.passos : []);
-        return comoResultado(await passo(r, r.ferramenta, r.args));
+        const desfecho = await passo(r, r.ferramenta, r.args);
+        if ("saida" in desfecho && desfecho.saida.isError !== true && CONFEREM_DESAFIO.has(r.ferramenta)) await conferirDesafio(r, desfecho.saida);
+        return comoResultado(desfecho);
       } catch (e) {
         if (ehFalhaNavegador(e)) return resposta(instrucaoDaFalha(e), true);
         log("erro", "navegador_erro_inesperado", { ferramenta: r.ferramenta, erro: e instanceof Error ? e.name : "desconhecido" });

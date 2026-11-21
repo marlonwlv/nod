@@ -172,8 +172,8 @@ export function htmlCartaoAjudaNavegador(o: { decisaoId: string; agenteId: strin
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}"`;
   return `<div class="nvc nvc-ajuda" role="group" aria-label="${esc(`${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`)}" ${dados}>`
     + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>`
-    + `<p class="nvc-sub">Assuma o navegador ${esc(deNome(o.nome))}, faça esse passo e devolva. ${esc(fraseMaiuscula(comArtigo(o.nome)))} não vê o que você digita.</p>`
-    + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-resolver" ${dados}>Já resolvi</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="nv-assumir" ${dados}>Assumir o controle</button></div></div>`;
+    + `<p class="nvc-sub">O navegador ${esc(deNome(o.nome))} já está com você: faça esse passo e devolva. ${esc(fraseMaiuscula(comArtigo(o.nome)))} não vê o que você digita.</p>`
+    + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-resolver" ${dados}>Já resolvi</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador</button></div></div>`;
 }
 
 /** O pedido aberto sem a vista à mão (a vista ainda não chegou, ou é de outro aparelho): o título e o caminho até ela. */

@@ -178,7 +178,7 @@ describe("L1: o cartão de login monta as opções sem segredo", () => {
     const n = criar();
     await noLoginDoItau(n);
     expect(mac.chamadas).toEqual([{ op: "listar", args: [A, "www.itau.com.br"] }]);
-    expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: {
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: {
       tipo: "login", decisaoId: "pedido-1", site: "Itaú", etapa: "escolher", erro: null, podeTrazerDoChrome: true,
       opcoes: [{ fonte: "1password", ref: "op://v1/i1/password", rotulo: "Itaú · marlon@…", disponivel: true }, { fonte: "nod", ref: LOGIN_ID, rotulo: "itau.com.br · marlon@…", disponivel: true }],
     } });
@@ -251,7 +251,7 @@ describe("L3: preencher sem o bot ver", () => {
     const decisao = await noLoginDoItau(n);
     await n.escolherLogin(MARLON, A, decisao, { fonte: "1password", ref: "op://v1/i1/password" });
     await n.esperarLogin(A);
-    expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: { etapa: "escolher", erro: "Você não confirmou no Mac. Escolha de novo." } });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { etapa: "escolher", erro: "Você não confirmou no Mac. Escolha de novo." } });
     expect(retomadas).toEqual([]);
   });
 

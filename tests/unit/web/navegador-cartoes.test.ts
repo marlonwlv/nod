@@ -205,8 +205,8 @@ describe("achado 7 do crítico: o nome do bot nos cartões (o artigo pela termin
   it("da/do, à/ao e a/o no código, na ajuda, no caminho até a vista e na gravação", () => {
     expect(htmlCartaoCodigo({ decisaoId: "d", agenteId: "a1", motivo: "O Itaú mandou um código", nome: "Milton" })).toContain("nem chega ao Milton.");
     const ajuda = htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "Resolver o CAPTCHA", nome: "Milton" });
-    expect(ajuda).toContain("Assuma o navegador do Milton, faça esse passo e devolva. O Milton não vê o que você digita.");
-    expect(htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "x", nome: "Ada" })).toContain("Assuma o navegador da Ada, faça esse passo e devolva. A Ada não vê o que você digita.");
+    expect(ajuda).toContain("O navegador do Milton já está com você: faça esse passo e devolva. O Milton não vê o que você digita.");
+    expect(htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "x", nome: "Ada" })).toContain("O navegador da Ada já está com você: faça esse passo e devolva. A Ada não vê o que você digita.");
     expect(htmlCartaoPedidoSemVista({ tipo: "ajuda", motivo: "x" }, { decisaoId: "d", agenteId: "a1", nome: "Milton" })).toContain("Abrir o navegador do Milton");
     expect(htmlHabilidades({ tarefas: [], erro: false, abertas: new Set(), apagando: new Set() }, { agenteId: "a1", nome: "Ada", temNavegador: true })).toContain("mostre no navegador da Ada.");
   });
