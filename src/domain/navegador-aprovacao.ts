@@ -126,7 +126,9 @@ export function perguntaDaAcao(classe: Exclude<ClasseAcaoNavegador, "livre" | "s
   const site = siteLegivel(host);
   const r = rotulo.trim().replace(/\s+/g, " ").slice(0, 80);
   // A3 (Paper XZJ-0): no envio com o destino visto na página, a pergunta diz para quem ("Enviar para Pedro no …?").
-  if (classe === "enviar" && para) return `${r} para ${para.trim().slice(0, 80)} no ${site}?`;
+  // Conferência de 2026-11-21: o botão é muitas vezes só "Enviar"; o Paper pede "Enviar a mensagem para Pedro…".
+  const oQue = /^(enviar|send)$/iu.test(r) ? "Enviar a mensagem" : r;
+  if (classe === "enviar" && para) return `${oQue} para ${para.trim().slice(0, 80)} no ${site}?`;
   return `${r} no ${site}?`;
 }
 

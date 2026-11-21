@@ -89,7 +89,8 @@ describe("aprovação no ponto sem volta (quadro A)", () => {
 
   it("a pergunta do cartão: o rótulo do botão e o site; no envio com destino visto, para quem (A3)", () => {
     expect(perguntaDaAcao("pagar", "Pagar R$ 3.780", "www.flytap.com")).toBe("Pagar R$ 3.780 no flytap.com?");
-    expect(perguntaDaAcao("enviar", "Enviar", "web.whatsapp.com", "Pedro")).toBe("Enviar para Pedro no web.whatsapp.com?");
+    expect(perguntaDaAcao("enviar", "Enviar", "web.whatsapp.com", "Pedro")).toBe("Enviar a mensagem para Pedro no web.whatsapp.com?");
+    expect(perguntaDaAcao("enviar", "Enviar e-mail", "mail.exemplo.com", "Pedro")).toBe("Enviar e-mail para Pedro no mail.exemplo.com?");
     expect(perguntaDaAcao("enviar", "Enviar", "web.whatsapp.com", null)).toBe("Enviar no web.whatsapp.com?");
     expect(perguntaDaAcao("pagar", "Pagar", "loja.com", "Pedro")).toBe("Pagar no loja.com?");
   });

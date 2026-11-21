@@ -635,8 +635,8 @@ export function tituloDaAbaAtiva(v: Pick<VistaNavegador, "abas">): string {
 }
 
 /** D1d: a legenda da aba ("Navegador da Ada · lendo os voos diretos") e o título da tela cheia ("Ada · clicando em Buscar"). */
-export function legendaDoPasso(nome: string, v: Pick<VistaNavegador, "passo" | "controle" | "estado"> | null, onde: "aba" | "tela-cheia"): string {
-  const frase = v?.controle === "pessoa" ? "você está no controle" : v?.passo?.frase ? fraseMinuscula(v.passo.frase) : v?.estado === "terminou" ? "terminou" : "";
+export function legendaDoPasso(nome: string, v: Pick<VistaNavegador, "passo" | "controle" | "estado" | "pedido"> | null, onde: "aba" | "tela-cheia"): string {
+  const frase = v?.pedido ? "precisa de você" : v?.controle === "pessoa" ? "você está no controle" : v?.passo?.frase ? fraseMinuscula(v.passo.frase) : v?.estado === "terminou" ? "terminou" : "";
   const quem = onde === "aba" ? `Navegador ${deNome(nome)}` : nome;
   return frase ? `${quem} · ${frase}` : quem;
 }
@@ -682,7 +682,8 @@ export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<Vis
     const feito = [v.passo?.frase ? fraseNoPassado(v.passo.frase) : `Terminou${site ? ` em ${site}` : ""}`, horaDaLinha(Math.max(v.atividadeEm, v.passo?.em ?? 0)), lugar].filter(Boolean).join(" · ");
     return `<div class="nv-linha terminou" data-agente="${esc(agenteId)}" data-ponto=""><span class="nv-linha-ok" aria-hidden="true">✓</span><span class="nv-linha-txt"><b>Navegador ${esc(deNome(nome))}</b><small>${esc(feito)}</small></span>${ver}</div>`;
   }
-  const frase = v.controle === "pessoa" ? "você está no controle" : v.pedido || v.controle === "precisa_de_voce" ? "precisa de você" : v.passo?.frase ? fraseMinuscula(v.passo.frase) : v.estado === "ligando" ? "ligando" : "";
+  // O pedido aberto vem antes do controle (2026-11-21): login e ajuda já entregam o navegador, e a linha segue a pílula.
+  const frase = v.pedido || v.controle === "precisa_de_voce" ? "precisa de você" : v.controle === "pessoa" ? "você está no controle" : v.passo?.frase ? fraseMinuscula(v.passo.frase) : v.estado === "ligando" ? "ligando" : "";
   const sub = [site, frase, lugar].filter(Boolean).join(" · ");
   return `<div class="nv-linha" data-agente="${esc(agenteId)}" data-ponto="${ponto ?? ""}"><i class="nv-linha-ponto" aria-hidden="true"></i><span class="nv-linha-txt"><b>Navegador ${esc(deNome(nome))}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ver}</div>`;
 }

@@ -10493,7 +10493,7 @@ document.addEventListener("keydown", (ev) => {
 
 // NOD-119: o seletor segmentado das Configurações (radiogroup): setas, Home e End escolhem a opção ao lado e levam o foco.
 document.addEventListener("keydown", (ev) => {
-  const el = (ev.target as HTMLElement | null)?.closest<HTMLElement>('.segmentado [role="radio"]');
+  const el = (ev.target as HTMLElement | null)?.closest?.<HTMLElement>('.segmentado [role="radio"]');
   if (!el) return;
   const opcoes = [...(el.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [])];
   const prox = proximoDoSegmentado(opcoes.indexOf(el), opcoes.length, ev.key);

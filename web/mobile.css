@@ -912,6 +912,10 @@
   .cabecalho.cabecalho-pilula .nv-canto .nv-canto-ponto { position: absolute; top: 9px; right: 9px; }
   .cabecalho.buscando .nv-canto { display: none; }
   .nv-linha-ver { min-width: 44px; min-height: 44px; }
+  /* Conferência de 2026-11-21 (K3): com a pílula larga ("Aguardando você") e o botão de abas ao lado, o meio invadia o
+     botão da tela (fixo a 62 px da direita) e os dois ícones se sobrepunham. Com ele no cabeçalho, a direita reserva a
+     lupa e o botão da tela (12 + 44 + 6 + 44 + 6). */
+  .cabecalho.cabecalho-pilula:not(.buscando):has(.nv-canto) { padding-right: calc(max(12px, env(safe-area-inset-right)) + 100px); }
 }
 
 /* ADR-190 (K3, M4, L4, L5): no celular os cartões do navegador ocupam a largura e cada opção é um alvo de 44 px; o
