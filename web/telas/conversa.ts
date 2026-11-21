@@ -1821,10 +1821,14 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
   // turno da pessoa.
   const vistas = new Set(mensagens.map((m) => m.id));
   const turnosSegurados = new Set(c.mensagens.filter((m) => m.turnoId && !vistas.has(m.id)).map((m) => m.turnoId as string));
-  // Revisto em 2026-11-21 (teste do dono): o cartão do turno que ainda roda (ou cuja fala ainda não chegou) também fica
-  // segurado e aparece embaixo da fala final, sem pular (`ancoraDoPedido`).
-  const emAndamento = new Set([...turnosSegurados, ...vivos.turnos]);
-  const { blocos: comDecisoes, ancoradas } = comPedidosAncorados(comEncolhidosNaAncora(blocosDasMensagens(co.mensagens, estado, sala, c.conversa.agenteId ? { agenteId: c.conversa.agenteId, acoes: c.acoesDoModo } : undefined), co), co, estado, idsDasPropostas, emAndamento, vivos, c.mensagens);
+  // Revisto em 2026-11-21 (teste do dono): o cartão do turno que ainda roda sem ter falado (ou cuja fala está segurada)
+  // fica segurado e aparece embaixo da fala dele, sem pular (`ancoraDoPedido`).
+  // Só enquanto o turno ainda não falou nada. A aprovação fica de fora (`comPedidosAncorados`): o turno espera por ela antes
+  // de falar (a fala vem depois da decisão), então ela aparece na hora e não pula.
+  const falaram = new Set(c.mensagens.flatMap((m) => (m.turnoId && pedidoDoRecibo(m) === null ? [m.turnoId] : [])));
+  const semFala = new Set([...vivos.turnos].filter((t) => !falaram.has(t)));
+  const emAndamento = new Set([...turnosSegurados, ...semFala]);
+  const { blocos: comDecisoes, ancoradas } = comPedidosAncorados(comEncolhidosNaAncora(blocosDasMensagens(co.mensagens, estado, sala, c.conversa.agenteId ? { agenteId: c.conversa.agenteId, acoes: c.acoesDoModo } : undefined), co), co, estado, idsDasPropostas, turnosSegurados, vivos, c.mensagens, semFala);
   // ADR-191 (definido em 2026-11-20, pedido do dono): a proposta aberta também fica onde nasceu, pela regra dos pedidos
   // (`ancoraDoPedido`); só a que não acha âncora vai para o fim, como antes. As linhas dos pedidos dispensados vizinhas
   // ficam juntas.
@@ -1943,7 +1947,7 @@ function inicioDoBloco({ chave, inicio }: BlocoDaTimeline): string {
  * recolhidos: a chave de um bloco é o id da primeira mensagem dele (ou `avisos-<id>`), então a âncora que caiu dentro
  * de um grupo recolhido fica depois do grupo — nunca some.
  */
-function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estado: Estado, propostas: ReadonlySet<string>, turnosSegurados: ReadonlySet<string> = new Set(), vivos: TurnosDaPessoaVivos = NENHUM_TURNO_VIVO, doServidor: readonly Mensagem[] = c.mensagens): { blocos: BlocoDaTimeline[]; ancoradas: ReadonlySet<string> } {
+function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estado: Estado, propostas: ReadonlySet<string>, turnosSegurados: ReadonlySet<string> = new Set(), vivos: TurnosDaPessoaVivos = NENHUM_TURNO_VIVO, doServidor: readonly Mensagem[] = c.mensagens, semFala: ReadonlySet<string> = new Set()): { blocos: BlocoDaTimeline[]; ancoradas: ReadonlySet<string> } {
   const todos = pedidosAncoraveis(estado, c.conversa.id, propostas);
   // NOD-402: o pedido de um turno dos bastidores sem fala à vista (a rotina que pediu aprovação, credencial ou acesso sem escrever nada)
   // segue a regra da mensagem dos bastidores pela hora dele: segurado com o turno da pessoa vivo, ou depois da última fala
@@ -1957,7 +1961,10 @@ function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estad
     lugar.set(i.decisao.id, inicio < 0 ? (vivos.desde !== null && em >= vivos.desde ? "segura" : "fica") : lugarDosBastidores(doServidor, inicio, em, vivos));
   }
   // O segurado conta como ancorado (sai da seção do fim) e não é desenhado agora.
-  const segurados = todos.filter((i) => (i.decisao.turnoId !== null && turnosSegurados.has(i.decisao.turnoId)) || lugar.get(i.decisao.id) === "segura").map((i) => i.decisao.id);
+  // Revisto em 2026-11-21: o pedido do turno vivo que ainda não falou também segura (aparece embaixo da fala), menos a
+  // aprovação — o turno espera por ela antes de falar.
+  const semFalaAinda = (i: (typeof todos)[number]) => i.decisao.turnoId !== null && i.decisao.tipo !== "aprovacao" && semFala.has(i.decisao.turnoId);
+  const segurados = todos.filter((i) => (i.decisao.turnoId !== null && turnosSegurados.has(i.decisao.turnoId)) || semFalaAinda(i) || lugar.get(i.decisao.id) === "segura").map((i) => i.decisao.id);
   const pedidos = segurados.length === 0 ? todos : todos.filter((i) => !segurados.includes(i.decisao.id));
   if (pedidos.length === 0) return { blocos, ancoradas: new Set(segurados) };
   const posicao = new Map(c.mensagens.map((m, i) => [m.id, i]));

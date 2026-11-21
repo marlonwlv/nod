@@ -411,11 +411,21 @@ describe("3. o pedido fica embaixo da fala do turno que o pediu", () => {
   });
 
   it("nasceu com o turno rodando: fica segurado e aparece embaixo da fala final do bot, sem pular", () => {
-    const rodando = cenario([msg("m1", "pessoa", 1)], [pedido("d1", { turnoId: "t9", criadoEm: iso(2) })], { turnosEmCurso: [{ id: "t9", estado: "despachando", desde: 1, mensagemId: "m1" }] as never });
+    const rodando = cenario([msg("m1", "pessoa", 1)], [pedido("d1", { turnoId: "t9", criadoEm: iso(2), tipo: "pergunta" })], { turnosEmCurso: [{ id: "t9", estado: "despachando", desde: 1, mensagemId: "m1" }] as never });
     expect(blocosDoHistorico(rodando.c, rodando.e).map((b) => b.chave)).toEqual(["sep:m1", "m1"]);
     expect(renderTimeline(rodando.c, rodando.e)).not.toContain('<section class="decisoes-chat"');
     const acabou = cenario([msg("m1", "pessoa", 1), msg("m2", "agente", 3, { turnoId: "t9" })], [pedido("d1", { turnoId: "t9", criadoEm: iso(2) })]);
     expect(blocosDoHistorico(acabou.c, acabou.e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "m2", "decisao:d1"]);
+  });
+
+  it("a aprovação aparece na hora, com o turno vivo e sem fala: o turno espera por ela antes de falar", () => {
+    const { e, c } = cenario([msg("m1", "pessoa", 1)], [pedido("d1", { turnoId: "t9", criadoEm: iso(2), tipo: "aprovacao" })], { turnosEmCurso: [{ id: "t9", estado: "executando", desde: 1, mensagemId: "m1" }] as never });
+    expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "decisao:d1"]);
+  });
+
+  it("o turno que segue vivo esperando a decisão (aprovação, rascunhos) já falou: o cartão aparece embaixo da fala", () => {
+    const { e, c } = cenario([msg("m1", "pessoa", 1), msg("m2", "agente", 3, { turnoId: "t9" })], [pedido("d1", { turnoId: "t9", criadoEm: iso(2) })], { turnosEmCurso: [{ id: "t9", estado: "executando", desde: 1, mensagemId: "m1" }] as never });
+    expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "m2", "decisao:d1"]);
   });
 });
 
