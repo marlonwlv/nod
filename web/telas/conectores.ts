@@ -55,8 +55,8 @@ export function renderConectores(estado: Estado): string {
         : '<p class="mudo">catálogo vazio — sonde para descobrir as ferramentas</p>';
       const conceder = c.catalogo.length && agentes.length
         ? `<form class="form linha" data-form="conceder" data-id="${esc(c.id)}">
-            <select name="agenteId">${agentes.map((a) => `<option value="${esc(a.id)}">${esc(a.nome)}</option>`).join("")}</select>
-            <select name="capacidade">${c.catalogo.map((cap) => `<option value="${esc(cap.nome)}">${esc(cap.nome)}</option>`).join("")}</select>
+            <select name="agenteId" aria-label="Bot">${agentes.map((a) => `<option value="${esc(a.id)}">${esc(a.nome)}</option>`).join("")}</select>
+            <select name="capacidade" aria-label="Ação">${c.catalogo.map((cap) => `<option value="${esc(cap.nome)}">${esc(cap.nome)}</option>`).join("")}</select>
             <button class="bt pri" type="submit" data-act="conceder">Conceder</button>
           </form>`
         : "";

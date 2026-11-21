@@ -64,4 +64,13 @@ describe("a tela avançada dos Conectores em React", () => {
     fireEvent.click(container.querySelector(".bt.link")!);
     expect(acoes.acao).toHaveBeenLastCalledWith("navegar-marketplace", container.querySelector(".bt.link"));
   });
+
+  it("os selects do Conceder têm nome acessível nas duas versões (QA-186)", () => {
+    const e = { ...base, conectores: [mcp], composioConfigurado: true } as Estado;
+    const { container } = montar(e);
+    for (const raiz of [container, porString(e)]) {
+      const nomes = [...raiz.querySelectorAll<HTMLSelectElement>('form.linha select')].map((s) => s.getAttribute("aria-label"));
+      expect(nomes).toEqual(["Bot", "Ação"]);
+    }
+  });
 });
