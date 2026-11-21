@@ -587,7 +587,7 @@ if (telasNoReact) {
         enviar: () => escolherNaNovaConversa(),
         aoDesenhar: () => filtrarBots((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value ?? "", ".contact-picker"),
       },
-      tarefas: { fonte: tarefasDeTodos, avatar: depsDasTarefas.avatar, abrirTarefa: depsDasTarefas.abrirTarefa, abrirPagina: depsDasTarefas.abrirPagina },
+      tarefas: { fonte: tarefasDeTodos, avatar: depsDasTarefas.avatar, voce: depsDasTarefas.voce, abrirTarefa: depsDasTarefas.abrirTarefa, abrirPagina: depsDasTarefas.abrirPagina },
       trabalhos: {
         vista: (porEstado, botEscolhido) => {
           const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
@@ -1397,6 +1397,7 @@ const depsDasTarefas: DepsDasTarefas = {
     return api;
   },
   avatar: (id) => { const b = id ? botGerido(id) : undefined; return b ? iconeAgente(b, "sm") : ""; },
+  voce: () => nomeParaAsIniciais(),
   abrirTarefa: (dono, tarefa, quadro) => {
     const bot = botGerido(dono);
     if (!bot) return;
