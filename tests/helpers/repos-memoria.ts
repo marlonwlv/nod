@@ -1220,6 +1220,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         // Espelha `buscar`; sem concorrência na memória, sem lock.
         return doTenant(b.propostas).find((p) => p.id === id) ?? null;
       },
+      async travarSeLivre(id) {
+        // Sem concorrência na memória: nunca está travada; espelha `buscarParaAtualizar`.
+        return doTenant(b.propostas).find((p) => p.id === id) ?? null;
+      },
       async pendentesDaConversa(conversaId) {
         return doTenant(b.propostas).filter((p) => p.conversaId === conversaId && p.estado === "pendente");
       },
