@@ -3469,6 +3469,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
     },
     mcpTokens: {
+      async contarVivosTravando() {
+        return b.mcpTokens.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.revogadoEm === null).length;
+      },
       async criar(e) {
         const l = { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), nome: e.nome, prefixo: e.prefixo, hash: e.hash, cliente: null as string | null, criadoEm: agora(), ultimoUsoEm: null as number | null, revogadoEm: null as number | null };
         b.mcpTokens.push(l);
