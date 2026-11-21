@@ -701,8 +701,10 @@ export type EstadoDaAbaDeLugar = "vivo" | "precisa" | "controle" | "parada" | "p
 export function estadoDaAbaDeLugar(v: Pick<VistaNavegador, "estado" | "controle" | "pedido"> | null): EstadoDaAbaDeLugar {
   if (!v) return "parada";
   if (v.estado === "erro") return "problema";
-  if (v.controle === "pessoa") return "controle";
+  // O pedido aberto (login, ajuda) diz "precisa de você" mesmo com o navegador já com a pessoa (2026-11-21): a aba e a
+  // pílula contam a mesma coisa.
   if (v.controle === "precisa_de_voce" || v.pedido) return "precisa";
+  if (v.controle === "pessoa") return "controle";
   if (v.estado === "ao_vivo" || v.estado === "rede_fraca" || v.estado === "ligando" || v.estado === "conectando") return "vivo";
   return "parada";
 }
