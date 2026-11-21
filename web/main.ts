@@ -160,6 +160,7 @@ import type { DadosConta } from "./telas/config-conta.ts";
 import { avatarDoBot, avatarNaConversa, htmlMascote, mascoteComAviso, proximaViradaDoMascote } from "./lib/mascote.ts";
 import { lembrar } from "./lib/lembrar.ts";
 import { atualizarGaveta } from "./lib/gaveta-render.ts";
+import { focarNaMemoriaSeCaiu } from "./lib/foco-da-memoria.ts";
 import { blocosMudariam, devolverRegiao, entregarRegiao, esquecerRegiao, focarDeNovo, regiao, regiaoEmVoltaDe, regiaoEntregue, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
 import { reactNaRegiao, type RegiaoReact } from "./lib/react-na-regiao.ts";
 import { reactNoQuadro } from "./lib/react-no-quadro.ts";
@@ -7843,6 +7844,8 @@ async function desfazerNoDiario(agenteId: string, entradaId: string, memoriaId: 
     if (r.entrada.acao === "criada") dispatch({ tipo: "memoria-apagada-sai", agenteId, memoriaId });
     avisarMemoria("Mudança desfeita.");
     dispatch({ tipo: "invalidar", quais: [`memoria:${agenteId}`, `diario:${agenteId}`] });
+    // QA-164: o Desfazer (e o Revisado) saem da entrada desfeita; o foco fica nela, não no <body>.
+    focarNaMemoriaSeCaiu(document, { tipo: "desfazer-entrada", entradaId });
     return true;
   } catch (e) {
     if (e instanceof ErroApi && e.status === 409) {
@@ -7876,7 +7879,12 @@ async function desfazerApagada(el: HTMLElement): Promise<void> {
     avisarMemoria("Esta memória mudou depois. Veja no Histórico.");
     return;
   }
-  if (await desfazerNoDiario(agenteId, entrada.id, memoriaId)) avisarMemoria("Memória de volta.");
+  if (await desfazerNoDiario(agenteId, entrada.id, memoriaId)) {
+    avisarMemoria("Memória de volta.");
+    // QA-164: a linha "Apagada" saiu com o Desfazer; o foco espera na aba Memórias e vai à memória quando ela for relida.
+    const aba = focarNaMemoriaSeCaiu(document, { tipo: "desfazer-apagada", memoriaId });
+    if (aba) focarQuandoAparecer(`#detalhes [data-mem-corpo="${CSS.escape(memoriaId)}"]`, aba);
+  }
 }
 
 /** NOD-58: as ações da Memória (abas Memórias | Histórico). Nada de Desfazer no chat, nem Refazer (decisão de produto). */
@@ -7950,6 +7958,7 @@ const acoesDaMemoria: Record<string, (el: HTMLElement) => Promise<void> | void> 
       const r = await api!.revisarDiario(agenteId, el.dataset.id ?? "");
       dispatch({ tipo: "diario-revisado", agenteId, entradaId: el.dataset.id ?? "", aRevisar: r.aRevisar });
       avisarMemoria("Marcada como revisada.");
+      focarNaMemoriaSeCaiu(document, { tipo: "revisar-entrada", entradaId: el.dataset.id ?? "" });
     }),
   "revisar-tudo": (el) =>
     agir(async () => {
@@ -7957,6 +7966,8 @@ const acoesDaMemoria: Record<string, (el: HTMLElement) => Promise<void> | void> 
       const r = await api!.revisarDiario(agenteId);
       dispatch({ tipo: "diario-revisado", agenteId, entradaId: null, aRevisar: r.aRevisar });
       avisarMemoria("Tudo revisado.");
+      // QA-164: o "Marcar tudo" sai com o cabeçalho; o foco vai ao primeiro Desfazer da lista.
+      focarNaMemoriaSeCaiu(document, { tipo: "revisar-tudo" });
     }),
   "diario-mais": (el) =>
     agir(async () => {

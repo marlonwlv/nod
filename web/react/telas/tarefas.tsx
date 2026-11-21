@@ -12,6 +12,7 @@ import {
   botsDaNovaTarefa, contasDoBot, esperasDaConversa, GRUPOS_DO_BOT, GRUPOS_DO_ESTADO, ICONE_DO_GRUPO, iconeDaTarefa, linhasDosBots, origemNaTela,
   passoDaTarefa, plural, prontas, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
 } from "../../telas/tela-tarefas.ts";
+import { useFocoQueNaoCai } from "../use-foco-que-nao-cai.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
 import { useLoja } from "../use-loja.ts";
@@ -43,8 +44,11 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
   conversor.current ??= criarConversor();
   useLayoutEffect(() => conversor.current?.fecharQuadro());
   const html: Html = (h) => (h ? conversor.current!.converter(h) : null);
+  // QA-160: o "+ N tarefas" (que troca a vista) e a tarefa que muda de grupo ou some com dado novo não deixam o foco no <body>.
+  const raiz = useRef<HTMLElement | null>(null);
+  useFocoQueNaoCai(raiz, { item: ".tf-tarefa-bot[data-id], .tf-tarefa", titulo: ".tf-cab h1", chave: "data-id" });
   const tela: TelaTarefas = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" };
-  if (!estado.trabalhos) return <section className="tela-tarefas" aria-label="Tarefas"><p className="tf-vazio">carregando…</p></section>;
+  if (!estado.trabalhos) return <section ref={raiz} className="tela-tarefas" aria-label="Tarefas"><p className="tf-vazio">carregando…</p></section>;
   const porBot = temDonos(estado) && !tela.filtro;
   const todos = estado.trabalhos.trabalhos.filter((t) => !tela.bot || t.agenteId === tela.bot);
   const abertas = todos.filter(aberto).length;
@@ -53,7 +57,7 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
   const chip = (id: MostrarTarefas, nome: ReactNode) =>
     <button key={id} type="button" className="tf-chip" aria-pressed={mostrar === id} onClick={() => acoes.mostrar(id)}>{nome}</button>;
   return (
-    <section className="tela-tarefas" aria-label="Tarefas" data-vista={porBot ? "por-bot" : "por-estado"}>
+    <section ref={raiz} className="tela-tarefas" aria-label="Tarefas" data-vista={porBot ? "por-bot" : "por-estado"}>
       <header className="tf-cab">
         <h1>Tarefas</h1>
         {temDonos(estado) && (

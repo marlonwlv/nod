@@ -6,6 +6,7 @@ import { avatarAgente, hora } from "../../lib/render.ts";
 import { CAPACIDADES_GITHUB, nativo } from "../../telas/conectores.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
+import { useFocoQueNaoCai } from "../use-foco-que-nao-cai.ts";
 import { igualRaso, useLoja } from "../use-loja.ts";
 
 /**
@@ -30,12 +31,16 @@ export function TelaConectoresAvancado({ loja, acoes }: { loja: Loja<Estado>; ac
   conversor.current ??= criarConversor();
   useLayoutEffect(() => conversor.current?.fecharQuadro());
   const html = (h: string) => conversor.current!.converter(h);
+  // QA-159: o "revogar" pelo teclado tira a linha da concessão; o foco vai à seguinte do mesmo conector, à anterior, ao
+  // Conceder do conector e só então ao título — nunca ao <body>.
+  const raiz = useRef<HTMLElement | null>(null);
+  useFocoQueNaoCai(raiz, { item: ".conector > .lista > li", grupo: ".conector", noGrupo: "form.linha button[type=submit]", titulo: "h1" });
   const enviar = (qual: string) => (ev: React.FormEvent<HTMLFormElement>) => { ev.preventDefault(); acoes.formulario(qual, ev.currentTarget); };
   const clicar = (qual: string) => (ev: React.MouseEvent<HTMLButtonElement>) => acoes.acao(qual, ev.currentTarget);
   const temToken = e.conectores.some((c) => c.slug === "github" && c.ownerId === e.sessao?.pessoaId && c.env["GITHUB_TOKEN"] === true);
   const agentes = e.frota?.agentes ?? [];
   return (
-    <section className="tela tela-conectores tela-avancado">
+    <section ref={raiz} className="tela tela-conectores tela-avancado">
       <button type="button" className="bt link" onClick={clicar("navegar-marketplace")}>← Marketplace</button>
       <h1>Configurações avançadas</h1>
       {e.avisoConexao && <p className="connection-notice" role="status">{e.avisoConexao}</p>}
