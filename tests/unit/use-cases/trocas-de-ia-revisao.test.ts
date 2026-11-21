@@ -539,7 +539,7 @@ describe("C5: 'levar' só para uma IA pronta na máquina do bot", () => {
     await c.bateNoLimite(t.turnoId, c.conta("Pessoal").id, T0 + 16 * HORA);
     expect(c.trocas()).toMatchObject([{ iaPara: null, recomendacao: "esperar", aplicarEm: null }]);
     expect(c.payload()).toMatchObject({ iaPara: null, foraDaMaquina: { ia: "codex-cli", maquina: "vm-bots" } });
-    expect(c.avisos()[0]?.texto).toMatch(/O ChatGPT não está em vm-bots, a máquina do Eng 1\./);
+    expect(c.avisos()[0]?.texto).toMatch(/O ChatGPT não está em vm-bots, a máquina de Eng 1\./);
     expect(c.voltaDe(t.turnoId)).toMatchObject({ acordarEm: T0 + 16 * HORA });
     await esperarErro(() => executar(c.deps, decidirTrocaDeIa, { agenteId: c.bot.id, decisao: "levar" }), "entrada_invalida");
     // O varredor nunca aplica sozinho.
@@ -574,7 +574,7 @@ describe("C6: levar as tasks para o Automático", () => {
     const r = await executar(c.deps, definirInteligenciaDoBot, { agenteId: c.bot.id, pedido: { modo: "auto", levarTasks: true }, prontosPorMaquina: c.prontosPorMaquina });
     expect(r.data).toMatchObject({ tasksLevadas: 0, semIaParaLevar: true });
     expect(c.voltaDe(t.turnoId)).toMatchObject({ harness: "claude-cli", acordarEm: T0 + 16 * HORA });
-    expect(c.banco.mensagens.at(-1)?.texto).toMatch(/Nenhuma IA está pronta agora na máquina do Eng 1/);
+    expect(c.banco.mensagens.at(-1)?.texto).toMatch(/Nenhuma IA está pronta agora na máquina de Eng 1/);
   });
 });
 

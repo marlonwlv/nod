@@ -46,7 +46,7 @@ export function iconeDaTarefa(t: TrabalhoDto): string {
 export function origemNaTela(t: Pick<TrabalhoDto, "origem" | "pedidoPorNome">): string {
   if (t.origem === "quadro") return "do Quadro";
   if (t.origem === "rotina") return "da rotina";
-  if (t.origem === "colega") return `pedido do ${t.pedidoPorNome ?? "colega"}`;
+  if (t.origem === "colega") return t.pedidoPorNome ? `pedido de ${t.pedidoPorNome}` : "pedido do colega";
   return "";
 }
 
