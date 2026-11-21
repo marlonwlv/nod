@@ -3531,6 +3531,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.maquinaTokens.push(l);
         return { id: l.id, nome: l.nome, prefixo: l.prefixo, criadaEm: l.criadaEm, ultimoUsoEm: null, revogadaEm: null, papel };
       },
+      async travarVagaDoComputador() {},
       async computadorVivo(em) {
         const dela = b.maquinaTokens.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.papel === "computador" && x.revogadaEm === null);
         for (const x of dela) if (x.expiraEm !== null && x.expiraEm <= em) x.revogadaEm = x.expiraEm;
