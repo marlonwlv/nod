@@ -80,6 +80,9 @@ export const MS_DICA_ASSUMIR = 2_000;
 export function estadoDaPilula(v: Pick<VistaNavegador, "controle" | "pedido">, assumindoDesde: number | null, agora: number): EstadoPilula {
   if (v.pedido?.tipo === "aprovacao") return "aprovacao";
   if (v.pedido?.tipo === "login") return "login";
+  // definido em 2026-11-21: o pedido de ajuda já entrega o navegador (controle "pessoa"), mas a pílula segue dizendo que a
+  // Ada espera — "Precisa de você · Já resolvi", como o login ("espera você entrar · Pronto, pode seguir").
+  if (v.pedido?.tipo === "ajuda") return "precisa";
   if (v.controle === "pessoa") return "controle";
   if (assumindoDesde !== null && agora - assumindoDesde >= MS_ASSUMINDO_VISIVEL) return "assumindo";
   if (v.controle === "soltando") return "assumindo";
@@ -118,7 +121,7 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${quem} está terminando um clique…</span></span>${assumir(true)}`;
       break;
     case "precisa":
-      corpo = `<span class="ctc-estado nv-precisa-txt"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="resolver">Já resolvi</button>${assumir()}</span>`;
+      corpo = `<span class="ctc-estado nv-precisa-txt"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="resolver">Já resolvi</button>${pedido?.tipo === "ajuda" ? "" : assumir()}</span>`;
       break;
     case "login":
       corpo = `<span class="ctc-estado nv-precisa-txt"><span>${quem} espera você entrar</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, pode seguir</button>`;
@@ -266,7 +269,9 @@ export function htmlAvisoDoSite(a: AvisoNavegador | null): string {
 /** O pedido de ajuda/login vira a mesma faixa (D3, 8 com a D1d: a ação fora da imagem). */
 export function avisoDoPedido(v: Pick<VistaNavegador, "pedido" | "controle">): AvisoNavegador | null {
   const p = v.pedido;
-  if (!p || v.controle === "pessoa") return null;
+  // revisto em 2026-11-21: o pedido de login e o de ajuda já entregam o navegador (controle "pessoa"); a faixa que diz o
+  // que falta fica enquanto o pedido está aberto — antes ela sumia com a pessoa no controle, justo quando ela age.
+  if (!p) return null;
   if (p.tipo === "login") { const site = nomeDoSite(p.site); return { tipo: "precisa_de_voce", texto: `Entrar ${noOuNa(site)} ${site}`, acao: "", em: 0 }; }
   if (p.tipo === "ajuda") return { tipo: "precisa_de_voce", texto: p.motivo, acao: "", em: 0 };
   return null;

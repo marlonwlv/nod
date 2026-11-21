@@ -251,11 +251,15 @@ describe("a vista do navegador (D1–D4)", () => {
   });
 
   it("achado 10: o pedido de ajuda vira a faixa só com o motivo; a ação é a da pílula", () => {
-    const { v } = montar(resposta({ controle: "precisa_de_voce", pedido: { tipo: "ajuda", decisaoId: "d", motivo: "O site quer provar que é uma pessoa (CAPTCHA)", codigo: false } }));
+    // O pedido de ajuda já entrega o navegador (2026-11-21): controle "pessoa", a faixa com o motivo e a pílula
+    // "Precisa de você · Já resolvi", sem "Assumir".
+    const { v } = montar(resposta({ controle: "pessoa", pedido: { tipo: "ajuda", decisaoId: "d", motivo: "O site quer provar que é uma pessoa (CAPTCHA)", codigo: false } }));
     const faixa = v.el.querySelector(".nv-aviso-site")!;
     expect(faixa.textContent).toContain("O site quer provar que é uma pessoa (CAPTCHA)");
     expect(faixa.querySelector("button")).toBeNull();
-    expect(v.el.querySelector(".nv-pilula")?.textContent).toContain("Assumir o controle");
+    expect(v.el.querySelector(".nv-pilula")?.textContent).toContain("Precisa de você");
+    expect(v.el.querySelector(".nv-pilula")?.textContent).toContain("Já resolvi");
+    expect(v.el.querySelector(".nv-pilula")?.textContent).not.toContain("Assumir o controle");
   });
 });
 

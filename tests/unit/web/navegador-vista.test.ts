@@ -42,6 +42,12 @@ describe("a pílula (D1b A, D4, A1)", () => {
     expect(controle).not.toContain("Parar");
     expect(htmlPilula("Nina", "assumindo")).toContain("disabled");
     expect(htmlPilula("Nina", "precisa")).toMatch(/Precisa de você.*Já resolvi.*Assumir o controle/s);
+    // O pedido de ajuda já entrega o navegador (2026-11-21): "Precisa de você · Já resolvi", sem "Assumir".
+    const ajuda = { tipo: "ajuda" as const, decisaoId: "d", motivo: "Resolver o CAPTCHA", codigo: false };
+    expect(estadoDaPilula(vista({ controle: "pessoa", pedido: ajuda }), null, 0)).toBe("precisa");
+    expect(htmlPilula("Nina", "precisa", ajuda)).toMatch(/Precisa de você.*Já resolvi/s);
+    expect(htmlPilula("Nina", "precisa", ajuda)).not.toContain("Assumir o controle");
+    expect(avisoDoPedido(vista({ controle: "pessoa", pedido: ajuda }))).toMatchObject({ tipo: "precisa_de_voce", texto: "Resolver o CAPTCHA" });
     // D4 (Paper): com o artigo, como a pessoa fala.
     expect(htmlPilula("Nina", "login")).toMatch(/A Nina espera você entrar.*Pronto, pode seguir/s);
     expect(htmlPilula("Milton", "login")).toContain("O Milton espera você entrar");
