@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipos · ADR-167 · Apps por MCP no Marketplace</title>
+<!-- Protótipo estático da ADR-167 (proposta). Autocontido: sem rede, sem fonte externa. Os tokens copiam web/tokens.css. -->
+<style>
+  :root {
+    --surface: #ffffff; --surface-side: #f7f7f8; --surface-raised: #f0f0f2; --surface-selected: #ececef;
+    --line: #e5e5e9; --line-strong: #8e8e96; --ink: #18181b; --ink-2: #5d5d66; --ink-3: #6b6b74;
+    --action: #18181b; --on-action: #ffffff; --signal: #1866c0; --signal-soft: #e6f0fb;
+    --warning: #7a4e08; --warning-soft: #fdf5e6; --warning-line: #efd6a6; --danger: #c42b1c; --ok: #1f7a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #131315; --surface-side: #18181b; --surface-raised: #232327; --surface-selected: #2a2a2f;
+      --line: #2d2d32; --line-strong: #6a6a73; --ink: #ededef; --ink-2: #a4a4ac; --ink-3: #8b8b94;
+      --action: #ededef; --on-action: #131315; --signal-soft: #17263a; --warning: #f0c36a; --warning-soft: #2b2316;
+      --warning-line: #5a4520; --ok: #5cc27e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--surface-side); }
+  header.topo { padding: 16px 24px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  header.topo h1 { font-size: 16px; margin: 0 0 4px; }
+  header.topo p { margin: 0; color: var(--ink-2); }
+  nav.telas { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+  nav.telas button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  nav.telas button[aria-selected="true"] { background: var(--action); color: var(--on-action); border-color: var(--action); }
+  main { padding: 24px; max-width: 1120px; margin: 0 auto; }
+  .tela { display: none; }
+  .tela.ativa { display: block; }
+  .nota { background: var(--signal-soft); border-left: 3px solid var(--signal); padding: 10px 14px; border-radius: 6px; margin-bottom: 18px; color: var(--ink); }
+  .nota b { color: var(--signal); }
+  .quadro { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; position: relative; min-height: 520px; }
+  .quadro:has(.gaveta) { min-height: 720px; }
+  .barra { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .barra h2 { font-size: 18px; margin: 0; flex: 1; }
+  .busca { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 240px; color: var(--ink-3); background: var(--surface); }
+  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 12px; font: inherit; cursor: pointer; }
+  .btn.prim { background: var(--action); color: var(--on-action); border-color: var(--action); }
+  .btn.link { border: 0; background: none; color: var(--signal); padding: 0; }
+  .secao { padding: 16px 20px 4px; }
+  .secao h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin: 0 0 10px; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; padding: 0 20px 16px; }
+  .cartao { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 112px; background: var(--surface); }
+  .cartao .cab { display: flex; align-items: center; gap: 8px; }
+  .logo { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 13px; flex: none; }
+  .cartao .nome { font-weight: 600; }
+  .cartao .desc { color: var(--ink-2); font-size: 13px; flex: 1; }
+  .estado { font-size: 12px; color: var(--ink-3); }
+  .estado.ok { color: var(--ok); }
+  .selo { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; color: var(--ink-2); }
+  .cartao.adicionar { border-style: dashed; align-items: center; justify-content: center; text-align: center; color: var(--ink-2); cursor: pointer; }
+  .cartao.adicionar .mais { font-size: 22px; line-height: 1; }
+  .cartao.destaque { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .vazio { margin: 0 20px 20px; padding: 18px; border: 1px dashed var(--line-strong); border-radius: 10px; text-align: center; color: var(--ink-2); }
+  .gaveta-fundo { position: absolute; inset: 0; background: rgba(0,0,0,.18); }
+  .gaveta { position: absolute; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100%; background: var(--surface); border-left: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
+  .gaveta h3 { margin: 0; font-size: 17px; }
+  .gaveta .sub { color: var(--ink-2); margin: -8px 0 0; }
+  label.campo { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+  .entrada { border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 10px; font: inherit; font-weight: 400; color: var(--ink); background: var(--surface); }
+  .ajuda { color: var(--ink-3); font-size: 12px; font-weight: 400; }
+  .acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: auto; }
+  .dominio { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .dominio code { font-size: 14px; font-weight: 600; }
+  .grupo { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .grupo:last-child { border-bottom: 0; }
+  .grupo small { color: var(--ink-3); }
+  .aviso { background: var(--warning-soft); border: 1px solid var(--warning-line); color: var(--warning); border-radius: 8px; padding: 9px 12px; font-size: 13px; }
+  .opcoes { display: flex; flex-direction: column; gap: 8px; }
+  .opcao { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+  .opcao.sel { border-color: var(--signal); background: var(--signal-soft); }
+  .linha-bot { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 4px 10px; font-size: 12px; color: var(--ink-2); border-left: 1px solid var(--line); }
+  .seg span:first-child { border-left: 0; }
+  .seg span.on { background: var(--action); color: var(--on-action); }
+  .chat { max-width: 720px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 82%; padding: 10px 12px; border-radius: 12px; }
+  .msg.pessoa { align-self: flex-end; background: var(--surface-raised); }
+  .msg.bot { align-self: flex-start; }
+  .msg .quem { font-size: 12px; color: var(--ink-3); margin-bottom: 2px; }
+  .card { align-self: stretch; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); }
+  .card .tit { font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .card .para { color: var(--ink-2); }
+  .marca-fora { font-size: 12px; color: var(--ink-3); border-left: 2px solid var(--line-strong); padding-left: 8px; }
+  .lista-mudou li { margin: 4px 0; }
+  .tag-nova { font-size: 11px; background: var(--signal-soft); color: var(--signal); border-radius: 4px; padding: 0 5px; }
+  .tag-mudou { font-size: 11px; background: var(--warning-soft); color: var(--warning); border-radius: 4px; padding: 0 5px; }
+  .anot { margin-top: 14px; color: var(--ink-2); font-size: 13px; }
+  .anot li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<header class="topo">
+  <h1>Apps por MCP no Marketplace · protótipos da ADR-167</h1>
+  <p>Proposta para validação. Telas estáticas, com dados fictícios (Acme CRM em <code>mcp.acme.example</code>). Siga as abas na ordem do fluxo.</p>
+</header>
+<nav class="telas" role="tablist" aria-label="Telas do protótipo">
+  <button role="tab" data-tela="t1" aria-selected="true">1 · Marketplace</button>
+  <button role="tab" data-tela="t2" aria-selected="false">2 · Colar a URL</button>
+  <button role="tab" data-tela="t3" aria-selected="false">3 · Prévia</button>
+  <button role="tab" data-tela="t4" aria-selected="false">4 · Login</button>
+  <button role="tab" data-tela="t5" aria-selected="false">5 · Quem pode usar</button>
+  <button role="tab" data-tela="t6" aria-selected="false">6 · Visto pelo time</button>
+  <button role="tab" data-tela="t7" aria-selected="false">7 · No chat</button>
+  <button role="tab" data-tela="t8" aria-selected="false">8 · Ações mudaram</button>
+</nav>
+<main>
+
+<!-- 1 -->
+<section class="tela ativa" id="t1">
+  <div class="nota"><b>Item 1.</b> "Adicionar app" sai do rodapé e de Configurações avançadas para a própria grade: um botão ao lado da busca, um cartão no fim de "Seus apps" e o atalho quando a busca não acha nada.</div>
+  <div class="quadro">
+    <div class="barra"><h2>Apps</h2><span class="busca">Buscar apps…</span><button class="btn prim" data-ir="t2">＋ Adicionar app</button></div>
+    <div class="secao"><h3>Seus apps</h3></div>
+    <div class="grade">
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#4a154b">S</span><span class="nome">Slack</span></div><span class="desc">Mensagens e canais do time.</span><span class="estado ok">✓ Conectado</span></div>
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#24292f">G</span><span class="nome">GitHub</span></div><span class="desc">PRs, issues e revisões.</span><span class="estado ok">✓ Conectado</span></div>
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#7b68ee">C</span><span class="nome">ClickUp</span></div><span class="desc">Tarefas e listas.</span><span class="estado ok">✓ Conectado</span></div>
+      <div class="cartao adicionar" data-ir="t2"><span class="mais">＋</span><b>Adicionar app</b><span class="desc">Qualquer app com servidor MCP</span></div>
+    </div>
+    <div class="secao"><h3>Mais apps · 123</h3></div>
+    <div class="grade">
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#ff7a59">H</span><span class="nome">HubSpot</span></div><span class="desc">CRM platform for marketing, sales and service.</span><button class="btn">Conectar</button></div>
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#0f9d58">S</span><span class="nome">Google Sheets</span></div><span class="desc">Planilhas.</span><button class="btn">Conectar</button></div>
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#e01e5a">A</span><span class="nome">Asana</span></div><span class="desc">Work management platform.</span><button class="btn">Conectar</button></div>
+    </div>
+  </div>
+  <p class="anot">Quando a busca não acha nada (ex.: "acme"):</p>
+  <div class="quadro" style="min-height:0">
+    <div class="barra"><h2>Apps</h2><span class="busca" style="color:var(--ink)">acme</span><button class="btn prim" data-ir="t2">＋ Adicionar app</button></div>
+    <div class="vazio">Nenhum app com "acme".<br><button class="btn link" data-ir="t2">Não achou? Adicione pela URL do servidor MCP dele</button></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="tela" id="t2">
+  <div class="nota"><b>Itens 1 e 3.</b> A gaveta pede uma coisa só: a URL. Só <code>https</code>. O endereço é checado contra rede privada antes da sonda (e de novo em cada chamada, com o IP resolvido). Comando local (<code>stdio</code>) continua em Configurações avançadas.</div>
+  <div class="quadro">
+    <div class="barra"><h2>Apps</h2><span class="busca">Buscar apps…</span><button class="btn prim">＋ Adicionar app</button></div>
+    <div class="gaveta-fundo"></div>
+    <aside class="gaveta" aria-label="Adicionar app">
+      <h3>Adicionar app</h3>
+      <p class="sub">Funciona com qualquer app que tenha um servidor MCP. O endereço costuma estar na documentação do app, em "MCP" ou "Integração com IA".</p>
+      <label class="campo">Endereço do servidor MCP
+        <input class="entrada" value="https://mcp.acme.example/mcp" aria-label="Endereço do servidor MCP">
+        <span class="ajuda">Começa com https://. Nada é concedido aos bots ao adicionar.</span>
+      </label>
+      <div class="aviso" style="display:none">Esse endereço aponta para a rede interna do servidor. Use o endereço público do app.</div>
+      <p class="ajuda">Exemplo de erro, mostrado no lugar da ajuda:<br><span style="color:var(--danger)">"Esse endereço aponta para a rede interna do servidor (10.0.3.4). Use o endereço público do app."</span></p>
+      <div class="acoes"><button class="btn">Cancelar</button><button class="btn prim" data-ir="t3">Continuar</button></div>
+      <p class="ajuda">Tem um comando local? <span class="btn link">Configurações avançadas</span></p>
+    </aside>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="tela" id="t3">
+  <div class="nota"><b>Item 2.</b> O nod sonda (<code>initialize</code> + <code>tools/list</code>) antes de pedir qualquer segredo. A prévia mostra o domínio em destaque, o que o app sabe fazer pelos grupos de acesso e se toca dado pessoal. Nome e descrição vêm do servidor e podem ser editados.</div>
+  <div class="quadro">
+    <div class="barra"><h2>Apps</h2><span class="busca">Buscar apps…</span><button class="btn prim">＋ Adicionar app</button></div>
+    <div class="gaveta-fundo"></div>
+    <aside class="gaveta" aria-label="Prévia do app">
+      <h3>Acme CRM</h3>
+      <div class="dominio"><span class="logo" style="background:#0d7c86">A</span><div><code>mcp.acme.example</code><div class="ajuda">Servidor MCP · responde · pede login (OAuth)</div></div></div>
+      <label class="campo">Nome na grade<input class="entrada" value="Acme CRM" aria-label="Nome na grade"></label>
+      <label class="campo">Descrição<input class="entrada" value="Clientes, negócios e atividades do CRM." aria-label="Descrição"><span class="ajuda">Veio do servidor (em inglês: "Customers, deals and activities"). Edite como o time vai entender.</span></label>
+      <div>
+        <b>O que o app sabe fazer · 14 ações</b>
+        <div class="grupo"><span>Ler</span><small>8 · buscar cliente, ver negócio, listar atividades…</small></div>
+        <div class="grupo"><span>Criar</span><small>2 · criar negócio, criar atividade</small></div>
+        <div class="grupo"><span>Alterar</span><small>2 · mudar etapa, editar cliente</small></div>
+        <div class="grupo"><span>Comentar</span><small>1 · comentar no negócio</small></div>
+        <div class="grupo"><span>Apagar</span><small>1 · nunca entra por nível</small></div>
+      </div>
+      <div class="aviso">Toca dado pessoal (nomes e contatos de clientes). Os bots só leem o que você permitir, por bot.</div>
+      <div class="acoes"><button class="btn" data-ir="t2">Voltar</button><button class="btn prim" data-ir="t4">Entrar na Acme</button></div>
+    </aside>
+  </div>
+  <ul class="anot">
+    <li>Servidor sem login: o botão vira "Adicionar" e vai direto ao passo 5.</li>
+    <li>401 sem OAuth: abre o cartão de credencial que já existe (NOD-50), que guarda um cabeçalho (<code>Authorization</code> ou <code>X-API-Key</code>) no cofre. O valor nunca aparece de novo.</li>
+    <li>Não responde ou não é MCP: "Não encontramos um servidor MCP nesse endereço (resposta 404). Confira a URL na documentação do app."</li>
+  </ul>
+</section>
+
+<!-- 4 -->
+<section class="tela" id="t4">
+  <div class="nota"><b>Item 2 · ADA-177.</b> OAuth do MCP: o nod lê o <code>WWW-Authenticate</code> e o metadata do recurso protegido (RFC 9728), descobre o servidor de autorização, registra o cliente quando o app permite e abre o login com PKCE. A janela nasce no clique, como no Composio (ADR-049 §1).</div>
+  <div class="quadro">
+    <div class="barra"><h2>Apps</h2><span class="busca">Buscar apps…</span><button class="btn prim">＋ Adicionar app</button></div>
+    <div class="gaveta-fundo"></div>
+    <aside class="gaveta" aria-label="Login">
+      <h3>Entrando na Acme…</h3>
+      <p class="sub">Uma janela da Acme abriu. Faça o login e autorize o nod. Esta tela segue sozinha quando terminar.</p>
+      <div class="dominio"><span class="logo" style="background:#0d7c86">A</span><div><code>auth.acme.example</code><div class="ajuda">Servidor de autorização informado pelo app</div></div></div>
+      <p class="ajuda">A janela não abriu? <span class="btn link">Abrir de novo</span></p>
+      <div class="acoes"><button class="btn">Cancelar</button><button class="btn prim" data-ir="t5">(simular login concluído)</button></div>
+    </aside>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="tela" id="t5">
+  <div class="nota"><b>Itens 4 e 7 · ADR-049 §5.</b> O login termina em "Quem pode usar", que já existe. Novo: "Oferecer ao time", que põe só a definição do app (nome, URL, descrição, ícone) no catálogo do time. O login e os acessos continuam seus.</div>
+  <div class="quadro">
+    <div class="barra"><h2>Apps</h2><span class="busca">Buscar apps…</span><button class="btn prim">＋ Adicionar app</button></div>
+    <div class="gaveta-fundo"></div>
+    <aside class="gaveta" aria-label="Quem pode usar">
+      <h3>Quem pode usar a Acme CRM?</h3>
+      <p class="sub"><span class="estado ok">✓ Conectado como você</span></p>
+      <div>
+        <div class="linha-bot"><span>Vendas</span><span class="seg"><span>Nenhum</span><span>Ler</span><span class="on">Ler e alterar</span></span></div>
+        <div class="linha-bot"><span>Suporte</span><span class="seg"><span>Nenhum</span><span class="on">Ler</span><span>Ler e alterar</span></span></div>
+        <div class="linha-bot"><span>Agenda</span><span class="seg"><span class="on">Nenhum</span><span>Ler</span><span>Ler e alterar</span></span></div>
+      </div>
+      <div class="opcoes">
+        <div class="opcao sel"><input type="checkbox" checked aria-label="Oferecer ao time"><div><b>Oferecer ao time</b><div class="ajuda">A Acme CRM aparece em "Do time" para todo mundo. Cada pessoa faz o próprio login. Sua conta e seus acessos não são compartilhados.</div></div></div>
+      </div>
+      <p class="ajuda">Pergunta aberta (ADR-167 §Perguntas 1): só o dono do espaço oferece ao time? Na proposta, sim. Para as outras pessoas este bloco diz "Peça ao dono do espaço para oferecer ao time".</p>
+      <div class="acoes"><button class="btn prim" data-ir="t6">Pronto</button></div>
+    </aside>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="tela" id="t6">
+  <div class="nota"><b>Item 4.</b> A grade de outra pessoa do time. A Acme CRM está em "Do time", com "Conectar" como qualquer app. Quem ofereceu e quando aparecem no cartão. O dono do espaço pode tirar do time pelo menu do cartão.</div>
+  <div class="quadro">
+    <div class="barra"><h2>Apps</h2><span class="busca">Buscar apps…</span><button class="btn prim">＋ Adicionar app</button></div>
+    <div class="secao"><h3>Seus apps</h3></div>
+    <div class="grade">
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#4a154b">S</span><span class="nome">Slack</span></div><span class="desc">Mensagens e canais do time.</span><span class="estado ok">✓ Conectado</span></div>
+      <div class="cartao adicionar"><span class="mais">＋</span><b>Adicionar app</b><span class="desc">Qualquer app com servidor MCP</span></div>
+    </div>
+    <div class="secao"><h3>Do time · 1</h3></div>
+    <div class="grade">
+      <div class="cartao destaque"><div class="cab"><span class="logo" style="background:#0d7c86">A</span><span class="nome">Acme CRM</span><span class="selo">MCP</span></div><span class="desc">Clientes, negócios e atividades do CRM.</span><span class="estado">Oferecido pela Ana · hoje · mcp.acme.example</span><button class="btn">Conectar</button></div>
+    </div>
+    <div class="secao"><h3>Mais apps · 123</h3></div>
+    <div class="grade">
+      <div class="cartao"><div class="cab"><span class="logo" style="background:#ff7a59">H</span><span class="nome">HubSpot</span></div><span class="desc">CRM platform for marketing, sales and service.</span><button class="btn">Conectar</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="tela" id="t7">
+  <div class="nota"><b>Item 5 · "No chat".</b> O bot passa a conhecer os apps do time pelo nome que o time deu. Pedir acesso a um app do time que a pessoa ainda não conectou vira o card "Conecte" de sempre. Adicionar pelo chat (<code>apps.criar</code>) vira cartão, porque a URL vem de fora.</div>
+  <div class="quadro">
+    <div class="chat">
+      <div class="msg pessoa">Atualiza a etapa do negócio da Padaria Sol para "Proposta enviada" no CRM.</div>
+      <div class="msg bot"><div class="quem">Vendas</div>O CRM do time é a Acme CRM, mas você ainda não conectou a sua conta. Preciso de acesso para ler e alterar.</div>
+      <div class="card">
+        <div class="tit"><span class="logo" style="background:#0d7c86">A</span>Conecte a Acme CRM</div>
+        <div class="para">Para: atualizar a etapa de um negócio · Nível: ler e alterar</div>
+        <div class="marca-fora">App do time, oferecido pela Ana · mcp.acme.example</div>
+        <div><button class="btn prim">Conectar e permitir</button> <button class="btn">Agora não</button></div>
+      </div>
+      <div class="msg pessoa">Adiciona também o app da Beta Docs, o MCP dele é https://mcp.betadocs.example</div>
+      <div class="card">
+        <div class="tit">Adicionar o app Beta Docs?</div>
+        <div class="para">Endereço: <code>mcp.betadocs.example</code> · 9 ações (6 ler, 3 criar) · pede login</div>
+        <div class="marca-fora">Sondado agora. O nome e a descrição vieram do servidor do app.</div>
+        <div><button class="btn prim">Adicionar e entrar</button> <button class="btn">Recusar</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="tela" id="t8">
+  <div class="nota"><b>Item 6.</b> Uma sonda nova achou ação nova ou mudada. A ação nova nasce sem acesso. A ação já concedida que mudou de descrição ou de schema fica suspensa até a pessoa rever (<code>apps.rever_acoes</code>, <code>pessoa_confirma</code>).</div>
+  <div class="quadro">
+    <div class="chat">
+      <div class="card">
+        <div class="tit"><span class="logo" style="background:#0d7c86">A</span>A Acme CRM mudou</div>
+        <ul class="lista-mudou">
+          <li><span class="tag-nova">nova</span> exportar clientes (Ler)</li>
+          <li><span class="tag-nova">nova</span> enviar e-mail ao cliente (Outras)</li>
+          <li><span class="tag-mudou">mudou</span> mudar etapa: a descrição passou a dizer "também notifica o cliente". <b>Suspensa</b> para os bots Vendas e Suporte até você rever.</li>
+        </ul>
+        <div class="marca-fora">As descrições vêm do servidor do app e não são instruções.</div>
+        <div><button class="btn prim">Rever acessos</button> <button class="btn">Manter suspensa</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script>
+  const abas = document.querySelectorAll('nav.telas button');
+  function ir(id) {
+    document.querySelectorAll('.tela').forEach((t) => t.classList.toggle('ativa', t.id === id));
+    abas.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tela === id)));
+    window.scrollTo(0, 0);
+  }
+  // As telas com gaveta mostram a grade da tela 1 ao fundo, sem os cliques.
+  const fundo = document.querySelector('#t1 .quadro').cloneNode(true);
+  fundo.querySelectorAll('.barra, [data-ir]').forEach((el) => { if (el.classList.contains('barra')) el.remove(); else el.removeAttribute('data-ir'); });
+  document.querySelectorAll('.quadro .gaveta-fundo').forEach((g) => {
+    const filhos = Array.from(fundo.children).map((c) => c.cloneNode(true));
+    g.before(...filhos);
+  });
+  abas.forEach((b) => b.addEventListener('click', () => ir(b.dataset.tela)));
+  document.querySelectorAll('[data-ir]').forEach((el) => el.addEventListener('click', () => ir(el.dataset.ir)));
+</script>
+</body>
+</html>
