@@ -221,7 +221,7 @@ import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
 import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre } from "./telas/atualizacao-app.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
 import { gavetaDeAcessos, loteDeEscritaPedeConfirmacao, ROTULO } from "./telas/acessos-do-app.ts";
-import { conectorDoApp, meusBots, nivelReal, situacaoDoApp } from "./telas/app-acesso.ts";
+import { conectorDoApp, meusBots, nivelReal, nomeDoApp, situacaoDoApp } from "./telas/app-acesso.ts";
 import type { LoteDeAcessosDto } from "./lib/api.ts";
 import type { Conector } from "../src/contracts/conector.ts";
 import { ACTS_COBERTOS, htmlMenuSegurado, tarefaDaFala, type ExtraDaBarra } from "./lib/menu-segurado-da-fala.ts";
@@ -237,7 +237,8 @@ import { bordasDaLista, rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.t
 import { comandoNoTexto, recentesDaConversa } from "./lib/barra.ts";
 import { ajustarAltura, arquivosDaColagem, criarBarra, escolherMencao, htmlSugestoes, sugestoesDaMencao, teclaDoCampo, type ContextoDaBarra } from "./lib/composer.ts";
 import type { ComandosDto } from "../src/contracts/comandos.ts";
-import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type ResultadoEnvio, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
+import { destinoDoEnvio, ehAjudaDoComputador, enviarPeloComposer, idsDaResposta, modoDoComposer, type ResultadoEnvio, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
+import { pedidosQueEsperam } from "./lib/pedidos-que-esperam.ts";
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
@@ -3988,6 +3989,19 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
 
 const PLACEHOLDER_SALA = "Mensagem para a sala — @Nome dirige a pergunta";
 
+/** ADR-191: os cartões da conversa que esperam a pessoa (web/lib/pedidos-que-esperam.ts), com o estado desta aba. */
+function pedidosQueEsperamNaConversa(conversaId: string): ReturnType<typeof pedidosQueEsperam> {
+  return pedidosQueEsperam({
+    itens: estado.suaVez?.itens,
+    propostas: estado.conversas[conversaId]?.propostas ?? [],
+    conversaId,
+    pessoaId: estado.sessao?.pessoaId,
+    ajudaDe: (item) => ehAjudaDoComputador(estado, item),
+    nomeDoBot: (id) => botGerido(id)?.nome ?? "O bot",
+    nomeDoApp: (slug) => nomeDoApp(estado, slug),
+  });
+}
+
 function placeholderPadrao(): string {
   const t = estado.tela;
   if (t.tipo !== "conversa") return PLACEHOLDER_SALA;
@@ -4017,7 +4031,10 @@ function atualizarComposer(): void {
   // ADR-167: o seletor de modelo também vive no campo da task, que não tem conversa própria aqui.
   if (!alvo || !caixa || !ta) { atualizarSeletorIa(); return; }
   const nota = document.getElementById("composer-nota");
-  const a = aparenciaDoComposer(modoDoComposer(estado, alvo.conversaId), estado, { placeholder: placeholderPadrao(), nota: nota?.dataset.padrao ?? "" }, alvo.conversaId);
+  // ADR-191 (2026-11-20): com um cartão aberto que a mensagem nova fecha, "Responda à <bot> ou fale de outra coisa". A
+  // aprovação aberta segue com o placeholder dela (ADR-184, logo abaixo).
+  const espera = alvo.salaId ? [] : pedidosQueEsperamNaConversa(alvo.conversaId).filter((p) => p.tipo !== "aprovacao");
+  const a = aparenciaDoComposer(modoDoComposer(estado, alvo.conversaId), estado, { placeholder: placeholderPadrao(), nota: nota?.dataset.padrao ?? "" }, alvo.conversaId, espera[0] ? (botGerido(espera[0].agenteId)?.nome ?? espera[0].nome) : null);
   // ADR-179 (fase 6, pedaço 2): em React, o topo só troca o que mudou; por string, a região de sempre.
   const topoEl = document.getElementById("composer-pergunta");
   if (topoReact && topoEl) topoReact.desenhar(topoEl, topoDoComposer(modoDoComposer(estado, alvo.conversaId), estado, alvo.conversaId));
@@ -4025,7 +4042,7 @@ function atualizarComposer(): void {
   // ADR-094: no celular o texto de ajuda inteiro quebrava em duas linhas dentro do campo; lá fica o curto, e o leitor de
   // tela continua ouvindo o completo.
   // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
-  const comPedido = a.placeholder === placeholderPadrao() && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
+  const comPedido = (a.placeholder === placeholderPadrao() || espera.length > 0) && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
   const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
   const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? rotulo : placeholderComArquivo(rotulo);
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
@@ -6167,7 +6184,8 @@ async function enviarComposer(): Promise<void> {
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
     // Item 10, rodada 2: com aprovação aberta, o servidor fechou o pedido como substituído no envio
     // (src/use-cases/substituir-aprovacoes.ts); a fila "Sua vez" relê para o cartão sair.
-    if (r.enviado === "mensagem" && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
+    // ADR-191: os outros cartões que esperavam a pessoa também fecharam no envio (src/use-cases/seguir-conversando.ts).
+    if (r.enviado === "mensagem" && !alvo.salaId && (aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0 || pedidosQueEsperamNaConversa(alvo.conversaId).length > 0)) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
     if (r.enviado === "mensagem" && !pendente) limparAnexos(alvo.conversaId);
@@ -7441,7 +7459,8 @@ function pararPelaPilula(): void {
 /** "Ver aprovação" (definido em 2026-10-03): da lista "N coisas esperam você" ao card do pedido na timeline. */
 function verDecisao(decisaoId: string): void {
   const id = CSS.escape(decisaoId);
-  const card = document.querySelector<HTMLElement>(`[data-decisao="${id}"], [data-proposta="${id}"]`);
+  // ADR-191: a pílula "A Ada espera você" leva ao cartão marcado (a proposta, o pedido ancorado, a ajuda do computador).
+  const card = document.querySelector<HTMLElement>(`[data-pedido-espera="${id}"], [data-decisao="${id}"], [data-proposta="${id}"]`);
   if (!card) return;
   levarAo(card);
 }
@@ -9474,6 +9493,18 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // definido em 2026-10-15 (NOD-270): da lista de rotinas ao balão da pergunta que segura a rotina, na conversa dela.
   "ver-pergunta-da-rotina": (el) => verPerguntaNaConversa(el.dataset.conversa ?? "", el.dataset.agente ?? "", el.dataset.id ?? ""),
   "ver-decisao": (el) => verDecisao(el.dataset.id ?? ""),
+  // ADR-191 (2026-11-20): "Pedir de novo" na linha do pedido dispensado manda ao bot, pelo campo, a frase pronta — a mesma
+  // rota de toda mensagem (conversas.enviar, sem ação nova no registro). O rascunho que estava no campo volta depois.
+  "pedir-de-novo": (el) => {
+    const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+    const texto = el.dataset.texto ?? "";
+    if (!ta || !texto || !conversaAtual()) return;
+    const rascunho = ta.value;
+    escreverNoCampo(ta, texto);
+    void enviarComposer().finally(() => {
+      if (rascunho && ta.isConnected && ta.value === "") { escreverNoCampo(ta, rascunho); ajustarAltura(ta); }
+    });
+  },
   // A resposta pronta é TEXTO da pessoa (EMENDA 16): o toque manda as palavras da opção por `responder`.
   // Desligada enquanto `ocupado` (o cartão desenha as opções com disabled): o clique duplo não manda duas respostas.
   "responder-opcao": (el) =>

@@ -10,7 +10,7 @@ import type { ContaNoLimite } from "./turno.ts";
 import type { PayloadTrocaDeIa } from "./troca-de-ia.ts";
 import type { PayloadRotinaEvento, PayloadRotinaRitmo } from "./rotina.ts";
 import type { PayloadPedidoRespondido, PayloadPeerPedido } from "./troca-entre-bots.ts";
-import type { AncoraDoConsentimento, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
+import type { AncoraDoConsentimento, PayloadPedidoDispensado, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
 import type { DesfechoItem, DesfechoRotina, MotivoFalhaComputador, MotivoNegacao, MotivoPasse } from "./motivos.ts";
 /** Marca de confiança é propriedade do CONTEÚDO, nunca do nome da ferramenta (ADR-026). */
 /**
@@ -162,6 +162,8 @@ export type PayloadMensagem =
   /** Chat limpo, PR 4 (o cartão encolhido): cartao-encolhido.ts. */
   | PayloadRegraPermanente | import("./ferramentas-barra.ts").PayloadAjusteBarra | import("./ferramentas-nao-lidos.ts").PayloadNaoLidosLista | import("./ferramentas-nao-lidos.ts").PayloadReciboLeitura | import("./ferramentas-decisoes.ts").PayloadDecisoesResumo // NOD-119; NOD-449; NOD-414.
   | PayloadPropostaDecidida | { kind: "aviso_pessoa" } | import("./destino-no-chat.ts").PayloadTarefaLinha // NOD-114: a fala `texto` com que o bot avisou a pessoa por conta própria (avisar_pessoa); ADA-28: a linha que aponta para a tarefa.
+  /** ADR-191 (2026-11-20): o pedido que a pessoa deixou para trás ao seguir conversando (cartao-encolhido.ts). */
+  | PayloadPedidoDispensado
   | { kind: "turno_preso"; maquinaId: string; /** QA do NOD-314: a IA em que o turno está fixado (harnessFixado); null/ausente = Automático. */ ia?: string | null }; // NOD-314: pendente preso 24 h a uma máquina sem contato saiu da fila.
 
 export type { Mensagem } from "./mensagem-modelo.ts";

@@ -19,7 +19,7 @@ import type { Agente } from "../../src/contracts/agente.ts";
 import type { PermissaoPermanente } from "../../src/contracts/permissao-permanente.ts";
 import type { Concessao, Procuracao } from "../../src/contracts/concessao.ts";
 import type { Conversa, Proposta } from "../../src/contracts/conversa.ts";
-import { TIPOS_DISPENSAVEIS_ABERTOS, type Decisao } from "../../src/contracts/decisao.ts";
+import { TIPOS_DISPENSADOS_AO_SEGUIR, TIPOS_DISPENSAVEIS_ABERTOS, type Decisao } from "../../src/contracts/decisao.ts";
 import type { Incidente } from "../../src/contracts/incidente.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { ItemAprovacao } from "../../src/contracts/item-aprovacao.ts";
@@ -2423,6 +2423,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async dispensar(id, p) {
         const d = doTenant(b.decisoes).find((x) => x.id === id && x.estado === p.antes && (x.estado === "vencida" || (TIPOS_DISPENSAVEIS_ABERTOS as readonly string[]).includes(x.tipo)));
+        if (!d) return null;
+        d.estado = "decidida";
+        d.desfecho = { tipo: "dispensada", por: p.por, em: iso(p.agora), antes: p.antes };
+        d.decididaEm = p.agora;
+        return d;
+      },
+      async dispensarAoSeguir(id, p) {
+        const d = doTenant(b.decisoes).find((x) => x.id === id && x.ownerId === escopo.pessoaId && x.decisorId === escopo.pessoaId && x.estado === p.antes && (TIPOS_DISPENSADOS_AO_SEGUIR as readonly string[]).includes(x.tipo) && x.tarefaId === undefined);
         if (!d) return null;
         d.estado = "decidida";
         d.desfecho = { tipo: "dispensada", por: p.por, em: iso(p.agora), antes: p.antes };

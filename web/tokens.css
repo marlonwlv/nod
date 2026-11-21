@@ -278,6 +278,11 @@
   --chat-cartao-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 6px #1c1c1c0a;
   --chat-barra-andando: #1c1c1c40;
   --chat-barra-vazia: #1c1c1c14;
+  /* ADR-191 (2026-11-20; Paper "Pedidos pendentes · seguir conversando"): a linha do pedido que a pessoa deixou para trás —
+     o fundo (#FAFAFA) e o "· você seguiu…" (50 %). A borda é a --chat-pedido-contorno; o texto, a --chat-tinta-2; o link,
+     a --chat-aba-precisa. */
+  --pedido-dispensado-fundo: #fafafa;
+  --pedido-dispensado-sufixo: #1c1c1c80;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -434,6 +439,8 @@
     --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
     --chat-barra-andando: #f5f5f540;
     --chat-barra-vazia: #f5f5f514;
+    --pedido-dispensado-fundo: #f5f5f505;
+    --pedido-dispensado-sufixo: #f5f5f580;
   }
 }
 
@@ -591,6 +598,8 @@
   --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
   --chat-barra-andando: #f5f5f540;
   --chat-barra-vazia: #f5f5f514;
+  --pedido-dispensado-fundo: #f5f5f505;
+  --pedido-dispensado-sufixo: #f5f5f580;
 }
 
 /* =====================================================================================

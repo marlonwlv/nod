@@ -30,6 +30,8 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   // A proposta confirmada ou recusada com payload (`proposta_decidida`, chat limpo PR 4): é o cartão encolhido no lugar
   // do cartão da proposta. As de antes, sem payload, continuam `proposta.decidida` (Atividade).
   "proposta.resultado": { destino: "chat", categoria: null },
+  // ADR-191 (2026-11-20): o cartão que a pessoa deixou para trás vira uma linha no lugar dele, com o "Fazer agora".
+  "pedido.dispensado": { destino: "chat", categoria: null },
   artefato: { destino: "chat", categoria: null },
   ligacao: { destino: "chat", categoria: null },
   // /nova: a pessoa pediu e precisa ver que o bot começou do zero.
@@ -192,6 +194,8 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
         return "acesso.concedido";
       case "proposta_decidida":
         return "proposta.resultado";
+      case "pedido_dispensado":
+        return "pedido.dispensado";
       case "rotina_execucao":
         return payload.desfecho === "falhou" || payload.desfecho === "bloqueada" || payload.desfecho === "interrompida" ? "rotina.falhou" : "rotina.execucao";
       // NOD-313: o card que sugere espaçar ou pausar a rotina fica no chat, como as linhas da rotina.

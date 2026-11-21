@@ -79,6 +79,7 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "arquivos.desfeitos": "Desfez os arquivos de um turno",
   "proposta.decidida": "Proposta decidida",
   "proposta.resultado": "Proposta decidida",
+  "pedido.dispensado": "Pedido dispensado ao seguir conversando",
   inteligencia: "Inteligência",
   "aprovacao.modo": "Modo de aprovação",
   "aprovacao.automatica": "Aprovado sem perguntar",

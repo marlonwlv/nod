@@ -40,7 +40,8 @@ import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotu
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
 import { linhaNaoRodaram } from "../lib/execucao.ts";
-import { chaveDoItem, estadoDaPergunta } from "../lib/perguntas.ts";
+import { chaveDoItem, estadoDaPergunta, mensagemDaPergunta } from "../lib/perguntas.ts";
+import { atributosDaEspera, esperaPelaPessoa, fraseCurta } from "../lib/pedidos-que-esperam.ts";
 import { acoesComAcesso, vaiPoder } from "./rotina-precisa.ts";
 import { cartaoNaoLidos, reciboLeitura } from "./nao-lidos-no-chat.ts";
 import { avisoErro, cardProposta, de, doBot, linhaProposta, rotulada } from "../lib/card-proposta.ts";
@@ -52,7 +53,7 @@ import { renderBarraRascunhos } from "./rascunhos-de-envio.ts";
 import { renderMensagemCartoes } from "./cartoes-ricos.ts";
 import { acaoHumana, cartaoDoPedidoDeAjuda, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
 import { renderCardPasta } from "./card-pasta.ts";
-import { dadosDoEncolhido, pedidoDoRecibo, renderCartaoEncolhido, turnoDoEncolhido } from "./cartao-encolhido.ts";
+import { dadosDoEncolhido, linhaDispensada, pedidoDoRecibo, renderCartaoEncolhido, renderLinhaDispensada, turnoDoEncolhido } from "./cartao-encolhido.ts";
 import { renderCardLote } from "./card-lote.ts";
 import { docaDePaginas, type PedirApp } from "./paginas.ts";
 import type { Pagina } from "../lib/paginas.ts";
@@ -719,6 +720,14 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
     return falaSemIaHtml({ mensagem: m, balao, comCard: card?.falaId === m.id, vivo: card?.vivo ?? false, ias: iasNoCard(estado) });
   }
   if (m.kind !== "texto") {
+    // ADR-191 (definido em 2026-11-20, pedido do dono): o pedido que a pessoa deixou para trás ao seguir conversando vira a
+    // linha cinza no lugar do cartão. A ajuda do computador é a própria fala do bot: a linha fica no lugar dela, e o recibo
+    // não sai duas vezes.
+    const dispensada = linhaDispensada(m, estado);
+    if (dispensada) {
+      if (m.payload?.kind === "pedido_dispensado" && m.payload.ajuda && mensagemDaPergunta(estado.conversas[m.conversaId]?.mensagens ?? [], m.payload.decisaoId)) return "";
+      return linhaDoDispensadoHtml(m.id, dispensada, estado);
+    }
     // Chat limpo (PR 4): o recibo da decisão é o cartão do pedido, encolhido com o resultado — alinhado às falas do bot,
     // como o cartão aberto estava, e não no centro como as linhas.
     const encolhido = dadosDoEncolhido(m, estado);
@@ -752,6 +761,10 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // a fala vira o cartão da pergunta no lugar do balão (o texto não sai duas vezes), e a resposta que foi uma das opções
   // não sai como balão — o cartão já mostra a escolhida com ✓ (tela "Depois de responder").
   const pergunta = !ehPessoa && m.payload?.kind === "pedido_a_pessoa" ? m.payload : null;
+  // ADR-191: a ajuda do computador que a pessoa deixou para trás ao seguir conversando — a linha cinza no lugar da fala.
+  const ajudaDispensada = pergunta?.ajudaDoComputador ? (estado.conversas[m.conversaId]?.mensagens ?? []).find((x) => x.payload?.kind === "pedido_dispensado" && x.payload.decisaoId === pergunta.decisaoId) : undefined;
+  const linhaDaAjuda = ajudaDispensada ? linhaDispensada(ajudaDispensada, estado) : null;
+  if (linhaDaAjuda) return linhaDoDispensadoHtml(m.id, linhaDaAjuda, estado);
   const resposta = ehPessoa && m.payload?.kind === "resposta_a_pedido" ? m.payload : null;
   if (resposta && respostaPorOpcao(m, estado)) return "";
   // Sala e tela da task (que passa o `chipDaFala`) não têm Cancelar.
@@ -794,9 +807,16 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
-  return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${emVoo}>
+  // ADR-191: a ajuda do computador aberta espera a pessoa — a marca da pílula "A Ada espera você: entrar no Drive".
+  const espera = pergunta && motivoTela !== null && telaAberta ? atributosDaEspera({ id: pergunta.decisaoId, nome: agente?.nome ?? "O bot", frase: fraseCurta(motivoTela) }) : "";
+  return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${espera}${emVoo}>
     ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
+}
+
+/** A linha do pedido dispensado na timeline (ADR-191): o bloco `.msg-dispensado`, que a timeline junta com as vizinhas. */
+function linhaDoDispensadoHtml(mensagemId: string, l: NonNullable<ReturnType<typeof linhaDispensada>>, estado: Estado): string {
+  return `<div class="msg-linha msg-dispensado" data-mensagem="${esc(mensagemId)}">${renderLinhaDispensada(l, mensagemId, estado)}</div>`;
 }
 
 /** Paper 15: o bloco "da frente" (from_frente do gerador): rótulo, a pergunta com o fio laranja e as opções em botões de 28 px. */
@@ -1623,7 +1643,7 @@ function linhaDeSistema(m: Mensagem): boolean {
   if (m.kind === "sistema" && m.payload?.kind === "troca_de_ia" && !m.payload.decisao) return false;
   // NOD-313: o card de ritmo da rotina ainda sem clique pede uma escolha — fica à vista, fora do "N avisos".
   if (m.kind === "sistema" && m.payload?.kind === "rotina_ritmo" && !m.payload.decisao && !m.payload.invalida) return false;
-  return (m.kind === "sistema" && m.payload?.kind !== "computador_fora_do_ar" && m.payload?.kind !== "pasta_aberta" && m.payload?.kind !== "proposta_decidida" && m.payload?.kind !== "ligacao") || m.kind === "rotina_execucao";
+  return (m.kind === "sistema" && m.payload?.kind !== "computador_fora_do_ar" && m.payload?.kind !== "pasta_aberta" && m.payload?.kind !== "proposta_decidida" && m.payload?.kind !== "pedido_dispensado" && m.payload?.kind !== "ligacao") || m.kind === "rotina_execucao";
 }
 
 /**
@@ -1801,7 +1821,12 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
   // turno da pessoa.
   const vistas = new Set(mensagens.map((m) => m.id));
   const turnosSegurados = new Set(c.mensagens.filter((m) => m.turnoId && !vistas.has(m.id)).map((m) => m.turnoId as string));
-  const { blocos, ancoradas } = comPedidosAncorados(comEncolhidosNaAncora(blocosDasMensagens(co.mensagens, estado, sala, c.conversa.agenteId ? { agenteId: c.conversa.agenteId, acoes: c.acoesDoModo } : undefined), co), co, estado, idsDasPropostas, turnosSegurados, vivos, c.mensagens);
+  const { blocos: comDecisoes, ancoradas } = comPedidosAncorados(comEncolhidosNaAncora(blocosDasMensagens(co.mensagens, estado, sala, c.conversa.agenteId ? { agenteId: c.conversa.agenteId, acoes: c.acoesDoModo } : undefined), co), co, estado, idsDasPropostas, turnosSegurados, vivos, c.mensagens);
+  // ADR-191 (definido em 2026-11-20, pedido do dono): a proposta aberta também fica onde nasceu, pela regra dos pedidos
+  // (`ancoraDoPedido`); só a que não acha âncora vai para o fim, como antes. As linhas dos pedidos dispensados vizinhas
+  // ficam juntas.
+  const { blocos: comPropostas, soltas } = comPropostasAncoradas(comDecisoes, co, estado, abertas, c.propostas, turnosSegurados);
+  const blocos = juntarDispensados(comPropostas);
   return [
     // Chat limpo (PR 6; plano, Parte 5): o divisor do topo e um a cada pausa de 30 min ou troca de dia entre itens à vista,
     // calculados depois de esconder o que foi para a Atividade, juntar as trocas e encolher os cartões. Vale também na sala
@@ -1811,7 +1836,7 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
     // COP-14 (item 3): os balões seguidos do mesmo remetente se agrupam (o separador de hora e o cartão quebram o grupo).
     ...comGrupos([...comDivisores(blocos, Date.now()).map(chaveDaPendente), ...pendentes]),
     { chave: "acolhimento", html: acolhimento },
-    ...abertas.map((p) => ({ chave: `proposta:${p.id}`, html: renderProposta(p, estado, c.propostas) })),
+    ...soltas.map((p) => ({ chave: `proposta:${p.id}`, html: propostaQueEspera(p, estado, c.propostas) })),
     ...expiradas.map((p) => ({ chave: `proposta:${p.id}`, html: linhaDaVencida(p, estado) })),
     { chave: "decisoes", html: renderDecisoesDaConversa(estado, c.conversa.id, idsDasPropostas, ancoradas) },
     // ADR-175: "N rascunhos prontos" com "Descartar todos" e "Enviar todos ⌘↵", presa ao pé da conversa.
@@ -1950,8 +1975,91 @@ function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estad
     depoisDe.set(bloco, [...(depoisDe.get(bloco) ?? []), unidade]);
   }
   const ancoradas = new Set([...segurados, ...[...depoisDe.values()].flat().flatMap((u) => u.ids)]);
-  const saida = blocos.flatMap((b, i) => [b, ...(depoisDe.get(i) ?? []).map((u) => ({ chave: `decisao:${u.primeiro.decisao.id}`, html: u.html }))]);
+  const saida = blocos.flatMap((b, i) => [b, ...(depoisDe.get(i) ?? []).map((u) => ({ chave: `decisao:${u.primeiro.decisao.id}`, html: comMarcaDeEspera(u.html, u.primeiro, estado) }))]);
   return { blocos: saida, ancoradas };
+}
+
+/**
+ * ADR-191 (definido em 2026-11-20): o cartão ancorado que espera a pessoa leva a marca que a pílula "A Ada espera você"
+ * procura (web/lib/rolagem-na-tela.ts). A aprovação também: a mensagem nova a substitui (ADR-184).
+ */
+function comMarcaDeEspera(html: string, item: SuaVezDto["itens"][number], estado: Estado): string {
+  if (!esperaPelaPessoa(item, estado.sessao?.pessoaId, false)) return html;
+  return html.replace(/^<ul class="decisoes-ancoradas"/u, `<ul class="decisoes-ancoradas"${atributosDaEspera({ id: item.decisao.id, nome: item.agenteNome, frase: fraseCurta(item.decisao.frase) })}`);
+}
+
+/**
+ * A proposta aberta dentro do invólucro `.pedido-que-espera` (ADR-191): o respiro entre o balão e o cartão e, quando ela
+ * espera a pessoa (todo tipo que a mensagem nova fecha, e o card de conexão), a marca da pílula. A pasta e o CSV das
+ * decisões não fecham ao seguir conversando: só o invólucro.
+ */
+function propostaQueEspera(p: Proposta, estado: Estado, propostas: readonly Proposta[]): string {
+  const html = renderProposta(p, estado, propostas);
+  if (html === "") return "";
+  const item = estado.suaVez?.itens.find((i) => i.decisao.id === p.id);
+  const espera = p.kind !== "pasta" && p.kind !== "decisoes_exportacao" && (item ? esperaPelaPessoa(item, estado.sessao?.pessoaId, false) : p.payload.kind === "acesso" && p.payload.conectar === true);
+  const frase = p.payload.kind === "acesso" && p.payload.conectar ? `Conectar o ${nomeDoAppDaConversa(estado, p.payload.conector)}` : item ? fraseCurta(item.decisao.frase) : "";
+  const nome = agenteDe(estado, p.agenteId)?.nome ?? item?.agenteNome ?? "O bot";
+  return `<div class="pedido-que-espera"${espera ? atributosDaEspera({ id: p.id, nome, frase }) : ""}>${html}</div>`;
+}
+
+function nomeDoAppDaConversa(estado: Estado, slug: string): string {
+  return estado.marketplace.find((a) => a.slug === slug)?.nome ?? estado.conectores.find((c) => c.slug === slug)?.nome ?? slug;
+}
+
+/**
+ * Cada proposta aberta logo depois do bloco da sua âncora (ADR-191, item D): a mesma regra dos pedidos (`ancoraDoPedido`)
+ * com o turno e a hora da decisão de mesmo id ou, sem ela, os da própria proposta. A proposta de um turno cuja fala está
+ * segurada (NOD-402) e a que não acha âncora ficam na seção do fim (`soltas`), como antes.
+ */
+function comPropostasAncoradas(blocos: BlocoDaTimeline[], c: ConversaEstado, estado: Estado, abertas: readonly Proposta[], todas: readonly Proposta[], turnosSegurados: ReadonlySet<string>): { blocos: BlocoDaTimeline[]; soltas: Proposta[] } {
+  if (abertas.length === 0) return { blocos, soltas: [] };
+  const posicao = new Map(c.mensagens.map((m, i) => [m.id, i]));
+  const inicioDe = blocos.map((b) => posicao.get(inicioDoBloco(b)));
+  const depoisDe = new Map<number, BlocoDaTimeline[]>();
+  const soltas: Proposta[] = [];
+  for (const p of abertas) {
+    const decisao = estado.suaVez?.itens.find((i) => i.decisao.id === p.id)?.decisao;
+    const turnoId = decisao?.turnoId ?? ("turnoId" in p.payload ? (p.payload.turnoId ?? null) : null);
+    const criadoEm = decisao?.criadoEm ?? new Date(p.criadoEm).toISOString();
+    const ancora = turnoId !== null && turnosSegurados.has(turnoId) ? undefined : ancoraDoPedido({ turnoId, criadoEm }, c);
+    const alvo = ancora === undefined ? undefined : posicao.get(ancora);
+    let bloco = -1;
+    if (alvo !== undefined) inicioDe.forEach((inicio, i) => { if (inicio !== undefined && inicio <= alvo) bloco = i; });
+    if (bloco < 0) {
+      soltas.push(p);
+      continue;
+    }
+    // O que já foi posto na mesma âncora (o cartão encolhido, o pedido ancorado) vem antes: foi pedido antes.
+    while (blocos[bloco + 1] && inicioDe[bloco + 1] === undefined && /^(?:encolhido:|decisao:)/u.test(blocos[bloco + 1]?.chave ?? "")) bloco++;
+    const html = propostaQueEspera(p, estado, todas);
+    if (html !== "") depoisDe.set(bloco, [...(depoisDe.get(bloco) ?? []), { chave: `proposta:${p.id}`, html }]);
+  }
+  return { blocos: blocos.flatMap((b, i) => [b, ...(depoisDe.get(i) ?? [])]), soltas };
+}
+
+/**
+ * As linhas dos pedidos dispensados (ADR-191) num invólucro só quando vêm em sequência (as do mesmo turno ficam a 6 px
+ * uma da outra, no Paper); sozinha, a linha também ganha o invólucro, que dá o respiro de cartão acima e abaixo. A chave é
+ * a da primeira: a região redesenha só o bloco que mudou.
+ */
+function juntarDispensados(blocos: BlocoDaTimeline[]): BlocoDaTimeline[] {
+  const ehLinha = (b: BlocoDaTimeline | undefined) => b !== undefined && b.html.startsWith('<div class="msg-linha msg-dispensado"');
+  const saida: BlocoDaTimeline[] = [];
+  for (let i = 0; i < blocos.length; i++) {
+    const b = blocos[i];
+    if (!b) continue;
+    if (!ehLinha(b)) {
+      saida.push(b);
+      continue;
+    }
+    let fim = i;
+    while (ehLinha(blocos[fim + 1])) fim++;
+    const grupo = blocos.slice(i, fim + 1);
+    saida.push({ ...b, html: `<div class="pedidos-dispensados">${grupo.map((g) => g.html).join("")}</div>` });
+    i = fim;
+  }
+  return saida;
 }
 
 /**

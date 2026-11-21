@@ -23,6 +23,7 @@ import { aguardaIa, falaSemIa, PRAZO_SEM_IA_MS } from "../domain/sem-ia.ts";
 import { log } from "../obs/log.ts";
 import { autoriaAgente, autoriaPessoa, evento, inventarioAusente, motorDe, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { fiosDaConversa } from "./fios-da-pergunta.ts";
+import { dispensarAoSeguirConversando } from "./seguir-conversando.ts";
 import { substituirAprovacoesAbertas } from "./substituir-aprovacoes.ts";
 import { donosDosBots, presencaDasMaquinas } from "./estado-do-dono.ts";
 import { trabalhosParaDto } from "./trabalhos.ts";
@@ -123,6 +124,11 @@ export const enviarMensagem: CasoDeUso<EntradaEnviarMensagem, SaidaEnviarMensage
   // Jornada C: o turno recusado por falta de IA que só espera (spec, critério 1). Lê os guardados antes de enfileirar:
   // a primeira fala é a da tela C; as seguintes, a linha curta que aponta o card (critério 2).
   const guarda = recusado && aguardaIa({ ligado: input.guardarSemIa === true, origem, daPessoa: true, trabalho: false });
+  // ADR-191 (definido em 2026-11-20, pedido do dono): a fala nova da pessoa na conversa própria fecha os pedidos abertos de
+  // antes dela como dispensados por ela (src/use-cases/seguir-conversando.ts). Antes do turno novo, para a linha de cada
+  // pedido entrar no histórico dele; só a mensagem da pessoa passa aqui (a sala posta por postarNaSala, o bot por
+  // ferramenta, o sistema pelo caso de cada aviso).
+  const seguiu = conversa.tipo === "propria" ? await dispensarAoSeguirConversando(deps, { conversaId: conversa.id, antesDe: mensagem.criadoEm }) : null;
   const jaHaGuardada = guarda && (await deps.repos.turnos.vivosDaConversa(conversa.id)).some((t) => t.estado === "pendente" && !!t.mensagemOrigemId && !t.trabalhoId);
 
   const turno = await deps.repos.turnos.enfileirar({
@@ -154,6 +160,7 @@ export const enviarMensagem: CasoDeUso<EntradaEnviarMensagem, SaidaEnviarMensage
   const events = [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { mensagem_id: mensagem.id, kind: "texto" } })];
   // Item 10, rodada 2 (2026-11-16): a fala nova substitui as aprovações abertas da conversa própria (src/use-cases/substituir-aprovacoes.ts).
   if (conversa.tipo === "propria") events.push(...(await substituirAprovacoesAbertas(deps, conversa.id)));
+  if (seguiu) events.push(...seguiu.events);
   let negacao: Mensagem | null = null;
   if (guarda) {
     negacao = await deps.repos.mensagens.criar({
