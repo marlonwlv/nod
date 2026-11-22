@@ -1049,6 +1049,19 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * Lote B das Jornadas da IA (B1, 2026-11-22): a IA e a conta em que cada turno em curso roda (o plano as gravou:
+     * `harness_efetivo` e `conta_id`), para a conversa dizer quem está respondendo também depois de recarregar.
+     */
+    async quemResponde(ids: readonly string[]): Promise<Map<string, { harness: string | null; contaApelido: string | null }>> {
+      if (ids.length === 0) return new Map();
+      const linhas = await conn<{ id: string; harness_efetivo: string | null; apelido: string | null }[]>`
+        select t.id, t.harness_efetivo, c.apelido from turnos t
+        left join contas_ia c on c.tenant_id = t.tenant_id and c.id = t.conta_id
+        where t.tenant_id = ${escopo.tenantId} and t.id = any(${ids as string[]}::uuid[])`;
+      return new Map(linhas.map((l) => [l.id, { harness: l.harness_efetivo, contaApelido: l.apelido }]));
+    },
+
+    /**
      * Lote B das Jornadas da IA (2026-11-22): quantas vezes a mesma mensagem da pessoa já se repetiu por um motivo (a
      * tabela de desvios conta a repetição por desvio, além do teto da mensagem). Sem a mensagem de origem: nenhuma.
      */

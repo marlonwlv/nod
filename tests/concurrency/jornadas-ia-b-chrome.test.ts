@@ -95,9 +95,13 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const turnoId = await enviar(conversaId, "Resume a call de hoje");
     const plano = await mac.puxarAte(undefined, conversaId);
     expect(plano.turnoId).toBe(turnoId);
+    // B1: enquanto o bot trabalha, junto ao campo, quem está respondendo (a IA, a conta e a máquina).
+    const trabalhando = await printar("00-caminho-feliz", "01-trabalhando", conversaId, tem("Claude · Pessoal · no MacBook de teste"));
+    expect(trabalhando).toContain("Claude · Pessoal · no MacBook de teste");
     expect(await mac.entregar(plano, { desfecho: "sucesso", texto: "Resumi a call: três decisões e dois próximos passos." })).toBe(200);
     expect((await assentado(turnoId)).estado).toBe("concluido");
-    await printar("00-caminho-feliz", "01-resposta", conversaId, tem("três decisões"));
+    const texto = await printar("00-caminho-feliz", "02-resposta", conversaId, tem("três decisões"));
+    expect(texto).not.toContain("Claude · Pessoal · no MacBook de teste");
   }, 120_000);
 
   it("desvio 1 · a sessão sumiu: o nod recomeça pelo histórico, com uma linha, e a resposta chega", async () => {

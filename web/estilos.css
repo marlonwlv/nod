@@ -194,6 +194,10 @@ body.ocupado { cursor: progress; }
 .ritmo-pilula { padding: 4px 12px; border: 1px solid var(--line); border-radius: var(--raio-full); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 20px; cursor: pointer; }
 .ritmo-pilula:hover, .ritmo-pilula:focus-visible { border-color: var(--line-strong); }
 .ritmo-pilula:disabled { opacity: .5; cursor: default; }
+/* Lote B (B1, Paper "Bot trabalhando"): quem está respondendo, pequeno, à direita, logo acima do campo. */
+.quem-responde { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: 4px 0 6px; color: var(--ink-3); font-size: var(--fs-legenda); line-height: 16px; }
+.quem-responde-logo { width: 14px; height: 14px; border-radius: var(--raio-6); }
+.quem-responde-logo svg { width: 10px; height: 10px; }
 /* Lote B das Jornadas da IA (2026-11-22, Paper momento B): o cartão do desvio da mensagem — o mesmo cartão neutro do aviso
    de troca, o título numa linha, o motivo abaixo e os botões em linha; o ícone âmbar só quando a mensagem espera sozinha. */
 .aviso-desvio { align-items: flex-start; max-width: 620px; padding: 12px 14px; background: var(--surface); border-color: var(--line); color: var(--ink); font-size: var(--fs-corpo); line-height: 20px; }

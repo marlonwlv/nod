@@ -1897,6 +1897,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async ultimaSessaoDaConversa() {
         return null;
       },
+      async quemResponde() {
+        return new Map();
+      },
       async repeticoesDaMensagem(mensagemOrigemId, motivo) {
         return mensagemOrigemId ? doTenant(b.turnos).filter((x) => x.mensagemOrigemId === mensagemOrigemId && x.motivoRecomeco === motivo).length : 0;
       },

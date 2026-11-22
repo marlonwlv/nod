@@ -1,3 +1,5 @@
+import { PROVEDOR_DA_IA } from "./ia-fora.ts";
+import { LOGOS_IA } from "./onboarding-logos.ts";
 import { desvioNaConversa } from "./desvio.ts";
 import { textoAberto } from "../lib/textos-abertos.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
@@ -1731,6 +1733,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
   const blocos: BlocoDaTimeline[] = [
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
+    { chave: "quem-responde", html: linhaQuemResponde(vivos, estado) },
     { chave: "computador", html: linhaDoComputador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
@@ -1743,6 +1746,20 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
  * o rótulo da linha de atividade (`pensarDaFalaViva`), o ✓ "Tela aberta"/"Computador pronto" saiu e a falha é a linha de
  * sistema centrada com "Tentar de novo".
  */
+/**
+ * Lote B das Jornadas da IA (B1, Paper "Bot trabalhando", 2026-11-22): junto ao campo, quem está respondendo — a IA, a
+ * conta da lista e a máquina do turno que roda ("Claude · Pessoal · no MacBook"). Some quando o turno acaba.
+ */
+export function linhaQuemResponde(vivos: readonly TurnoVivo[], estado: Pick<Estado, "maquinas">): string {
+  const t = vivos.find((v) => v.estado === "rodando" && (v.harness === "claude-cli" || v.harness === "codex-cli"));
+  if (!t) return "";
+  const ia = t.harness === "codex-cli" ? "codex-cli" : "claude-cli";
+  const maquina = t.machineId ? (estado.maquinas?.maquinas ?? []).find((m) => m.id === t.machineId)?.nome ?? null : null;
+  const feminina = maquina !== null && /^(vm\b|máquina|maquina)/i.test(maquina.trim());
+  const partes = [PROVEDOR_DA_IA[ia].nome + (t.contaApelido ? ` · ${t.contaApelido}` : ""), ...(maquina ? [`${feminina ? "na" : "no"} ${maquina}`] : [])];
+  return `<div class="quem-responde" aria-label="Respondendo com ${esc(partes.join(", "))}"><span class="ia-logo quem-responde-logo" aria-hidden="true">${LOGOS_IA[PROVEDOR_DA_IA[ia].logo]}</span>${esc(partes.join(" · "))}</div>`;
+}
+
 function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   const id = c.conversa.agenteId;
   const dto = estado.computadorPessoa;
