@@ -21,6 +21,7 @@ import { acabaLogo, DISCO_ALERTA_MB, DISCO_CRITICO_MB, esperaDoMac, esperaNaMaqu
 import { pastaDoBot } from "../domain/nativas.ts";
 import { nomeDaMaquina, semContatoDesde as semContatoDaMaquina } from "../domain/presenca-da-maquina.ts";
 import { ehFrente, pedidoDoDono, tituloDoLote } from "../domain/frente.ts";
+import { atividadeDaTarefa, divergenciaDaAtividade } from "../domain/atividade-da-tarefa.ts";
 import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, tituloOuNada, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
 import type { ExtrasTrabalho, NovoTrabalho } from "../repositories/trabalhos.repo.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
@@ -31,6 +32,7 @@ import { resumoSeFaltar } from "./resumo-sem-chamada.ts";
 import { tarefasDasDecisoesFechadas } from "./tarefa-casa.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 import { situacaoDasFalasNaFrente } from "../domain/fala-na-frente.ts";
+import { log } from "../obs/log.ts";
 
 /**
  * Trabalhos (definido em 2026-10-07, ADR-083, épico #188): criar, manter o estado e montar o que a tela recebe. O
@@ -84,6 +86,10 @@ export async function sincronizarTrabalho(deps: DepsTrabalho, trabalhoId: string
   const fatos = await deps.repos.trabalhos.fatos(trabalhoId);
   if (!fatos) return [];
   const novo = estadoDoTrabalho({ ...fatos, estadoAtual: atual.estado, iniciado: atual.iniciadoEm !== null });
+  // ADR-192 (etapa 0, shadow read): a atividade derivada é calculada ao lado do estado legado e só a divergência vai ao
+  // log; nada muda na tela nem no banco. A etapa 5 só vira a leitura com sete dias sem divergência conhecida.
+  const divergencia = divergenciaDaAtividade(novo, atividadeDaTarefa(fatos));
+  if (divergencia) log("aviso", "atividade_sombra_divergente", { trabalho_id: trabalhoId, origem: atual.origem, forma: atual.forma, estado: divergencia.estado, atividade: divergencia.atividade ?? "nenhuma" });
   if (novo === atual.estado) return [];
   // `terminado`/`falhou` reabrem pelos fatos como antes (turno novo, decisão aberta, resposta de colega);
   // `parado` é da pessoa e só ela o reabre (`reabrir`).
