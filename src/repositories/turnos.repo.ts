@@ -704,6 +704,23 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       return linhas.map((l) => l.id);
     },
 
+    /**
+     * Lote B das Jornadas da IA (desvio 9, auditoria de 2026-11-22): a fala refeita pelo "Reinstalar e tentar" espera a
+     * IA reinstalada e sai quando ela volta pronta numa máquina. Só ela: a cópia em espera da mesma fala cujo turno parou
+     * porque a IA não abriu (`lancamento_falhou`). As outras esperas (limite, login) têm os gatilhos delas.
+     */
+    async anteciparReinstaladas(ia: string): Promise<string[]> {
+      const linhas = await conn<{ id: string }[]>`
+        update turnos t set acordar_em = null
+        where t.tenant_id = ${escopo.tenantId} and t.owner_id = ${escopo.pessoaId} and t.estado = 'pendente' and t.origem = 'conversa'
+          and t.acordar_em is not null and t.mensagem_origem_id is not null
+          and (t.harness = 'auto' or ${iaDoTurnoSql(conn)} = ${ia})
+          and exists (select 1 from turnos o where o.tenant_id = t.tenant_id and o.mensagem_origem_id = t.mensagem_origem_id
+            and o.id <> t.id and o.criado_em <= t.criado_em and o.estado = 'interrompido' and o.motivo_interrupcao = 'lancamento_falhou')
+        returning t.id`;
+      return linhas.map((l) => l.id);
+    },
+
     async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}): Promise<string[]> {
       const porIa = modelosPorIa();
       const linhas = await conn<{ id: string }[]>`
@@ -1046,19 +1063,6 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     async registrarMotivoRecomeco(id: string, motivo: MotivoRecomeco): Promise<boolean> {
       const r = await conn`update turnos set motivo_recomeco = ${motivo} where tenant_id = ${escopo.tenantId} and id = ${id} and motivo_recomeco is null`;
       return r.count === 1;
-    },
-
-    /**
-     * Lote B das Jornadas da IA (B1, 2026-11-22): a IA e a conta em que cada turno em curso roda (o plano as gravou:
-     * `harness_efetivo` e `conta_id`), para a conversa dizer quem está respondendo também depois de recarregar.
-     */
-    async quemResponde(ids: readonly string[]): Promise<Map<string, { harness: string | null; contaApelido: string | null }>> {
-      if (ids.length === 0) return new Map();
-      const linhas = await conn<{ id: string; harness_efetivo: string | null; apelido: string | null }[]>`
-        select t.id, t.harness_efetivo, c.apelido from turnos t
-        left join contas_ia c on c.tenant_id = t.tenant_id and c.id = t.conta_id
-        where t.tenant_id = ${escopo.tenantId} and t.id = any(${ids as string[]}::uuid[])`;
-      return new Map(linhas.map((l) => [l.id, { harness: l.harness_efetivo, contaApelido: l.apelido }]));
     },
 
     /**

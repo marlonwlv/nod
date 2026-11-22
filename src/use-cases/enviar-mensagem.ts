@@ -336,12 +336,9 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   const turnosCancelados = turnosRecentes
     .filter((t) => t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && !t.sinais.attempted && t.mensagemOrigemId)
     .map((t) => ({ id: t.id, mensagemId: t.mensagemOrigemId as string }));
-  const emCursoCru = vivos.filter((t): t is typeof t & { estado: "pendente" | "despachando" } => t.estado === "pendente" || t.estado === "despachando");
-  // Lote B (B1): quem responde nos que já rodam (a IA, a conta e a máquina), lido numa consulta.
-  const quem = await deps.repos.turnos.quemResponde(emCursoCru.filter((t) => t.estado === "despachando").map((t) => t.id));
-  const turnosEmCurso = emCursoCru
-    .map((t) => ({ id: t.id, estado: t.estado, desde: Math.max(t.criadoEm, t.acordarEm ?? 0), mensagemId: t.mensagemOrigemId ?? null, trabalhoId: t.trabalhoId ?? null, origem: t.origem, despachadoEm: t.despachadoEm ?? null, maquinaDestaVez: t.maquinaDestaVez ?? null, agenteId: t.agenteId, ...(t.bastidores && !t.trabalhoId ? { bastidores: true } : {}),
-      ...(t.estado === "despachando" ? { machineId: t.machineId ?? null, harness: quem.get(t.id)?.harness ?? null, contaApelido: quem.get(t.id)?.contaApelido ?? null } : {}) }));
+  const turnosEmCurso = vivos
+    .filter((t): t is typeof t & { estado: "pendente" | "despachando" } => t.estado === "pendente" || t.estado === "despachando")
+    .map((t) => ({ id: t.id, estado: t.estado, desde: Math.max(t.criadoEm, t.acordarEm ?? 0), mensagemId: t.mensagemOrigemId ?? null, trabalhoId: t.trabalhoId ?? null, origem: t.origem, despachadoEm: t.despachadoEm ?? null, maquinaDestaVez: t.maquinaDestaVez ?? null, agenteId: t.agenteId, ...(t.bastidores && !t.trabalhoId ? { bastidores: true } : {}) }));
   const [fios, reacoes, pedidosDeColega, acoesDoModo] = await Promise.all([
     fiosDaConversa(deps.repos, mensagens),
     // ADR-113: as reações das falas da janela, numa consulta (o chip "👍 1" embaixo de cada fala).

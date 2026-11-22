@@ -29,7 +29,7 @@ export type IdDesvio = (typeof IDS_DESVIO)[number];
  * - `cancelar`: tira a mensagem da espera (dados: turnoId).
  * - `ver_erro`: mostra o texto do erro, sem sair da conversa (só tela).
  */
-export const ACOES_DO_DESVIO = ["entrar_de_novo", "conectar_ia", "responder_com_outra_ia", "rodar_em_outra_maquina", "cancelar", "ver_erro"] as const;
+export const ACOES_DO_DESVIO = ["entrar_de_novo", "conectar_ia", "responder_com_outra_ia", "rodar_em_outra_maquina", "reinstalar_e_tentar", "cancelar", "ver_erro"] as const;
 export type AcaoDoDesvio = (typeof ACOES_DO_DESVIO)[number];
 
 export type BotaoDoDesvio = { acao: AcaoDoDesvio; rotulo: string; dados?: Readonly<Record<string, string>> };
@@ -50,7 +50,7 @@ export type PayloadDesvio = {
   botoes: BotaoDoDesvio[];
   /** A mensagem espera e sai sozinha (a hora, quando se sabe: o limite volta, a máquina volta). */
   espera?: { ate: number | null };
-  /** O tom do ponto do cartão: espera (âmbar, a mensagem sai sozinha) ou parada (precisa de você). */
+  /** O ponto âmbar do cartão (Paper, momento B: só o bot preso a uma IA e o computador fora do ar, que esperam algo fora do alcance da pessoa). */
   tom?: "espera" | "parada";
   /** O texto do erro do fornecedor (já redigido, até 400 caracteres), só atrás do "Ver o erro". */
   erro?: string;

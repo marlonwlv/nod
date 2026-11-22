@@ -354,7 +354,7 @@ describe("tudo que não é balão fica no centro", () => {
   /** As classes da raiz de um item que não é balão, e o CSS que as centraliza. */
   const CENTRO: Record<string, RegExp> = {
     "msg-linha": /\.msg-linha \{ margin-left: auto; margin-right: auto;/,
-    "linha-centro-wrap": /\.linha-centro-wrap \{ display: flex; flex-direction: column; align-items: center;[^}]*margin: 2px auto 12px/,
+    "linha-centro-wrap": /\.linha-centro-wrap \{ display: flex; flex-direction: column; align-items: center;[^}]*margin: 12px auto 0/,
     "avisos-sistema": /\.avisos-sistema \{ margin: 4px auto 12px;/,
   };
   const css = ["estilos.css", "interface.css"].map((f) => readFileSync(new URL(`../../../web/${f}`, import.meta.url), "utf8")).join("\n");

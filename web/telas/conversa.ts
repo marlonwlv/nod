@@ -1,6 +1,4 @@
-import { PROVEDOR_DA_IA } from "./ia-fora.ts";
-import { LOGOS_IA } from "./onboarding-logos.ts";
-import { desvioNaConversa } from "./desvio.ts";
+import { cartaoSemIaPronta, desvioNaConversa } from "./desvio.ts";
 import { textoAberto } from "../lib/textos-abertos.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
 import { renderCardColunas } from "./card-colunas.ts";
@@ -304,7 +302,11 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // ADA-28 (ADR-159, U1/U7): a linha cinza que aponta para a tarefa; o código abre a tarefa no quadro.
   if (p?.kind === "tarefa_linha") return linhaDaTarefa(m, p);
   // Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (web/telas/desvio.ts).
-  if (p?.kind === "desvio") return desvioNaConversa(m, p);
+  if (p?.kind === "desvio") {
+    const c = estado.conversas[m.conversaId];
+    const canceladas = new Set([...(c?.turnosCancelados ?? []).map((t) => t.id), ...Object.entries(estado.cancelando).filter(([, x]) => x.fase === "cancelando" || x.fase === "cancelada" || x.fase === "voltou").map(([id]) => id)]);
+    return desvioNaConversa(m, p, { canceladas });
+  }
   if (m.kind === "sistema") return cartaoRitmoRotina(m) ?? linhaDeIa(m, estado) ?? linhaDaMemoria(m, estado) ?? linhaDoTurnoPreso(m, estado) ?? `<div class="msg-sistema">${paragrafos(m.texto)}</div>`;
   if (p?.kind === "handoff") {
     // definido em 2026-09-24 (ADR-047): a tarefa delegada assina "Taga · por você" — autoria composta (ADR-023).
@@ -575,8 +577,9 @@ type SituacaoFila = {
   texto: string;
   /** O botão de texto da linha (Cancelar, Desfazer ou Tentar de novo). */
   botao?: { act: "cancelar-turno" | "desfazer-cancelamento"; rotulo: string; aria: string };
-  /** Lote B (desvio 6, 2026-11-22): o caminho que resolve a espera ("Conectar uma IA"), antes do Cancelar. */
-  resolver?: { act: "secao-espaco"; rotulo: string; dados: Record<string, string> };
+  /** Lote B (desvio 6, auditoria de 2026-11-22): no lugar da linha, o cartão do Paper (o aviso de estado do DS). Vai
+   * depois do balão, do lado do bot (à esquerda, como tudo que é do sistema), não dentro da coluna da pessoa. */
+  cartao?: string;
 };
 
 const CANCELAR = { act: "cancelar-turno", rotulo: "Cancelar", aria: "Cancelar só esta mensagem" } as const;
@@ -621,8 +624,12 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   const doTrabalho = (estado.trabalhos?.trabalhos ?? []).find((t) => t.conversaId === c.conversa.id && t.maquina?.acordando)?.maquina ?? null;
   const naFila = (texto: string): SituacaoFila & { turnoId: string } => ({ tipo: "na_fila", texto, botao: CANCELAR, turnoId: emCurso.id });
   if (acordandoNaFila(doBot, doTrabalho)) return naFila("Ligando a máquina…");
-  // Lote B (desvio 6, Paper B-6): a mensagem está guardada e sai quando uma IA ficar pronta; o link leva a conectar uma.
-  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return { ...naFila(`Nenhuma IA pronta em ${doBot.nome}: a mensagem sai assim que uma conta entrar`), resolver: { act: "secao-espaco", rotulo: "Conectar uma IA", dados: { secao: "conexao" } } };
+  // Lote B (desvio 6, Paper B-6): a mensagem está guardada e sai quando uma IA ficar pronta. O cartão da tabela única
+  // ("Nenhuma IA conectada no <máquina>", "Conectar uma IA"), não a linha da fila (auditoria de 2026-11-22).
+  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) {
+    const cartao = cartaoSemIaPronta({ bot: nome, maquina: doBot.nome });
+    return { ...naFila(cartao.titulo), cartao: desvioNaConversa(m, cartao) };
+  }
   if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
   return naFila("Na fila");
 }
@@ -649,8 +656,8 @@ function faixaQueFalta(f: Estado["faixaParada"], mensagens: readonly Mensagem[])
 }
 
 function renderSituacaoFila(s: SituacaoFila & { turnoId: string }): string {
-  const resolver = s.resolver ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.resolver.act, esc(s.resolver.rotulo), { classe: "link", dados: s.resolver.dados })}` : "";
-  const bt = `${resolver}${s.botao ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.botao.act, s.botao.rotulo, { classe: "link", id: s.turnoId, aria: s.botao.aria })}` : ""}`;
+  if (s.cartao) return s.cartao;
+  const bt = `${s.botao ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.botao.act, s.botao.rotulo, { classe: "link", id: s.turnoId, aria: s.botao.aria })}` : ""}`;
   return `<div class="fila-linha" role="status" data-fila="${s.tipo}"><span>${esc(s.texto)}</span>${bt}</div>`;
 }
 
@@ -819,8 +826,8 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // ADR-191: a ajuda do computador aberta espera a pessoa — a marca da pílula "A Ada espera você: entrar no Drive".
   const espera = pergunta && motivoTela !== null && telaAberta ? atributosDaEspera({ id: pergunta.decisaoId, nome: agente?.nome ?? "O bot", frase: fraseCurta(motivoTela) }) : "";
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${espera}${emVoo}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
-  </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila && !fila.cartao ? renderSituacaoFila(fila) : fila ? "" : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+  </article>${fila?.cartao ? `<div class="msg-linha">${fila.cartao}</div>` : ""}${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 
 /** A linha do pedido dispensado na timeline (ADR-191): o bloco `.msg-dispensado`, que a timeline junta com as vizinhas. */
@@ -1733,7 +1740,6 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
   const blocos: BlocoDaTimeline[] = [
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
-    { chave: "quem-responde", html: linhaQuemResponde(vivos, estado) },
     { chave: "computador", html: linhaDoComputador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
@@ -1746,19 +1752,6 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
  * o rótulo da linha de atividade (`pensarDaFalaViva`), o ✓ "Tela aberta"/"Computador pronto" saiu e a falha é a linha de
  * sistema centrada com "Tentar de novo".
  */
-/**
- * Lote B das Jornadas da IA (B1, Paper "Bot trabalhando", 2026-11-22): junto ao campo, quem está respondendo — a IA, a
- * conta da lista e a máquina do turno que roda ("Claude · Pessoal · no MacBook"). Some quando o turno acaba.
- */
-export function linhaQuemResponde(vivos: readonly TurnoVivo[], estado: Pick<Estado, "maquinas">): string {
-  const t = vivos.find((v) => v.estado === "rodando" && (v.harness === "claude-cli" || v.harness === "codex-cli"));
-  if (!t) return "";
-  const ia = t.harness === "codex-cli" ? "codex-cli" : "claude-cli";
-  const maquina = t.machineId ? (estado.maquinas?.maquinas ?? []).find((m) => m.id === t.machineId)?.nome ?? null : null;
-  const feminina = maquina !== null && /^(vm\b|máquina|maquina)/i.test(maquina.trim());
-  const partes = [PROVEDOR_DA_IA[ia].nome + (t.contaApelido ? ` · ${t.contaApelido}` : ""), ...(maquina ? [`${feminina ? "na" : "no"} ${maquina}`] : [])];
-  return `<div class="quem-responde" aria-label="Respondendo com ${esc(partes.join(", "))}"><span class="ia-logo quem-responde-logo" aria-hidden="true">${LOGOS_IA[PROVEDOR_DA_IA[ia].logo]}</span>${esc(partes.join(" · "))}</div>`;
-}
 
 function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   const id = c.conversa.agenteId;

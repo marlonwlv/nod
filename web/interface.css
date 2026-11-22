@@ -1748,12 +1748,15 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 
 /* Todo item da timeline que não é balão é uma .msg-linha (renderMensagem) ou uma .linha-centro-wrap: os dois no centro. */
 .msg-linha { margin-left: auto; margin-right: auto; max-width: 660px; }
-.linha-centro-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 2px auto 12px; max-width: 660px; text-align: center; }
-.linha-centro { display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; padding: 6px 12px; border: 0; border-radius: var(--raio-14);
-  background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); line-height: 1.4; cursor: pointer; }
+/* Lote B (auditoria de 2026-11-22, "o espaço entre o balão e o aviso não é harmônico"): a linha fica no meio do ritmo
+   da conversa. Acima, 12 + 4 de respiro; abaixo, os 4 dela mais os 16 que o próximo grupo já traz (chat.css). */
+.linha-centro-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 12px auto 0; max-width: 660px; text-align: center; }
+/* A linha discreta do Paper (momento B): rótulo 12/16, texto terciário (56 %), centrada. */
+.linha-centro { display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; padding: 4px 12px; border: 0; border-radius: var(--raio-14);
+  background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); cursor: pointer; }
 .linha-centro:hover, .linha-centro:focus-visible { background: var(--surface-raised); color: var(--ink); }
 .linha-centro.estatica { cursor: default; }
-.linha-centro.estatica:hover { background: none; color: var(--ink-2); }
+.linha-centro.estatica:hover { background: none; color: var(--ink-3); }
 .linha-centro b, .linha-nome { color: var(--ink); font-weight: 500; }
 .linha-centro .icon.sm { width: 18px; height: 18px; min-width: 18px; border-radius: var(--raio-6); }
 .linha-centro .icon.sm svg { width: 15px; height: 15px; }

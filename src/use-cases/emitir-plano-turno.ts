@@ -683,8 +683,6 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
       ...(motivoRecomeco ? { motivo_recomeco: motivoRecomeco } : {}),
       executor,
       harness: escolha?.harness ?? null,
-      // Lote B (B1, 2026-11-22): a conta da lista em que o turno roda — a tela diz "Claude · Pessoal · no MacBook".
-      ...(plano.conta ? { conta_apelido: plano.conta.apelido } : {}),
       modelo: plano.entrada.modelo,
       modo,
       ferramentas: plano.catalogo.ferramentas.length,

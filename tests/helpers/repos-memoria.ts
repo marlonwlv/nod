@@ -1897,8 +1897,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async ultimaSessaoDaConversa() {
         return null;
       },
-      async quemResponde() {
-        return new Map();
+      async anteciparReinstaladas(ia) {
+        const doTurno = (x: Turno) => x.harness === "auto" || x.harness === ia;
+        const acordadas = doTenant(b.turnos).filter((x) => x.estado === "pendente" && x.origem === "conversa" && (x.acordarEm ?? null) !== null && x.mensagemOrigemId && doTurno(x)
+          && doTenant(b.turnos).some((o) => o.id !== x.id && o.mensagemOrigemId === x.mensagemOrigemId && o.estado === "interrompido" && o.motivoInterrupcao === "lancamento_falhou"));
+        for (const x of acordadas) x.acordarEm = null;
+        return acordadas.map((x) => x.id);
       },
       async repeticoesDaMensagem(mensagemOrigemId, motivo) {
         return mensagemOrigemId ? doTenant(b.turnos).filter((x) => x.mensagemOrigemId === mensagemOrigemId && x.motivoRecomeco === motivo).length : 0;

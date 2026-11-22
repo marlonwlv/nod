@@ -17,6 +17,7 @@ import type { Assunto } from "../contracts/destino-no-chat.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { avaliarOrcamento } from "../domain/canal-orcamento.ts";
 import { harnessFixado } from "../domain/harness.ts";
+import { DESVIOS, noNa } from "../domain/desvios-da-conversa.ts";
 import { redigir } from "../domain/redacao.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
 import { CONTATO_RECENTE_MS, lerContasDaMaquina, notaDeLimite } from "./contas-do-turno.ts";
@@ -189,6 +190,31 @@ export async function responderComOutraIa(d: Deps, p: { conversaId: string; turn
   return r;
 }
 
+/** Desvio 9: quanto a fala espera a IA reinstalada antes de sair de qualquer jeito (a máquina avisa antes, ao anunciar). */
+export const ESPERA_DA_REINSTALACAO_MS = 10 * 60_000;
+
+/**
+ * Lote B das Jornadas da IA (desvio 9, auditoria de 2026-11-22): "Reinstalar e tentar" no cartão "O <IA> não abriu no
+ * <máquina>". Quem chama (a rota) já pediu à máquina que reinstale a cópia da IA (`maquinas.atualizar_ia`); aqui a fala
+ * é refeita uma vez, à espera: ela sai assim que a máquina anuncia a IA pronta de novo (`anteciparFalasEsperando`) ou,
+ * no máximo, em 10 min. A conversa ganha a linha do que está acontecendo.
+ */
+export async function reinstalarETentar(d: Deps, p: { conversaId: string; turnoId: string; ia: IdHarness; maquina: string }): Promise<SaidaDaNota> {
+  await d.repos.contasIa.travar();
+  const turno = await turnoDaNota(d, p);
+  const r = await refazerTurnoDaNota(d, {
+    turno,
+    acordarEm: d.agora() + ESPERA_DA_REINSTALACAO_MS,
+    // A linha discreta do desvio (vai ao chat): a espera pode levar minutos e a pessoa precisa saber que a mensagem sai.
+    linha: (() => {
+      const texto = `Reinstalando o ${nomeDaIaCurto(p.ia)} ${noNa(p.maquina)}. A mensagem sai assim que ele abrir.`;
+      return { texto, assunto: "desvio.recuperado" as const, payload: { kind: "desvio" as const, desvio: "ia_nao_abriu" as const, forma: "linha" as const, titulo: DESVIOS.ia_nao_abriu.titulo, texto, botoes: [] } };
+    })(),
+  });
+  log("info", "reinstalar_e_tentar", { turno_id: turno.id, novo_turno_id: r.data.turnoId, ia: p.ia, motivo: r.data.motivo });
+  return r;
+}
+
 /** O turno da nota: pelo `turnoId` do botão (NOD-284), na conversa dele. Outro id, ou de outra conversa = não encontrado. */
 async function turnoDaNota(d: Deps, p: { conversaId: string; turnoId: string }): Promise<Turno> {
   const turno = await d.repos.turnos.buscar(p.turnoId);
@@ -214,7 +240,7 @@ function contaNaoServe(conta: Pick<ContaGuardadaNoServidor, "ia" | "noLimiteAte"
  */
 export async function refazerTurnoDaNota(
   d: Deps,
-  p: { turno: Turno; linha: { texto: string; payload?: PayloadMensagem; assunto?: Assunto }; maquinaDestaVez?: string | null; harnessDestaVez?: IdHarness | null },
+  p: { turno: Turno; linha: { texto: string; payload?: PayloadMensagem; assunto?: Assunto }; maquinaDestaVez?: string | null; harnessDestaVez?: IdHarness | null; acordarEm?: number },
 ): Promise<SaidaDaNota> {
   const { turno } = p;
   const agora = d.agora();
@@ -244,12 +270,14 @@ export async function refazerTurnoDaNota(
     conversaId: turno.conversaId,
     agenteId: turno.agenteId,
     origem: turno.origem,
-    prazoEm: agora + Math.max(60_000, turno.prazoEm - turno.criadoEm),
+    prazoEm: Math.max(agora, p.acordarEm ?? agora) + Math.max(60_000, turno.prazoEm - turno.criadoEm),
     profundidade: turno.profundidade,
     entradaTexto: turno.entradaTexto,
     mensagemOrigemId: turno.mensagemOrigemId,
     entradaAnexos: turno.entradaAnexos,
     entradaConfianca: turno.entradaConfianca,
+    // Lote B (desvio 9): a fala espera a IA reinstalada; `anteciparFalasEsperando` a solta quando ela anuncia pronta.
+    ...(p.acordarEm !== undefined ? { acordarEm: p.acordarEm } : {}),
     // Lote B (desvio 3 e 10): "Responder com o ChatGPT desta vez" — fixo na outra IA só neste turno; o bot não muda.
     modelo: p.harnessDestaVez ? (iaDoModelo(turno.modelo) === p.harnessDestaVez ? turno.modelo : "auto") : turno.modelo,
     harness: p.harnessDestaVez ?? turno.harness,

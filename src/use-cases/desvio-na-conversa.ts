@@ -130,7 +130,7 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   // Parou: o cartão. O erro desconhecido que se repetiu vai sozinho para o time (regra 8), anexando só o cartão.
   const relatar = desvio === "erro_desconhecido" && repetidas > 0;
   const contaId = await deps.repos.turnos.contaDoTurno(turno.id).catch(() => null);
-  const cartao = cartaoDoDesvio(desvio, nomes, { agora, ate: p.ate ?? null, turnoId: turno.id, turnoEsperandoId, contaId, maquinaId: p.machineId, ia: p.harness, outraIaId: outraParaOBotao, relatado: relatar, erro: p.erroCru ?? null });
+  const cartao = cartaoDoDesvio(desvio, nomes, { agora, ate: p.ate ?? null, turnoId: turno.id, turnoEsperandoId, mensagemId: turno.mensagemOrigemId ?? null, contaId, maquinaId: p.machineId, ia: p.harness, outraIaId: outraParaOBotao, relatado: relatar, erro: p.erroCru ?? null });
   const id = await linhaOuCartao(cartao);
   if (relatar && id) {
     const r = await registrarRelato(deps, { mensagemId: id, categoria: "travou_ou_parou", alcance: "mensagem", texto: "Relato automático do nod: o mesmo erro desconhecido duas vezes seguidas (lote B, desvio 10)." }).catch(() => null);

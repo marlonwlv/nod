@@ -138,15 +138,20 @@ describe("fila da conversa com a máquina do bot fora do ar (exceção do nod, C
   });
 
   // revisto em 2026-11-22 (lote B, desvio 6): a linha diz que a mensagem espera e leva o "Conectar uma IA".
-  it("máquina do bot conectada mas sem IA pronta: a mensagem espera, com o Conectar uma IA", () => {
+  it("máquina do bot conectada mas sem IA pronta (desvio 6, Paper B-6): o cartão no lugar da linha, com o Conectar uma IA", () => {
     const e = com("vm", [{ ...maquina("vm", "vm-sp", true), ias: { "claude-cli": "nao_autenticado" as const } }]);
-    expect(situacaoNaFila(mensagem("m2"), e)).toMatchObject({ texto: "Nenhuma IA pronta em vm-sp: a mensagem sai assim que uma conta entrar", resolver: { act: "secao-espaco", rotulo: "Conectar uma IA" } });
+    const s = situacaoNaFila(mensagem("m2"), e);
+    expect(s?.texto).toBe("Nenhuma IA conectada na vm-sp");
+    expect(s?.cartao).toContain('class="aviso-estado tom-info aviso-desvio desvio-sem_ia_pronta"');
+    expect(s?.cartao).toContain("A mensagem fica guardada e sai assim que uma conta entrar.");
+    expect(s?.cartao).toContain('data-act="secao-espaco"');
+    expect(s?.cartao).toContain("Conectar uma IA");
   });
 
   it("sem IA NESTE computador: a mesma linha, sem pedir terminal", () => {
     const e = { ...com("vm", [{ ...maquina("vm", "Windows da pessoa", true), ias: { "claude-cli": "ausente" as const } }]), estaMaquina: { id: "vm", nome: "Windows da pessoa", plataforma: "win32" as const } };
     const s = situacaoNaFila(mensagem("m2"), e);
-    expect(s?.texto).toBe("Nenhuma IA pronta em Windows da pessoa: a mensagem sai assim que uma conta entrar");
+    expect(s?.texto).toBe("Nenhuma IA conectada no Windows da pessoa");
     expect(s?.texto).not.toContain("nod-motor");
   });
 

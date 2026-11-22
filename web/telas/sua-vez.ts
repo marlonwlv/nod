@@ -1,4 +1,5 @@
 import { listaDasColunasParaSuaVez } from "./card-colunas.ts";
+import { oA } from "./desvio.ts";
 import { agruparIguais, renderPedidosIguais } from "./pedidos-iguais.ts";
 import { previaParaSuaVez } from "./card-importacao.ts";
 import { previaAssumirParaSuaVez } from "./card-assumir-quadro.ts";
@@ -990,16 +991,17 @@ const plural = (n: number, um: string, varios: string): string => `${n} ${n === 
  * segue sozinho. Rotina interrompida não se retoma (a próxima janela roda); conversa tem o seu Retomar.
  */
 export function fraseDoIncidente(i: SuaVezDto["incidentes"][number]): string {
-  // definido em 2026-10-09: a queda da VM do motor (ADR-090) nomeia a máquina; "Seu Mac" é só do Mac.
-  const quem = i.maquina ? `A máquina ${i.maquina}` : "Seu Mac";
+  // Revisto em 2026-11-22 (lote B, auditoria do desvio 12): toda máquina vai pelo nome, com o artigo dela ("O MacBook
+  // de teste", "A VM sp-01"; ADR-187: nunca "seu Mac" para o que não é); sem o nome (chave antiga), "Seu Mac".
+  const quem = i.maquina ? oA(i.maquina) : "Seu Mac";
   const quando = i.voltouEm === null ? `${quem} está sem contato desde ${hora(i.comecouEm)}.` : `${quem} ficou sem contato entre ${hora(i.comecouEm)} e ${hora(i.voltouEm)}.`;
-  const partes = [i.rotinas > 0 ? plural(i.rotinas, "execução de rotina", "execuções de rotina") : "", i.conversas > 0 ? plural(i.conversas, "resposta em conversa", "respostas em conversa") : ""].filter(Boolean);
-  if (partes.length === 0) return quando;
-  const verbo = i.rotinas + i.conversas === 1 ? "não concluiu" : "não concluíram";
-  const deQuem = i.agentes.length ? ` (${i.agentes.join(", ")})` : "";
-  // revisto em 2026-11-22 (lote B, desvio 12): a resposta da conversa volta sozinha, uma vez, quando a máquina voltar.
-  const segue = i.rotinas === 0 ? "; a resposta continua sozinha quando a máquina voltar" : i.conversas === 0 ? "; nada foi reenviado e as próximas seguem agendadas" : "; as rotinas seguem agendadas e a resposta continua sozinha quando a máquina voltar";
-  return `${quando} ${partes.join(" e ")} ${verbo}${deQuem}${segue}.`;
+  // A resposta de conversa não entra: a conversa já tem a linha do desvio 12 ("parou de responder… continua quando
+  // voltar"), um lugar só. O aviso fala das rotinas.
+  if (i.rotinas === 0) return quando;
+  const verbo = i.rotinas === 1 ? "não concluiu" : "não concluíram";
+  // Os nomes juntam os bots das rotinas e das conversas: com conversa no meio, ficam de fora para não errar quem.
+  const deQuem = i.agentes.length && i.conversas === 0 ? ` (${i.agentes.join(", ")})` : "";
+  return `${quando} ${plural(i.rotinas, "execução de rotina", "execuções de rotina")} ${verbo}${deQuem}; nada foi reenviado e as próximas seguem agendadas.`;
 }
 
 /**
@@ -1007,7 +1009,9 @@ export function fraseDoIncidente(i: SuaVezDto["incidentes"][number]): string {
  * decisões e em estilo neutro de STATUS (não o âmbar de "precisa de você"), com "Entendi".
  */
 export function renderIncidentes(estado: Estado): string {
+  // Lote B (desvio 12): a queda que só tirou respostas de conversa fica na conversa (a linha), não aqui.
   return (estado.suaVez?.incidentes ?? [])
+    .filter((i) => i.rotinas > 0)
     .map((i) => `<div class="aviso-sistema" role="status" data-incidente="${esc(i.id)}"><span class="av-ic" aria-hidden="true">◑</span><span class="av-txt">${esc(fraseDoIncidente(i))}</span>${botao("dispensar-incidente", "Entendi", { classe: "link sm", id: i.id })}</div>`)
     .join("");
 }

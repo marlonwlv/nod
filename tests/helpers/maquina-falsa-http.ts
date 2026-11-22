@@ -46,7 +46,7 @@ export function contaFalsa(n: number, ia: "claude-cli" | "codex-cli", apelido: s
   return { impressao: impressao(n), ia, estado: "pronta", plano: ia === "claude-cli" ? "Max" : "Plus", corporativa: false, logadaEm: Date.now() - 60_000, apelidoSugerido: apelido, ...extra };
 }
 
-export async function maquinaFalsa(srv: ServidorCompleto, o: { nome: string; plataforma?: PlataformaMaquina; harnesses: Partial<Record<IdHarness, Inventario>>; contas?: ContaAnunciada[]; versaoApp?: string }): Promise<MaquinaFalsa> {
+export async function maquinaFalsa(srv: ServidorCompleto, o: { nome: string; plataforma?: PlataformaMaquina; harnesses: Partial<Record<IdHarness, Inventario>>; contas?: ContaAnunciada[]; versaoApp?: string; atualizaIas?: boolean }): Promise<MaquinaFalsa> {
   const { chave, dados } = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: o.nome });
   let harnesses = o.harnesses;
   let contas = o.contas;
@@ -64,6 +64,8 @@ export async function maquinaFalsa(srv: ServidorCompleto, o: { nome: string; pla
     harnesses,
     sobreviveReinicio: true,
     ...(contas ? { contas } : {}),
+    // A máquina que recebe o pedido de atualizar (reinstalar) a cópia da IA pela tela (NOD-9; o desvio 9 do lote B).
+    ...(o.atualizaIas ? { atualizaIas: true } : {}),
   });
   const conectou = await pedir("conectar", anuncio());
   if (conectou.status !== 200) throw new Error(`maquinaFalsa ${o.nome}: conectar → ${conectou.status} ${await conectou.text()}`);

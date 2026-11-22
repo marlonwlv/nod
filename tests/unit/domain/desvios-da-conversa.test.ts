@@ -135,6 +135,17 @@ describe("as frases (regra 7): sem termos internos, com a conta e a máquina cer
     expect(linhaDaRecuperacao("instavel", "mesma_conta", { bot: "Dino", ia: IA_SEM_NOME }, { agora: AGORA, esperaMs: 30_000, tentativa: 1 }).texto).toBe("A sua IA está instável. Tentando de novo em 30 s (1 de 3).");
     expect(linhaDaRecuperacao("erro_desconhecido", "mesma_conta", { bot: "Dino", ia: IA_SEM_NOME }, { agora: AGORA }).texto).toBe("A conta da sua IA parou com um erro. Tentando de novo uma vez.");
   });
+  it("9 · a IA não abriu: 'Reinstalar e tentar' (a máquina e a IA do turno) e a outra máquina como segunda saída", () => {
+    const c = cartaoDoDesvio("ia_nao_abriu", { bot: "Dino", ia: "Claude", maquina: "MacBook do escritório", outraMaquina: { id: "m2", nome: "VM do nod" } }, { agora: AGORA, turnoId: "t1", maquinaId: "m1", ia: "claude-cli" });
+    expect(c.titulo).toBe("O Claude não abriu no MacBook do escritório");
+    expect(c.texto).toBe("O nod reinstala a cópia dele e tenta de novo. Se preferir, roda em outra máquina agora.");
+    expect(c.botoes).toEqual([
+      { acao: "reinstalar_e_tentar", rotulo: "Reinstalar e tentar", dados: { turnoId: "t1", maquinaId: "m1", ia: "claude-cli" } },
+      expect.objectContaining({ acao: "rodar_em_outra_maquina", rotulo: "Rodar na VM do nod" }),
+    ]);
+    // Sem a IA do turno (o Automático antes do plano), não há o que reinstalar: fica o caminho de antes.
+    expect(cartaoDoDesvio("ia_nao_abriu", { bot: "Dino", ia: "Claude", maquina: "MacBook do escritório" }, { agora: AGORA, turnoId: "t1", maquinaId: "m1", ia: "auto" }).botoes).toEqual([]);
+  });
   it("4 · sem a hora do fornecedor: 'volta sem hora', nunca uma hora inventada", () => {
     const c = cartaoDoDesvio("limite", { bot: "Dino", ia: "ChatGPT", conta: "ChatGPT · Pessoal" }, { agora: AGORA, ate: null, turnoId: "t1" });
     expect(c.titulo).toBe("A ChatGPT · Pessoal chegou ao limite · volta sem hora");

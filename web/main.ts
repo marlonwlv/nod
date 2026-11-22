@@ -6298,8 +6298,9 @@ function falaDoTurnoNaFila(turnoId: string): { conversaId: string; mensagemId: s
 
 const seletorDaLinha = (act: string, turnoId: string): string => `.fila-linha [data-act="${act}"][data-id="${CSS.escape(turnoId)}"]`;
 
-function cancelarDaFila(turnoId: string): void {
-  const fala = falaDoTurnoNaFila(turnoId);
+function cancelarDaFila(turnoId: string, doCartao: { conversaId: string; mensagemId: string } | null = null): void {
+  // Lote B: o Cancelar do cartão do desvio tira a cópia que espera (fora da fila da tela, ADR-086); o botão diz a fala.
+  const fala = falaDoTurnoNaFila(turnoId) ?? doCartao;
   const a = api;
   if (!turnoId || !fala || !a) return;
   const origem = document.activeElement ?? document.body;
@@ -9346,7 +9347,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // definido em 2026-09-24 (ADR-045): "Entendi" no aviso de queda do Mac.
   // Cancelar só a mensagem na fila (revisto em 2026-11-16, web/lib/cancelar-na-fila.ts): o POST sai na hora do clique
   // (a absorção acontece no próximo passo do bot, e os 5 s locais de antes perdiam a corrida); o Desfazer vem depois do OK.
-  "cancelar-turno": (el) => cancelarDaFila(el.dataset.id ?? ""),
+  "cancelar-turno": (el) => cancelarDaFila(el.dataset.id ?? "", el.dataset.conversa && el.dataset.mensagem ? { conversaId: el.dataset.conversa, mensagemId: el.dataset.mensagem } : null),
   "desfazer-cancelamento": (el) => desfazerDaFila(el.dataset.id ?? ""),
   // Parte 1 do plano "o pensamento no chat": a fala pendente que falhou.
   "reenviar-pendente": (el) => reenviarPendente(el.dataset.conversa ?? "", el.dataset.id ?? ""),
@@ -9886,6 +9887,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "responder-com-outra-ia": (el) => agir(async () => {
     const conversaId = el.dataset.conversa ?? "";
     const r = await api!.responderComOutraIa(conversaId, el.dataset.turno ?? "", el.dataset.ia ?? "");
+    avisarMotivoDaNota(r?.data?.motivo);
+    dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
+  }),
+  "reinstalar-e-tentar": (el) => agir(async () => {
+    const conversaId = el.dataset.conversa ?? "";
+    const r = await api!.reinstalarETentar(conversaId, el.dataset.turno ?? "", el.dataset.maquina ?? "", el.dataset.ia ?? "");
     avisarMotivoDaNota(r?.data?.motivo);
     dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
   }),

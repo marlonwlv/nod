@@ -1037,6 +1037,11 @@ export function comporApp(o: OpcoesCompor): App {
       repetirBarrados: (escopo: Escopo, prontos: readonly IdHarness[]) => dentro(escopo, async (d) => {
         const r = await repetirBarradosPorIa(d, { executor: "local", prontos });
         if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+        // Lote B (desvio 9): a fala do "Reinstalar e tentar" sai quando a IA reinstalada volta pronta.
+        for (const ia of prontos) {
+          const acordadas = await d.repos.turnos.anteciparReinstaladas(ia);
+          if (acordadas.length > 0) log("info", "fala_reinstalada_antecipada", { ia, turnos: acordadas.length });
+        }
       }),
     } : {}),
     concluirItemLocal: (escopo, itemId, desfecho) => dentro(escopo, async (d) => {

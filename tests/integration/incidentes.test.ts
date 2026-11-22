@@ -121,12 +121,14 @@ describeIntegracao("incidentes (ADR-045): um aviso por queda do Mac, nunca um ca
     for (const plataforma of ["darwin", null, "sem chave"] as const) {
       await withRollback(MARLON, async (trx) => {
         const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Taga" });
-        const maquina = plataforma === "sem chave" ? randomUUID() : await chave(repos, "MacBook de Marlon", plataforma);
+        const maquina = plataforma === "sem chave" ? randomUUID() : await chave(repos, "MacBook do escritório", plataforma);
         const agora = T0 + 2 * H;
         await interromperPorMaquina({ repos, escopo: MARLON, agora: () => agora }, { turnos: [await turnoRodando(trx, agenteId, conversaId, maquina, T0)] });
         expect(await aviso(repos, conversaId), String(plataforma)).toContain("Turno interrompido: seu Mac parou de responder (repouso, sem rede ou nod fechado).");
         const { data } = await listarSuaVez({ repos, escopo: MARLON, agora: () => agora, tx: (fn) => fn(trx) }, { marcarVista: false });
-        expect(data.incidentes[0], String(plataforma)).not.toHaveProperty("maquina");
+        // Revisto em 2026-11-22 (lote B, desvio 12): a máquina com chave vai pelo nome; sem chave, o aviso diz "Seu Mac".
+        if (plataforma === "sem chave") expect(data.incidentes[0], String(plataforma)).not.toHaveProperty("maquina");
+        else expect(data.incidentes[0], String(plataforma)).toMatchObject({ maquina: "MacBook do escritório" });
       });
     }
   });

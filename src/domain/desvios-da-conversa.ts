@@ -194,12 +194,14 @@ function duracao(ms: number): string {
  * O cartão de quando o nod parou: o motivo, o que acontece com a mensagem e os botões (Paper, coluna "Depois"). `ate` é a
  * hora em que a espera acaba sozinha (o limite volta), quando se sabe.
  */
-export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: number; ate?: number | null; turnoId?: string; turnoEsperandoId?: string | null; contaId?: string | null; maquinaId?: string | null; ia?: string | null; outraIaId?: string | null; relatado?: boolean; erro?: string | null }): PayloadDesvio {
+export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: number; ate?: number | null; turnoId?: string; turnoEsperandoId?: string | null; mensagemId?: string | null; contaId?: string | null; maquinaId?: string | null; ia?: string | null; outraIaId?: string | null; relatado?: boolean; erro?: string | null }): PayloadDesvio {
   const conta = n.conta ?? `conta ${doIa(n.ia)}`;
   const onde = n.maquina ? ` ${noNa(n.maquina)}` : "";
   const aMaquina = n.maquina ? oA(n.maquina) : "O computador do bot";
   // O Cancelar tira da fila a cópia que espera (não o turno que parou).
-  const cancelar: BotaoDoDesvio[] = o.turnoEsperandoId ? [{ acao: "cancelar", rotulo: "Cancelar", dados: { turnoId: o.turnoEsperandoId } }] : [];
+  // A mensagem da pessoa vai junto: a cópia que espera (acordar_em adiante) não está na fila da tela (ADR-086), e o Cancelar
+  // precisa saber de qual fala ela é para mostrar "Cancelada" embaixo do balão.
+  const cancelar: BotaoDoDesvio[] = o.turnoEsperandoId ? [{ acao: "cancelar", rotulo: "Cancelar", dados: { turnoId: o.turnoEsperandoId, ...(o.mensagemId ? { mensagemId: o.mensagemId } : {}) } }] : [];
   const verErro: BotaoDoDesvio[] = [{ acao: "ver_erro", rotulo: "Ver o erro" }];
   const erro = o.erro ? { erro: o.erro.slice(0, ERRO_NO_CARTAO_MAX) } : {};
   const outraMaquina: BotaoDoDesvio[] = n.outraMaquina && o.turnoId ? [{ acao: "rodar_em_outra_maquina", rotulo: `Rodar ${noNa(n.outraMaquina.nome)} desta vez`, dados: { turnoId: o.turnoId, maquinaId: n.outraMaquina.id, maquinaNome: n.outraMaquina.nome } }] : [];
@@ -214,27 +216,36 @@ export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: n
     case "sessao_sumiu":
       return c(`${n.bot} não conseguiu recomeçar`, `A sessão anterior não estava mais${onde} e a nova tentativa também parou`, [...outraIa, ...outraMaquina, ...verErro]);
     case "login_vencido":
-      return c(`O login da ${conta} venceu${onde}`, `Entre de novo e a mensagem sai em seguida`, [{ acao: "entrar_de_novo", rotulo: "Entrar de novo", dados: { ...(o.contaId ? { contaId: o.contaId } : {}), ...(o.maquinaId ? { maquinaId: o.maquinaId } : {}), ...(o.ia ? { ia: o.ia } : {}), ...(n.conta ? { apelido: n.conta.replace(/^.* · /, "") } : {}) } }, ...outraMaquina, ...cancelar], { espera: { ate: null }, tom: "espera" });
+      return c(`O login da ${conta} venceu${onde}`, `Entre de novo e a mensagem sai em seguida`, [{ acao: "entrar_de_novo", rotulo: "Entrar de novo", dados: { ...(o.contaId ? { contaId: o.contaId } : {}), ...(o.maquinaId ? { maquinaId: o.maquinaId } : {}), ...(o.ia ? { ia: o.ia } : {}), ...(n.conta ? { apelido: n.conta.replace(/^.* · /, "") } : {}) } }, ...outraMaquina, ...cancelar], { espera: { ate: null } });
     case "limite_bot_fixo":
       return c(quando ? `Esperando ${oIa(n.ia)} voltar, ${quando.replace(/^às /, "")}` : `Esperando ${oIa(n.ia)} voltar · volta sem hora`, `${n.bot} só usa ${oIa(n.ia)}. A mensagem sai sozinha quando o limite passar`, [...outraIa, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
     case "limite":
-      return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `${oIa(n.ia, true)} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele voltar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
+      return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `${oIa(n.ia, true)} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele voltar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null } });
     case "instavel":
       return c(`${oIa(n.ia, true)} continua instável`, n.outraIa ? `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes. ${n.bot} só usa ${oIa(n.ia)}, mas o ${n.outraIa} está pronto para responder desta vez` : `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes e não há outra IA pronta agora`, [...outraIa, ...outraMaquina, ...verErro]);
     case "sem_ia_pronta":
-      return c(`Nenhuma IA conectada${onde}`, "A mensagem fica guardada e sai assim que uma conta entrar", [{ acao: "conectar_ia", rotulo: "Conectar uma IA" }, ...outraMaquina], { espera: { ate: null }, tom: "espera" });
+      return c(`Nenhuma IA conectada${onde}`, "A mensagem fica guardada e sai assim que uma conta entrar", [{ acao: "conectar_ia", rotulo: "Conectar uma IA" }, ...outraMaquina], { espera: { ate: null } });
     case "computador_fora":
       return c(`${aMaquina} está fora do ar`, `A mensagem sai quando ${ehFeminina(n.maquina ?? "") ? "ela" : "ele"} voltar${n.outraMaquina ? `. ${oA(n.outraMaquina.nome)} tem IA pronta agora` : ""}`, outraMaquina, { espera: { ate: null }, tom: "espera" });
     case "sem_acesso":
-      return c(n.organizacao ? `A ${n.organizacao} desligou ${oIa(n.ia)} por assinatura` : `A ${conta} está sem acesso`, `Era a única conta de ${n.bot}. Conecte outra e a mensagem sai em seguida`, [{ acao: "conectar_ia", rotulo: "Conectar outra conta" }, ...outraIa], { espera: { ate: null }, tom: "espera" });
-    case "ia_nao_abriu":
-      return c(`${oIa(n.ia, true)} não abriu${onde}`, n.outraMaquina ? "Rode em outra máquina agora, ou reinicie o nod deste computador e mande de novo" : "Reinicie o nod deste computador e mande de novo", outraMaquina);
+      return c(n.organizacao ? `A ${n.organizacao} desligou ${oIa(n.ia)} por assinatura` : `A ${conta} está sem acesso`, `Era a única conta de ${n.bot}. Conecte outra e a mensagem sai em seguida`, [{ acao: "conectar_ia", rotulo: "Conectar outra conta" }, ...outraIa], { espera: { ate: null } });
+    case "ia_nao_abriu": {
+      // Paper B-9 (auditoria de 2026-11-22: "faltou um botão"): o nod reinstala a cópia da IA naquela máquina e a mensagem
+      // sai quando ela abrir; a outra máquina, quando houver, é a segunda saída.
+      const reinstalar: BotaoDoDesvio[] = o.turnoId && o.maquinaId && (o.ia === "claude-cli" || o.ia === "codex-cli")
+        ? [{ acao: "reinstalar_e_tentar", rotulo: "Reinstalar e tentar", dados: { turnoId: o.turnoId, maquinaId: o.maquinaId, ia: o.ia } }]
+        : [];
+      const texto = reinstalar.length
+        ? (n.outraMaquina ? "O nod reinstala a cópia dele e tenta de novo. Se preferir, roda em outra máquina agora" : "O nod reinstala a cópia dele e tenta de novo")
+        : (n.outraMaquina ? "Rode em outra máquina agora, ou reinicie o nod deste computador e mande de novo" : "Reinicie o nod deste computador e mande de novo");
+      return c(`${oIa(n.ia, true)} não abriu${onde}`, texto, [...reinstalar, ...outraMaquina.map((b) => ({ ...b, rotulo: `Rodar ${noNa(n.outraMaquina!.nome)}` }))]);
+    }
     case "erro_desconhecido":
       return c(`A ${conta} parou duas vezes com o mesmo erro`, `Já tentei de novo uma vez.${o.relatado ? " O relato foi para o time do nod com o erro anexado" : ""}`, [...outraIa, ...outraMaquina, ...verErro]);
     case "nod_atualizou":
       return c("O nod atualizou e não conseguiu retomar", "A resposta parou no meio. Peça de novo para continuar de onde parou", outraMaquina);
     case "computador_dormiu":
-      return c(`${aMaquina} parou de responder`, `A resposta continua quando ${ehFeminina(n.maquina ?? "") ? "ela" : "ele"} voltar`, outraMaquina, { espera: { ate: null }, tom: "espera" });
+      return c(`${aMaquina} parou de responder`, `A resposta continua quando ${ehFeminina(n.maquina ?? "") ? "ela" : "ele"} voltar`, outraMaquina, { espera: { ate: null } });
   }
 }
 

@@ -24,6 +24,8 @@ export type TelaDaConversa = {
   print(arquivo: string): Promise<void>;
   /** Avalia uma expressão na página (clique de botão do cartão, leitura do DOM). */
   avaliar<T>(expressao: string): Promise<T>;
+  /** Espera a expressão dar true (o destino de um clique); falha com o texto visível da página. */
+  esperar(expressao: string, prazoMs?: number): Promise<void>;
   fechar(): Promise<void>;
 };
 
@@ -78,6 +80,11 @@ export async function telaDaConversa(o: { url: string; cookie: string }): Promis
       writeFileSync(arquivo, Buffer.from(data, "base64"));
     },
     avaliar: (e) => avaliar(cdp, e),
+    async esperar(expressao, prazoMs = 10_000) {
+      if (await esperarAte(expressao, prazoMs)) { await espera(400); return; }
+      const texto = await avaliar<string>(cdp, "document.body.innerText");
+      throw new Error(`telaDaConversa: a tela não mostrou o esperado (${expressao}). Viu:\n${texto.slice(-1500)}${excecoes.length ? `\nExceções da página:\n${excecoes.slice(-3).join("\n")}` : ""}`);
+    },
     async fechar() {
       cdp.fechar();
       await espera(100);

@@ -18,5 +18,6 @@ export const ACOES_CONTAS_IA = [
   // Lote B das Jornadas da IA (2026-11-22): o botão do cartão de desvio. Pelo chat não: quem parou foi a IA da conversa —
   // a pessoa escolhe a IA no seletor do campo e manda de novo.
   { id: "contas_ia.responder_com_outra_ia", titulo: "Responder com a outra IA desta vez", risco: "muda", cartaoNoChat: false, chat: { estado: "nunca", motivo: "a IA da conversa parou: o caminho é o botão do cartão ou o seletor de IA do campo" } },
+  { id: "contas_ia.reinstalar_e_tentar", titulo: "Reinstalar a IA e tentar de novo", risco: "muda", cartaoNoChat: false, chat: { estado: "nunca", motivo: "a IA não abriu na máquina: o caminho é o botão do cartão, ou Provedores de IA › Atualizar" } },
   { id: "contas_ia.trocar_executor", titulo: "Trocar a IA deste Mac (modo local)", risco: "muda", cartaoNoChat: false, chat: falta },
 ] as const satisfies readonly DefinicaoAcao[];
