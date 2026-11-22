@@ -126,6 +126,11 @@ export type VistaNavegador = {
   erro: { causa: string; em: number } | null;
   /** Tamanho da tela do Chrome (a vista mantém a proporção). */
   viewport: { w: number; h: number };
+  /**
+   * Controle assumido à mão e parado (2026-11-22): quando ele volta sozinho ao bot. Aparece no último minuto; a pílula diz
+   * "Volta para a Ada em 1 min". null/ausente = não está para voltar.
+   */
+  devolveEm?: number | null;
 };
 
 /**

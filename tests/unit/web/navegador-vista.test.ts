@@ -49,6 +49,9 @@ describe("a pílula (D1b A, D4, A1)", () => {
     expect(htmlPilula("Nina", "precisa", ajuda)).not.toContain("Assumir o controle");
     expect(avisoDoPedido(vista({ controle: "pessoa", pedido: ajuda }))).toMatchObject({ tipo: "precisa_de_voce", texto: "Resolver o CAPTCHA" });
     expect(estadoDaAbaDeLugar(vista({ controle: "pessoa", pedido: ajuda }))).toBe("precisa");
+    // 2026-11-22: parada 4 min no controle, a pílula avisa que volta sozinho.
+    expect(htmlPilula("Ada", "controle", null, null, Date.now() + 60_000)).toContain("Volta à Ada em 1 min");
+    expect(htmlPilula("Ada", "controle")).toContain("Você está no controle");
     expect(htmlLinhaDoNavegador("Nina", "a1", vista({ controle: "pessoa", pedido: ajuda }), { modoAbas: false })).toContain("precisa de você");
     expect(legendaDoPasso("Nina", vista({ controle: "pessoa", pedido: ajuda }), "aba")).toBe("Navegador da Nina · precisa de você");
     // D4 (Paper): com o artigo, como a pessoa fala.

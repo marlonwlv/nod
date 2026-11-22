@@ -168,6 +168,22 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
       servidor não conhece o nome de marca ("na TAP").
     - **Nova tarefa:** ⌃N no navegador, ⌘N no app do Mac (o ⌘N do navegador abre janela; web/lib/atalhos.ts).
 
+### Revisão de 2026-11-22: o controle assumido à mão (teste do dono)
+
+Teste do IMDb: a pessoa assumiu o navegador, depois pediu outra tarefa, e a Ada ficou presa. A ferramenta respondeu "a
+pessoa está com o navegador (ou ele espera um passo dela)", a Ada leu isso como "provavelmente uma verificação do
+site", e devolver não retomou nada porque não havia pedido aberto. Comparado com o OpenBot (a chamada espera a aba ser
+devolvida e continua) e o OpenMausBot (recusa clara; o controle volta sozinho depois de minutos sem a pessoa mexer):
+
+- **Mensagem nova devolve.** O turno da conversa criado depois de a pessoa assumir recebe o navegador, como a mensagem
+  nova já dispensa o pedido de login e de ajuda (ADR-191). A retomada de um turno antigo não tira o navegador dela.
+- **Devolver retoma.** O turno que esbarrou no navegador com a pessoa fica guardado; devolver (ou a volta sozinha)
+  o continua pela retomada de sempre (`retomarAposDevolverNavegador` → `enfileirarRetomada`).
+- **Volta sozinho em 5 min parado** (`DEVOLVE_SOZINHO_MS`), com a pílula dizendo "Volta à Ada em 1 min" no último
+  minuto. Não vale com pedido aberto (o bot espera a pessoa) nem gravando uma tarefa.
+- **Frase clara**, sem proibir outro caminho (decisão do dono: ler por fora não faz mal): "A pessoa assumiu o controle
+  do navegador… quando ela devolver, você é retomada e continua daqui." O pedido aberto tem a sua própria frase.
+
 ## Gatilhos de reversão
 
 - O agent-browser não aguenta (quadro ao vivo pior que 5 por segundo no Mac, ou queda de sessão mais de uma vez por

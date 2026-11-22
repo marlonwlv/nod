@@ -30,6 +30,7 @@ import { ehFalhaNavegador, FalhaNavegador, type AbaMotor, type MotorNavegador, t
 import type { MacDaPessoa } from "../navegador/mac-da-pessoa.ts";
 import { inserirCodigo, preencherLogin } from "../navegador/preencher-login.ts";
 import { turnoPermitido } from "./computadores.ts";
+import { retomarAposDevolverNavegador } from "../../use-cases/retomar-apos-devolver.ts";
 
 /**
  * O portão do navegador do bot (ADR-190), no molde de `computadores.chamar`: catálogo, validade do plano, parada,
@@ -79,6 +80,8 @@ export type OpcoesNavegadores = {
   executor?: () => Executor;
   /** Costura de teste: fecha o pedido aberto com a frase e retoma o turno (padrão: fecharComResposta + retomarComResposta). */
   retomarPedido?: (escopo: Escopo, decisaoId: string, texto: string) => Promise<void>;
+  /** Costura de teste: retoma o turno que esbarrou no navegador com a pessoa (padrão: retomarAposDevolverNavegador). */
+  retomarDevolvido?: (escopo: Escopo, turnoId: string, automatico: boolean) => Promise<void>;
   /** Costura de teste: a mensagem da pessoa com o arquivo anexado (padrão: anexo + enviarMensagem na conversa do bot). */
   mandarMensagem?: (d: Deps, p: MensagemDaPessoa) => Promise<void>;
   /** Costuras de teste: os casos de uso que criam a decisão (padrão: os reais; login e código usam o pedido de ajuda). */
@@ -137,6 +140,13 @@ type Estado = {
   ultimoPasso: PassoNavegador | null;
   /** A URL em que o nod já entregou um CAPTCHA à pessoa: se ela devolve na mesma página, o bot segue (sem entregar de novo). */
   desafioEm: string | null;
+  /**
+   * O controle assumido à mão (2026-11-22): quando a pessoa assumiu, quando mexeu por último (o controle volta sozinho
+   * depois de DEVOLVE_SOZINHO_MS parado) e o turno do bot que esbarrou no navegador com ela (retomado quando volta).
+   */
+  assumidoEm: number | null;
+  entradaPessoaEm: number | null;
+  turnoEsperando: string | null;
 };
 
 /** L5: o usuário e a senha que a pessoa digitou (cada um cifrado), o campo em que ela está e a URL de quando começou. */
@@ -279,7 +289,17 @@ function tipoDoPasso(ferramenta: string): PassoNavegador["tipo"] {
 const abaDaVista = (a: { id: string; titulo: string; url: string; ativa: boolean }): AbaNavegador => ({ ...a, carregando: false, inseguro: a.url.startsWith("http:") });
 
 /** As instruções fixas que o bot lê. */
-const AGUARDANDO_PESSOA = { estado: "aguardando_pessoa", instrucao: "A pessoa está com o navegador (ou ele espera um passo dela). Nada foi executado. Encerre o turno e aguarde; ela devolve e você continua." };
+const AGUARDANDO_PESSOA = { estado: "aguardando_pessoa", instrucao: "O navegador espera a pessoa resolver o pedido que você fez a ela (login, ajuda ou aprovação). Nada foi executado. Encerre o turno e aguarde; quando ela resolver, você continua." };
+/**
+ * A pessoa assumiu o navegador à mão (revisto em 2026-11-22, teste do dono): a frase dupla de antes ("está com o navegador
+ * (ou ele espera um passo dela)") fez a Ada dizer "provavelmente uma verificação do site". Agora diz o que aconteceu e o
+ * que vem depois; adiantar o resto por outro caminho segue permitido (decisão do dono: ler por fora não faz mal).
+ */
+const PESSOA_NO_CONTROLE = { estado: "pessoa_no_controle", instrucao: "A pessoa assumiu o controle do navegador. Nada foi executado nele. Adiante o que não depende do navegador, se houver, e termine o turno dizendo em uma frase o que falta fazer nele. Quando ela devolver (ou depois de alguns minutos sem ela mexer), você é retomada automaticamente e continua daqui." };
+/** O controle assumido à mão volta sozinho ao bot depois deste tempo sem a pessoa mexer (como o OpenMausBot, no modo "manter"). */
+export const DEVOLVE_SOZINHO_MS = 5 * 60_000;
+/** A pílula avisa ("volta para a Ada em 1 min") este tempo antes. */
+export const AVISO_DEVOLVE_MS = 60_000;
 const NA_FILA = { estado: "na_fila", instrucao: "Os navegadores do nod estão todos em uso agora. Nada foi executado. Siga com o que dá sem o navegador e tente de novo em 30 s; não diga que o navegador quebrou." };
 const SEGREDO_NA_PAGINA = { erro: "segredo_na_pagina", instrucao: "A página tem uma senha ou código que o nod preencheu; a leitura e o print ficam travados até a página mudar. Clique no botão de entrar (ou espere a página seguinte) e leia de novo." };
 /**
@@ -381,7 +401,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
       abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null, ultimoTexto: null,
-      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null,
+      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null, assumidoEm: null, entradaPessoaEm: null, turnoEsperando: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
@@ -425,6 +445,50 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     if (t.pedido !== alvo) void aplicarTamanho(est);
   }
 
+  /** A pessoa mexeu no navegador (clique, tecla, endereço, aba): o prazo para o controle voltar sozinho recomeça. */
+  function marcarEntrada(est: Estado): void {
+    if (est.vista.controle !== "pessoa") return;
+    est.entradaPessoaEm = agora();
+    if (est.vista.devolveEm) mudar(est, { devolveEm: null });
+  }
+
+  /** O controle assumido à mão volta ao bot; devolve o turno que esperava por ele (null = nenhum). */
+  function soltarDaPessoa(est: Estado): string | null {
+    const esperando = est.turnoEsperando;
+    est.assumidoEm = null;
+    est.entradaPessoaEm = null;
+    est.turnoEsperando = null;
+    mudar(est, { controle: "bot", pedido: null, devolveEm: null, atividadeEm: agora() });
+    return esperando;
+  }
+
+  async function retomarDevolvido(escopo: Escopo, turnoId: string, automatico: boolean): Promise<void> {
+    if (o.retomarDevolvido) return o.retomarDevolvido(escopo, turnoId, automatico);
+    await o.dentro(escopo, async (d) => {
+      const r = await retomarAposDevolverNavegador(d, { turnoId, automatico });
+      if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+    });
+  }
+
+  /**
+   * O controle assumido à mão volta sozinho (2026-11-22): um minuto antes a pílula avisa; depois de DEVOLVE_SOZINHO_MS sem
+   * a pessoa mexer, o bot recebe o navegador e o turno que esperava continua. Não vale com pedido aberto (login, ajuda:
+   * o bot espera ela) nem gravando uma tarefa (ensinar).
+   */
+  async function devolverParados(): Promise<void> {
+    const t = agora();
+    for (const est of estados.values()) {
+      if (est.vista.controle !== "pessoa" || est.vista.pedido || est.gravacao || est.entradaPessoaEm === null) continue;
+      const parada = t - est.entradaPessoaEm;
+      if (parada >= DEVOLVE_SOZINHO_MS) {
+        const esperando = soltarDaPessoa(est);
+        if (esperando) await retomarDevolvido(est.escopo, esperando, true).catch((e: unknown) => log("aviso", "navegador_retomada_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }));
+      } else if (parada >= DEVOLVE_SOZINHO_MS - AVISO_DEVOLVE_MS && !est.vista.devolveEm) {
+        mudar(est, { devolveEm: est.entradaPessoaEm + DEVOLVE_SOZINHO_MS });
+      }
+    }
+  }
+
   /**
    * D3, 5 e N4: o turno que mexeu por último acabou (concluído ou interrompido) e o bot não mexe mais — a vista vai a
    * "terminou" com o último passo ("Baixou 14 notas fiscais"), que a linha de atividade mostra com o ✓, a hora e o lugar.
@@ -442,6 +506,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
 
   /** Fecha os Chromes parados há 10 min (D0): a vista fica "em pausa" e o perfil guarda os logins. */
   async function pausarOciosos(): Promise<number> {
+    await devolverParados();
     await marcarTerminados();
     let pausados = 0;
     for (const est of estados.values()) {
@@ -1132,7 +1197,20 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         const agente = await d.repos.agentes.buscar(plano.agenteId);
         if (agente?.soLeitura === true && !PERMITIDAS_EM_SO_LEITURA.has(ferramenta)) return negar("capacidade_desligada");
         if (await pedidoResolvido(d, est)) mudar(est, { controle: "bot", pedido: null });
-        if (!botPodeAgir(est.vista.controle)) return { ok: true, conteudo: JSON.stringify(AGUARDANDO_PESSOA), confianca: "confiavel" };
+        // 2026-11-22 (teste do dono): a mensagem nova da pessoa, mandada depois de ela assumir à mão, devolve o navegador —
+        // como a mensagem nova já dispensa o pedido de login e de ajuda (ADR-191). Só o turno da conversa (a mensagem dela);
+        // a retomada de um turno antigo não tira o navegador da mão dela.
+        if (est.vista.controle === "pessoa" && !est.vista.pedido && !est.gravacao && est.assumidoEm !== null) {
+          const turno = await d.repos.turnos.buscar(plano.turnoId);
+          if (turno?.origem === "conversa" && turno.criadoEm > est.assumidoEm) soltarDaPessoa(est);
+        }
+        if (!botPodeAgir(est.vista.controle)) {
+          if (est.vista.controle === "pessoa" && !est.vista.pedido) {
+            est.turnoEsperando = plano.turnoId;
+            return { ok: true, conteudo: JSON.stringify(PESSOA_NO_CONTROLE), confianca: "confiavel" };
+          }
+          return { ok: true, conteudo: JSON.stringify(AGUARDANDO_PESSOA), confianca: "confiavel" };
+        }
         // L1: o cartão de login monta as opções fora da transação (o Mac pode levar uns segundos para listar o cofre).
         if (ferramenta === "navegador_entrar") return { entrar: { est, site: String(args.site).slice(0, 300), motivo: String(args.motivo).slice(0, 300) } };
         if (ferramenta === "navegador_pedir_ajuda") {
@@ -1287,6 +1365,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (!proximoControle(est.vista.controle, "assumir")) throw new ErroDeDominio("estado_invalido", { cause: "ja_com_voce" });
         // Prova real (2026-11-20): assumir depois de o bot terminar deixava a vista em "terminou", e a pessoa mexia na
         // página com o quadro esmaecido (opacidade .55). Com ela no controle a imagem é ao vivo.
+        est.assumidoEm = agora();
+        est.entradaPessoaEm = agora();
         mudar(est, { controle: "pessoa", atividadeEm: agora(), ...(est.vista.estado === "terminou" ? { estado: "ao_vivo" as const } : {}) });
         return est.vista;
       }
@@ -1301,8 +1381,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           });
           if (aberta) { mudar(est, { controle: "precisa_de_voce", atividadeEm: agora() }); return est.vista; }
         }
-        mudar(est, { controle: "bot", pedido: null, atividadeEm: agora() });
+        const esperando = soltarDaPessoa(est);
         if (pedido && pedido.tipo !== "aprovacao") await (o.retomarPedido ?? retomarDoPedido)(escopo, pedido.decisaoId, RETOMADA[op]);
+        else if (!pedido && esperando) await retomarDevolvido(escopo, esperando, false);
         return est.vista;
       }
       if (op === "ligar" || op === "retomar") {
@@ -1317,12 +1398,14 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         est.refs = null; est.refsPorTamanho = false;
         est.abasGuardadas = [];
         await motorDe(est)?.fechar(sessao(agenteId));
-        mudar(est, { estado: "desligado", passo: null, abas: [], controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
+        est.assumidoEm = null; est.entradaPessoaEm = null; est.turnoEsperando = null;
+        mudar(est, { estado: "desligado", passo: null, abas: [], devolveEm: null, controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
         return est.vista;
       }
       // Recarregar vale assistindo (D1c: "Recarregar e copiar funcionam assistindo, sem assumir"); voltar é da barra no
       // controle (D2 B). A leitura do bot cai nos dois: a referência velha ouve "leia de novo".
       const motor = op === "recarregar" ? exigirVivo(est) : exigirPessoa(est);
+      marcarEntrada(est);
       await motor.historico(sessao(agenteId), op === "voltar" ? "voltar" : "recarregar").catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
       est.refs = null; est.refsPorTamanho = false;
       return est.vista;
@@ -1333,6 +1416,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const est = estadoDe(escopo, agenteId);
       if (!enderecoPermitido(url)) throw new ErroDeDominio("entrada_invalida", { cause: "endereco_recusado" });
       const motor = exigirPessoa(est);
+      marcarEntrada(est);
       await motor.abrir(sessao(agenteId), url).catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
       await atualizarAbasDe(est, motor);
       mudar(est, { atividadeEm: agora() });
@@ -1344,6 +1428,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const est = estadoDe(escopo, agenteId);
       if (!TAB_ID.test(aba)) throw new ErroDeDominio("entrada_invalida", { cause: "aba" });
       const motor = exigirPessoa(est);
+      marcarEntrada(est);
       const abas = await motor.abas(sessao(agenteId));
       if (!abas.some((a) => a.id === aba)) throw new ErroDeDominio("nao_encontrado", { cause: "aba" });
       await motor.abaTrocar(sessao(agenteId), aba);
@@ -1548,6 +1633,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     async antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void> {
       const est = estados.get(agenteId);
       if (!est || est.vista.controle !== "pessoa" || est.escopo.pessoaId !== escopo.pessoaId) return;
+      marcarEntrada(est);
       const captura = capturaViva(est);
       const capturando = captura !== null && !captura.ofertada ? captura : null;
       if (!est.gravacao && !capturando) return;

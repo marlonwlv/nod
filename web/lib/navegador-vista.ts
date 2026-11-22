@@ -107,7 +107,7 @@ export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "ap
  * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito). Na
  * aprovação (A1) o "sim" é preto como o botão do cartão e, sem o app do Mac, o aviso curto do cartão vai embaixo.
  */
-export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null): string {
+export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null, devolveEm: number | null = null): string {
   const nomeE = esc(nome);
   // D4 (Paper): "A Ada espera você entrar", "A Ada está terminando um clique…", "A Ada espera · ⌘⇧A devolve".
   const quem = esc(fraseMaiuscula(comArtigo(nome)));
@@ -115,7 +115,8 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
   let corpo: string;
   switch (estado) {
     case "controle":
-      corpo = `<span class="ctc-estado">${CURSOR_NA_JANELA}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${quem} espera · ⌘⇧A devolve">Devolver ${esc(aoNome(nome))}</button>`;
+      // 2026-11-22: parado há 4 min, o controle está para voltar sozinho (DEVOLVE_SOZINHO_MS no servidor).
+      corpo = `<span class="ctc-estado"${devolveEm ? ' role="status"' : ""}>${CURSOR_NA_JANELA}<span>${devolveEm ? `Volta ${esc(aoNome(nome))} em 1 min` : "Você está no controle"}</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${quem} espera · ⌘⇧A devolve">Devolver ${esc(aoNome(nome))}</button>`;
       break;
     case "assumindo":
       corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${quem} está terminando um clique…</span></span>${assumir(true)}`;

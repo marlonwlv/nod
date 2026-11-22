@@ -19,6 +19,9 @@ import { MARLON } from "../use-cases/deps-l5.ts";
 const A = "00000000-0000-4000-8000-00000000000a";
 const B = "00000000-0000-4000-8000-00000000000b";
 const T0 = 1_700_000_000_000;
+/** Origem e hora dos turnos que o teste precisa (o controle assumido à mão, 2026-11-22). */
+let turnosInfo: Map<string, { origem: string; criadoEm: number }> = new Map();
+let devolvidos: { turnoId: string; automatico: boolean }[] = [];
 
 let agora: number;
 let chamadas: { op: string; args: unknown[] }[];
@@ -72,7 +75,7 @@ const deps = () => ({
   repos: {
     trilha: { registrar: async (t: { kind: string; motivo?: string; ferramenta: string }) => { trilha.push(t); } },
     turnos: {
-      buscar: async (id: string) => ({ id, estado: concluidos.has(id) ? "concluido" : "executando", agenteId: id.endsWith("b") ? B : A, ownerId: MARLON.pessoaId, conversaId: "conversa-1", pararSolicitadoEm: null, motivoInterrupcao: null }),
+      buscar: async (id: string) => ({ ...turnosInfo.get(id), id, estado: concluidos.has(id) ? "concluido" : "executando", agenteId: id.endsWith("b") ? B : A, ownerId: MARLON.pessoaId, conversaId: "conversa-1", pararSolicitadoEm: null, motivoInterrupcao: null }),
       pedirInterrupcao: async () => {},
     },
     agentes: { buscar: async (id: string) => (id === A || id === B ? { id, ownerId: MARLON.pessoaId, modoAprovacao: modo, soLeitura } : null), execucaoBloqueada: async () => false },
@@ -94,6 +97,7 @@ function criar(o: Partial<OpcoesNavegadores> = {}) {
     motor: () => motor, cifrar: (s) => `c:${s}`, decifrar: (s) => s.slice(2), agora: () => agora, msDesafio: 0,
     aoMudar: (_e, v) => { vistas.push(v); },
     retomarPedido: async (_e, decisaoId, texto) => { retomadas.push({ decisaoId, texto }); },
+    retomarDevolvido: async (_e, turnoId, automatico) => { devolvidos.push({ turnoId, automatico }); },
     mandarMensagem: async (_d, m) => { mensagens.push(m); },
     pedirAprovacao: (async (_d: unknown, input: { itens: (typeof aprovacoes)[number]["itens"] }) => {
       aprovacoes.push({ itens: input.itens });
@@ -121,6 +125,8 @@ const corpo = (r: unknown) => JSON.parse((r as { conteudo: string }).conteudo) a
 
 beforeEach(() => {
   agora = T0;
+  turnosInfo = new Map();
+  devolvidos = [];
   chamadas = [];
   urlAgora = "https://loja.exemplo.com/carrinho";
   leitura = { url: urlAgora, arvore: '- button "Pagar R$ 120,00" [ref=e1]\n- textbox "Senha" [ref=e2]: hunter22\n- button "Enviar" [ref=e3]\n- link "Alterar senha" [ref=e4]\n- button "Ver mais" [ref=e5]', refs: { e1: { papel: "button", nome: "Pagar R$ 120,00" }, e2: { papel: "textbox", nome: "Senha" }, e3: { papel: "button", nome: "Enviar" }, e4: { papel: "link", nome: "Alterar senha" }, e5: { papel: "button", nome: "Ver mais" } } };
@@ -412,14 +418,78 @@ describe("aprovação no ponto sem volta (quadro A)", () => {
 });
 
 describe("controle e pedidos à pessoa", () => {
-  it("com a pessoa no controle, o bot recebe aguardando_pessoa e nada roda", async () => {
+  it("com a pessoa no controle, o bot recebe pessoa_no_controle e nada roda", async () => {
     const n = criar();
     expect(n.controlar(MARLON, A, "assumir")).toMatchObject({ controle: "pessoa" });
     const r = await n.chamar(MARLON, plano(A), "navegador_ler", {});
-    expect(corpo(r)).toMatchObject({ estado: "aguardando_pessoa" });
+    expect(corpo(r)).toMatchObject({ estado: "pessoa_no_controle" });
     expect(chamadas).toEqual([]);
     n.controlar(MARLON, A, "devolver");
     expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true });
+  });
+
+  // 2026-11-22 (teste do dono, IMDb): ela assumiu à mão, pediu outra coisa e a Ada ficou presa; devolver não retomava.
+  it("assumida à mão: o bot lê pessoa_no_controle (sem a frase dupla) e devolver retoma o turno que esbarrou", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "assumir");
+    const r = corpo(await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://www.imdb.com/" }));
+    expect(r).toMatchObject({ estado: "pessoa_no_controle", instrucao: expect.stringContaining("A pessoa assumiu o controle do navegador") });
+    expect(String(r.instrucao)).not.toContain("ou ele espera");
+    expect(chamadas).toEqual([]);
+    expect(devolvidos).toEqual([]);
+    expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "bot" });
+    expect(devolvidos).toEqual([{ turnoId: "turno-a", automatico: false }]);
+    // Devolver sem turno esperando não retoma nada.
+    await n.operar(MARLON, A, "assumir");
+    await n.operar(MARLON, A, "devolver");
+    expect(devolvidos).toHaveLength(1);
+  });
+
+  it("a mensagem nova depois de assumir devolve o navegador ao bot; a retomada de um turno antigo não", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "assumir");
+    turnosInfo.set("turno-a", { origem: "retomada", criadoEm: T0 + 1_000 });
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "pessoa_no_controle" });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa" });
+    turnosInfo.set("turno-a", { origem: "conversa", criadoEm: T0 + 2_000 });
+    expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot" });
+    expect(ops()).toContain("ler");
+    // A mensagem de ANTES de assumir não tira o navegador da mão dela.
+    turnosInfo.set("turno-a", { origem: "conversa", criadoEm: T0 + 2_000 });
+    agora = T0 + 3_000;
+    await n.operar(MARLON, A, "assumir");
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "pessoa_no_controle" });
+  });
+
+  it("parada 4 min, a pílula avisa; 5 min, o controle volta sozinho e o turno que esperava continua; mexer recomeça", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "assumir");
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    agora = T0 + 4 * 60_000 + 1;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", devolveEm: T0 + 5 * 60_000 });
+    // Mexer apaga o aviso e recomeça a conta.
+    await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 10, y: 10 });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", devolveEm: null });
+    agora += 5 * 60_000 - 1;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa" });
+    expect(devolvidos).toEqual([]);
+    agora += 2;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot", devolveEm: null });
+    expect(devolvidos).toEqual([{ turnoId: "turno-a", automatico: true }]);
+  });
+
+  it("com pedido aberto (login), o controle não volta sozinho: o bot espera ela", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_entrar", { site: "gmail.com", motivo: "ler a fatura" });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "login" } });
+    agora = T0 + 30 * 60_000;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "login" } });
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "aguardando_pessoa", instrucao: expect.stringContaining("pedido que você fez a ela") });
   });
 
   it("pedir ajuda e entrar criam o pedido, já entregam o navegador à pessoa e a resposta devolve ao bot", async () => {
