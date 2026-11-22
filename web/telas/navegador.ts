@@ -284,6 +284,9 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       return;
     }
     alvo.querySelector(".nv-computador")?.remove();
+    // 2026-11-22 (teste do dono): trocar de bot com o painel aberto deixava a vista do bot anterior no mesmo corpo — o
+    // navegador do Chico ("em pausa") empilhado em cima do da Ada. Só a vista do bot aberto fica; a outra desliga o canal.
+    for (const [id, outra] of vistas) if (id !== aberto.agenteId && outra.el.parentElement === alvo) { outra.ligar(false); outra.el.remove(); }
     if (v.el.parentElement !== alvo) alvo.append(v.el);
     v.hospedar(aberto.modo === "folha" ? "folha" : aberto.modo === "aba" ? "aba" : "painel");
     v.ligar(true);

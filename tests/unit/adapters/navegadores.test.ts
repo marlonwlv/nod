@@ -43,6 +43,9 @@ let mensagens: MensagemDaPessoa[];
 let elemento: ElementoNaPagina | null;
 let caixaNaPagina: { x: number; y: number; w: number; h: number } | null;
 let desafio: string | null;
+/** O título que o abrir devolve ("" = a página ainda carregando) e o que document.title diz depois. */
+let tituloAoAbrir: string;
+let tituloDepois: string;
 
 const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
   get(_t, op: string) {
@@ -50,7 +53,7 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
     return async (...args: unknown[]) => {
       chamadas.push({ op, args: args.slice(1) });
       switch (op) {
-        case "abrir": urlAgora = String(args[1]); return { url: urlAgora, titulo: "Loja" };
+        case "abrir": urlAgora = String(args[1]); return { url: urlAgora, titulo: tituloAoAbrir };
         case "ler": return leitura;
         case "url": return urlAgora;
         case "abas": return [{ id: "t1", titulo: "Loja", url: urlAgora, ativa: true }];
@@ -60,7 +63,7 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
-        case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : undefined;
+        case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : String(args[1]).includes("document.title") ? tituloDepois : undefined;
         default: return undefined;
       }
     };
@@ -94,7 +97,7 @@ const deps = () => ({
 function criar(o: Partial<OpcoesNavegadores> = {}) {
   return criarNavegadores({
     dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(deps() as never),
-    motor: () => motor, cifrar: (s) => `c:${s}`, decifrar: (s) => s.slice(2), agora: () => agora, msDesafio: 0,
+    motor: () => motor, cifrar: (s) => `c:${s}`, decifrar: (s) => s.slice(2), agora: () => agora, msDesafio: 0, msCarregar: 0,
     aoMudar: (_e, v) => { vistas.push(v); },
     retomarPedido: async (_e, decisaoId, texto) => { retomadas.push({ decisaoId, texto }); },
     retomarDevolvido: async (_e, turnoId, automatico) => { devolvidos.push({ turnoId, automatico }); },
@@ -127,6 +130,8 @@ beforeEach(() => {
   agora = T0;
   turnosInfo = new Map();
   devolvidos = [];
+  tituloAoAbrir = "Loja";
+  tituloDepois = "";
   chamadas = [];
   urlAgora = "https://loja.exemplo.com/carrinho";
   leitura = { url: urlAgora, arvore: '- button "Pagar R$ 120,00" [ref=e1]\n- textbox "Senha" [ref=e2]: hunter22\n- button "Enviar" [ref=e3]\n- link "Alterar senha" [ref=e4]\n- button "Ver mais" [ref=e5]', refs: { e1: { papel: "button", nome: "Pagar R$ 120,00" }, e2: { papel: "textbox", nome: "Senha" }, e3: { papel: "button", nome: "Enviar" }, e4: { papel: "link", nome: "Alterar senha" }, e5: { papel: "button", nome: "Ver mais" } } };
@@ -317,6 +322,16 @@ describe("ler → agir por referência", () => {
     const css = await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_obter", argumentos: { o_que: "atributo", alvo: "input[type=password]", nome: "value" } });
     expect(corpo(css)).toMatchObject({ erro: "campo_protegido" });
     expect(ops()).not.toContain("obter");
+  });
+
+  // 2026-11-22 (teste do dono, IMDb): a página de conferência do firewall volta sem título e a leitura vinha vazia.
+  it("abrir que volta sem título espera a página assentar; a leitura vazia diz para esperar e ler de novo", async () => {
+    tituloAoAbrir = "";
+    tituloDepois = "Filmes de 2024";
+    const n = criar();
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://www.imdb.com/search/title/" }))).toMatchObject({ ok: true, titulo: "Filmes de 2024" });
+    leitura = { url: urlAgora, arvore: "(no interactive elements)", refs: {} };
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ referencias: 0, instrucao: expect.stringContaining("leia de novo") });
   });
 
   it("abrir só aceita http(s) da internet", async () => {

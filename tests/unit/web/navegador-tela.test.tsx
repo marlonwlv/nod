@@ -306,6 +306,15 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(document.querySelector(SELETOR_MODAL)).toBeNull();
   });
 
+  // 2026-11-22 (teste do dono): da conversa do Chico para a da Ada com o painel aberto, os dois navegadores empilhavam.
+  it("trocar de bot com o painel aberto deixa só a vista do bot novo", () => {
+    navegador.sincronizar({ agenteId: "a1", navegadores: { a1: resposta(), a2: resposta() } });
+    navegador.abrirPainel("a1");
+    expect(painel().querySelectorAll(".nv-vista")).toHaveLength(1);
+    navegador.abrirPainel("a2");
+    expect(painel().querySelectorAll(".nv-vista")).toHaveLength(1);
+  });
+
   it("abre ao lado com os lugares e as ações; a conversa encolhe (40 % da área) e o painel do bot sai", () => {
     navegador.abrirPainel("a1");
     expect(painel().hidden).toBe(false);

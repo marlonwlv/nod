@@ -74,6 +74,8 @@ export type OpcoesNavegadores = {
   msMirar?: number;
   /** Quanto o nod espera antes de conferir de novo um CAPTCHA visto (o do Cloudflare às vezes passa sozinho; padrão MS_DESAFIO_CONFERIR, os testes passam 0). */
   msDesafio?: number;
+  /** O intervalo das conferências do título depois de abrir uma página que voltou sem título (padrão 1 s; os testes passam 0). */
+  msCarregar?: number;
   /** A vista de um bot mudou (estado, controle, abas, passo): o canal ao vivo manda a vista e o SSE avisa a web. */
   aoMudar?(escopo: Escopo, vista: VistaNavegador): void;
   /** O executor vivo (o da retomada do turno e da mensagem "Ensinei: …"); ausente = catcher. */
@@ -374,6 +376,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   const agora = o.agora ?? (() => Date.now());
   const msMirar = o.msMirar ?? MS_MIRAR_ANTES;
   const msDesafio = o.msDesafio ?? MS_DESAFIO_CONFERIR;
+  const msCarregar = o.msCarregar ?? 1_000;
   const max = Math.max(1, o.max ?? MAX_PADRAO);
   const aprovar = o.pedirAprovacao ?? pedirAprovacaoComputador;
   const perguntar = o.pedirAPessoa ?? pedirAPessoa;
@@ -857,15 +860,25 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (!enderecoPermitido(url)) return { conteudo: { erro: "endereco_recusado", instrucao: "Só endereços http(s) da internet abrem no navegador do bot (nada de localhost, rede interna ou file:)." }, isError: true };
         const r = await m.abrir(s, url, args.nova_aba === true);
         c.est.url = r.url;
+        // 2026-11-22 (teste do dono, IMDb): o firewall passa por uma página de conferência que se recarrega sozinha; o
+        // abrir voltava sem título e a leitura seguinte vinha vazia ("0 elementos"). Espera a página assentar (até 5 s).
+        let titulo = r.titulo;
+        for (let i = 0; !titulo && i < 5; i++) {
+          await new Promise((ok) => setTimeout(ok, msCarregar));
+          const t = await m.avaliar(s, "document.readyState === 'complete' ? document.title : ''").catch(() => null);
+          if (typeof t === "string" && t.trim()) titulo = t.trim();
+        }
         await atualizarAbas(c);
-        return { conteudo: { ok: true, url: r.url, titulo: r.titulo, instrucao: "Leia a página (navegador_ler) antes de agir." } };
+        return { conteudo: { ok: true, url: r.url, titulo, instrucao: "Leia a página (navegador_ler) antes de agir." } };
       }
       case "navegador_ler": {
         const l = await m.ler(s, { soInterativos: args.so_interativos !== false, ...(typeof args.dentro === "string" && args.dentro ? { dentro: args.dentro } : {}) });
         c.est.refs = l.refs;
         c.est.refsPorTamanho = false;
         if (l.url) c.est.url = l.url;
-        return { conteudo: { url: l.url || c.est.url, referencias: Object.keys(l.refs).length, arvore: redigirArvore(l.arvore) } };
+        const referencias = Object.keys(l.refs).length;
+        const vazia = referencias === 0 ? { instrucao: "Nenhum elemento lido: a página pode estar carregando. Espere uns segundos e leia de novo; para o texto da página, leia com so_interativos=false." } : {};
+        return { conteudo: { url: l.url || c.est.url, referencias, arvore: redigirArvore(l.arvore), ...vazia } };
       }
       case "navegador_clicar": await m.clicar(s, alvo, args.duplo === true); break;
       case "navegador_preencher":
