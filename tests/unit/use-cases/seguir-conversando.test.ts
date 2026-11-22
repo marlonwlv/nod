@@ -181,6 +181,12 @@ describe("a frase do pedido e a linha do bot", () => {
     expect(longa.endsWith("…")).toBe(true);
   });
 
+  it("os pedidos do navegador ficam só com o motivo (cenários 22/11)", () => {
+    expect(fraseCurtaDoPedido(FALA_DA_AJUDA("www.google.com pede para provar que é gente (CAPTCHA). Resolva na tela e devolva para mim."))).toBe("www.google.com pede para provar que é gente (CAPTCHA)");
+    expect(fraseCurtaDoPedido(FALA_DO_LOGIN("saucedemo.com", "para montar o carrinho"))).toBe("entrar em saucedemo.com: para montar o carrinho");
+    expect(fraseCurtaDoPedido(FALA_DO_CODIGO("o Itaú mandou um SMS"))).toBe("o Itaú mandou um SMS");
+  });
+
   it("a linha diz que nada foi feito e pede para seguir com a mensagem nova", () => {
     expect(linhaDoPedidoDispensado("conectar o Google Drive")).toBe("A pessoa seguiu sem responder ao seu pedido: conectar o Google Drive. Nada foi feito com ele. Não peça de novo agora: siga com a mensagem nova e só volte ao pedido se ela pedir.");
   });

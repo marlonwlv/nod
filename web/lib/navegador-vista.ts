@@ -274,13 +274,31 @@ export function htmlAvisoDoSite(a: AvisoNavegador | null): string {
 }
 
 /** O pedido de ajuda/login vira a mesma faixa (D3, 8 com a D1d: a ação fora da imagem). */
+/** Endereços no texto sem o "www." (o "Www.google.com" do teste de 22/11 vinha da maiúscula em cima do www). */
+export function semWww(t: string): string {
+  return t.replace(/\b(?:https?:\/\/)?www\./giu, "");
+}
+
+/**
+ * O que o bot escreveu no pedido de ajuda, sem o "resolva e devolva" do fim (o cartão já diz) e sem "www.": "google.com
+ * pede para provar que é gente (CAPTCHA)". O teste de 22/11 mostrou o motivo inteiro como título, em 4 linhas, repetido.
+ */
+export function motivoDaAjuda(motivo: string): string {
+  const s = semWww(motivo).trim()
+    .replace(/[.;,]?\s*(?:por favor,?\s*)?(?:resolv[ae]|fa[çc]a|complete|marque|entre)\b[^.]*\b(?:devolv[ae]\w*|me avis[ae]\w*)[^.]*\.?$/iu, "")
+    .replace(/[.\s]+$/u, "");
+  // Começa por um domínio ("google.com pede…"): fica em minúscula, como se escreve o endereço.
+  return /^[a-z0-9-]+\.[a-z]/u.test(s) ? s : (s.charAt(0).toUpperCase() + s.slice(1));
+}
+
 export function avisoDoPedido(v: Pick<VistaNavegador, "pedido" | "controle">): AvisoNavegador | null {
   const p = v.pedido;
   // revisto em 2026-11-21: o pedido de login e o de ajuda já entregam o navegador (controle "pessoa"); a faixa que diz o
   // que falta fica enquanto o pedido está aberto — antes ela sumia com a pessoa no controle, justo quando ela age.
   if (!p) return null;
   if (p.tipo === "login") { const site = nomeDoSite(p.site); return { tipo: "precisa_de_voce", texto: `Entrar ${noOuNa(site)} ${site}`, acao: "", em: 0 }; }
-  if (p.tipo === "ajuda") return { tipo: "precisa_de_voce", texto: p.motivo, acao: "", em: 0 };
+  // Ponto 08 (2026-11-22): a faixa diz o motivo limpo, sem "www." e sem o "resolva e devolva" (a pílula já diz).
+  if (p.tipo === "ajuda") return { tipo: "precisa_de_voce", texto: motivoDaAjuda(p.motivo) || p.motivo, acao: "", em: 0 };
   return null;
 }
 

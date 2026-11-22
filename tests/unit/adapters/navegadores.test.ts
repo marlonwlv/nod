@@ -962,5 +962,6 @@ describe("CAPTCHA na página (prova real de 2026-11-20: o modelo pediu no chat, 
     expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa" });
     n.pedidosDispensados(MARLON, [decisaoId]);
     expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot", pedido: null });
+    expect(n.vista(MARLON, A)?.estado).not.toBe("ao_vivo");
   });
 });

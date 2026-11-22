@@ -28,6 +28,10 @@ export function fraseCurtaDoPedido(frase: string): string {
   if (t.startsWith(PREFIXO_PEDIDO_DE_TELA.trim())) t = t.slice(PREFIXO_PEDIDO_DE_TELA.trim().length).trim();
   const sufixo = SUFIXO_PEDIDO_DE_TELA.trim();
   if (t.endsWith(sufixo)) t = t.slice(0, -sufixo.length).trim();
+  // Os pedidos do navegador: fica o motivo ("google.com pede para provar que é gente (CAPTCHA)"), sem a moldura da fala.
+  t = t.replace(/^Preciso de você no meu navegador: /u, "").replace(/^Preciso do código que chegou para você: (.*?)\. Digite no cartão.*$/u, "$1")
+    .replace(/^Preciso entrar em (.+?) no meu navegador para continuar: (.*?)\. A senha vai do cofre.*$/u, "entrar em $1: $2")
+    .replace(/[.;]?\s*Resolva na tela e devolva para mim\.?$/u, "");
   t = t.replace(/[.\s]+$/u, "");
   if ([...t].length <= FRASE_CURTA_MAX) return t;
   return `${[...t].slice(0, FRASE_CURTA_MAX - 1).join("").trimEnd()}…`;

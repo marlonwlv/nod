@@ -1364,7 +1364,10 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         est.entradaPessoaEm = null;
         est.turnoEsperando = null;
         limparCaptura(est);
-        mudar(est, { controle: "bot", pedido: null, devolveEm: null, atividadeEm: agora() });
+        // O pedido só se dispensa com o turno que pediu já acabado (seguir-conversando.ts): a vista vai a "terminou".
+        const terminou = est.vivo && est.vista.estado === "ao_vivo" && !est.gravacao;
+        if (terminou) est.turnoId = null;
+        mudar(est, { controle: "bot", pedido: null, devolveEm: null, atividadeEm: agora(), ...(terminou ? { estado: "terminou" as const, passo: est.ultimoPasso } : {}) });
       }
     },
     /**

@@ -56,7 +56,7 @@ describe("L1, L2, M4, K3: o cartão de login", () => {
     // As pílulas à direita, a preta por último.
     expect(ordemDosBotoes(html)).toEqual(["Entrar eu mesmo", "Trazer do meu Chrome", "Usar o 1Password"]);
     expect(html).toMatch(/cc-bt cc-uma pri"[^>]*data-fonte="1password"[^>]*data-ref="op:\/\/Pessoal\/Itau" title="Itaú · marlon@…">Usar o 1Password</);
-    expect(html).toContain('class="cc-cartao nvc nvc-login"');
+    expect(html).toContain('class="cc-cartao cc-molde nvc nvc-login"');
     expect(html).not.toContain("nvc-ponto");
   });
 

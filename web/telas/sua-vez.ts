@@ -789,7 +789,7 @@ export function renderCartaoComputador(item: Item, estado: Pick<Estado, "frota" 
   // Só a dona do bot abre a tela dele (main.ts, abrir-computador): a decisora designada não vê "Ver a tela".
   const dono = estado.frota?.agentes.some((a) => a.id === d.agenteId && a.ownerId === estado.sessao?.pessoaId) === true;
   const ver = dono ? botao("abrir-computador", "Ver a tela", { classe: "cc-bt cc-ver", id: d.agenteId }) : "";
-  return `<li class="decisao cc-cartao dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" role="group" aria-label="${esc(`Pedido de ${item.agenteNome} no computador`)}">
+  return `<li class="decisao cc-cartao cc-molde dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" role="group" aria-label="${esc(`Pedido de ${item.agenteNome} no computador`)}">
     <div class="cc-cab">${ICONE_LAPTOP}<span class="cc-rotulo">Computador</span>${aPedidoDe(item)}${marcaGemeas(item)}${botao("decidir-aprovacao-nenhum", ICONE_X, { classe: "cc-x", id: d.id, aria: "Negar uma vez", titulo: "Negar uma vez" })}</div>
     <p class="cc-titulo dec-frase">${esc(perguntaDaAprovacao(item, []))}</p>
     <p class="cc-texto">${esc(acao.frase)}</p>${porqueDaPausa(i)}
@@ -841,7 +841,7 @@ export function renderCartaoAjuda(o: { decisaoId: string; agenteId: string; nome
   const t = textosDaAjuda(o.motivo);
   const mini = o.src ? `<img src="${esc(o.src)}" alt="" />` : '<img alt="" hidden />';
   const texto = `${comMaiuscula(semPontoFinal(o.motivo))}. Assuma o controle, entre e clique em Parar. ${o.nome} não vê o que você digita.`;
-  return `<div class="cc-cartao cc-ajuda" role="group" aria-label="${esc(`${o.nome} pede ajuda no computador`)}" data-ajuda="${esc(o.decisaoId)}">
+  return `<div class="cc-cartao cc-molde cc-ajuda" role="group" aria-label="${esc(`${o.nome} pede ajuda no computador`)}" data-ajuda="${esc(o.decisaoId)}">
     <div class="cc-cab">${ICONE_LAPTOP}<span class="cc-rotulo">Computador</span>${botao("dispensar", ICONE_X, { classe: "cc-x", id: o.decisaoId, aria: "Agora não", titulo: "Agora não" })}</div>
     <div class="cc-ajuda-corpo"><span class="cc-mini${o.src ? "" : " sem-imagem"}" data-tela-bot="${esc(o.agenteId)}">${mini}</span><div class="cc-ajuda-txt"><p class="cc-titulo">${esc(t.titulo)}</p><p class="cc-texto">${esc(texto)}</p></div></div>
     <div class="cc-botoes">${botao("dispensar", "Agora não", { classe: "cc-bt cc-ver", id: o.decisaoId })}${botao("abrir-computador", "Assumir o controle", { classe: "cc-bt cc-uma pri", id: o.agenteId, dados: { assumir: "1", pedido: o.motivo } })}</div>

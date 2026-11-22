@@ -115,3 +115,12 @@
 
 /* Barra lateral enquanto espera (itens 5 e 6): o ponto à direita da linha é 8×8 laranja (cores em tokens.css). */
 #sidebar .row > .ponto-aguardando { width: 8px; height: 8px; }
+
+/*
+ * 2026-11-22 (conferência do DS, pedido do Marlon): web/conta.css usa os mesmos nomes (.cc-cartao, .cc-titulo, .cc-texto)
+ * nos cartões da conta e vem depois no index.html — o cartão de ajuda do Computador e os do navegador (que são <div>)
+ * saíam com padding 20, raio 20 e o título em 17 px. Os cartões deste molde levam `cc-molde` e ficam com as medidas de D5/D7.
+ */
+.cc-cartao.cc-molde { padding: 14px 16px 16px; gap: 10px; border: 0; border-radius: 24px; background: var(--surface-elevated); box-shadow: var(--cc-sombra); }
+.cc-molde .cc-titulo { font-size: 15px; line-height: 22px; font-weight: 600; color: var(--cc-tinta); }
+.cc-molde .cc-texto { font-size: 14px; line-height: 20px; font-weight: 425; color: var(--cc-tinta-2); }
