@@ -427,6 +427,8 @@ export function comporApp(o: OpcoesCompor): App {
   const modeloPadrao = env.NOD_MODELO ?? "auto";
   // ADR-192 (etapa 2): a flag de escrita da Tarefa como objetivo, ligada por padrão; NOD_TAREFA_OBJETIVO=0 desliga.
   const tarefaObjetivo = env.NOD_TAREFA_OBJETIVO !== "0";
+  // ADR-192 (etapa 5): a virada da leitura, desligada por padrão (sete dias de sombra antes de ligar).
+  const leituraNovaDasTarefas = env.NOD_TAREFAS_LEITURA_NOVA === "1";
   const chave = chaveDe(env.NOD_CREDENTIAL_KEY ?? "chave-de-desenvolvimento-sem-valor");
   let registryLigado: Registry | null = null;
   let inventarioInicial: Inventario | null = null;
@@ -485,7 +487,7 @@ export function comporApp(o: OpcoesCompor): App {
   configurarRotinasFora(lerRotinasFora(env));
   // ADA-28 (ADR-159): NOD_TAREFA_CASA=1 liga a jornada chat × quadro (desligada até o protótipo e as suposições).
   configurarTarefaCasa(lerTarefaCasa(env));
-  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }), ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
+  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }), ...(leituraNovaDasTarefas ? { leituraNovaDasTarefas: true } : {}), ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
   // NOD-443 (ADR-143): a porta para o quadro da dona, na mesma transação (o turno do bot de quem participa).
   const depsDe = (trx: Tx, escopo: Escopo): Deps => comPortas(trx, escopo, (e) => depsSemPorta(trx, e));
   const depsSobre = (trx: Tx): Deps => depsDe(trx, escopoDoContexto());
@@ -1545,6 +1547,7 @@ export function comporApp(o: OpcoesCompor): App {
     agora: relogio,
     modeloPadrao,
     ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }),
+    ...(leituraNovaDasTarefas ? { leituraNovaDasTarefas: true } : {}),
     prazoDecisaoMs,
     // Jornada C do onboarding: sem IA, a fala da pessoa fica guardada (flag NOD_ONBOARDING_TEXTO=1, desligada por padrão).
     ...(onboardingTexto ? { guardarSemIa: true } : {}),

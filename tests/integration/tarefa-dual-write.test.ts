@@ -143,4 +143,15 @@ describeIntegracao("Tarefa com Thread: criação com dual-write (ADR-192, etapa 
       expect((await m.repos.trabalhos.buscar(r.data.trabalho.id))?.estado).toBe("terminado");
     });
   });
+
+  it("etapa 5: com NOD_TAREFAS_LEITURA_NOVA=1 a lista de trabalhos avisa a tela; desligada (padrão), não", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await m.abrir();
+      const { listarTrabalhos } = await import("../../src/use-cases/trabalhos.ts");
+      expect((await listarTrabalhos(m.deps, { agenteId: m.ada.agenteId })).data.leituraNovaDasTarefas).toBeUndefined();
+      expect((await listarTrabalhos({ ...m.deps, leituraNovaDasTarefas: true }, { agenteId: m.ada.agenteId })).data.leituraNovaDasTarefas).toBe(true);
+    });
+  });
 });
+

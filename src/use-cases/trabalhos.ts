@@ -360,13 +360,13 @@ export const listarTrabalhos: CasoDeUso<{ agenteId?: string }, TrabalhosDto> = a
       const motivo = esperaDoMac(t, portao, agora);
       return { ...(motivo ? { esperaDoMac: motivo } : {}), ...cotaDoTrabalho(t, e) };
     });
-    return { data: { trabalhos: dtos, ...topo, donos } };
+    return { data: { trabalhos: dtos, ...topo, donos, ...(deps.leituraNovaDasTarefas ? { leituraNovaDasTarefas: true as const } : {}) } };
   }
   const { maquinas, ondeRoda, ultimoUso, nomes } = await maquinaDosTrabalhos(deps, servico, usoDoMac);
   // NOD-300: a frente presa a máquina sem contato espera no dono, pela mesma regra (e o mesmo último uso) da linha dela.
   const donos = [...(await donosDosBots(deps, bots, trabalhos, servico.conectada ? resolverDePresenca(servico, deps.escopo, ultimoUso, nomes) : undefined)).values()];
   const dtos = await trabalhosParaDto(deps, trabalhos, (t, e) => ({ ...ondeRoda(t, e), ...cotaDoTrabalho(t, e) }));
-  return { data: { trabalhos: dtos, ...topo, maquinas, donos } };
+  return { data: { trabalhos: dtos, ...topo, maquinas, donos, ...(deps.leituraNovaDasTarefas ? { leituraNovaDasTarefas: true as const } : {}) } };
 };
 
 /**

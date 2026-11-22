@@ -178,3 +178,21 @@ histórico da Tarefa precisar sair da conversa do bot (busca, retenção ou expo
   `criada {backfill: true, legado}` e, nas entregues, `entregue` na hora em que o trabalho terminou.
 - O retorno do lote (`frentes_terminadas`) passa a levar `tarefaId` de cada frente ligada.
 
+## Emenda 4 — a virada da leitura (2026-11-22, etapa 5)
+
+- A virada está no código, atrás de `NOD_TAREFAS_LEITURA_NOVA` (desligada por padrão; `infra/gcp/config.env`). Ligada, a
+  lista de trabalhos avisa a web (`leituraNovaDasTarefas`) e a tela Tarefas passa a decidir pela Tarefa: a arquivada sai da
+  lista padrão (segue aberta pela linha da conversa, com Desarquivar); o estado do objetivo e a atividade já aparecem desde
+  a etapa 3 em todas as telas.
+- **Quando ligar:** depois de sete dias corridos, contados do deploy da etapa 0 em produção, sem divergência conhecida na
+  sombra. Como medir no Cloud Logging (projeto de produção): `jsonPayload.evento="atividade_sombra_divergente"` nos
+  últimos 7 dias — cada linha traz `origem`, `forma`, `estado` e `atividade`. Divergência "conhecida" é a que já tem
+  motivo registrado (a decisão que sobra numa tarefa parada, por exemplo); qualquer outra corrige a projeção antes da
+  virada, como manda o gatilho de revisão deste ADR (mais de 2% das projeções divergindo: não virar). Também conferir
+  `backfill_tarefas` (falhas 0) e o relatório de `node scripts/backfill-tarefas.ts` (simulação: 0 Tarefas novas).
+- **Como ligar:** `NOD_TAREFAS_LEITURA_NOVA=1` em `infra/gcp/config.env` num PR; desligar é voltar a `0`. Nada no banco
+  muda com a flag.
+- Fica para ADR própria: se `trabalhos` vira só o runtime permanente ou pode ser contraído. Nenhuma tabela, coluna, evento
+  ou rota antiga sai enquanto houver app ou servidor anterior suportado (as rotas `trabalhos/*` e o frame
+  `trabalho.mudou` seguem).
+

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TarefaNoTrabalho } from "../../../src/contracts/tarefa.ts";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
-import { passoDaTarefa, prontas } from "../../../web/telas/tela-tarefas.ts";
+import { passoDaTarefa, prontas, trabalhosDaTela } from "../../../web/telas/tela-tarefas.ts";
 import { campoDaTarefa, htmlObjetivoDaTarefa, linhaDoFim, rotuloDoObjetivo } from "../../../web/telas/tarefa-detalhada.ts";
 
 /**
@@ -83,5 +83,16 @@ describe("a lista Tarefas separa o estado do objetivo da atividade", () => {
   it("aberta depois de entregue: o estado do objetivo vem antes do passo de agora", () => {
     const t = trabalho({ estado: "rodando", turnoVivoId: "x", terminadoEm: null, ultimoPasso: "lendo a planilha", tarefa: objetivo({ atividade: "trabalhando" }) });
     expect(passoDaTarefa(t, [t], estado).passo.startsWith("Entregue · ")).toBe(true);
+  });
+});
+
+describe("a virada da leitura (etapa 5, NOD_TAREFAS_LEITURA_NOVA)", () => {
+  const lista = [trabalho({ id: "a", tarefa: objetivo() }), trabalho({ id: "b", tarefa: objetivo({ estado: "arquivada" }) }), trabalho({ id: "c" })];
+  const dto = (leituraNova: boolean): Pick<Estado, "trabalhos"> => ({ trabalhos: { trabalhos: lista, pressao: null, memoriaTotalMb: null, ...(leituraNova ? { leituraNovaDasTarefas: true as const } : {}) } as Estado["trabalhos"] });
+  it("desligada: a lista de trabalhos de antes, inteira", () => {
+    expect(trabalhosDaTela(dto(false)).map((t) => t.id)).toEqual(["a", "b", "c"]);
+  });
+  it("ligada: a Tarefa decide — a arquivada sai da lista padrão; trabalho sem Tarefa segue", () => {
+    expect(trabalhosDaTela(dto(true)).map((t) => t.id)).toEqual(["a", "c"]);
   });
 });

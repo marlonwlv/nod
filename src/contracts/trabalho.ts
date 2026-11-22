@@ -110,7 +110,7 @@ export type NivelPressao = "verde" | "amarela" | "vermelha";
  * Mac aliviar, pelo "uso do Mac" que a pessoa escolheu.
  */
 export type TrabalhosDto = {
-  trabalhos: TrabalhoDto[];
+  trabalhos: TrabalhoDto[]; leituraNovaDasTarefas?: true; // ADR-192 (etapa 5): NOD_TAREFAS_LEITURA_NOVA=1, a tela Tarefas lê pela Tarefa
   pressao: NivelPressao | null;
   memoriaTotalMb: number | null;
   processador?: NivelPressao | null;
