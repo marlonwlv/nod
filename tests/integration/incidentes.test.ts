@@ -1,3 +1,5 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
+// Lote B (desvios 11 e 12, 2026-11-22): a conversa volta sozinha uma vez; o "Retomar" deste teste é o do teto da mensagem.
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
@@ -24,7 +26,7 @@ const T0 = Date.parse("2026-09-24T00:50:00-03:00");
 /** Um turno de conversa rodando numa máquina, com o lease até `ate` (a queda é notada depois). */
 async function turnoRodando(trx: Tx, agenteId: string, conversaId: string, maquina: string, desde: number): Promise<Turno> {
   const repos = criarRepos(trx, MARLON);
-  const t = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: desde + 86_400_000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "m" });
+  const t = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: desde + 86_400_000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "m", reenvios: TETO_TENTATIVAS_DA_MENSAGEM });
   const r = await repos.turnos.reivindicar({ machineId: maquina, agora: desde });
   if (!t || r?.id !== t.id) throw new Error("turno não reivindicado");
   return r;

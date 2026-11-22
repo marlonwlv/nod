@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **212**, mais 3 só de leitura. No chat: **80 vivas**, 4 parciais, 89 faltando e 42 que nunca vão para o chat. Piso de vivas: 80.
+Ações de pessoa que mudam algo: **213**, mais 3 só de leitura. No chat: **80 vivas**, 4 parciais, 89 faltando e 43 que nunca vão para o chat. Piso de vivas: 80.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -92,6 +92,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `contas_ia.entrar` | Entrar numa IA numa máquina | muda | falta (NOD-400) | `POST ^\/maquinas\/(?<id>[^/]+)\/logins$` |
 | `contas_ia.codigo_do_login` | Mandar o código do login da IA | pessoa_confirma | falta (NOD-400) | `POST ^\/maquinas\/(?<id>[^/]+)\/logins\/(?<login>[^/]+)\/codigo$` |
 | `contas_ia.cancelar_login` | Cancelar o login da IA | muda | falta (NOD-400) | `POST ^\/maquinas\/(?<id>[^/]+)\/logins\/(?<login>[^/]+)\/cancelar$` |
+| `contas_ia.responder_com_outra_ia` | Responder com a outra IA desta vez | muda | nunca: a IA da conversa parou: o caminho é o botão do cartão ou o seletor de IA do campo | `POST ^\/conversas\/(?<id>[^/]+)\/responder-com-outra-ia$` |
 | `contas_ia.trocar_executor` | Trocar a IA deste Mac (modo local) | muda | falta (NOD-400) | `POST ^\/executor$` |
 
 ## maquinas

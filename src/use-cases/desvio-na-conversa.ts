@@ -68,7 +68,8 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   const { turno, desvio, autoria, agora } = p;
   if (turno.origem !== "conversa" || turno.trabalhoId) return null;
   const recomeco = RECOMECO_DO_DESVIO[desvio] ?? null;
-  const repetidas = recomeco ? await deps.repos.turnos.repeticoesDaMensagem(turno.mensagemOrigemId, recomeco) : 0;
+  // As repetições desta mensagem por este desvio; o próprio turno, se já é uma delas, conta mesmo sem a mensagem de origem.
+  const repetidas = recomeco ? Math.max(await deps.repos.turnos.repeticoesDaMensagem(turno.mensagemOrigemId, recomeco), turno.motivoRecomeco === recomeco ? 1 : 0) : 0;
   const botFixo = harnessFixado(turno.harness, turno.modelo) !== null;
   // A outra IA: o botão "Responder com o <outra> desta vez" a oferece sempre (vale só para esta mensagem); a troca
   // AUTOMÁTICA, só com o bot no Automático (regra 5).
