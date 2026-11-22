@@ -240,7 +240,9 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-dica-aba { position: fixed; z-index: 70; max-width: 320px; padding: 4px 8px; border-radius: var(--raio-6); background: var(--action); color: var(--on-action); font-size: var(--fs-rotulo); line-height: 16px; pointer-events: none; }
 
 /* ---------- O botão da tela no canto do cabeçalho (1c, item 1) e a linha de atividade (1c, item 2) ---------- */
-.cabecalho-pilula .nv-canto { position: absolute; right: 56px; top: 12px; }
+/* Revisto em 2026-11-22 (pedido do dono): o botão do painel do bot saiu do topo com a pílula; o da tela fica no lugar
+   dele, a 16 px da borda (antes ficava a 56 px, reservando o espaço do outro). */
+.cabecalho-pilula .nv-canto { position: absolute; right: 16px; top: 12px; }
 .nv-canto { display: inline-flex; align-items: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 8px; margin: 0; box-sizing: border-box; justify-content: center; border: 1px solid var(--borda-sutil); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle); font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-2); cursor: pointer; }
 .nv-canto.com-texto { padding: 0 12px 0 10px; color: var(--ink); }
 .nv-canto:hover { background: var(--surface-raised); }
