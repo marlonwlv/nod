@@ -306,6 +306,24 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(document.querySelector(SELETOR_MODAL)).toBeNull();
   });
 
+  // 2026-11-22 (pedido do dono): a coluna da direita é uma pilha — o painel do bot recolhe o navegador e, ao fechar, ele volta.
+  it("o painel do bot recolhe o navegador aberto ao lado; ao fechar, o navegador volta (só o do mesmo bot)", () => {
+    expect(navegador.recolherParaOPainelDoBot()).toBe(false);
+    navegador.abrirPainel("a1");
+    expect(navegador.recolherParaOPainelDoBot()).toBe(true);
+    expect(navegador.painelAberto("a1")).toBe(false);
+    expect(navegador.voltarDoPainelDoBot("a2")).toBe(false);
+    expect(navegador.painelAberto("a1")).toBe(false);
+    navegador.abrirPainel("a1");
+    navegador.recolherParaOPainelDoBot();
+    expect(navegador.voltarDoPainelDoBot("a1")).toBe(true);
+    expect(navegador.painelAberto("a1")).toBe(true);
+    // Abrir o navegador à mão esquece o recolhido: fechar o painel do bot depois não reabre nada.
+    navegador.recolherParaOPainelDoBot();
+    navegador.abrirPainel("a1");
+    expect(navegador.voltarDoPainelDoBot("a1")).toBe(false);
+  });
+
   // 2026-11-22 (teste do dono): da conversa do Chico para a da Ada com o painel aberto, os dois navegadores empilhavam.
   it("trocar de bot com o painel aberto deixa só a vista do bot novo", () => {
     navegador.sincronizar({ agenteId: "a1", navegadores: { a1: resposta(), a2: resposta() } });

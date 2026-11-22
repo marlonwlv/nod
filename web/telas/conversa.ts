@@ -2180,8 +2180,10 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
-  // ADR-167 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
-  const painel = o.painel === false ? "" : botaoDoPainel(nome);
+  // ADR-167 (Paper 02) previa o botão do painel à direita do topo. Revisto em 2026-11-22 (pedido do dono): ao lado do ícone
+  // da tela do navegador, os dois quadrados confundiam; no topo com a pílula, o painel do bot abre sempre pela pílula. O
+  // botão fica só no modo abas (sem pílula), no fim da fileira (main.ts). `painel: true` ainda o pede.
+  const painel = o.painel === true ? botaoDoPainel(nome) : "";
   const capsula = o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>` : pilula;
   // O cabeçalho é uma coluna (a presença embaixo): a pílula e o botão de abas vão juntos numa linha.
   const topo = o.depoisDaPilula ? `<div class="pilula-e-abas">${capsula}${o.depoisDaPilula}</div>` : capsula;

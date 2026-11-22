@@ -9115,8 +9115,23 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       else if (t.tipo === "conversa") abrirPerfil(t.agenteId, "chat");
       return;
     }
+    // 2026-11-22 (pedido do dono): a coluna da direita é uma pilha. Com o navegador aberto ao lado, a pílula abre o painel
+    // do bot POR CIMA (o navegador recolhe e fica guardado); fechar o painel do bot traz o navegador de volta.
+    const doBot = estado.tela.tipo === "conversa" ? estado.tela.agenteId : null;
+    const recolheu = navegadorNaTela.recolherParaOPainelDoBot();
+    if (recolheu) {
+      app.classList.add("detalhes-abertos");
+      app.classList.remove("detalhes-ocultos");
+      animarPainel(app, "entrando");
+      painelAberto = true;
+      marcarPainelNaPilula();
+      void reidratar();
+      return;
+    }
+    const voltarAoNavegador = () => { window.setTimeout(() => navegadorNaTela.voltarDoPainelDoBot(doBot), reduzirMovimento() ? 0 : DURACAO_PAINEL_MS); };
     if (window.matchMedia("(max-width: 1099px)").matches) {
       const abrindo = !app.classList.contains("detalhes-abertos");
+      if (!abrindo) voltarAoNavegador();
       app.classList.toggle("detalhes-abertos");
       if (abrindo) animarPainel(app, "entrando");
       marcarPainelNaPilula();
@@ -9134,6 +9149,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     }
     painelAberto = !oculto;
     painelAbertoNaHora = false;
+    if (oculto) voltarAoNavegador();
     marcarPainelNaPilula();
     void reidratar();
     try { localStorage.setItem(CHAVE_PAINEL_ABERTO, oculto ? "0" : "1"); } catch { /* sem storage, vale só nesta aba */ }

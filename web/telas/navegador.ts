@@ -304,7 +304,15 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     painel.classList.toggle("nv-cobrindo", m === "cobre");
   }
 
+  /**
+   * A coluna da direita é uma pilha (definido em 2026-11-22, pedido do dono): o painel do bot aberto por cima do navegador
+   * recolhe o navegador, e fechar o do bot traz o navegador de volta — o mesmo que já acontecia ao contrário (o navegador
+   * por cima do painel do bot, que reaparece quando o navegador fecha). Antes o painel do bot abria escondido "por baixo".
+   */
+  let recolhido: { agenteId: string; lugar: LugarDaVista } | null = null;
+
   function abrirPainel(agenteId: string, lugar: LugarDaVista = "navegador"): void {
+    recolhido = null;
     montar();
     // C1 e 1a: com o painel aberto o botão do canto sai do cabeçalho; o foco que estava nele vai para o × do painel.
     const doCanto = !!(document.activeElement as HTMLElement | null)?.closest?.(".nv-canto");
@@ -1143,6 +1151,22 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     abaAberta: (agenteId: string): boolean => abasDeLugar.has(agenteId),
     abaAtiva: (agenteId: string): boolean => abaAtiva === agenteId,
     painelAberto: (agenteId: string): boolean => aberto?.agenteId === agenteId && aberto.modo === "painel",
+    /** O painel do bot vai tomar a coluna: o navegador aberto ao lado sai (sem devolver o controle) e fica guardado. */
+    recolherParaOPainelDoBot(): boolean {
+      if (aberto?.modo !== "painel") return false;
+      const r = { agenteId: aberto.agenteId, lugar: aberto.lugar };
+      fechar({ devolver: false, aviso: false });
+      recolhido = r;
+      return true;
+    },
+    /** O painel do bot fechou: o navegador que ele recolheu volta (só o do mesmo bot). */
+    voltarDoPainelDoBot(agenteId: string | null): boolean {
+      const r = recolhido;
+      recolhido = null;
+      if (!r || r.agenteId !== agenteId) return false;
+      abrirPainel(r.agenteId, r.lugar);
+      return true;
+    },
     /** D6 B: o painel aberto cobre a conversa (janela estreita). */
     cobrindo: (): boolean => aberto?.modo === "painel" && modo() === "cobre",
     alternar,
