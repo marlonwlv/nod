@@ -165,6 +165,23 @@ export const JS_CAMPOS_LOGIN = `(() => { document.querySelectorAll('[data-nod-ca
 const PRAZO_COMANDO_MS = 30_000;
 const PRAZO_ABRIR_MS = 60_000;
 const OCIOSO_PADRAO_MS = 10 * 60_000;
+
+/**
+ * O Chrome do bot se apresenta como o mesmo Chrome com janela (definido em 2026-11-22, teste do dono: o IMDb devolvia
+ * "403 Forbidden"; referência: o OpenMausBot, que usa o mesmo agent-browser). Sem janela (`--headless=new`), o Chrome só
+ * se denuncia pela palavra "HeadlessChrome" na identificação e por `navigator.webdriver`, que vem da marca de automação;
+ * o resto é o que o mesmo binário diz com janela. Nada é inventado: a versão é a do próprio binário, o sistema é o da
+ * máquina. Medido no IMDb (firewall da Amazon): 403 → página normal.
+ */
+export const ARGS_CHROME_DO_BOT = ["--disable-blink-features=AutomationControlled"] as const;
+
+/** "Google Chrome 157.0.8103.79" → a identificação que esse Chrome dá com janela; null = versão ou sistema desconhecidos. */
+export function identificacaoComJanela(versao: string, plataforma: NodeJS.Platform): string | null {
+  const major = /(\d+)\.\d+\.\d+\.\d+/.exec(versao)?.[1];
+  if (!major) return null;
+  const sistema = plataforma === "darwin" ? "Macintosh; Intel Mac OS X 10_15_7" : plataforma === "linux" ? "X11; Linux x86_64" : plataforma === "win32" ? "Windows NT 10.0; Win64; x64" : null;
+  return sistema ? `Mozilla/5.0 (${sistema}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36` : null;
+}
 /** medido em 2026-11-20: `wait --text` sem casar só volta aos 25 s ("Wait timed out after 25000ms"); o contrato é 10 s. */
 const PRAZO_ESPERAR_MS = 12_000;
 /** definido em 2026-11-20: a árvore de uma página grande cabe folgada; o proxy corta para o modelo (ler_mais). */
@@ -313,8 +330,18 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, nomeDaSessao(s.agenteId));
 
+  /** A identificação com janela do Chrome configurado, lida uma vez (`--version`); sem o caminho, fica a do agent-browser. */
+  let identificacao: Promise<string | null> | null = null;
+  function identificacaoDoChrome(): Promise<string | null> {
+    if (!o.chrome) return Promise.resolve(null);
+    identificacao ??= executor({ bin: o.chrome, args: ["--version"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin" }, prazoMs: 10_000, limiteSaida: 1_000 })
+      .then((r) => (r.codigo === 0 ? identificacaoComJanela(r.saida, process.platform) : null))
+      .catch(() => null);
+    return identificacao;
+  }
+
   /** Env limpo: só o que o CLI e o daemon precisam; nenhuma variável do servidor (chaves, banco) passa. */
-  function ambiente(s: SessaoNavegador): Record<string, string> {
+  function ambiente(s: SessaoNavegador, agente: string | null): Record<string, string> {
     const base = pasta(s);
     return {
       PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -331,13 +358,15 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       AGENT_BROWSER_SCREENSHOT_FORMAT: "jpeg",
       AGENT_BROWSER_SCREENSHOT_QUALITY: "70",
       ...(o.chrome ? { AGENT_BROWSER_EXECUTABLE_PATH: o.chrome } : {}),
+      AGENT_BROWSER_ARGS: ARGS_CHROME_DO_BOT.join(","),
+      ...(agente ? { AGENT_BROWSER_USER_AGENT: agente } : {}),
     };
   }
 
   async function rodar(s: SessaoNavegador, args: readonly string[], prazoMs = PRAZO_COMANDO_MS): Promise<Record<string, unknown>> {
     if (!bin) throw new FalhaNavegador("indisponivel", "o agent-browser não está instalado nesta máquina");
     await mkdir(join(pasta(s), "arquivos"), { recursive: true });
-    const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s), prazoMs, limiteSaida: LIMITE_SAIDA });
+    const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome()), prazoMs, limiteSaida: LIMITE_SAIDA });
     if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
     return lerResposta(r.saida, r.codigo);
   }

@@ -184,6 +184,19 @@ devolvida e continua) e o OpenMausBot (recusa clara; o controle volta sozinho de
 - **Frase clara**, sem proibir outro caminho (decisão do dono: ler por fora não faz mal): "A pessoa assumiu o controle
   do navegador… quando ela devolver, você é retomada e continua daqui." O pedido aberto tem a sua própria frase.
 
+### Revisão de 2026-11-22: o Chrome do bot se apresenta como ele mesmo com janela
+
+O IMDb (firewall da Amazon) devolvia "403 Forbidden" ao Chrome do bot. Sem janela (`--headless=new`), o Chrome se
+denuncia por duas coisas: a palavra "HeadlessChrome" na identificação e `navigator.webdriver = true`, que vem da marca
+de automação. O motor agora desliga a marca (`--disable-blink-features=AutomationControlled`) e informa a identificação
+que o mesmo binário dá com janela (a versão lida do próprio Chrome com `--version`, o sistema da máquina). É o que o
+OpenMausBot faz com o mesmo agent-browser. Medido: 403 → a lista de 2024 do IMDb abre normal.
+
+Fica de fora, por ora: as marcas de Client Hints (`navigator.userAgentData.brands`) saem vazias com a identificação
+trocada; o OpenMausBot as repõe por CDP em cada página e worker. Sites que barram por endereço de data center (o nod
+no servidor, a vm-sp) ou com detecção mais forte (bancos, companhias aéreas) continuam pedindo a pessoa: é o pedido de
+ajuda (CAPTCHA), não falha do navegador.
+
 ## Gatilhos de reversão
 
 - O agent-browser não aguenta (quadro ao vivo pior que 5 por segundo no Mac, ou queda de sessão mais de uma vez por

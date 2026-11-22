@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, binarioAgentBrowser, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, lerAbas, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, binarioAgentBrowser, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -18,7 +18,10 @@ let dados: string;
 let recebidos: { bin: string; args: readonly string[]; env: Readonly<Record<string, string>>; prazoMs: number }[];
 let respostas: ((args: readonly string[]) => { codigo: number | null; saida: string; estourou?: boolean })[];
 
+let versoesLidas = 0;
 const executor: ExecutorProcesso = async (p) => {
+  // A versão do Chrome (a identificação com janela) é lida uma vez, à parte da fila dos comandos.
+  if (p.bin === "/chrome") { versoesLidas++; return { codigo: 0, saida: "Google Chrome 157.0.8103.79\n", erro: "", estourou: false }; }
   recebidos.push(p);
   const r = respostas.shift()?.(p.args) ?? { codigo: 0, saida: ok({}) };
   return { codigo: r.codigo, saida: r.saida, erro: "", estourou: r.estourou === true };
@@ -30,6 +33,7 @@ beforeEach(async () => {
   dados = await mkdtemp(join(tmpdir(), "nod-navegador-"));
   recebidos = [];
   respostas = [];
+  versoesLidas = 0;
 });
 afterEach(async () => { await rm(dados, { recursive: true, force: true }); });
 
@@ -57,6 +61,25 @@ describe("argv e ambiente", () => {
       AGENT_BROWSER_IDLE_TIMEOUT_MS: "600000", AGENT_BROWSER_NO_VERSION_CHECK: "1", AGENT_BROWSER_EXECUTABLE_PATH: "/chrome",
     });
     expect(Object.values(r.env).join("\n")).not.toContain(SEGREDO.toString("hex"));
+  });
+
+  // 2026-11-22 (teste do dono): o IMDb devolvia 403 ao "HeadlessChrome"; o Chrome do bot se apresenta como ele mesmo com janela.
+  it("sem a marca de automação e com a identificação que o mesmo Chrome dá com janela (a versão lida uma vez)", async () => {
+    const m = motor();
+    await m.abrir(s, "https://example.com");
+    await m.abrir(s, "https://example.org");
+    expect(versoesLidas).toBe(1);
+    expect(recebidos[0]!.env.AGENT_BROWSER_ARGS).toBe("--disable-blink-features=AutomationControlled");
+    expect(recebidos[0]!.env.AGENT_BROWSER_USER_AGENT).toBe(identificacaoComJanela("Google Chrome 157.0.8103.79", process.platform));
+    expect(recebidos[1]!.env.AGENT_BROWSER_USER_AGENT).toBe(recebidos[0]!.env.AGENT_BROWSER_USER_AGENT);
+    expect(identificacaoComJanela("Google Chrome 157.0.8103.79", "darwin")).toBe("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36");
+    expect(identificacaoComJanela("Chromium 156.0.8078.4 snap", "linux")).toBe("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36");
+    expect(identificacaoComJanela("", "darwin")).toBeNull();
+    // Sem o caminho do Chrome, fica a identificação do agent-browser; a marca de automação sai mesmo assim.
+    const semChrome = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor });
+    await semChrome.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_USER_AGENT");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_ARGS).toBe("--disable-blink-features=AutomationControlled");
   });
 
   it("a sessão só tem [A-Za-z0-9_-] e a chave é por bot, hex de 64, estável", () => {
