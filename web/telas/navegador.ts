@@ -1151,13 +1151,18 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     abaAberta: (agenteId: string): boolean => abasDeLugar.has(agenteId),
     abaAtiva: (agenteId: string): boolean => abaAtiva === agenteId,
     painelAberto: (agenteId: string): boolean => aberto?.agenteId === agenteId && aberto.modo === "painel",
-    /** O painel do bot vai tomar a coluna: o navegador aberto ao lado sai (sem devolver o controle) e fica guardado. */
-    recolherParaOPainelDoBot(): boolean {
-      if (aberto?.modo !== "painel") return false;
+    /**
+     * O painel do bot vai tomar a coluna: o navegador aberto ao lado sai (sem devolver o controle) e fica guardado. Devolve
+     * quanto a saída leva (ms; 0 sem animação), para o painel do bot entrar DEPOIS — os dois de uma vez, ele entrava
+     * escondido atrás do navegador e aparecia de estalo no fim (2026-11-22, pedido do dono); null = não havia navegador.
+     */
+    recolherParaOPainelDoBot(): number | null {
+      if (aberto?.modo !== "painel") return null;
       const r = { agenteId: aberto.agenteId, lugar: aberto.lugar };
+      const anima = !reduzido() && modo() === "lado";
       fechar({ devolver: false, aviso: false });
       recolhido = r;
-      return true;
+      return anima ? MS_PAINEL_FECHA : 0;
     },
     /** O painel do bot fechou: o navegador que ele recolheu volta (só o do mesmo bot). */
     voltarDoPainelDoBot(agenteId: string | null): boolean {

@@ -9118,13 +9118,18 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     // 2026-11-22 (pedido do dono): a coluna da direita é uma pilha. Com o navegador aberto ao lado, a pílula abre o painel
     // do bot POR CIMA (o navegador recolhe e fica guardado); fechar o painel do bot traz o navegador de volta.
     const doBot = estado.tela.tipo === "conversa" ? estado.tela.agenteId : null;
-    const recolheu = navegadorNaTela.recolherParaOPainelDoBot();
-    if (recolheu) {
-      app.classList.add("detalhes-abertos");
-      app.classList.remove("detalhes-ocultos");
-      animarPainel(app, "entrando");
-      painelAberto = true;
-      marcarPainelNaPilula();
+    const saida = navegadorNaTela.recolherParaOPainelDoBot();
+    if (saida !== null) {
+      // Um sai, depois o outro entra (a volta faz o mesmo ao contrário): o navegador desliza para fora e o painel do bot
+      // entra com a animação de sempre.
+      const entrar = (): void => {
+        app.classList.add("detalhes-abertos");
+        app.classList.remove("detalhes-ocultos");
+        animarPainel(app, "entrando");
+        painelAberto = true;
+        marcarPainelNaPilula();
+      };
+      if (saida > 0) window.setTimeout(entrar, saida); else entrar();
       void reidratar();
       return;
     }

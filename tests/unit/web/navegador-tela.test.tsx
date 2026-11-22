@@ -308,9 +308,9 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
 
   // 2026-11-22 (pedido do dono): a coluna da direita é uma pilha — o painel do bot recolhe o navegador e, ao fechar, ele volta.
   it("o painel do bot recolhe o navegador aberto ao lado; ao fechar, o navegador volta (só o do mesmo bot)", () => {
-    expect(navegador.recolherParaOPainelDoBot()).toBe(false);
+    expect(navegador.recolherParaOPainelDoBot()).toBeNull();
     navegador.abrirPainel("a1");
-    expect(navegador.recolherParaOPainelDoBot()).toBe(true);
+    expect(navegador.recolherParaOPainelDoBot()).toEqual(expect.any(Number));
     expect(navegador.painelAberto("a1")).toBe(false);
     expect(navegador.voltarDoPainelDoBot("a2")).toBe(false);
     expect(navegador.painelAberto("a1")).toBe(false);
