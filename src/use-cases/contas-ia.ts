@@ -1,3 +1,6 @@
+import { iaDoModelo } from "../domain/ia-do-modelo.ts";
+import type { IdHarness } from "../contracts/harness.ts";
+import { nomeDaIa as nomeDaIaCurto } from "../domain/espera-da-cota.ts";
 import type { ContaAnunciada, ContaIa, ContasIaDto, CotaDaContaDto, MotivoDaNota } from "../contracts/contas-ia.ts";
 import type { JanelaDoPlano, UsoDoPlano } from "../contracts/uso-do-plano.ts";
 import { cotaDasContas } from "../domain/cota-da-ia.ts";
@@ -97,6 +100,12 @@ export async function anunciarContasDaMaquina(d: Deps, maquinaId: string, anunci
     const acordados = await d.repos.turnos.anteciparEsperasDaCota(ia);
     if (acordados.length > 0) log("info", "espera_da_cota_antecipada", { gatilho: "conta_nova", ia, maquina_id: maquinaId, turnos: acordados.length });
   }
+  // Lote B das Jornadas da IA (regra 1, 2026-11-22): a mensagem que esperava uma conta (login vencido, sem acesso, limite)
+  // sai assim que uma conta da IA fica pronta — "Entre de novo e a mensagem sai em seguida".
+  for (const ia of new Set(r.prontasAgora.map((c) => c.ia))) {
+    const acordadas = await d.repos.turnos.anteciparFalasEsperando(ia);
+    if (acordadas.length > 0) log("info", "fala_em_espera_antecipada", { gatilho: "conta_pronta", ia, maquina_id: maquinaId, turnos: acordadas.length });
+  }
   return r;
 }
 
@@ -154,6 +163,32 @@ const paradoPelaConta = (turno: Turno): boolean => (MOTIVOS_FALHA_DE_ESPERA as r
 export const presoSemContato = (turno: Turno): boolean =>
   turno.motivoInterrupcao === "maquina_sem_contato" && !turno.sinais.attempted && (turno.despachadoEm ?? null) === null;
 
+/**
+ * Lote B das Jornadas da IA (2026-11-22): o turno da conversa que parou num desvio da mensagem e deixou o cartão (sessão
+ * que não recomeçou, IA que não abriu, erro desconhecido repetido, instável…). Os botões do cartão ("Rodar no <máquina>
+ * desta vez", "Responder com o <IA> desta vez") refazem esse turno uma vez, como os da nota de limite.
+ */
+async function paradoNumDesvio(d: Deps, turno: Turno): Promise<boolean> {
+  if (turno.origem !== "conversa") return false;
+  const recentes = await d.repos.mensagens.listarDaConversa(turno.conversaId, 30);
+  return recentes.some((m) => m.turnoId === turno.id && m.payload?.kind === "desvio" && m.payload.forma === "cartao");
+}
+
+/**
+ * Lote B das Jornadas da IA (desvio 3 e 10, 2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio. Refaz
+ * o turno uma vez na outra IA pronta da pessoa; o bot segue com a IA dele (regra 5: o "desta vez" não muda o bot).
+ */
+export async function responderComOutraIa(d: Deps, p: { conversaId: string; turnoId: string; prontos: readonly IdHarness[] }): Promise<SaidaDaNota> {
+  await d.repos.contasIa.travar();
+  const turno = await turnoDaNota(d, p);
+  const atual = harnessFixado(turno.harness, turno.modelo) ?? turno.harness;
+  const outra = p.prontos.find((ia) => ia !== atual) ?? null;
+  if (!outra) return { data: { turnoId: null, motivo: "conta_fora_da_maquina" }, events: [] };
+  const r = await refazerTurnoDaNota(d, { turno, harnessDestaVez: outra, linha: { texto: `Respondendo com o ${nomeDaIaCurto(outra)} desta vez.` } });
+  log("info", "responder_com_outra_ia", { turno_id: turno.id, novo_turno_id: r.data.turnoId, para: outra, motivo: r.data.motivo });
+  return r;
+}
+
 /** O turno da nota: pelo `turnoId` do botão (NOD-284), na conversa dele. Outro id, ou de outra conversa = não encontrado. */
 async function turnoDaNota(d: Deps, p: { conversaId: string; turnoId: string }): Promise<Turno> {
   const turno = await d.repos.turnos.buscar(p.turnoId);
@@ -179,12 +214,12 @@ function contaNaoServe(conta: Pick<ContaGuardadaNoServidor, "ia" | "noLimiteAte"
  */
 export async function refazerTurnoDaNota(
   d: Deps,
-  p: { turno: Turno; linha: { texto: string; payload?: PayloadMensagem; assunto?: Assunto }; maquinaDestaVez?: string | null },
+  p: { turno: Turno; linha: { texto: string; payload?: PayloadMensagem; assunto?: Assunto }; maquinaDestaVez?: string | null; harnessDestaVez?: IdHarness | null },
 ): Promise<SaidaDaNota> {
   const { turno } = p;
   const agora = d.agora();
   const nada = (motivo: MotivoNaoRefez): SaidaDaNota => ({ data: { turnoId: null, motivo }, events: [] });
-  if (turno.estado !== "interrompido" || !(paradoPelaConta(turno) || presoSemContato(turno)) || !ORIGENS_REFAZIVEIS.includes(turno.origem)) return nada("turno_nao_interrompido");
+  if (turno.estado !== "interrompido" || !(paradoPelaConta(turno) || presoSemContato(turno) || (await paradoNumDesvio(d, turno))) || !ORIGENS_REFAZIVEIS.includes(turno.origem)) return nada("turno_nao_interrompido");
   const mesmaFala = (t: Turno) => t.id !== turno.id && t.agenteId === turno.agenteId && t.criadoEm >= turno.criadoEm
     && (turno.mensagemOrigemId ? t.mensagemOrigemId === turno.mensagemOrigemId : t.entradaTexto === turno.entradaTexto);
   const posteriores = (await d.repos.turnos.listarDaConversa(turno.conversaId, 50)).filter(mesmaFala);
@@ -215,8 +250,9 @@ export async function refazerTurnoDaNota(
     mensagemOrigemId: turno.mensagemOrigemId,
     entradaAnexos: turno.entradaAnexos,
     entradaConfianca: turno.entradaConfianca,
-    modelo: turno.modelo,
-    harness: turno.harness,
+    // Lote B (desvio 3 e 10): "Responder com o ChatGPT desta vez" — fixo na outra IA só neste turno; o bot não muda.
+    modelo: p.harnessDestaVez ? (iaDoModelo(turno.modelo) === p.harnessDestaVez ? turno.modelo : "auto") : turno.modelo,
+    harness: p.harnessDestaVez ?? turno.harness,
     reenvios: turno.reenvios + 1,
     executor: turno.executor,
     trabalhoId: turno.trabalhoId ?? null,

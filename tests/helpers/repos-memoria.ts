@@ -1762,6 +1762,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         }
         return alvo.length;
       },
+      async anteciparFalasEsperando(ia: string) {
+        const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && t.origem === "conversa" && (t.acordarEm ?? null) !== null && t.mensagemOrigemId
+          && (harnessFixado(t.harness, t.modelo) === null || harnessFixado(t.harness, t.modelo) === ia));
+        for (const t of alvo) t.acordarEm = null;
+        return alvo.map((t) => t.id);
+      },
       async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}) {
         const iaDe = (t: Turno): string | null => harnessFixado(t.harness, t.modelo);
         const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && (t.acordarEm ?? null) !== null && t.entradaTexto.startsWith(ENTRADA_DA_VOLTA_DA_COTA)
@@ -1890,6 +1896,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       // NOD-312: sem sessão do CLI em memória (acima), nunca há o que perder.
       async ultimaSessaoDaConversa() {
         return null;
+      },
+      async repeticoesDaMensagem(mensagemOrigemId, motivo) {
+        return mensagemOrigemId ? doTenant(b.turnos).filter((x) => x.mensagemOrigemId === mensagemOrigemId && x.motivoRecomeco === motivo).length : 0;
       },
       async registrarMotivoRecomeco(id, motivo) {
         const t = doTenant(b.turnos).find((x) => x.id === id);

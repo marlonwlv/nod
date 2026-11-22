@@ -677,6 +677,9 @@ export function criarApi(escopo: Escopo) {
       post<{ turnos: number; motivo?: "ja_refeito" | null }>(`trabalhos/${encodeURIComponent(trabalhoId)}/rodar-desta-vez`, { maquinaId }),
     rodarDestaVez: (conversaId: string, maquinaId: string, turnoId?: string, contaId?: string) =>
       post<{ turnos: number; turnoId?: string | null; motivo?: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/rodar-desta-vez`, { maquinaId, ...(turnoId ? { turnoId } : {}), ...(contaId ? { contaId } : {}) }),
+    // Lote B (2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio — refaz o turno uma vez na outra IA.
+    responderComOutraIa: (conversaId: string, turnoId: string) =>
+      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId }),
     // ADR-102: as contas de IA da pessoa em todas as máquinas, o login numa máquina pela tela e o convite da VM.
     contasIa: () => get<ContasIaDto>("contas-ia"),
     ordemContas: (ids: string[]) => pedir<null>("PUT", `${base}/contas-ia/ordem`, { ids }),

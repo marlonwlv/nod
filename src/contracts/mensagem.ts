@@ -164,6 +164,8 @@ export type PayloadMensagem =
   | PayloadPropostaDecidida | { kind: "aviso_pessoa" } | import("./destino-no-chat.ts").PayloadTarefaLinha // NOD-114: a fala `texto` com que o bot avisou a pessoa por conta própria (avisar_pessoa); ADA-28: a linha que aponta para a tarefa.
   /** ADR-191 (2026-11-20): o pedido que a pessoa deixou para trás ao seguir conversando (cartao-encolhido.ts). */
   | PayloadPedidoDispensado
+  /** Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (src/domain/desvios-da-conversa.ts). */
+  | import("./desvio.ts").PayloadDesvio
   | { kind: "turno_preso"; maquinaId: string; /** QA do NOD-314: a IA em que o turno está fixado (harnessFixado); null/ausente = Automático. */ ia?: string | null }; // NOD-314: pendente preso 24 h a uma máquina sem contato saiu da fila.
 
 export type { Mensagem } from "./mensagem-modelo.ts";

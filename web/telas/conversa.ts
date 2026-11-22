@@ -1,3 +1,4 @@
+import { desvioNaConversa } from "./desvio.ts";
 import { textoAberto } from "../lib/textos-abertos.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
 import { renderCardColunas } from "./card-colunas.ts";
@@ -300,6 +301,8 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   }
   // ADA-28 (ADR-159, U1/U7): a linha cinza que aponta para a tarefa; o código abre a tarefa no quadro.
   if (p?.kind === "tarefa_linha") return linhaDaTarefa(m, p);
+  // Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (web/telas/desvio.ts).
+  if (p?.kind === "desvio") return desvioNaConversa(m, p);
   if (m.kind === "sistema") return cartaoRitmoRotina(m) ?? linhaDeIa(m, estado) ?? linhaDaMemoria(m, estado) ?? linhaDoTurnoPreso(m, estado) ?? `<div class="msg-sistema">${paragrafos(m.texto)}</div>`;
   if (p?.kind === "handoff") {
     // definido em 2026-09-24 (ADR-047): a tarefa delegada assina "Taga · por você" — autoria composta (ADR-023).

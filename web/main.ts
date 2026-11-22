@@ -9882,6 +9882,13 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     avisarMotivoDaNota(r?.motivo);
     dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
   }),
+  // Lote B das Jornadas da IA (2026-11-22): o botão do cartão de desvio — esta mensagem, uma vez, na outra IA pronta.
+  "responder-com-outra-ia": (el) => agir(async () => {
+    const conversaId = el.dataset.conversa ?? "";
+    const r = await api!.responderComOutraIa(conversaId, el.dataset.turno ?? "");
+    avisarMotivoDaNota(r?.data?.motivo);
+    dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
+  }),
   // NOD-314: a task na fila de uma máquina sem contato roda em outra, desta vez; relê a task e a lista.
   "rodar-trabalho-desta-vez": (el) => agir(async () => {
     const trabalhoId = el.dataset.id ?? "";

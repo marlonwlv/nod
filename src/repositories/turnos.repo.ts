@@ -689,6 +689,21 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * da cota segue valendo: se o limite persistir, o turno acordado continua segurado. A volta marcada pelo bot
      * (`me_chame_as`, esperar comando) não tem o marcador e não acorda. Devolve os ids acordados.
      */
+    /**
+     * Lote B das Jornadas da IA (regra 1, 2026-11-22): a fala da pessoa que espera (o limite, o login, a conta sem acesso;
+     * `adiarFala`) sai assim que uma conta da IA dela fica pronta numa máquina — não na hora marcada. A da IA fixa em outra
+     * não acorda; a do Automático, sim.
+     */
+    async anteciparFalasEsperando(ia: string): Promise<string[]> {
+      const linhas = await conn<{ id: string }[]>`
+        update turnos t set acordar_em = null
+        where t.tenant_id = ${escopo.tenantId} and t.owner_id = ${escopo.pessoaId} and t.estado = 'pendente' and t.origem = 'conversa'
+          and t.acordar_em is not null and t.mensagem_origem_id is not null
+          and (t.harness = 'auto' or ${iaDoTurnoSql(conn)} = ${ia})
+        returning t.id`;
+      return linhas.map((l) => l.id);
+    },
+
     async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}): Promise<string[]> {
       const porIa = modelosPorIa();
       const linhas = await conn<{ id: string }[]>`
@@ -1031,6 +1046,16 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     async registrarMotivoRecomeco(id: string, motivo: MotivoRecomeco): Promise<boolean> {
       const r = await conn`update turnos set motivo_recomeco = ${motivo} where tenant_id = ${escopo.tenantId} and id = ${id} and motivo_recomeco is null`;
       return r.count === 1;
+    },
+
+    /**
+     * Lote B das Jornadas da IA (2026-11-22): quantas vezes a mesma mensagem da pessoa já se repetiu por um motivo (a
+     * tabela de desvios conta a repetição por desvio, além do teto da mensagem). Sem a mensagem de origem: nenhuma.
+     */
+    async repeticoesDaMensagem(mensagemOrigemId: string | null | undefined, motivo: MotivoRecomeco): Promise<number> {
+      if (!mensagemOrigemId) return 0;
+      const [l] = await conn<{ n: number }[]>`select count(*)::int as n from turnos where tenant_id = ${escopo.tenantId} and mensagem_origem_id = ${mensagemOrigemId} and motivo_recomeco = ${motivo}`;
+      return l?.n ?? 0;
     },
 
     /** NOD-312 (revisão 4): a repetição da sessão recusada que acabou retomando uma sessão nova não recomeçou. */

@@ -63,6 +63,10 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   "bot.criado": { destino: "atividade", categoria: null },
   "turno.orfao": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_orfao" },
   "turno.falhou": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_falhou" },
+  // Lote B das Jornadas da IA (2026-11-22, Paper B3): a recuperação silenciosa fica no chat como UMA linha discreta — é o
+  // que explica por que a resposta demorou ou veio de outra conta; o cartão do desvio pede ação da pessoa.
+  "desvio.recuperado": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_falhou" },
+  "desvio.parou": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_falhou" },
   "turno.interrompido": { destino: "atividade", categoria: "bloqueios" },
   // A queda da máquina vem com o card "Retomar" e diz "você pode reabrir": pede ação (decidido pelo orquestrador em 18/10,
   // no lugar do Marlon, na QA do PR 1). Se o card for dispensado ou vencer, a linha continua dizendo o que houve.
@@ -232,6 +236,8 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
         return "computador.senha_preenchida";
       case "turno_preso":
         return "turno.orfao";
+      case "desvio":
+        return payload.forma === "linha" ? "desvio.recuperado" : "desvio.parou";
       case "artefato":
         return "artefato";
       case "ligacao":
