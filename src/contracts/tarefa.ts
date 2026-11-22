@@ -59,6 +59,19 @@ export type EventoTarefa = {
   criadoEm: EpochMs;
 };
 
+/**
+ * A Tarefa ligada a um trabalho, como o `TrabalhoDto` a leva (etapa 3): a tela legada mostra o estado do objetivo e a
+ * atividade sem pedir outra rota. Ausente = trabalho sem Tarefa (rotina, colega, os de antes do backfill).
+ */
+export type TarefaNoTrabalho = {
+  id: string;
+  estado: EstadoTarefa;
+  atividade: AtividadeTarefa | null;
+  versao: number;
+  entregueEm: EpochMs | null;
+  resolvidaEm: EpochMs | null;
+};
+
 /** O que a lista e o card da conversa principal mostram: o estado do objetivo e, à parte, a atividade atual. */
 export type TarefaDto = {
   id: string;

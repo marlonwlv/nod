@@ -1,3 +1,4 @@
+import { ROTULO_DO_OBJETIVO, rotuloDoObjetivo } from "./tarefa-detalhada.ts";
 import type { DonoDto } from "../../src/contracts/dono.ts";
 import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { Estado, MostrarTarefas, Tela } from "../estado/reducer.ts";
@@ -160,8 +161,13 @@ export function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly Traba
 }
 
 export function prontas(doBot: readonly TrabalhoDto[], hoje: number): string {
-  const n = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje).length;
-  return n ? plural(n, "pronta", "prontas") : "";
+  const feitas = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje);
+  // ADR-192 (etapa 3): com a Tarefa ligada, o que terminou foi ENTREGUE; resolvida só depois da pessoa. As sem Tarefa
+  // (rotina, colega, as de antes) seguem "prontas".
+  const resolvidas = feitas.filter((t) => t.tarefa?.estado === "resolvida").length;
+  const entregues = feitas.filter((t) => t.tarefa && t.tarefa.estado !== "resolvida").length;
+  const semTarefa = feitas.length - resolvidas - entregues;
+  return [semTarefa ? plural(semTarefa, "pronta", "prontas") : "", entregues ? plural(entregues, "entregue", "entregues") : "", resolvidas ? plural(resolvidas, "resolvida", "resolvidas") : ""].filter(Boolean).join(" · ");
 }
 
 /** O tempo à direita: "há 9 min" (menos de uma hora) ou "desde 9:14"; a espera de colega vencida, "sem resposta há 26h". */
@@ -305,8 +311,11 @@ export const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; m
 
 /** O passo da linha ("rodando os testes de unidade", "esperando a CI"); a terminada diz como acabou. */
 export function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
-  if (!aberto(t)) return { passo: t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
-  const passo = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
+  // ADR-192 (etapa 3): com a Tarefa ligada, a linha diz o estado do objetivo ("Entregue · precisa de você", "Resolvida") —
+  // "Entregue" nunca aparece como resolvida; aberta, o estado do objetivo vem antes do passo de agora.
+  if (!aberto(t)) return { passo: t.tarefa ? rotuloDoObjetivo(t.tarefa) : t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
+  const situacao = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
+  const passo = t.tarefa && t.tarefa.estado !== "em_andamento" ? `${ROTULO_DO_OBJETIVO[t.tarefa.estado]} · ${situacao}` : situacao;
   // O passo corta: o title leva o texto inteiro e, sem contato com a máquina, o que fazer.
   return { passo, dica: passo.includes(" · sem contato") ? dicaSemContato(t, estado.agora) : "" };
 }

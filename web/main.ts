@@ -9268,6 +9268,16 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
     fecharAbaDeTarefa(id);
   }),
+  // ADR-192 (etapa 3, 2026-11-22): as ações da Tarefa como objetivo, no fim da conversa da tarefa. `data-turno-vivo` é a
+  // escolha explícita da pessoa quando há execução viva (parar ou deixar terminar); a versão lida perde a corrida com 409.
+  ...Object.fromEntries((["resolver", "reabrir", "arquivar", "desarquivar"] as const).map((acao) => [`tarefa-${acao}`, (el: HTMLElement) => estado.ocupado ? undefined : agir(async () => {
+    const tarefaId = el.dataset.id ?? "";
+    const versao = Number(el.dataset.versao);
+    const turnoVivo = el.dataset.turnoVivo === "parar" || el.dataset.turnoVivo === "manter" ? el.dataset.turnoVivo : undefined;
+    await api!.acaoNaTarefa(tarefaId, acao, { ...(Number.isInteger(versao) && versao > 0 ? { versao } : {}), ...(turnoVivo ? { turnoVivo } : {}) });
+    const trabalhoId = estado.tela.tipo === "trabalho" ? estado.tela.id : null;
+    dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(trabalhoId ? [`trabalho:${trabalhoId}` as Invalidacao] : [])] });
+  })])),
   "trabalho-depois": (el) => estado.ocupado ? undefined : agir(async () => {
     await api!.trabalhoDepois(el.dataset.id ?? "", el.dataset.depois ?? "");
     dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });

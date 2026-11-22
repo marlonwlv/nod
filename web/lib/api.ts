@@ -1,3 +1,4 @@
+import type { TarefaDto } from "../../src/contracts/tarefa.ts";
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
 import type { CofreDto } from "../../src/contracts/cofre.ts";
@@ -496,6 +497,10 @@ export function criarApi(escopo: Escopo) {
     pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),
     // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" parada.
     encerrarTrabalho: (id: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/encerrar`),
+    // ADR-192 (etapa 3, 2026-11-22): as ações da Tarefa como objetivo. Com turno vivo, Resolver e Arquivar levam a escolha
+    // explícita da pessoa (`turnoVivo`); a versão lida faz a corrida de dois cliques perder com 409.
+    acaoNaTarefa: (tarefaId: string, acao: "resolver" | "reabrir" | "arquivar" | "desarquivar", corpo: { versao?: number; turnoVivo?: "parar" | "manter" } = {}) =>
+      post<RespostaMutacao & { tarefa: TarefaDto; mudou: boolean }>(`tarefas/${encodeURIComponent(tarefaId)}/${acao}`, corpo),
     // ADR-187 §6 (2026-11-18): o nome novo da tarefa, dado na aba.
     renomearTrabalho: (id: string, titulo: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/titulo`, { titulo }),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.

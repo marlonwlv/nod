@@ -1,3 +1,4 @@
+import { rotuloDoObjetivo } from "./tarefa-detalhada.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { TipoLinha, TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { PedidoDeColega } from "../../src/contracts/troca-entre-bots.ts";
@@ -446,7 +447,7 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
     planos.set(m.id, {
       tipo: "linha",
       chave: `linha:${m.id}`,
-      html: htmlLinha({ tipo: "task", chave: `task:${p.trabalhoId}`, agenteId: dono, conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>${p.origem === "rede" ? "Virou a tarefa" : "Abriu a tarefa"}</span><b>${esc(titulo)}</b>`, trabalhoId: p.trabalhoId, conversaId, mensagens: [m.id], titulo, extra: acoesDaAbertura(t, estado, conversaId) }) + memoria,
+      html: htmlLinha({ tipo: "task", chave: `task:${p.trabalhoId}`, agenteId: dono, conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>${p.origem === "rede" ? "Virou a tarefa" : "Abriu a tarefa"}</span><b>${esc(titulo)}</b>${t?.tarefa ? `<span class="linha-objetivo" data-estado="${esc(t.tarefa.estado)}">${esc(rotuloDoObjetivo(t.tarefa))}</span>` : ""}`, trabalhoId: p.trabalhoId, conversaId, mensagens: [m.id], titulo, extra: acoesDaAbertura(t, estado, conversaId) }) + memoria,
     });
   }
 

@@ -221,6 +221,16 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
       return l ? paraTarefa(l) : null;
     },
 
+    /** As Tarefas ligadas a vários trabalhos (o DTO dos trabalhos numa consulta): trabalhoId → Tarefa. */
+    async deTrabalhos(trabalhoIds: readonly string[]): Promise<Map<string, TarefaObjetivo>> {
+      if (trabalhoIds.length === 0) return new Map();
+      const linhas = await conn<(LinhaT & { trabalho_id: string })[]>`
+        select w.id as trabalho_id, ${conn.unsafe(COLUNAS_T.split(", ").map((c) => `t.${c}`).join(", "))} from trabalhos w
+        join tarefas t on t.tenant_id = w.tenant_id and t.id = w.tarefa_objetivo_id
+        where w.tenant_id = ${escopo.tenantId} and w.owner_id = ${escopo.pessoaId} and w.id = any(${trabalhoIds as string[]}::uuid[])`;
+      return new Map(linhas.map((l) => [l.trabalho_id, paraTarefa(l)]));
+    },
+
     /** Os trabalhos runtime de uma Tarefa (MVP: um; o backfill de Card pode ligar vários), mais recente primeiro. */
     async trabalhosDa(tarefaId: string): Promise<string[]> {
       const linhas = await conn<{ id: string }[]>`

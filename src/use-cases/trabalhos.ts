@@ -8,6 +8,7 @@ import { USO_DO_MAC_PADRAO } from "../contracts/raio-x.ts";
 import type { LeituraDeMaquinaDto, MaquinaDoTrabalho } from "../contracts/maquina.ts";
 import type { LeituraMemoria, NivelPressao, ServicoDasMaquinas, Trabalho, TrabalhoDetalheDto, TrabalhoDto, TrabalhosDto } from "../contracts/trabalho.ts";
 import type { Turno } from "../contracts/turno.ts";
+import type { TarefaNoTrabalho } from "../contracts/tarefa.ts";
 import type { PedidoNaFilaDaCota } from "../contracts/cota.ts";
 import { cotaParaTela, cotaSegura, esperaDaCotaNaTela, situacaoDaCotaDoTrabalho } from "../domain/cota-da-ia.ts";
 import { ehIaComConta } from "../domain/contas-da-pessoa.ts";
@@ -30,7 +31,7 @@ import { donosDosBots, resolverDePresenca } from "./estado-do-dono.ts";
 import { fecharLoteSePronto } from "./fechar-lote.ts";
 import { resumoSeFaltar } from "./resumo-sem-chamada.ts";
 import { tarefasDasDecisoesFechadas } from "./tarefa-casa.ts";
-import { resolverPeloTrabalho, sincronizarTarefaDoTrabalho } from "./tarefas.ts";
+import { eventoTarefaMudou, resolverPeloTrabalho, sincronizarTarefaDoTrabalho } from "./tarefas.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 import { situacaoDasFalasNaFrente } from "../domain/fala-na-frente.ts";
 import { log } from "../obs/log.ts";
@@ -207,6 +208,7 @@ export async function trabalhosParaDto(deps: Pick<Deps, "repos" | "services" | "
   const colegas = new Map<string, TrabalhoDto["esperandoColega"]>();
   for (const [id, e] of extras) if (e.esperandoColega) colegas.set(id, await colegaComCota(deps.repos, e.esperandoColega, deps.agora()));
   const esperasDaCota = await esperasDaCotaDe(deps, trabalhos);
+  const tarefas = await tarefasDosTrabalhos(deps, trabalhos);
   return trabalhos.map((t): TrabalhoDto => {
     const { tenantId: _tenant, sessaoCli: _sessao, sessaoHarness: _harness, sessaoExecutor: _executor, ...publico } = t;
     const e = extras.get(t.id);
@@ -235,8 +237,25 @@ export async function trabalhosParaDto(deps: Pick<Deps, "repos" | "services" | "
       esperandoComputadorDe: (e?.turnosAbertos ?? []).map((id) => deps.services.computadores?.esperandoPor?.(id) ?? null).find((x) => x !== null) ?? null,
       // definido em 2026-10-15 (NOD-277): só quando espera a cota — a task sem espera segue sem o campo.
       ...(esperasDaCota.has(t.id) ? { esperaDaConta: esperasDaCota.get(t.id)! } : {}),
+      ...(tarefas.has(t.id) ? { tarefa: tarefas.get(t.id)! } : {}),
     };
   }).map((dto) => (alemDisso ? { ...dto, ...alemDisso(dto, extras.get(dto.id)) } : dto));
+}
+
+/**
+ * ADR-192 (etapa 3, definido em 2026-11-22): a Tarefa ligada a cada trabalho, com a atividade projetada dos fatos dele
+ * (`atividadeDaTarefa`, a mesma função da sombra e da rota /tarefas) — duas consultas para a lista inteira.
+ */
+async function tarefasDosTrabalhos(deps: Pick<Deps, "repos">, trabalhos: readonly Trabalho[]): Promise<Map<string, TarefaNoTrabalho>> {
+  const porTrabalho = await deps.repos.tarefas.deTrabalhos(trabalhos.map((t) => t.id));
+  if (porTrabalho.size === 0) return new Map();
+  const fatos = await deps.repos.trabalhos.fatosDeVarios([...porTrabalho.keys()]);
+  const m = new Map<string, TarefaNoTrabalho>();
+  for (const [trabalhoId, t] of porTrabalho) {
+    const f = fatos.get(trabalhoId);
+    m.set(trabalhoId, { id: t.id, estado: t.estado, atividade: f ? atividadeDaTarefa(f) : null, versao: t.versao, entregueEm: t.entregueEm, resolvidaEm: t.resolvidaEm });
+  }
+  return m;
 }
 
 /**
@@ -503,8 +522,11 @@ export const renomearTrabalho: CasoDeUso<{ trabalhoId: string; titulo: string },
   if (!titulo) throw new ErroDeDominio("entrada_invalida", { cause: "titulo" });
   const t = await deps.repos.trabalhos.renomear(input.trabalhoId, titulo);
   if (!t) throw new ErroDeDominio("nao_encontrado");
+  // ADR-192 (etapa 3): o título é do objetivo; a Tarefa ligada acompanha (o Card do quadro, não).
+  const tarefa = await deps.repos.tarefas.doTrabalho(t.id);
+  const renomeada = tarefa ? await deps.repos.tarefas.renomear(tarefa.id, t.titulo, deps.agora()) : null;
   const [dto] = await trabalhosParaDto(deps, [t]);
-  return { data: { trabalho: dto! }, events: [eventoTrabalhoMudou(deps, t)] };
+  return { data: { trabalho: dto! }, events: [eventoTrabalhoMudou(deps, t), ...(renomeada ? [eventoTarefaMudou(deps, renomeada, "renomeada", { trabalhoId: t.id })] : [])] };
 };
 
 /**

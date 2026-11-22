@@ -354,6 +354,19 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         // restante do fuzz artificialmente serial por esperas de quietude.
         await d.tx((trx) => trx`update trabalhos set estado = 'terminado', terminado_em = now()
           where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${trabalhos[1]!}`);
+        // ADR-192 (etapa 3): Tarefas (objetivo) com Thread e trabalho ligado, sem turno vivo (Resolver e Arquivar não pedem a
+        // escolha), em estados que deixam cada ação válida: [0] e [3] entregues, [1] resolvida, [2] arquivada.
+        const tarefas: string[] = [];
+        for (let i = 0; i < 4; i++) {
+          const w = await d.repos.trabalhos.criar({ agenteId: meu.agente.id, conversaId: meu.conversa.id, titulo: `Tarefa do fuzz ${i}`, origem: "pessoa", forma: "frente", pasta: `~/nod/fuzz/tarefa-${i}` });
+          const t = await d.repos.tarefas.criar({ agenteId: meu.agente.id, titulo: `Tarefa do fuzz ${i}`, estado: "entregue", entregueEm: agora, entreguePorTipo: "agente", entreguePorId: meu.agente.id });
+          if (!w || !t || !(await d.repos.tarefas.criarThread({ tarefaId: t.id, conversaId: meu.conversa.id })) || !(await d.repos.tarefas.ligarTrabalho(w.id, t.id))) throw new Error("tarefa do fuzz");
+          tarefas.push(t.id);
+        }
+        await d.tx((trx) => trx`update tarefas set estado = 'resolvida', resolvida_em = now(), resolvida_por = ${sessao.pessoaId}
+          where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${tarefas[1]!}`);
+        await d.tx((trx) => trx`update tarefas set estado = 'arquivada', estado_antes_de_arquivar = 'entregue', arquivada_em = now()
+          where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${tarefas[2]!}`);
         const memorias: string[] = [];
         const diarios: string[] = [];
         for (let i = 0; i < 3; i++) {
@@ -380,7 +393,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           nuvem.push(maquina.id);
         }
         await d.tx((trx) => trx`update maquinas_nuvem set estado = 'dormindo', desejado = 'dormindo', estado_desde = now() where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${nuvem[1]!}`);
-        return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, memorias, diarios, contas, chaves, nuvem };
+        return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, tarefas, memorias, diarios, contas, chaves, nuvem };
       });
       const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
@@ -401,7 +414,8 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             // de `quadro.remover_coluna` (o plano agora vai do DELETE mais fundo ao mais raso). O `:cid` recebe ainda ids
             // reais: a coluna semeada (a remoção de verdade) e as fixas (o id não muda ao renomear; remover dá 400).
             colunas: { daPessoa: [colunaDoFuzz, "voce", "cancelado"], deOutraPessoa: [] },
-            tarefas: { daPessoa: [tarefaDoFuzz], deOutraPessoa: [] },
+            // O segmento `tarefas` é o do Card (quadro/tarefas/:id) e o da Tarefa objetivo (tarefas/:id, ADR-192): os dois entram.
+            tarefas: { daPessoa: [tarefaDoFuzz, ...sementes.tarefas], deOutraPessoa: [] },
             movimentos: { daPessoa: [movimentoDoFuzz], deOutraPessoa: [] },
             labels: { daPessoa: [labelQueFica, labelQueSai], deOutraPessoa: [] },
             pessoas: { daPessoa: [outraEscopo.pessoaId], deOutraPessoa: [] },
@@ -485,6 +499,11 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             "incidentes.dispensar": { caminho: `/incidentes/${sementes.incidentes[0]}/dispensar`, corpo: null },
             "salas.parar": { caminho: `/salas/${salaDoFuzz}/parar`, corpo: null },
             "trabalhos.parar": { caminho: `/trabalhos/${sementes.trabalhos[0]}/parar`, corpo: null },
+            "tarefas.resolver": { caminho: `/tarefas/${sementes.tarefas[0]}/resolver`, corpo: {} },
+            "tarefas.reabrir": { caminho: `/tarefas/${sementes.tarefas[1]}/reabrir`, corpo: {} },
+            "tarefas.desarquivar": { caminho: `/tarefas/${sementes.tarefas[2]}/desarquivar`, corpo: {} },
+            "tarefas.arquivar": { caminho: `/tarefas/${sementes.tarefas[3]}/arquivar`, corpo: {} },
+            "tarefas.enviar": { caminho: `/tarefas/${sementes.tarefas[3]}/mensagens`, corpo: { texto: "Continuar pelo fuzz" } },
             "trabalhos.fazer_aqui": { caminho: `/trabalhos/${sementes.trabalhos[1]}/fazer-aqui`, corpo: null },
             "memoria.desfazer_diario": { caminho: `/agentes/${meu.agente.id}/memoria/diario/${sementes.diarios[0]}/desfazer`, corpo: null },
             "memoria.apagar": { caminho: `/agentes/${meu.agente.id}/memoria/${sementes.memorias[1]}`, corpo: null },

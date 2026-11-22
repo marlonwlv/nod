@@ -437,45 +437,56 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
     },
 
     /** O que decide o estado (src/domain/trabalho.ts), numa consulta. */
+    /** Os fatos de um trabalho (a regra de `estadoDoTrabalho`); a mesma consulta de `fatosDeVarios`. */
     async fatos(id: string): Promise<Omit<FatosTrabalho, "estadoAtual" | "iniciado"> | null> {
-      const [l] = await conn<{ parando: number; despachando: number; pendentes: number; despertar: boolean; comando: boolean; esperando: boolean; decisao: boolean; colega: boolean; pergunta_vencida: boolean; vencida_tipo: TipoDecisao | null; ultimo_estado: EstadoTurno | null; ultimo_motivo: MotivoInterrupcao | null }[]>`
-        select
-          (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and t.estado = 'despachando' and t.parar_solicitado_em is not null) as parando,
-          (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and t.estado = 'despachando' and t.parar_solicitado_em is null) as despachando,
+      return (await this.fatosDeVarios([id])).get(id) ?? null;
+    },
+
+    /**
+     * ADR-192 (etapa 3, definido em 2026-11-22): os fatos de vários trabalhos numa ida ao banco — a lista de Tarefas e o
+     * DTO dos trabalhos projetam a atividade sem uma consulta por linha. Uma linha por id pedido (como `fatos`, que
+     * sempre devolvia a linha: sem turno nenhum, tudo zero).
+     */
+    async fatosDeVarios(ids: readonly string[]): Promise<Map<string, Omit<FatosTrabalho, "estadoAtual" | "iniciado">>> {
+      if (ids.length === 0) return new Map();
+      const linhas = await conn<{ id: string; parando: number; despachando: number; pendentes: number; despertar: boolean; comando: boolean; esperando: boolean; decisao: boolean; colega: boolean; pergunta_vencida: boolean; vencida_tipo: TipoDecisao | null; ultimo_estado: EstadoTurno | null; ultimo_motivo: MotivoInterrupcao | null }[]>`
+        select x.id,
+          (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado = 'despachando' and t.parar_solicitado_em is not null) as parando,
+          (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado = 'despachando' and t.parar_solicitado_em is null) as despachando,
           -- ADR-086 (revisão do #212): a volta marcada para mais tarde não é fila — conta à parte, abaixo da decisão.
-          (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and t.estado = 'pendente' and (t.acordar_em is null or t.acordar_em <= now())) as pendentes,
-          exists (select 1 from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and t.estado = 'pendente' and t.acordar_em > now()) as despertar,
+          (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado = 'pendente' and (t.acordar_em is null or t.acordar_em <= now())) as pendentes,
+          exists (select 1 from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado = 'pendente' and t.acordar_em > now()) as despertar,
           -- ADR-099 (parte 2): o comando que o trabalho deixou esperando; o fim dele acorda o trabalho.
-          exists (select 1 from esperas e where e.tenant_id = ${escopo.tenantId} and e.trabalho_id = ${id} and e.estado = 'rodando') as comando,
-          exists (select 1 from trabalhos x join trabalhos dep on dep.tenant_id = x.tenant_id and dep.id = x.depois_de_trabalho_id
-            where x.tenant_id = ${escopo.tenantId} and x.id = ${id} and dep.estado not in ('terminado', 'parado', 'falhou')) as esperando,
+          exists (select 1 from esperas e where e.tenant_id = ${escopo.tenantId} and e.trabalho_id = x.id and e.estado = 'rodando') as comando,
+          exists (select 1 from trabalhos w join trabalhos dep on dep.tenant_id = w.tenant_id and dep.id = w.depois_de_trabalho_id
+            where w.tenant_id = ${escopo.tenantId} and w.id = x.id and dep.estado not in ('terminado', 'parado', 'falhou')) as esperando,
           -- NOD-261: o "Retomar" só conta se for do último turno terminal; o de um turno anterior ficou superado.
           exists (select 1 from decisoes d join turnos t on t.tenant_id = d.tenant_id and t.id = d.turno_id
-            where d.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and d.estado in ('pendente', 'reaberta')
+            where d.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and d.estado in ('pendente', 'reaberta')
               and (d.tipo <> 'retomar_turno' or t.id = u.id)) as decisao,
           -- NOD-264 (C21): a última pergunta do trabalho venceu sem resposta e foi feita pelo último turno terminal.
           -- NOD-282 (G5): o tipo dela vem junto (a aprovação vencida tem texto próprio no resumo).
           (select case when d.estado = 'vencida' and d.turno_id = u.id then d.tipo end from decisoes d join turnos t on t.tenant_id = d.tenant_id and t.id = d.turno_id
-            where d.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and d.tipo <> 'retomar_turno'
+            where d.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and d.tipo <> 'retomar_turno'
             order by d.criado_em desc, d.id desc limit 1) as vencida_tipo,
           coalesce((select d.estado = 'vencida' and d.turno_id = u.id from decisoes d join turnos t on t.tenant_id = d.tenant_id and t.id = d.turno_id
-            where d.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and d.tipo <> 'retomar_turno'
+            where d.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and d.tipo <> 'retomar_turno'
             order by d.criado_em desc, d.id desc limit 1), false) as pergunta_vencida,
           -- definido em 2026-10-08 (revisão do épico, S3): pedido a colega feito por um turno do trabalho que não voltou —
           -- handoff com tarefaId sem peer_ask da mesma tarefa (a regra de pedidosEmAberto). O trabalho do colega já
           -- acabado sem peer_ask (a pessoa o parou) não segura este: senão ele ficaria rodando para sempre.
           exists (select 1 from mensagens h join turnos t on t.tenant_id = h.tenant_id and t.id = h.turno_id
-            where h.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and h.kind = 'handoff' and h.payload->>'tarefaId' is not null
+            where h.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and h.kind = 'handoff' and h.payload->>'tarefaId' is not null
               and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}) as colega,
           u.estado as ultimo_estado, u.motivo_interrupcao as ultimo_motivo
-        from (select 1) um
+        from unnest(${ids as string[]}::uuid[]) as x(id)
         left join lateral (
           select id, estado, motivo_interrupcao from turnos t
-          where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and t.estado in ('concluido', 'interrompido')
+          where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado in ('concluido', 'interrompido')
             and coalesce(t.motivo_interrupcao::text, '') <> 'absorvido'
           order by t.criado_em desc, t.id desc limit 1
         ) u on true`;
-      return l ? { parando: l.parando, despachando: l.despachando, pendentes: l.pendentes, aguardandoDespertar: l.despertar, aguardandoComando: l.comando, esperandoOutro: l.esperando, decisaoPendente: l.decisao, aguardandoColega: l.colega, ...(l.pergunta_vencida ? { perguntaVencida: true, ...(l.vencida_tipo ? { vencidaTipo: l.vencida_tipo } : {}) } : {}), ultimo: l.ultimo_estado ? { estado: l.ultimo_estado, motivo: l.ultimo_motivo } : null } : null;
+      return new Map(linhas.map((l) => [l.id, { parando: l.parando, despachando: l.despachando, pendentes: l.pendentes, aguardandoDespertar: l.despertar, aguardandoComando: l.comando, esperandoOutro: l.esperando, decisaoPendente: l.decisao, aguardandoColega: l.colega, ...(l.pergunta_vencida ? { perguntaVencida: true, ...(l.vencida_tipo ? { vencidaTipo: l.vencida_tipo } : {}) } : {}), ultimo: l.ultimo_estado ? { estado: l.ultimo_estado, motivo: l.ultimo_motivo } : null }]));
     },
 
     /** Nome de quem pediu, da rotina, a última fala e o turno vivo de cada trabalho, numa consulta. */

@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **212**, mais 3 só de leitura. No chat: **80 vivas**, 4 parciais, 89 faltando e 42 que nunca vão para o chat. Piso de vivas: 80.
+Ações de pessoa que mudam algo: **219**, mais 3 só de leitura. No chat: **80 vivas**, 4 parciais, 96 faltando e 42 que nunca vão para o chat. Piso de vivas: 80.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -376,11 +376,23 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | --- | --- | --- | --- | --- |
 | `decisoes.exportar` | Exportar decisões de autorização em CSV | pessoa_confirma | vivo (`decisoes`) | a tela baixa por GET; o chat confirma no cartão e ambos chamam exportarDecisoesCsv |
 
+## tarefas
+
+| Ação | O que faz | Risco | No chat | Rotas |
+| --- | --- | --- | --- | --- |
+| `tarefas.criar` | Criar uma tarefa (objetivo com conversa própria) | muda | falta (NOD-397) | `POST ^\/agentes\/(?<id>[^/]+)\/tarefas$` |
+| `tarefas.enviar` | Continuar uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/mensagens$` |
+| `tarefas.resolver` | Marcar uma tarefa como resolvida | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/resolver$` |
+| `tarefas.reabrir` | Reabrir uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/reabrir$` |
+| `tarefas.arquivar` | Arquivar uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/arquivar$` |
+| `tarefas.desarquivar` | Desarquivar uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/desarquivar$` |
+| `tarefas.renomear` | Renomear uma tarefa (o objetivo) | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/titulo$` |
+
 ## O que cada onda leva
 
 - **NOD-393** (Onda 1: bots e rotinas): `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
 - **NOD-395** (Onda 3: conta e segurança): `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`
-- **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`
+- **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`, `tarefas.criar`, `tarefas.enviar`, `tarefas.resolver`, `tarefas.reabrir`, `tarefas.arquivar`, `tarefas.desarquivar`, `tarefas.renomear`
 - **NOD-400** (Onda 4b: contas de IA): `bots.decidir_troca_de_ia`, `contas_ia.ordenar`, `contas_ia.mudar_modo`, `contas_ia.editar`, `contas_ia.sair`, `contas_ia.remover`, `contas_ia.seguir`, `contas_ia.tentar_de_novo`, `contas_ia.entrar`, `contas_ia.codigo_do_login`, `contas_ia.cancelar_login`, `contas_ia.trocar_executor`

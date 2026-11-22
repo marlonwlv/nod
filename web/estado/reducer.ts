@@ -1602,9 +1602,13 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   // NOD-445: as páginas do bot moram fora do estado (web/lib/paginas-na-tela.ts relê por REST ao ver o frame).
   "paginas.mudaram": (e) => e,
   "canvas.mudou": (e) => e,
-  // ADR-192 (etapa 2, 2026-11-22): a Tarefa mudou junto com o trabalho dela, que já publica `trabalho.mudou` (a lista e a
-  // tela relêem por ele). A etapa 3 passa a reler a Tarefa por aqui.
-  "tarefa.mudou": (e) => e,
+  // ADR-192 (etapa 3, 2026-11-22): a Tarefa (objetivo) mudou — Resolver, Reabrir e Arquivar não mudam o trabalho, então a
+  // lista (que traz o `tarefa` de cada trabalho), a linha da conversa e a tela da tarefa relêem por aqui.
+  "tarefa.mudou": (e, f) => {
+    const id = texto(f.dados.trabalhoId);
+    const aberta = id && (e.trabalhoDetalhe[id] || (e.tela.tipo === "trabalho" && e.tela.id === id)) ? (`trabalho:${id}` as Invalidacao) : null;
+    return invalidar(e, "trabalhos", aberta);
+  },
   // ADR-083: um trabalho nasceu ou mudou — relê a lista (faixa, barra, gaveta), a conversa do bot (a linha "Abriu a
   // task", a pergunta e o resultado) e a tela da task, se ela já foi aberta.
   "trabalho.mudou": (e, f) => {

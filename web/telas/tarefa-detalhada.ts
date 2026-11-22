@@ -1,5 +1,6 @@
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { PassoDoRun } from "../../src/contracts/quadro-comentarios.ts";
+import type { AtividadeTarefa, EstadoTarefa, TarefaNoTrabalho } from "../../src/contracts/tarefa.ts";
 import type { TrabalhoDetalheDto, TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { AtividadeTurno } from "../lib/atividade.ts";
 import { esc, hora } from "../lib/render.ts";
@@ -162,8 +163,12 @@ export function perguntaAberta(t: Pick<TrabalhoDto, "estado">, mensagens: readon
  * A linha do fim (Paper 4l e 4m): "Você parou a tarefa · 15:43"; "Tarefa feita · 15:51 · o resultado também foi para a
  * conversa com <bot>" (a frente de um lote, que volta ao dono); "Não terminou · …" na que falhou.
  */
-export function linhaDoFim(t: Pick<TrabalhoDto, "estado" | "terminadoEm" | "criadoEm" | "loteId"> & Partial<Pick<TrabalhoDto, "forma">>, bot: string): string {
+export function linhaDoFim(t: Pick<TrabalhoDto, "estado" | "terminadoEm" | "criadoEm" | "loteId"> & Partial<Pick<TrabalhoDto, "forma" | "tarefa">>, bot: string): string {
   const quando = hora(t.terminadoEm ?? t.criadoEm);
+  // ADR-192 (etapa 3): com a Tarefa ligada, o fim do trabalho é a ENTREGA — a resolução é da pessoa ("Entregue" nunca
+  // aparece como resolvida).
+  if (t.estado === "terminado" && t.tarefa?.estado === "resolvida") return `<div class="tk-fim feita"><span class="tk-fim-ok" aria-hidden="true">${ICONE_OK}</span>Resolvida · ${esc(hora(t.tarefa.resolvidaEm ?? t.terminadoEm ?? t.criadoEm))}</div>`;
+  if (t.estado === "terminado" && t.tarefa) return `<div class="tk-fim feita"><span class="tk-fim-ok" aria-hidden="true">${ICONE_OK}</span>Entregue · ${esc(quando)}${t.forma === "frente" && t.loteId ? ` · o resultado também foi para a conversa com ${esc(bot)}` : ""}</div>`;
   if (t.estado === "parado") return `<div class="tk-fim parada"><span class="tk-fim-quadrado" aria-hidden="true"></span>Você parou a tarefa · ${esc(quando)}</div>`;
   if (t.estado === "terminado") return `<div class="tk-fim feita"><span class="tk-fim-ok" aria-hidden="true">${ICONE_OK}</span>Tarefa feita · ${esc(quando)}${t.forma === "frente" && t.loteId ? ` · o resultado também foi para a conversa com ${esc(bot)}` : ""}</div>`;
   if (t.estado === "falhou") return `<div class="tk-fim falhou"><span class="tk-fim-ok" aria-hidden="true">${ICONE_FALHOU}</span>Não terminou · ${esc(quando)}</div>`;
@@ -231,8 +236,61 @@ export function campoDaTarefa(t: TrabalhoDto | undefined, bot: string, guardadas
     case "falhou":
       return { placeholder: "Diga o que fazer agora…", nota: "Não terminou · mandar uma mensagem continua a tarefa, na mesma sessão e pasta.", dica: "", parar: false, saida: true, precisa: false };
     case "terminado":
+      // ADR-192 (etapa 3): com a Tarefa ligada, o fim é a entrega; o campo é o Continuar.
+      if (t.tarefa?.estado === "resolvida") return { placeholder: "Continuar tarefa…", nota: "Resolvida. Mandar uma mensagem reabre a tarefa, na mesma conversa.", dica: "", parar: false, saida: false, precisa: false };
+      if (t.tarefa) return { placeholder: "Continuar tarefa…", nota: `Entregue · ${bot} terminou esta parte. Marque como resolvida ou continue a conversa.`, dica: "", parar: false, saida: false, precisa: false };
       return { placeholder: "Pedir mais alguma coisa nesta tarefa…", nota: "Feita. Mandar uma mensagem reabre a tarefa, na mesma sessão e pasta.", dica: "", parar: false, saida: false, precisa: false };
   }
+}
+
+/** ADR-192: o estado do objetivo, como a pessoa lê. */
+export const ROTULO_DO_OBJETIVO: Record<EstadoTarefa, string> = {
+  nao_iniciada: "Não iniciada",
+  em_andamento: "Em andamento",
+  entregue: "Entregue",
+  resolvida: "Resolvida",
+  arquivada: "Arquivada",
+};
+
+/** ADR-192: a atividade atual, ao lado do estado ("Entregue · precisa de você"). */
+export const ROTULO_DA_ATIVIDADE: Record<AtividadeTarefa, string> = {
+  trabalhando: "trabalhando",
+  precisa_de_voce: "precisa de você",
+  em_espera: "em espera",
+  interrompida: "interrompida",
+};
+
+/** "Entregue · precisa de você", "Em andamento · trabalhando", "Resolvida", "Arquivada". */
+export function rotuloDoObjetivo(t: Pick<TarefaNoTrabalho, "estado" | "atividade">): string {
+  const estado = ROTULO_DO_OBJETIVO[t.estado];
+  return t.atividade && t.estado !== "arquivada" ? `${estado} · ${ROTULO_DA_ATIVIDADE[t.atividade]}` : estado;
+}
+
+/** A Tarefa tem execução viva (o servidor exige a escolha entre parar e deixar terminar ao resolver ou arquivar). */
+export function tarefaComExecucaoViva(t: Pick<TrabalhoDto, "estado" | "turnoVivoId">): boolean {
+  return t.turnoVivoId !== null || t.estado === "rodando" || t.estado === "na_fila";
+}
+
+/**
+ * ADR-192 (etapa 3): o objetivo da tarefa e as ações da pessoa, no fim da conversa da tarefa. Com execução viva, Resolver
+ * e Arquivar viram dois botões cada (parar ou deixar terminar): a escolha é explícita, nunca inferida.
+ */
+export function htmlObjetivoDaTarefa(t: Pick<TrabalhoDto, "estado" | "turnoVivoId"> & Partial<Pick<TrabalhoDto, "tarefa">>): string {
+  const o = t.tarefa;
+  if (!o) return "";
+  const vivo = tarefaComExecucaoViva(t);
+  const bt = (act: string, rotulo: string, extra = "") => `<button type="button" class="tk-objetivo-bt" data-act="${act}" data-id="${esc(o.id)}" data-versao="${o.versao}"${extra}>${esc(rotulo)}</button>`;
+  const acoes: string[] = [];
+  if (o.estado === "arquivada") acoes.push(bt("tarefa-desarquivar", "Desarquivar"));
+  else {
+    if (o.estado === "resolvida") acoes.push(bt("tarefa-reabrir", "Reabrir"));
+    else if (vivo) acoes.push(bt("tarefa-resolver", "Resolver e parar", ' data-turno-vivo="parar"'), bt("tarefa-resolver", "Resolver e deixar terminar", ' data-turno-vivo="manter"'));
+    else acoes.push(bt("tarefa-resolver", "Marcar como resolvida"));
+    acoes.push(vivo ? bt("tarefa-arquivar", "Arquivar e parar", ' data-turno-vivo="parar"') : bt("tarefa-arquivar", "Arquivar"));
+  }
+  // A linha do fim já diz "Entregue · 15:51" ou "Resolvida · 15:51": o rótulo aqui só quando ela não diz.
+  const jaDito = t.estado === "terminado" && (o.estado === "entregue" || o.estado === "resolvida") && !o.atividade;
+  return `<section class="tk-objetivo" aria-label="Objetivo da tarefa"><span class="tk-objetivo-estado" data-estado="${esc(o.estado)}">${jaDito ? "" : esc(rotuloDoObjetivo(o))}</span><div class="tk-objetivo-acoes" role="group" aria-label="Ações da tarefa">${acoes.join("")}</div></section>`;
 }
 
 /** Paper 4l: as duas saídas da tarefa parada, acima do campo. */

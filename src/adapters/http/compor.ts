@@ -151,6 +151,7 @@ import { criarRotasAgentes } from "./rotas/agentes.ts";
 import { criarRotasAjustesAprovacao } from "./rotas/ajustes-aprovacao.ts";
 import { rotasTimes } from "./rotas/times.ts";
 import { criarRotasTrabalhos } from "./rotas/trabalhos.ts";
+import { criarRotasTarefas } from "./rotas/tarefas.ts";
 import { criarRotasAtividade } from "./rotas/atividade.ts";
 import { criarRotasDecisoesDoBot } from "./rotas/decisoes-do-bot.ts";
 import { criarTrabalhosVivos } from "../fundo/trabalhos-vivos.ts";
@@ -1579,6 +1580,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...criarRotasConversas(depsRotas),
     ...criarRotasBusca(depsRotas, { poolMax: lerPoolMax(env) }),
     ...criarRotasTrabalhos(depsRotas),
+    ...criarRotasTarefas(depsRotas),
     ...criarRotasAtividade(depsRotas),
     ...criarRotasDecisoesDoBot(depsRotas),
     ...criarRotasArtefatos(depsRotas),

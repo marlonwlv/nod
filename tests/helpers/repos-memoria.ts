@@ -1617,6 +1617,15 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const t = doTenant(b.trabalhos).filter((x) => x.conversaId === conversaId && x.origem === "rede" && x.sessaoCli === sessaoCli).sort((x, y) => y.criadoEm - x.criadoEm)[0];
         return t ? semDonoTrabalho(t) : null;
       },
+      // ADR-192 (etapa 3): a versão em lote dos fatos é a mesma regra, um por id.
+      async fatosDeVarios(ids) {
+        const m = new Map<string, NonNullable<Awaited<ReturnType<Repos["trabalhos"]["fatos"]>>>>();
+        for (const id of ids) {
+          const f = await this.fatos(id);
+          if (f) m.set(id, f);
+        }
+        return m;
+      },
       async fatos(id) {
         const dele = doTenant(b.turnos).filter((t) => t.trabalhoId === id);
         const ids = new Set(dele.map((t) => t.id));

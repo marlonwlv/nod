@@ -11,7 +11,7 @@ import { chipDaFalaNaFrente, renderMensagem, type BlocoDaTimeline } from "./conv
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { horariosDaRotina } from "./linhas-do-chat.ts";
 import { custoDaFrente } from "./modo-dev.ts";
-import { cartaoPrecisaDeVoce, conversaDaTarefa, falaDoPedido, htmlEntrega, htmlNarracao, htmlPassos, htmlPedido, itensDaVolta, itensDosPassos, linhaDoAgora, linhaDoFim, perguntaAberta } from "./tarefa-detalhada.ts";
+import { cartaoPrecisaDeVoce, conversaDaTarefa, falaDoPedido, htmlEntrega, htmlNarracao, htmlObjetivoDaTarefa, htmlPassos, htmlPedido, itensDaVolta, itensDosPassos, linhaDoAgora, linhaDoFim, perguntaAberta } from "./tarefa-detalhada.ts";
 
 /**
  * As telas dos trabalhos (ADR-083, épico #188; protótipo "Chat limpo", pranchas K1–K9 e M1–M3): a faixa de Trabalhos em
@@ -457,7 +457,9 @@ export function blocosAoVivoDaTask(estado: Estado, id: string): BlocoDaTimeline[
   const ultimaFala = [...(d?.mensagens ?? [])].filter((m) => m.autoria.autor_tipo !== "pessoa" && m.kind === "texto").sort((x, y) => x.criadoEm - y.criadoEm).at(-1)?.texto ?? null;
   const fim = !aberto(t) ? `${htmlEntrega(t, ultimaFala)}${linhaDoFim(t, nome)}` : "";
   const subagentes = subs ? blocoDosSubagentes(subs, a, bot?.cor ?? "", estado.agora, mascote) : "";
-  return [{ chave: "passos", html: feitos }, { chave: "subagentes", html: subagentes }, { chave: "agora", html: agora }, { chave: "fim", html: fim }].filter((b) => b.html !== "");
+  // ADR-192 (etapa 3): o objetivo e as ações da pessoa (Resolver, Reabrir, Arquivar), sempre por último.
+  const objetivo = htmlObjetivoDaTarefa(t);
+  return [{ chave: "passos", html: feitos }, { chave: "subagentes", html: subagentes }, { chave: "agora", html: agora }, { chave: "fim", html: fim }, { chave: "objetivo", html: objetivo }].filter((b) => b.html !== "");
 }
 
 /** Os botões embaixo do campo da task: Parar task (só com ela aberta; main.ts esconde ao terminar) e Fechar. */
