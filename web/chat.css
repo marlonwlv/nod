@@ -738,3 +738,22 @@
 .pilula-pedidos .pp-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pilula-pedidos .pp-texto b { font-weight: 600; }
 .pilula-pedidos .pp-ver { display: inline-flex; align-items: center; gap: 2px; color: var(--chat-aba-precisa); font-weight: 500; }
+
+/* ---- Rolagem por trás da pílula e do campo (paridade com o Grok Bot, 2026-11-22) ----------------------------------------
+   Antes a timeline terminava numa linha seca embaixo da pílula (cabeçalho de 56 px com fundo cheio) e acima do campo
+   (fundo cheio): o texto era cortado fora do que se via. No Grok a rolagem ocupa o palco inteiro; o texto passa por trás da
+   pílula e some num gradiente suave do topo (máscara só no alfa), e embaixo só some no fim do campo. Aqui: a timeline sobe
+   por baixo do cabeçalho (margem negativa) e desce por baixo do campo (--campo-h, web/lib/altura-do-campo.ts, 0 sem a
+   medida); o padding devolve o mesmo respiro à primeira e à última fala, então nada começa escondido. Só na pílula (a fileira
+   de abas tem fundo próprio) e fora do celular, que tem barra própria embaixo. */
+.stage { --cab-h: 56px; --campo-h: 0px; --esmaecer-topo: 40px; }
+@media (min-width: 761px) {
+  .stage > .cabecalho-pilula:not(.cabecalho-abas) { background: transparent; }
+  .stage > .cabecalho-pilula:not(.cabecalho-abas) ~ #timeline {
+    margin-top: calc(-1 * var(--cab-h)); margin-bottom: calc(-1 * var(--campo-h));
+    padding-top: calc(var(--cab-h) + 12px); padding-bottom: calc(16px + var(--campo-h));
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--esmaecer-topo)); /* cor-fixa: máscara, só o alfa conta */
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--esmaecer-topo)); /* cor-fixa: máscara, só o alfa conta */
+  }
+  .stage > .cabecalho-pilula:not(.cabecalho-abas) ~ .composer-wrap { position: relative; z-index: 3; background: transparent; }
+}
