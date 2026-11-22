@@ -8,6 +8,7 @@ import type { Conversa } from "../../src/contracts/conversa.ts";
 import type { EstadoOnboarding } from "../../src/contracts/onboarding.ts";
 import type { Turno } from "../../src/contracts/turno.ts";
 import { vincularEscopo } from "../../src/db/tx.ts";
+import type { Tx } from "../../src/shared/types.ts";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { contaFalsa, maquinaFalsa, PRONTO, type MaquinaFalsa } from "../helpers/maquina-falsa-http.ts";
@@ -92,7 +93,7 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   it("caminho feliz: a pessoa escreve e o bot responde", async () => {
     const { conversaId } = await bot("Bot feliz");
     const turnoId = await enviar(conversaId, "Resume a call de hoje");
-    const plano = await mac.puxarAte();
+    const plano = await mac.puxarAte(undefined, conversaId);
     expect(plano.turnoId).toBe(turnoId);
     expect(await mac.entregar(plano, { desfecho: "sucesso", texto: "Resumi a call: três decisões e dois próximos passos." })).toBe(200);
     expect((await assentado(turnoId)).estado).toBe("concluido");
@@ -102,9 +103,9 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   it("desvio 1 · a sessão sumiu: o nod recomeça pelo histórico, com uma linha, e a resposta chega", async () => {
     const { conversaId } = await bot("QA Nod");
     const turnoId = await enviar(conversaId, "Você não está mergeando os PRs que abre?");
-    expect(await mac.entregar(await mac.puxarAte(), SESSAO_SUMIU)).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), SESSAO_SUMIU)).toBe(200);
     await assentado(turnoId);
-    const repeticao = await mac.puxarAte();
+    const repeticao = await mac.puxarAte(undefined, conversaId);
     expect(repeticao.turnoId).not.toBe(turnoId);
     await printar("desvio-01-sessao-sumiu/a-recomecou", "01-linha", conversaId, tem("recomeçou pelo histórico"));
     expect(await mac.entregar(repeticao, { desfecho: "sucesso", texto: "Não, de propósito: merge só sai com pedido seu. Os três PRs estão com a CI verde." })).toBe(200);
@@ -116,9 +117,9 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   it("desvio 1 · se o nod falhar: a sessão nova também para — o cartão com o motivo e as saídas", async () => {
     const { conversaId } = await bot("QA Nod 2");
     const turnoId = await enviar(conversaId, "Você não está mergeando os PRs que abre?");
-    expect(await mac.entregar(await mac.puxarAte(), SESSAO_SUMIU)).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), SESSAO_SUMIU)).toBe(200);
     await assentado(turnoId);
-    const repeticao = await mac.puxarAte();
+    const repeticao = await mac.puxarAte(undefined, conversaId);
     expect(await mac.entregar(repeticao, SESSAO_SUMIU)).toBe(200);
     await assentado(repeticao.turnoId);
     const texto = await printar("desvio-01-sessao-sumiu/b-se-falhar", "01-cartao", conversaId, tem("não conseguiu recomeçar"));
@@ -129,9 +130,9 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   it("desvio 10 · erro desconhecido: tenta uma vez sozinho, com uma linha, e responde", async () => {
     const { conversaId } = await bot("Bot da planilha");
     const turnoId = await enviar(conversaId, "Atualiza a planilha de custos");
-    expect(await mac.entregar(await mac.puxarAte(), ERRO_ESTRANHO)).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), ERRO_ESTRANHO)).toBe(200);
     await assentado(turnoId);
-    const repeticao = await mac.puxarAte();
+    const repeticao = await mac.puxarAte(undefined, conversaId);
     await printar("desvio-10-erro-desconhecido/a-tentou-de-novo", "01-linha", conversaId, tem("Tentando de novo uma vez"));
     expect(await mac.entregar(repeticao, { desfecho: "sucesso", texto: "Atualizei a planilha: a linha de novembro entrou." })).toBe(200);
     await assentado(repeticao.turnoId);
@@ -141,16 +142,16 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   it("desvio 10 · o mesmo erro duas vezes: o cartão avisa o relato e responde com a outra IA pelo botão", async () => {
     const { conversaId } = await bot("Bot dos custos");
     const turnoId = await enviar(conversaId, "Atualiza a planilha de custos");
-    expect(await mac.entregar(await mac.puxarAte(), ERRO_ESTRANHO)).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), ERRO_ESTRANHO)).toBe(200);
     await assentado(turnoId);
-    const repeticao = await mac.puxarAte();
+    const repeticao = await mac.puxarAte(undefined, conversaId);
     expect(await mac.entregar(repeticao, ERRO_ESTRANHO)).toBe(200);
     await assentado(repeticao.turnoId);
     const texto = await printar("desvio-10-erro-desconhecido/b-duas-vezes", "01-cartao", conversaId, tem("parou duas vezes"));
     expect(texto).toContain("O relato foi para o time do nod");
     // O botão "Responder com o ChatGPT desta vez": o turno volta, fixo no Codex só desta vez.
     await tela.avaliar(`document.querySelector('[data-act="responder-com-outra-ia"]').click()`);
-    const outra = await mac.puxarAte();
+    const outra = await mac.puxarAte(undefined, conversaId);
     expect(outra.harness).toBe("codex-cli");
     expect(await mac.entregar(outra, { desfecho: "sucesso", texto: "Pelo ChatGPT: a planilha de custos está atualizada." })).toBe(200);
     await assentado(outra.turnoId);
@@ -164,11 +165,11 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   it("desvio 2 · o login venceu e há outra conta: segue nela, com a linha e o Entrar de novo", async () => {
     const { conversaId } = await bot("Bot do PR");
     const turnoId = await enviar(conversaId, "Revisa o PR #224?");
-    const plano = await mac.puxarAte();
+    const plano = await mac.puxarAte(undefined, conversaId);
     expect(plano.harness).toBe("claude-cli");
     expect(await mac.entregar(plano, LOGIN_VENCEU)).toBe(200);
     await assentado(turnoId);
-    const naOutra = await mac.puxarAte();
+    const naOutra = await mac.puxarAte(undefined, conversaId);
     expect(naOutra.harness).toBe("codex-cli");
     await printar("desvio-02-login-vencido/a-outra-conta", "01-linha", conversaId, tem("venceu"));
     expect(await mac.entregar(naOutra, { desfecho: "sucesso", texto: "Revisei. Dois pontos no teste novo, comentei no PR." })).toBe(200);
@@ -183,14 +184,14 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const { agenteId, conversaId } = await bot("Bot só Claude");
     await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "claude-cli" });
     const turnoId = await enviar(conversaId, "Revisa o PR #225?");
-    expect(await mac.entregar(await mac.puxarAte(), LOGIN_VENCEU)).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), LOGIN_VENCEU)).toBe(200);
     await assentado(turnoId);
     const texto = await printar("desvio-02-login-vencido/b-sem-outra-conta", "01-cartao", conversaId, tem("Entre de novo"));
     expect(texto).toContain("O login da Claude · Pessoal venceu no MacBook de teste");
     expect(await mac.puxar()).toBeNull();
     // A pessoa entra de novo: a conta fica pronta e a mensagem que esperava sai na hora (regra 1).
     await entrarDeNovoNoClaude();
-    const saiu = await mac.puxarAte();
+    const saiu = await mac.puxarAte(undefined, conversaId);
     expect(await mac.entregar(saiu, { desfecho: "sucesso", texto: "Revisei o #225: está pronto para o merge." })).toBe(200);
     await assentado(saiu.turnoId);
     await printar("desvio-02-login-vencido/b-sem-outra-conta", "02-entrou-e-respondeu", conversaId, tem("pronto para o merge"));
@@ -213,10 +214,10 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     await contasLivres();
     const { conversaId } = await bot("Bot do relatório");
     const turnoId = await enviar(conversaId, "Fecha o relatório da semana");
-    const plano = await mac.puxarAte();
+    const plano = await mac.puxarAte(undefined, conversaId);
     expect(await mac.entregar(plano, LIMITE_CLAUDE(Date.now() + 5 * 3_600_000))).toBe(200);
     await assentado(turnoId);
-    const naOutra = await mac.puxarAte();
+    const naOutra = await mac.puxarAte(undefined, conversaId);
     expect(naOutra.harness).not.toBe(plano.harness);
     expect(await mac.entregar(naOutra, { desfecho: "sucesso", texto: "Fechei. Está na pasta Relatórios, com o resumo no topo." })).toBe(200);
     await assentado(naOutra.turnoId);
@@ -228,7 +229,7 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const { agenteId, conversaId } = await bot("Dino");
     await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "codex-cli" });
     const turnoId = await enviar(conversaId, "Roda os testes do quadro de novo");
-    const plano = await mac.puxarAte();
+    const plano = await mac.puxarAte(undefined, conversaId);
     expect(plano.harness).toBe("codex-cli");
     expect(await mac.entregar(plano, LIMITE_CODEX_8H)).toBe(200);
     await assentado(turnoId);
@@ -237,7 +238,7 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     expect(texto).not.toMatch(/sem hora/);
     // "Responder com o Claude desta vez": a mensagem sai uma vez no Claude; o bot continua só no ChatGPT.
     await tela.avaliar(`document.querySelector('[data-act="responder-com-outra-ia"]').click()`);
-    const noClaude = await mac.puxarAte();
+    const noClaude = await mac.puxarAte(undefined, conversaId);
     expect(noClaude.harness).toBe("claude-cli");
     expect(await mac.entregar(noClaude, { desfecho: "sucesso", texto: "Rodei pelo Claude: 214 testes passaram." })).toBe(200);
     await assentado(noClaude.turnoId);
@@ -249,10 +250,129 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const { agenteId, conversaId } = await bot("Bot sem hora");
     await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "codex-cli" });
     const turnoId = await enviar(conversaId, "Resume a planilha");
-    expect(await mac.entregar(await mac.puxarAte(), LIMITE_CODEX_SEM_HORA)).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), LIMITE_CODEX_SEM_HORA)).toBe(200);
     await assentado(turnoId);
     const texto = await printar("desvio-04-limite/b-sem-hora", "01-cartao", conversaId, tem("volta sem hora"));
     expect(texto).not.toMatch(/\d{1,2}:\d{2}\./);
+  }, 180_000);
+
+  /** O banco do teste, no escopo da pessoa: só para simular o tempo (a escada do instável, o lease, o contato). */
+  const noBanco = <T,>(fn: (tx: Tx) => Promise<T>): Promise<T> => srv.db.begin(async (tx) => { await vincularEscopo(tx, srv.pessoa); return fn(tx); }) as Promise<T>;
+  /** A espera da escada passou (30 s, 2 min): a repetição sai agora. */
+  const acordarAgora = (conversaId: string) => noBanco((tx) => tx`update turnos set acordar_em = null where conversa_id = ${conversaId} and estado = 'pendente'`);
+  const INSTAVEL = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}", sinais: SINAIS_SEM_SAIDA } as const;
+
+  it("desvio 5 · instável: tenta de novo (30 s, 2 min) e passa para a outra IA, com uma linha a cada vez", async () => {
+    await contasLivres();
+    const { conversaId } = await bot("Bot da call");
+    const turnoId = await enviar(conversaId, "Resume a call de hoje");
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), INSTAVEL)).toBe(200);
+    await assentado(turnoId);
+    await printar("desvio-05-instavel/a-outra-ia", "01-tentando-de-novo", conversaId, tem("(1 de 3)"));
+    await acordarAgora(conversaId);
+    const segunda = await mac.puxarAte(undefined, conversaId);
+    expect(await mac.entregar(segunda, INSTAVEL)).toBe(200);
+    await assentado(segunda.turnoId);
+    await acordarAgora(conversaId);
+    const terceira = await mac.puxarAte(undefined, conversaId);
+    expect(await mac.entregar(terceira, INSTAVEL)).toBe(200);
+    await assentado(terceira.turnoId);
+    const naOutra = await mac.puxarAte(undefined, conversaId);
+    expect(naOutra.harness).toBe("codex-cli");
+    expect(await mac.entregar(naOutra, { desfecho: "sucesso", texto: "Resumo da call: o lançamento fica para terça." })).toBe(200);
+    await assentado(naOutra.turnoId);
+    await printar("desvio-05-instavel/a-outra-ia", "02-respondeu-pela-outra-ia", conversaId, tem("fica para terça"));
+  }, 240_000);
+
+  it("desvio 5 · instável com o bot preso ao Claude: depois de 3 tentativas, o cartão com a outra IA desta vez", async () => {
+    await contasLivres();
+    const { agenteId, conversaId } = await bot("Bot só Claude 2");
+    await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "claude-cli" });
+    const turnoId = await enviar(conversaId, "Resume a call de hoje");
+    let plano = await mac.puxarAte(undefined, conversaId);
+    expect(await mac.entregar(plano, INSTAVEL)).toBe(200);
+    await assentado(turnoId);
+    for (let i = 0; i < 2; i++) {
+      await acordarAgora(conversaId);
+      plano = await mac.puxarAte(undefined, conversaId);
+      expect(await mac.entregar(plano, INSTAVEL)).toBe(200);
+      await assentado(plano.turnoId);
+    }
+    const texto = await printar("desvio-05-instavel/b-se-falhar", "01-cartao", conversaId, tem("continua instável"));
+    expect(texto).toContain("Responder com o ChatGPT desta vez");
+  }, 240_000);
+
+  it("desvio 11 · o nod atualizou no meio: a conversa volta sozinha, com a linha, e a resposta chega", async () => {
+    await contasLivres();
+    const { conversaId } = await bot("Bot do post");
+    const turnoId = await enviar(conversaId, "Escreve o post da semana");
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), { desfecho: "interrompido", causa: "reinicio_do_motor", texto: "Começando o rascunho…", sinais: { attempted: true, rejected: false, promptSubmitted: true, producedOutput: true } })).toBe(200);
+    await assentado(turnoId);
+    const volta = await mac.puxarAte(undefined, conversaId);
+    await printar("desvio-11-nod-atualizou/a-voltou-sozinho", "01-linha", conversaId, tem("O nod atualizou no meio da resposta"));
+    expect(await mac.entregar(volta, { desfecho: "sucesso", texto: "Pronto, o rascunho está no documento “Post da semana”." })).toBe(200);
+    await assentado(volta.turnoId);
+    const texto = await printar("desvio-11-nod-atualizou/a-voltou-sozinho", "02-resposta", conversaId, tem("Post da semana"));
+    expect(texto).not.toContain("Retomar");
+  }, 180_000);
+
+  it("desvio 12 · a máquina dormiu no meio: a resposta continua quando ela volta", async () => {
+    await contasLivres();
+    const { conversaId } = await bot("Bot da migração");
+    const turnoId = await enviar(conversaId, "Roda a migração na VM");
+    const plano = await mac.puxarAte(undefined, conversaId);
+    expect(plano.turnoId).toBe(turnoId);
+    // A máquina dormiu (não renovou o lease) e, ao acordar, entrega a resposta cortada: o servidor vê o lease vencido e
+    // trata como a máquina sem contato — o mesmo caminho da queda pelo varredor (que no boot tem 90 s de carência).
+    await noBanco((tx) => tx`update turnos set lease_ate = now() - interval '2 minutes' where id = ${turnoId}`);
+    expect(await mac.entregar(plano, { desfecho: "interrompido", texto: "Rodando a migração…", sinais: { attempted: true, rejected: false, promptSubmitted: true, producedOutput: true } })).toBe(200);
+    await assentado(turnoId);
+    await printar("desvio-12-computador-dormiu/a-voltou", "01-linha", conversaId, tem("A resposta continua quando"));
+    const volta = await mac.puxarAte(undefined, conversaId);
+    expect(await mac.entregar(volta, { desfecho: "sucesso", texto: "Migração aplicada: 3 tabelas novas." })).toBe(200);
+    await assentado(volta.turnoId);
+    await printar("desvio-12-computador-dormiu/a-voltou", "02-resposta", conversaId, tem("3 tabelas novas"));
+  }, 180_000);
+
+  it("desvio 7 · a máquina do bot está fora do ar no envio: avisa na hora e roda na outra pelo botão", async () => {
+    await contasLivres();
+    const desligada = await maquinaFalsa(srv, { nome: "Mac da sala", plataforma: "darwin", harnesses: { "claude-cli": PRONTO("2.1.327") }, contas: [contaFalsa(1, "claude-cli", "Pessoal")] });
+    const { agenteId, conversaId } = await bot("Bot do time");
+    await srv.json("PUT", `agentes/${agenteId}/maquina`, { maquinaId: desligada.id });
+    await desligada.pedir("desconectar").catch(() => undefined);
+    await noBanco((tx) => tx`update maquina_tokens set ultimo_uso_em = now() - interval '3 hours' where id = ${desligada.id}`);
+    await enviar(conversaId, "Manda o resumo pro time");
+    const texto = await printar("desvio-07-computador-fora/a-outra-maquina", "01-cartao", conversaId, tem("está fora do ar"));
+    expect(texto).toContain("O Mac da sala está fora do ar");
+    await tela.avaliar(`document.querySelector('[data-act="rodar-desta-vez"]').click()`);
+    const noMac = await mac.puxarAte(undefined, conversaId);
+    expect(await mac.entregar(noMac, { desfecho: "sucesso", texto: "Mandei o resumo no canal do time." })).toBe(200);
+    await assentado(noMac.turnoId);
+    await printar("desvio-07-computador-fora/a-outra-maquina", "02-respondeu-na-outra", conversaId, tem("canal do time"));
+  }, 180_000);
+
+  it("desvio 8 · a organização tirou o acesso e não há outra conta: o aviso com a causa e o botão, sem termos internos", async () => {
+    await contasLivres();
+    const { agenteId, conversaId } = await bot("Bot do ajuste");
+    await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "claude-cli" });
+    const turnoId = await enviar(conversaId, "Abre o PR do ajuste");
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), { desfecho: "falha", motivoFalha: "nao_autenticado", causaSemIa: "conta_sem_acesso", texto: "", erroCru: "success | Your organization has disabled Claude subscription access for Claude Code", sinais: SINAIS_SEM_SAIDA })).toBe(200);
+    await assentado(turnoId);
+    const texto = await printar("desvio-08-sem-acesso/a-sem-outra-conta", "01-aviso", conversaId, tem("sem acesso"));
+    expect(texto).not.toMatch(/claude-cli|nao_autenticado|executor/);
+    await entrarDeNovoNoClaude();
+  }, 180_000);
+
+  it("desvio 6 · nenhuma IA pronta na máquina do bot: a mensagem fica guardada, com o Conectar", async () => {
+    const vazia = await maquinaFalsa(srv, { nome: "VM nova", plataforma: "linux", harnesses: { "claude-cli": { estado: "ausente", motivo: "não instalado", causa: "nao_instalado", em: Date.now() } as never } });
+    const { agenteId, conversaId } = await bot("Bot novo");
+    await srv.json("PUT", `agentes/${agenteId}/maquina`, { maquinaId: vazia.id });
+    await enviar(conversaId, "Organiza minha agenda de amanhã");
+    await vazia.puxar();
+    const texto = await printar("desvio-06-sem-ia-pronta/a-guardada", "01-na-fila", conversaId, tem("Nenhuma IA pronta em VM nova"));
+    expect(texto).toContain("Conectar uma IA");
+    expect(texto).not.toMatch(/claude-cli|nao_autenticado|executor indispon/);
+    await vazia.pedir("desconectar").catch(() => undefined);
   }, 180_000);
 
   it("desvio 9 · a IA não abriu: o cartão nomeia a máquina e roda na outra pelo botão", async () => {
@@ -260,13 +380,13 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     try {
       const { conversaId } = await bot("Bot do contrato");
       const turnoId = await enviar(conversaId, "Revisa o contrato novo");
-      expect(await mac.entregar(await mac.puxarAte(), NAO_ABRIU)).toBe(200);
+      expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), NAO_ABRIU)).toBe(200);
       await assentado(turnoId);
       const texto = await printar("desvio-09-ia-nao-abriu/a-outra-maquina", "01-cartao", conversaId, tem("não abriu"));
       expect(texto).toContain("MacBook de teste");
       expect(texto).toContain("Rodar na VM do nod desta vez");
       await tela.avaliar(`document.querySelector('[data-act="rodar-desta-vez"]').click()`);
-      const naVm = await vm.puxarAte();
+      const naVm = await vm.puxarAte(undefined, conversaId);
       expect(await vm.entregar(naVm, { desfecho: "sucesso", texto: "Revisei na VM: duas cláusulas pedem atenção." })).toBe(200);
       await assentado(naVm.turnoId);
       await printar("desvio-09-ia-nao-abriu/a-outra-maquina", "02-respondeu-na-vm", conversaId, tem("duas cláusulas"));

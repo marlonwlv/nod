@@ -220,7 +220,7 @@ export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: n
     case "limite":
       return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `O ${n.ia} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele voltar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
     case "instavel":
-      return c(`O ${n.ia} continua instável`, `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes e não há outra IA pronta agora`, [...outraMaquina, ...verErro]);
+      return c(`O ${n.ia} continua instável`, n.outraIa ? `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes. ${n.bot} só usa o ${n.ia}, mas o ${n.outraIa} está pronto para responder desta vez` : `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes e não há outra IA pronta agora`, [...outraIa, ...outraMaquina, ...verErro]);
     case "sem_ia_pronta":
       return c(`Nenhuma IA conectada${onde}`, "A mensagem fica guardada e sai assim que uma conta entrar", [{ acao: "conectar_ia", rotulo: "Conectar uma IA" }, ...outraMaquina], { espera: { ate: null }, tom: "espera" });
     case "computador_fora":

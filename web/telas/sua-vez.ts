@@ -997,8 +997,9 @@ export function fraseDoIncidente(i: SuaVezDto["incidentes"][number]): string {
   if (partes.length === 0) return quando;
   const verbo = i.rotinas + i.conversas === 1 ? "não concluiu" : "não concluíram";
   const deQuem = i.agentes.length ? ` (${i.agentes.join(", ")})` : "";
-  const segue = i.rotinas === 0 ? " e dá para retomar pela conversa" : i.conversas === 0 ? " e as próximas seguem agendadas" : ": as rotinas seguem agendadas e a conversa pode ser retomada";
-  return `${quando} ${partes.join(" e ")} ${verbo}${deQuem}; nada foi reenviado${segue}.`;
+  // revisto em 2026-11-22 (lote B, desvio 12): a resposta da conversa volta sozinha, uma vez, quando a máquina voltar.
+  const segue = i.rotinas === 0 ? "; a resposta continua sozinha quando a máquina voltar" : i.conversas === 0 ? "; nada foi reenviado e as próximas seguem agendadas" : "; as rotinas seguem agendadas e a resposta continua sozinha quando a máquina voltar";
+  return `${quando} ${partes.join(" e ")} ${verbo}${deQuem}${segue}.`;
 }
 
 /**

@@ -21,8 +21,8 @@ describe("aviso de queda do Mac (ADR-045): incidente não é decisão", () => {
 
   it("em curso, só conversa, e misto: a frase diz o que a pessoa pode fazer", () => {
     expect(fraseDoIncidente(incidente({ voltouEm: null }))).toMatch(/^Seu Mac está sem contato desde \d{2}:\d{2}\. /);
-    expect(fraseDoIncidente(incidente({ rotinas: 0, conversas: 1, agentes: ["Vera"] }))).toContain("1 resposta em conversa não concluiu (Vera); nada foi reenviado e dá para retomar pela conversa.");
-    expect(fraseDoIncidente(incidente({ rotinas: 2, conversas: 1 }))).toContain("2 execuções de rotina e 1 resposta em conversa não concluíram (Ada, Taga); nada foi reenviado: as rotinas seguem agendadas e a conversa pode ser retomada.");
+    expect(fraseDoIncidente(incidente({ rotinas: 0, conversas: 1, agentes: ["Vera"] }))).toContain("1 resposta em conversa não concluiu (Vera); a resposta continua sozinha quando a máquina voltar.");
+    expect(fraseDoIncidente(incidente({ rotinas: 2, conversas: 1 }))).toContain("2 execuções de rotina e 1 resposta em conversa não concluíram (Ada, Taga); as rotinas seguem agendadas e a resposta continua sozinha quando a máquina voltar.");
   });
 
   it("2026-10-09: a queda da VM do motor nomeia a máquina; sem o campo, é o Mac", () => {

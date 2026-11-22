@@ -137,15 +137,16 @@ describe("fila da conversa com a máquina do bot fora do ar (exceção do nod, C
     expect(renderMensagem(mensagem("m2"), e)).not.toContain("rodar-desta-vez");
   });
 
-  it("máquina do bot conectada mas sem IA pronta: '{Bot} está sem IA configurada'", () => {
+  // revisto em 2026-11-22 (lote B, desvio 6): a linha diz que a mensagem espera e leva o "Conectar uma IA".
+  it("máquina do bot conectada mas sem IA pronta: a mensagem espera, com o Conectar uma IA", () => {
     const e = com("vm", [{ ...maquina("vm", "vm-sp", true), ias: { "claude-cli": "nao_autenticado" as const } }]);
-    expect(situacaoNaFila(mensagem("m2"), e)).toMatchObject({ texto: "Ze 1 está sem IA configurada" });
+    expect(situacaoNaFila(mensagem("m2"), e)).toMatchObject({ texto: "Nenhuma IA pronta em vm-sp: a mensagem sai assim que uma conta entrar", resolver: { act: "secao-espaco", rotulo: "Conectar uma IA" } });
   });
 
   it("sem IA NESTE computador: a mesma linha, sem pedir terminal", () => {
     const e = { ...com("vm", [{ ...maquina("vm", "Windows de Marlon", true), ias: { "claude-cli": "ausente" as const } }]), estaMaquina: { id: "vm", nome: "Windows de Marlon", plataforma: "win32" as const } };
     const s = situacaoNaFila(mensagem("m2"), e);
-    expect(s?.texto).toBe("Ze 1 está sem IA configurada");
+    expect(s?.texto).toBe("Nenhuma IA pronta em Windows de Marlon: a mensagem sai assim que uma conta entrar");
     expect(s?.texto).not.toContain("nod-motor");
   });
 

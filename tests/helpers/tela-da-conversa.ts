@@ -66,7 +66,7 @@ export async function telaDaConversa(o: { url: string; cookie: string }): Promis
       const abriu = await esperarAte(`(() => { const b = document.querySelector('[data-act="abrir-conversa"][data-conversa="${p.conversaId}"]'); if (b) b.click(); return !!b; })()`, 10_000);
       if (!abriu) throw new Error(`telaDaConversa: a conversa ${p.conversaId} não aparece no app`);
       const ok = await esperarAte(p.pronto, p.prazoMs ?? 20_000);
-      const texto = await avaliar<string>(cdp, `(document.querySelector('.timeline') ?? document.body).innerText`);
+      const texto = await avaliar<string>(cdp, `([...document.querySelectorAll('.timeline')].find((x) => x.offsetParent !== null) ?? document.body).innerText`);
       if (!ok) throw new Error(`telaDaConversa (${p.variacao.nome}): a tela não mostrou o esperado (${p.pronto}). Viu:\n${texto.slice(-1500)}${excecoes.length ? `\nExceções da página:\n${excecoes.slice(-3).join("\n")}` : ""}`);
       // As animações de entrada (linhas novas, o mascote) assentam antes do print.
       await espera(400);

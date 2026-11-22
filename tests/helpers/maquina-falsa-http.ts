@@ -21,8 +21,11 @@ export type MaquinaFalsa = {
   anunciar(): Promise<number>;
   /** Um puxar com o long-poll do servidor; null = nada na fila desta máquina. */
   puxar(): Promise<PlanoTurno | null>;
-  /** Puxa até vir um plano (o despacho é assíncrono); lança no prazo. */
-  puxarAte(prazoMs?: number): Promise<PlanoTurno>;
+  /**
+   * Puxa até vir um plano (o despacho é assíncrono); lança no prazo. Com `conversaId`, o plano de outra conversa (a fala de
+   * um cenário anterior que voltou sozinha à fila, como manda a regra 1) é respondido com sucesso e a busca segue.
+   */
+  puxarAte(prazoMs?: number, conversaId?: string): Promise<PlanoTurno>;
   /** Entrega o resultado do turno (sucesso com texto, ou o erro do cenário). */
   entregar(plano: PlanoTurno, r: ResultadoFalso): Promise<number>;
   /** Troca o que a máquina tem (IAs e contas) e reanuncia. */
@@ -77,10 +80,14 @@ export async function maquinaFalsa(srv: ServidorCompleto, o: { nome: string; pla
       if (r.status !== 200) throw new Error(`maquinaFalsa ${o.nome}: puxar → ${r.status} ${await r.text()}`);
       return ((await r.json()) as { plano: PlanoTurno | null }).plano;
     },
-    async puxarAte(prazoMs = 15_000) {
+    async puxarAte(prazoMs = 15_000, conversaId?: string) {
       const fim = Date.now() + prazoMs;
       while (Date.now() < fim) {
         const p = await m.puxar();
+        if (p && conversaId && p.conversaId !== conversaId) {
+          await m.entregar(p, { desfecho: "sucesso", texto: "Feito." });
+          continue;
+        }
         if (p) return p;
       }
       throw new Error(`maquinaFalsa ${o.nome}: nenhum plano em ${prazoMs} ms`);

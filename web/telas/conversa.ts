@@ -573,6 +573,8 @@ type SituacaoFila = {
   texto: string;
   /** O botão de texto da linha (Cancelar, Desfazer ou Tentar de novo). */
   botao?: { act: "cancelar-turno" | "desfazer-cancelamento"; rotulo: string; aria: string };
+  /** Lote B (desvio 6, 2026-11-22): o caminho que resolve a espera ("Conectar uma IA"), antes do Cancelar. */
+  resolver?: { act: "secao-espaco"; rotulo: string; dados: Record<string, string> };
 };
 
 const CANCELAR = { act: "cancelar-turno", rotulo: "Cancelar", aria: "Cancelar só esta mensagem" } as const;
@@ -617,7 +619,8 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   const doTrabalho = (estado.trabalhos?.trabalhos ?? []).find((t) => t.conversaId === c.conversa.id && t.maquina?.acordando)?.maquina ?? null;
   const naFila = (texto: string): SituacaoFila & { turnoId: string } => ({ tipo: "na_fila", texto, botao: CANCELAR, turnoId: emCurso.id });
   if (acordandoNaFila(doBot, doTrabalho)) return naFila("Ligando a máquina…");
-  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return naFila(`${nome} está sem IA configurada`);
+  // Lote B (desvio 6, Paper B-6): a mensagem está guardada e sai quando uma IA ficar pronta; o link leva a conectar uma.
+  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return { ...naFila(`Nenhuma IA pronta em ${doBot.nome}: a mensagem sai assim que uma conta entrar`), resolver: { act: "secao-espaco", rotulo: "Conectar uma IA", dados: { secao: "conexao" } } };
   if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
   return naFila("Na fila");
 }
@@ -644,7 +647,8 @@ function faixaQueFalta(f: Estado["faixaParada"], mensagens: readonly Mensagem[])
 }
 
 function renderSituacaoFila(s: SituacaoFila & { turnoId: string }): string {
-  const bt = s.botao ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.botao.act, s.botao.rotulo, { classe: "link", id: s.turnoId, aria: s.botao.aria })}` : "";
+  const resolver = s.resolver ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.resolver.act, esc(s.resolver.rotulo), { classe: "link", dados: s.resolver.dados })}` : "";
+  const bt = `${resolver}${s.botao ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.botao.act, s.botao.rotulo, { classe: "link", id: s.turnoId, aria: s.botao.aria })}` : ""}`;
   return `<div class="fila-linha" role="status" data-fila="${s.tipo}"><span>${esc(s.texto)}</span>${bt}</div>`;
 }
 
