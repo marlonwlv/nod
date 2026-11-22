@@ -30,6 +30,7 @@ import { donosDosBots, resolverDePresenca } from "./estado-do-dono.ts";
 import { fecharLoteSePronto } from "./fechar-lote.ts";
 import { resumoSeFaltar } from "./resumo-sem-chamada.ts";
 import { tarefasDasDecisoesFechadas } from "./tarefa-casa.ts";
+import { resolverPeloTrabalho, sincronizarTarefaDoTrabalho } from "./tarefas.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 import { situacaoDasFalasNaFrente } from "../domain/fala-na-frente.ts";
 import { log } from "../obs/log.ts";
@@ -105,8 +106,10 @@ export async function sincronizarTrabalho(deps: DepsTrabalho, trabalhoId: string
   }
   // ADR-099 (I2): a frente que acabou sem devolver_resumo ganha o resumo montado pelo servidor.
   await resumoSeFaltar(deps, mudou, fatos.perguntaVencida ? { perguntaVencida: true, ...(fatos.vencidaTipo ? { vencidaTipo: fatos.vencidaTipo } : {}) } : {});
+  // ADR-192 (etapa 2): a Tarefa ligada, se houver, acompanha — começou → iniciar; terminou → entregue (nunca resolvida).
+  const daTarefa = await sincronizarTarefaDoTrabalho(deps, mudou, novo);
   // ADR-099 (I3): e fecha o lote dela, se era a vez (o trabalho já está travado; o lote trava por último).
-  return [eventoTrabalhoMudou(deps, mudou), ...(await fecharLoteSePronto(deps, mudou))];
+  return [eventoTrabalhoMudou(deps, mudou), ...daTarefa, ...(await fecharLoteSePronto(deps, mudou))];
 }
 
 /**
@@ -566,7 +569,9 @@ export const encerrarTrabalho: CasoDeUso<{ trabalhoId: string }, { trabalho: Tra
     }
   }
   const mudou = t.estado === "terminado" ? null : await deps.repos.trabalhos.mudarEstado(t.id, "terminado", deps.agora());
+  // ADR-192 (etapa 2): encerrar é o gesto explícito da pessoa — a Tarefa ligada fica resolvida, com autoria e hora.
+  const daTarefa = await resolverPeloTrabalho(deps, t);
   const [dto] = await trabalhosParaDto(deps, [mudou ?? trabalho]);
-  return { data: { trabalho: dto! }, events: mudou ? [eventoTrabalhoMudou(deps, mudou)] : [] };
+  return { data: { trabalho: dto! }, events: [...(mudou ? [eventoTrabalhoMudou(deps, mudou)] : []), ...daTarefa] };
 };
 

@@ -15,6 +15,7 @@ import { ehFalaSemIa } from "../domain/sem-ia.ts";
 import { ehUuid } from "./apoio-l7.ts";
 import { autoriaAgente, autoriaPessoa, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
+import { continuarPeloTrabalho, criarTarefaComThread } from "./tarefas.ts";
 import { criarTrabalho, devolverGuardados, linhaTrabalhoAberto, marcarParado, sincronizarTrabalho, trabalhosParaDto, travarTrabalhoComTurnos } from "./trabalhos.ts";
 
 /**
@@ -93,6 +94,9 @@ export async function enfileirarNoTrabalho(deps: Deps, t: Trabalho, p: { texto: 
     // NOD-376 (revisão do PR #539, A1): a conversa da pessoa na frente não arquiva o resumo — a frente que ela reabre
     // para perguntar algo, ao acabar de novo, não acorda o dono nem responde ao colega com o papo dela (critério 4).
     // Revisão 4 do PR #539 (definido em 2026-10-27): só a fala marcada (frente terminada); a frente parada ou que falhou segue o caminho de antes (continuar).
+    // ADR-192 (etapa 2): a pessoa falou na Tarefa — é o Continuar (entregue ou resolvida voltam a em_andamento). Antes da
+    // sincronização do trabalho: o `iniciar` que ela pode gerar já encontra a Tarefa em andamento.
+    ...(p.deQuem === "pessoa" ? await continuarPeloTrabalho(deps, t) : []),
     ...(await sincronizarTrabalho(deps, t.id, p.deQuem === "pessoa" ? { reabrir: true, ...(p.decididoPor === FALA_DEPOIS_DO_FIM ? { guardaResumo: true as const } : {}) } : {})),
   ];
   return { turno, events };
@@ -131,7 +135,7 @@ export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string
  * é ligado a ele na mesma transação (o lote precisa do turno; o trabalho, do lote): o despachante nunca o vê solto.
  * "Levar o contexto da conversa" junta à entrada as últimas falas do chat com o dono (blocoDoContexto, com teto).
  */
-export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; levarConversa?: boolean; anexos?: readonly string[] }, { trabalho: TrabalhoDto; turnoId: string }> = async (deps, input) => {
+export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; levarConversa?: boolean; anexos?: readonly string[]; chaveIdempotencia?: string | null }, { trabalho: TrabalhoDto; turnoId: string; tarefaId?: string; threadId?: string }> = async (deps, input) => {
   const texto = typeof input.texto === "string" ? input.texto.trim() : "";
   if (texto === "") throw new ErroDeDominio("texto_vazio");
   // Validação de 2026-11-18: o clipe do campo da tarefa nova (ids soltos da conversa do bot), como na fala na tarefa.
@@ -143,10 +147,15 @@ export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; l
   const conversa = await deps.repos.conversas.buscarPropriaDoAgente(agente.id);
   if (!conversa) throw new ErroDeDominio("nao_encontrado", { cause: "conversa própria do bot" });
   const agora = deps.agora();
+  const titulo = tituloProvisorio(texto);
+  // ADR-192 (etapa 2, dual-write): a Tarefa e a Thread primária nascem antes de tudo, na mesma transação. Primeiro, para a
+  // chave de idempotência valer antes de qualquer escrita: o segundo pedido com a mesma chave devolve a primeira tarefa e
+  // não cria nada. Desligada (NOD_TAREFA_OBJETIVO=0), o caminho é o de antes.
+  const objetivo = deps.tarefaObjetivo === false ? null : await criarTarefaComThread(deps, { agenteId: agente.id, titulo, conversaId: conversa.id, comPrimeiroTurno: true, chaveIdempotencia: chaveValida(input.chaveIdempotencia), autor: { tipo: "pessoa", id: deps.escopo.pessoaId } });
+  if (objetivo?.existente) return respostaDaExistente(deps, objetivo.existente.id);
   // Como a fala na tarefa (enfileirarNoTrabalho): a pessoa falou de novo, a parada da conversa do bot se encerra.
   await deps.repos.paradas.encerrarAbertas({ conversaId: conversa.id, agora });
   const contexto = input.levarConversa === true ? await contextoDaConversa(deps, conversa.id, agente.nome) : { falas: [], deFora: false };
-  const titulo = tituloProvisorio(texto);
   const autoria = autoriaPessoa(deps.escopo);
   const mensagem = await deps.repos.mensagens.criar({ conversaId: conversa.id, autoria, kind: "texto", texto, confianca: "confiavel" });
   if (!mensagem) throw new ErroDeDominio("nao_permitido");
@@ -181,6 +190,12 @@ export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; l
   const { trabalho, events } = await criarTrabalho(deps, { agenteId: agente.id, conversaId: conversa.id, titulo, origem: "pessoa", forma: "frente", loteId: lote.id, pessoaEsperando: true });
   const ligado = await deps.repos.turnos.vincularTrabalho(turno.id, trabalho.id, "pendente");
   if (!ligado) throw new ErroDeDominio("estado_invalido", { cause: "turno da tarefa sem trabalho" });
+  if (objetivo?.tarefa) {
+    // O trabalho é o runtime da Tarefa (sessão, pasta, máquina, custo); o primeiro turno é da Thread primária.
+    if (!(await deps.repos.tarefas.ligarTrabalho(trabalho.id, objetivo.tarefa.id))) throw new ErroDeDominio("estado_invalido", { cause: "trabalho sem tarefa" });
+    if (!(await deps.repos.tarefas.ligarTurno(turno.id, objetivo.thread.id))) throw new ErroDeDominio("estado_invalido", { cause: "turno sem thread" });
+    events.push(...objetivo.events);
+  }
   events.push(
     evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { mensagem_id: mensagem.id, kind: "texto", trabalho_id: trabalho.id } }),
     evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { origem: turno.origem, agente_id: agente.id, trabalhoId: trabalho.id } }),
@@ -188,8 +203,26 @@ export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; l
     ...(await sincronizarTrabalho(deps, trabalho.id)),
   );
   const [dto] = await trabalhosParaDto(deps, [(await deps.repos.trabalhos.buscar(trabalho.id)) ?? trabalho]);
-  return { data: { trabalho: dto!, turnoId: turno.id }, events };
+  return { data: { trabalho: dto!, turnoId: turno.id, ...(objetivo?.tarefa ? { tarefaId: objetivo.tarefa.id, threadId: objetivo.thread.id } : {}) }, events };
 };
+
+/** A chave de idempotência que segue: texto de 1 a 100 caracteres sem espaço nas pontas; o resto é ignorado (sem chave). */
+function chaveValida(chave: string | null | undefined): string | null {
+  if (typeof chave !== "string") return null;
+  const c = chave.trim();
+  return c.length >= 1 && c.length <= 100 ? c : null;
+}
+
+/** O segundo pedido com a mesma chave: a tarefa que o primeiro criou, sem escrever nada. */
+async function respostaDaExistente(deps: Deps, tarefaId: string): Promise<{ data: { trabalho: TrabalhoDto; turnoId: string; tarefaId: string; threadId?: string } }> {
+  const [trabalhoId] = await deps.repos.tarefas.trabalhosDa(tarefaId);
+  const trabalho = trabalhoId ? await deps.repos.trabalhos.buscar(trabalhoId) : null;
+  if (!trabalho) throw new ErroDeDominio("estado_invalido", { cause: "tarefa repetida sem trabalho" });
+  const [primeiro] = await deps.repos.turnos.doTrabalho(trabalho.id);
+  const thread = await deps.repos.tarefas.threadPrimaria(tarefaId);
+  const [dto] = await trabalhosParaDto(deps, [trabalho]);
+  return { data: { trabalho: dto!, turnoId: primeiro?.id ?? "", tarefaId, ...(thread ? { threadId: thread.id } : {}) } };
+}
 
 /** As falas do chat com o dono (sem as das tarefas, os avisos e as falas sem IA), para "Levar o contexto da conversa". */
 async function contextoDaConversa(deps: Deps, conversaId: string, nomeDoBot: string): Promise<{ falas: FalaDoContexto[]; deFora: boolean }> {

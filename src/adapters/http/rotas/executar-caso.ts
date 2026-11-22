@@ -18,6 +18,8 @@ export type DepsRotas = {
   useCases: UseCasesNod;
   agora?: Relogio;
   modeloPadrao?: string;
+  /** ADR-192 (etapa 2): false = NOD_TAREFA_OBJETIVO=0 (a criação não escreve Tarefa + Thread). Ausente = ligada. */
+  tarefaObjetivo?: boolean;
   prazoDecisaoMs?: number;
   executor?: Executor;
   /** #313: as IAs das máquinas vivas da pessoa (modo compartilhado), para a negação do envio nomear a IA do bot. */
@@ -36,7 +38,7 @@ export function criarExecutor(d: DepsRotas): Executar {
   return async (escopo, caso, input) => {
     const efeitos: EfeitoAposCommit[] = [];
     const data = await d.abrirTx(escopo)(async (trx) => {
-      const montar = (e: Escopo): Deps => ({ repos: criarRepos(trx, e), services: d.services, useCases: d.useCases, tx: (fn) => fn(trx), escopo: e, agora, modeloPadrao: d.modeloPadrao, aposCommit: (x) => void efeitos.push(x) });
+      const montar = (e: Escopo): Deps => ({ repos: criarRepos(trx, e), services: d.services, useCases: d.useCases, tx: (fn) => fn(trx), escopo: e, agora, modeloPadrao: d.modeloPadrao, ...(d.tarefaObjetivo === false ? { tarefaObjetivo: false } : {}), aposCommit: (x) => void efeitos.push(x) });
       const deps: Deps = comPortas(trx, escopo, montar);
       const r = await caso(deps, input);
       if (r.events?.length) await deps.repos.events.gravarComOutbox(r.events);

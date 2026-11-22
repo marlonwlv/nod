@@ -54,6 +54,12 @@ export interface Deps {
    * false = não participa, o bot não é dela ou o aviso já estava lá.
    */
   avisoComVoce?: (quadroId: string, pessoaId: string, aviso: AvisoComVoce) => Promise<boolean>;
+  /**
+   * ADR-192 (etapa 2, definido em 2026-11-22): a flag de escrita da Tarefa como objetivo. Ausente ou true = "+ Nova
+   * tarefa" cria Tarefa + Thread junto com o trabalho (dual-write); false (`NOD_TAREFA_OBJETIVO=0`) volta ao caminho de
+   * antes sem apagar schema nem dados — as Tarefas já criadas seguem sincronizando pelo trabalho ligado.
+   */
+  tarefaObjetivo?: boolean;
 }
 
 /**

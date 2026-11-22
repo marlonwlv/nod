@@ -135,3 +135,33 @@ escapar do grupo do turno não é alternativa aceita.
   conversa principal; não restaurar resolução automática.
 - Se Card e Tarefa divergirem em mais de 10% dos vínculos ativos por 30 dias, decidir explicitamente entre Card como
   projeção ou substituição do Card, antes de adicionar sincronizações bidirecionais.
+
+## Emenda 1 — a conversa da Thread no MVP (2026-11-22, implementação da etapa 2)
+
+Medido na implementação (mapa de dependências de `trabalhos.conversa_id` e `conversas.tipo`, 2026-11-22): mover as
+mensagens e os turnos de cada Tarefa para uma conversa própria (um terceiro `tipo_conversa`) mexe em oito sistemas que
+hoje leem "a conversa do bot" — o retorno do lote ao dono (`fechar-lote`), o "Fazer aqui", a linha "Você abriu a
+tarefa", as pastas autorizadas do bot (`workspaces`: a tarefa perderia o acesso aos projetos), a busca e o
+`ler_conversa` do bot, os não lidos (cada Tarefa viraria uma linha "bot" sem leitura), os anexos da tarefa nova e o
+escopo do revisor/contaminação. Cada um precisaria de rota de volta para a conversa do bot.
+
+Decisão: no MVP, `threads.conversa_id` aponta para a conversa onde as mensagens da Tarefa já moram — a conversa
+própria do bot —, e o contexto **dedicado** da Thread é garantido por `turnos.thread_id`: a Thread é o conjunto dos
+turnos dela (e das mensagens desses turnos), como a tela da task já lia pelos turnos do trabalho. Nada é perdido para a
+saída futura: o schema mantém `threads.conversa_id NOT NULL` por Thread, e trocar para uma conversa dedicada é criar a
+conversa e apontar a Thread nova para ela, depois de resolver os oito pontos acima. O invariante "uma Thread primária
+por Tarefa, criada na mesma transação" vale sem mudança.
+
+Gatilho de revisão: quando a Thread 1:N entrar na experiência (dois contextos isolados na mesma Tarefa), ou quando o
+histórico da Tarefa precisar sair da conversa do bot (busca, retenção ou exportação por Tarefa).
+
+## Emenda 2 — flag de escrita e autoria (2026-11-22)
+
+- `NOD_TAREFA_OBJETIVO=0` desliga a escrita da Tarefa + Thread na criação (rollback de código sem apagar schema nem
+  dados); ligada por padrão. As Tarefas já criadas seguem sincronizando pelo trabalho ligado.
+- O trabalho runtime alimenta a Tarefa ligada: trabalho começou → `iniciar` (autor sistema); terminou → `entregar`
+  (autor o bot, com o último turno concluído), mesmo com `falta` no resumo; parado, interrompido ou falho não mudam o
+  objetivo. A fala da pessoa na tarefa é **Continuar**. "Encerrar a tarefa" (ADR-187 §6) é gesto explícito da pessoa e
+  resolve a Tarefa ligada, com autoria e hora.
+- `turnos.thread_id` é preenchido pelo banco (0181) para todo turno de trabalho ligado a uma Tarefa, em qualquer caminho.
+
