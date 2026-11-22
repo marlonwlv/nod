@@ -196,3 +196,29 @@ histórico da Tarefa precisar sair da conversa do bot (busca, retenção ou expo
   ou rota antiga sai enquanto houver app ou servidor anterior suportado (as rotas `trabalhos/*` e o frame
   `trabalho.mudou` seguem).
 
+
+## Emenda 5 — o que as jornadas de QA de ponta a ponta mostraram (2026-11-22)
+
+Sete jornadas pela tela, com o Claude Code de verdade (UI × chat, interrupções, resolver/arquivar com o bot vivo, pergunta
+no meio, arquivar e desarquivar, backfill), acharam dois furos de produto e cinco de acabamento. Decidido corrigir todos:
+
+- **A tarefa que o bot abre ganha a Tarefa na hora.** A frente de `abrir_frentes`/`abrir_task` e o turno que a rede de
+  2 min promove passam por `ligarObjetivoDoTrabalhoNovo` (src/use-cases/tarefas.ts), na mesma transação, com a MESMA regra
+  do backfill (`decidirBackfill`): frente de pessoa ou rede → Tarefa própria (chave `trabalho:<id>`); de um Card → a Tarefa
+  do Card; filha → a da mãe; rotina, colega e `task` comum ficam de fora. Ligada antes do turno, ele nasce na Thread (0181).
+  A trilha diz quem decidiu: `criada` com autor `agente` (o bot abriu) ou `sistema` (a rede). Antes, só o "+ Nova tarefa"
+  fazia o dual-write e a tarefa do bot terminava como "Tarefa feita", sem Resolver nem Arquivar; o backfill só corrigia o
+  passado.
+- **A rota antiga da aba respeita a arquivada** (`POST trabalhos/:id/mensagens` recusa com 409, como a nova); o campo
+  manda desarquivar. Antes o bot voltava a trabalhar numa Tarefa arquivada que não recebia a entrega.
+- **Parar é interrupção** na atividade (`paradoPelaPessoa`, lido com os fatos do trabalho `parado`): quando o bot esperava
+  um comando, o último turno já tinha concluído e a lista dizia só "Em andamento" ao lado de "Você parou a tarefa".
+- **Resolver e arquivar fecham a pergunta que sobrou**, por regra (`regra:tarefa_resolvida`, `regra:tarefa_arquivada`),
+  como o Parar faz; com "deixar terminar" nada fecha (o bot vivo pode precisar da resposta). Na Tarefa resolvida ou
+  arquivada a tela só mostra a atividade "trabalhando" (`atividadeNoObjetivo`).
+- **A conversa principal mostra a tarefa das duas origens** com o mesmo cartão vivo: a aberta pelo "+ Nova tarefa" ganha a
+  linha "Você abriu uma tarefa" (a `trabalho_aberto` dela já existia, escondida), e o fim do cartão diz o objetivo
+  ("Entregue às 16:13", "Resolvida") em vez de "pronta".
+- Acabamento: o retorno do lote de frentes com Tarefa instrui o bot a dizer "entregue, espera a sua avaliação" (não "a
+  tarefa terminou"); a tarefa parada com Tarefa perde o "Encerrar a tarefa" (duplicava "Marcar como resolvida"); a tela
+  Tarefas ganha o chip "Arquivadas" com a leitura nova (`GET tarefas?estado=arquivada`).

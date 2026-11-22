@@ -2,7 +2,7 @@ import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { EstadoTarefa, EventoTarefa, TarefaDto, TarefaObjetivo, Thread } from "../contracts/tarefa.ts";
 import { ESTADOS_TAREFA } from "../contracts/tarefa.ts";
 import type { TrabalhoDetalheDto } from "../contracts/trabalho.ts";
-import { atividadeDaTarefa } from "../domain/atividade-da-tarefa.ts";
+import { atividadeDaTarefa, atividadeNoObjetivo } from "../domain/atividade-da-tarefa.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import type { ComandoTarefa } from "../domain/tarefa.ts";
 import { tituloOuNada } from "../domain/trabalho.ts";
@@ -10,7 +10,7 @@ import { ehUuid } from "./apoio-l7.ts";
 import { abrirTarefaDaPessoa, mensagemParaTrabalho } from "./coordenar-trabalhos.ts";
 import { eventoTarefaMudou, pessoaDoEscopo, transicionarTarefa } from "./tarefas.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
-import { detalharTrabalho, eventoTrabalhoMudou, pararTrabalho } from "./trabalhos.ts";
+import { detalharTrabalho, eventoTrabalhoMudou, fecharDecisoesDoTrabalho, pararTrabalho, REGRA_TAREFA_ARQUIVADA, REGRA_TAREFA_RESOLVIDA, sincronizarTrabalho } from "./trabalhos.ts";
 
 /**
  * ADR-192 (definido em 2026-11-22, etapa 3): as rotas de produto da Tarefa. A Tarefa é o objetivo; o trabalho ligado é o
@@ -38,7 +38,7 @@ export async function tarefasParaDto(deps: Pick<Deps, "repos">, tarefas: readonl
       agenteId: t.agenteId,
       titulo: t.titulo,
       estado: t.estado,
-      atividade: f ? atividadeDaTarefa(f) : null,
+      atividade: atividadeNoObjetivo(t.estado, f ? atividadeDaTarefa(f) : null),
       versao: t.versao,
       entregueEm: t.entregueEm,
       resolvidaEm: t.resolvidaEm,
@@ -125,9 +125,22 @@ async function comandoDaPessoa(deps: Deps, input: { tarefaId: string; versao?: n
   const [trabalhoId] = await deps.repos.tarefas.trabalhosDa(t.id);
   const antes = comEscolha ? await aplicarEscolha(deps, trabalhoId ?? null, input.turnoVivo) : [];
   const r = await transicionarTarefa(deps, t.id, comando, pessoaDoEscopo(deps), { ...(input.versao !== undefined ? { versaoEsperada: input.versao } : {}), trabalhoId: trabalhoId ?? null });
+  const fechadas = trabalhoId && r.mudou ? await fecharPerguntasQueSobraram(deps, trabalhoId, comando, input.turnoVivo) : [];
   // O frame legado também sai: a tela de antes relê a lista de trabalhos (o `tarefa` do DTO mudou).
   const trabalho = trabalhoId && r.mudou ? await deps.repos.trabalhos.buscar(trabalhoId) : null;
-  return { data: { tarefa: await umaDto(deps, r.tarefa), mudou: r.mudou }, events: [...antes, ...r.events, ...(trabalho ? [eventoTrabalhoMudou(deps, trabalho)] : [])] };
+  return { data: { tarefa: await umaDto(deps, (await deps.repos.tarefas.buscar(t.id)) ?? r.tarefa), mudou: r.mudou }, events: [...antes, ...r.events, ...fechadas, ...(trabalho ? [eventoTrabalhoMudou(deps, trabalho)] : [])] };
+}
+
+/**
+ * ADR-192 (emenda 5, achado das jornadas de QA): resolver ou arquivar com uma pergunta do bot ainda aberta deixava o
+ * cartão na tela e "1 aguardando" na barra para uma tarefa já decidida. A pergunta fecha por regra, como no Parar
+ * (fecharDecisoesDoTrabalho), e o trabalho se ressincroniza. Com "deixar terminar" (`manter`) o bot segue vivo e pode
+ * precisar da resposta: nada fecha. Com "parar", o Parar já fechou.
+ */
+async function fecharPerguntasQueSobraram(deps: Deps, trabalhoId: string, comando: ComandoTarefa, escolha: EscolhaTurnoVivo | undefined): Promise<RuntimeEvent[]> {
+  if ((comando !== "resolver" && comando !== "arquivar") || escolha === "manter") return [];
+  const fechadas = await fecharDecisoesDoTrabalho(deps, trabalhoId, comando === "resolver" ? REGRA_TAREFA_RESOLVIDA : REGRA_TAREFA_ARQUIVADA);
+  return fechadas.length ? [...fechadas, ...(await sincronizarTrabalho(deps, trabalhoId))] : [];
 }
 
 /** POST tarefas/:id/resolver {versao?, turnoVivo?} — só a pessoa; idempotente; com a versão, a corrida perde com 409. */

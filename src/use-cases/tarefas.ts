@@ -2,6 +2,7 @@ import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { TarefaObjetivo, Thread } from "../contracts/tarefa.ts";
 import type { EstadoTrabalho, Trabalho } from "../contracts/trabalho.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
+import { decidirBackfill } from "../domain/backfill-tarefas.ts";
 import { estadoInicialDaTarefa, transicaoDaTarefa, type AutorDaTransicao, type ComandoTarefa } from "../domain/tarefa.ts";
 import { tituloDoTrabalho } from "../domain/trabalho.ts";
 import { log } from "../obs/log.ts";
@@ -39,6 +40,10 @@ export type NovaTarefaComThread = {
   /** O primeiro turno nasce junto: a Tarefa já começa `em_andamento`. */
   comPrimeiroTurno: boolean;
   chaveIdempotencia?: string | null;
+  /** A chave de origem ("trabalho:<id>", "card:<id>"): a mesma do backfill, que assim nunca duplica a Tarefa. */
+  origemChave?: string | null;
+  /** O trabalho que já é o runtime desta Tarefa (vai no frame). */
+  trabalhoId?: string;
   autor: AutorDaTransicao;
 };
 
@@ -53,9 +58,9 @@ export async function criarTarefaComThread(deps: DepsTarefa, n: NovaTarefaComThr
     const ja = await deps.repos.tarefas.buscarPorChave(chave);
     if (ja) return { existente: ja, events: [] };
   }
-  const tarefa = await deps.repos.tarefas.criar({ agenteId: n.agenteId, titulo: tituloDoTrabalho(n.titulo), estado: estadoInicialDaTarefa(n.comPrimeiroTurno), chaveIdempotencia: chave });
+  const tarefa = await deps.repos.tarefas.criar({ agenteId: n.agenteId, titulo: tituloDoTrabalho(n.titulo), estado: estadoInicialDaTarefa(n.comPrimeiroTurno), chaveIdempotencia: chave, origemChave: n.origemChave ?? null });
   if (!tarefa) {
-    const vencedora = chave ? await deps.repos.tarefas.buscarPorChave(chave) : null;
+    const vencedora = chave ? await deps.repos.tarefas.buscarPorChave(chave) : n.origemChave ? await deps.repos.tarefas.buscarPorOrigem(n.origemChave) : null;
     if (vencedora) return { existente: vencedora, events: [] };
     throw new ErroDeDominio("estado_invalido", { cause: "tarefa não criada" });
   }
@@ -63,7 +68,36 @@ export async function criarTarefaComThread(deps: DepsTarefa, n: NovaTarefaComThr
   if (!thread) throw new ErroDeDominio("estado_invalido", { cause: "thread primária não criada" });
   await deps.repos.tarefas.registrarEvento({ tarefaId: tarefa.id, tipo: "criada", autorTipo: n.autor.tipo, autorId: n.autor.id, dados: { estado: tarefa.estado } });
   await deps.repos.tarefas.registrarEvento({ tarefaId: tarefa.id, tipo: "thread_criada", autorTipo: "sistema", autorId: deps.escopo.pessoaId, dados: { thread_id: thread.id, tipo: thread.tipo } });
-  return { tarefa, thread, events: [eventoTarefaMudou(deps, tarefa, "criada", { conversaId: n.conversaId })] };
+  return { tarefa, thread, events: [eventoTarefaMudou(deps, tarefa, "criada", { conversaId: n.conversaId, trabalhoId: n.trabalhoId ?? null })] };
+}
+
+/**
+ * ADR-192 (emenda 5, definido em 2026-11-22 depois das jornadas de QA): o trabalho que nasce fora do "+ Nova tarefa" —
+ * a frente que o bot abre (abrir_frentes, abrir_task) e o turno que a rede de 2 min promove — ganha a Tarefa na mesma
+ * transação, pela MESMA regra do backfill (decidirBackfill): frente de origem pessoa ou rede vira uma Tarefa própria
+ * (chave "trabalho:<id>"); a de um Card cai na Tarefa do Card ("card:<id>", criada se faltar); a filha herda a da mãe;
+ * rotina, colega e task comum ficam de fora. Chamar ANTES de ligar o turno ao trabalho: o trigger da 0181 põe o turno na
+ * Thread primária quando ele nasce (ou ganha `trabalho_id`). Já começa `em_andamento`: o primeiro turno nasce junto.
+ */
+export async function ligarObjetivoDoTrabalhoNovo(deps: DepsTarefa & Pick<Deps, "tarefaObjetivo">, t: Pick<Trabalho, "id" | "agenteId" | "conversaId" | "titulo" | "origem" | "forma" | "estado" | "iniciadoEm" | "trabalhoMaeId" | "tarefaId">, autor: AutorDaTransicao): Promise<RuntimeEvent[]> {
+  if (deps.tarefaObjetivo === false) return [];
+  const daMae = t.trabalhoMaeId ? await deps.repos.tarefas.doTrabalho(t.trabalhoMaeId) : null;
+  const d = decidirBackfill({ id: t.id, origem: t.origem, forma: t.forma === "frente" ? "frente" : "task", estado: t.estado, iniciadoEm: t.iniciadoEm, cardId: t.tarefaId ?? null, trabalhoMaeId: t.trabalhoMaeId, tarefaDaMae: daMae?.id ?? null, tarefaObjetivoId: null });
+  if (d.tipo === "fora") return [];
+  if (d.tipo === "herda") {
+    if (!(await deps.repos.tarefas.ligarTrabalho(t.id, d.tarefaId))) throw new ErroDeDominio("estado_invalido", { cause: "trabalho sem tarefa" });
+    return [];
+  }
+  const ja = await deps.repos.tarefas.buscarPorOrigem(d.origemChave);
+  if (ja) {
+    if (!(await deps.repos.tarefas.ligarTrabalho(t.id, ja.id))) throw new ErroDeDominio("estado_invalido", { cause: "trabalho sem tarefa" });
+    return [];
+  }
+  const r = await criarTarefaComThread(deps, { agenteId: t.agenteId, titulo: t.titulo, conversaId: t.conversaId, comPrimeiroTurno: true, origemChave: d.origemChave, trabalhoId: t.id, autor });
+  const tarefa = r.tarefa ?? r.existente;
+  if (!(await deps.repos.tarefas.ligarTrabalho(t.id, tarefa.id))) throw new ErroDeDominio("estado_invalido", { cause: "trabalho sem tarefa" });
+  if (d.tipo === "card" && r.tarefa) await deps.repos.tarefas.ligarCard(d.cardId, tarefa.id);
+  return r.events;
 }
 
 export type ResultadoComando = { tarefa: TarefaObjetivo; mudou: boolean; events: RuntimeEvent[] };

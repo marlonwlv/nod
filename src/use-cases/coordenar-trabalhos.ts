@@ -15,7 +15,7 @@ import { ehFalaSemIa } from "../domain/sem-ia.ts";
 import { ehUuid } from "./apoio-l7.ts";
 import { autoriaAgente, autoriaPessoa, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
-import { continuarPeloTrabalho, criarTarefaComThread } from "./tarefas.ts";
+import { continuarPeloTrabalho, criarTarefaComThread, ligarObjetivoDoTrabalhoNovo } from "./tarefas.ts";
 import { criarTrabalho, devolverGuardados, linhaTrabalhoAberto, marcarParado, sincronizarTrabalho, trabalhosParaDto, travarTrabalhoComTurnos } from "./trabalhos.ts";
 
 /**
@@ -110,6 +110,9 @@ export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string
   if (excedeQuantidade(anexos.length)) throw new ErroDeDominio("entrada_invalida", { cause: "anexos demais" });
   const t = await deps.repos.trabalhos.buscar(input.trabalhoId);
   if (!t) throw new ErroDeDominio("nao_encontrado");
+  // ADR-192 (emenda 5, achado das jornadas de QA): a rota antiga da aba respeita a Tarefa arquivada como a nova
+  // (POST tarefas/:id/mensagens) — antes o bot voltava a trabalhar e a Tarefa seguia arquivada, sem receber a entrega.
+  if ((await deps.repos.tarefas.doTrabalho(t.id))?.estado === "arquivada") throw new ErroDeDominio("estado_invalido", { cause: "tarefa arquivada: desarquive antes" });
   // NOD-376: a fala da pessoa entra na frente com a moldura "responda primeiro" (rodando ou reaberta); a mensagem gravada
   // (a que a tela mostra) segue com o texto dela.
   // Revisão do PR #539: o comando ("/compactar", "/review 420") segue cru, para continuar reconhecido como comando.
@@ -459,6 +462,8 @@ export const promoverNaRede: CasoDeUso<{ turnoId: string; despachadoEm: number; 
     // segue no cwd em que já roda (o processo não muda); só os turnos SEGUINTES dela usam a pasta nova — o --resume
     // funciona de qualquer cwd. Antes ela ficava na pasta do bot, em paralelo com a conversa.
   });
+  // ADR-192 (emenda 5): a conversa que virou trabalho ganha a Tarefa; ligada antes do turno, ele cai na Thread (trigger da 0181).
+  events.push(...(await ligarObjetivoDoTrabalhoNovo(deps, trabalho, { tipo: "sistema", id: deps.escopo.pessoaId })));
   // Quem chama roda isto numa transação própria, fora da renovação: a corrida com a entrega desfaz só a promoção.
   const vinculado = await deps.repos.turnos.vincularTrabalho(turno.id, trabalho.id);
   if (!vinculado) throw new ErroDeDominio("estado_invalido", { cause: "turno saiu do despachando durante a promoção" });

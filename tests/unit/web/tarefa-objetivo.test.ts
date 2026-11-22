@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { TarefaNoTrabalho } from "../../../src/contracts/tarefa.ts";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
-import { passoDaTarefa, prontas, trabalhosDaTela } from "../../../web/telas/tela-tarefas.ts";
-import { campoDaTarefa, htmlObjetivoDaTarefa, linhaDoFim, rotuloDoObjetivo } from "../../../web/telas/tarefa-detalhada.ts";
+import { comArquivadas, htmlDasArquivadas, passoDaTarefa, prontas, trabalhosDaTela } from "../../../web/telas/tela-tarefas.ts";
+import { campoDaTarefa, htmlObjetivoDaTarefa, htmlSaidaDaParada, linhaDoFim, rotuloDoObjetivo } from "../../../web/telas/tarefa-detalhada.ts";
 
 /**
  * ADR-192 (etapa 3, definido em 2026-11-22): a web mostra o estado do objetivo separado da atividade e oferece as ações da
@@ -94,5 +94,33 @@ describe("a virada da leitura (etapa 5, NOD_TAREFAS_LEITURA_NOVA)", () => {
   });
   it("ligada: a Tarefa decide — a arquivada sai da lista padrão; trabalho sem Tarefa segue", () => {
     expect(trabalhosDaTela(dto(true)).map((t) => t.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("emenda 5 do ADR-192 (achados das jornadas de QA)", () => {
+  it("a Tarefa arquivada: o campo manda desarquivar (o servidor recusa a mensagem)", () => {
+    const c = campoDaTarefa(trabalho({ tarefa: objetivo({ estado: "arquivada" }) }), "Ada");
+    expect(c.placeholder).toBe("Desarquive para continuar a tarefa");
+    expect(c.nota).toContain("desarquive");
+  });
+
+  it("parada com Tarefa: só 'Continuar de onde parou' — o 'Encerrar' duplicava o 'Marcar como resolvida'", () => {
+    expect(htmlSaidaDaParada("t1", true)).not.toContain("Encerrar a tarefa");
+    expect(htmlSaidaDaParada("t1", true)).toContain("Continuar de onde parou");
+    expect(htmlSaidaDaParada("t1")).toContain("Encerrar a tarefa");
+  });
+
+  it("o chip 'Arquivadas' só com a leitura nova; a lista abre a tarefa pelo trabalho", () => {
+    const base = { ...estadoInicial, trabalhos: { trabalhos: [], pressao: null, memoriaTotalMb: null } } as Estado;
+    expect(comArquivadas(base)).toBe(false);
+    const nova = { ...base, trabalhos: { ...base.trabalhos!, leituraNovaDasTarefas: true } } as Estado;
+    expect(comArquivadas(nova)).toBe(true);
+    expect(htmlDasArquivadas(nova)).toContain("carregando");
+    const tarefa = { id: "o1", agenteId: "b1", titulo: "Haicai sobre café", estado: "arquivada" as const, atividade: null, versao: 4, entregueEm: null, resolvidaEm: null, arquivadaEm: AGORA, criadoEm: AGORA - 60_000, atualizadoEm: AGORA, threadId: "th1", trabalhoId: "t9", cardId: null };
+    const html = htmlDasArquivadas({ ...nova, tarefasArquivadas: [tarefa] });
+    expect(html).toContain("Arquivadas · 1");
+    expect(html).toContain('data-act="abrir-trabalho" data-id="t9"');
+    expect(html).toContain("Haicai sobre café");
+    expect(htmlDasArquivadas({ ...nova, tarefasArquivadas: [] })).toContain("Nenhuma tarefa arquivada.");
   });
 });

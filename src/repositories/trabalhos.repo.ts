@@ -449,8 +449,9 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
      */
     async fatosDeVarios(ids: readonly string[]): Promise<Map<string, Omit<FatosTrabalho, "estadoAtual" | "iniciado">>> {
       if (ids.length === 0) return new Map();
-      const linhas = await conn<{ id: string; parando: number; despachando: number; pendentes: number; despertar: boolean; comando: boolean; esperando: boolean; decisao: boolean; colega: boolean; pergunta_vencida: boolean; vencida_tipo: TipoDecisao | null; ultimo_estado: EstadoTurno | null; ultimo_motivo: MotivoInterrupcao | null }[]>`
+      const linhas = await conn<{ id: string; parando: number; despachando: number; pendentes: number; despertar: boolean; comando: boolean; esperando: boolean; decisao: boolean; colega: boolean; pergunta_vencida: boolean; vencida_tipo: TipoDecisao | null; ultimo_estado: EstadoTurno | null; ultimo_motivo: MotivoInterrupcao | null; parado: boolean }[]>`
         select x.id,
+          exists (select 1 from trabalhos w where w.tenant_id = ${escopo.tenantId} and w.id = x.id and w.estado = 'parado') as parado,
           (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado = 'despachando' and t.parar_solicitado_em is not null) as parando,
           (select count(*)::int from turnos t where t.tenant_id = ${escopo.tenantId} and t.trabalho_id = x.id and t.estado = 'despachando' and t.parar_solicitado_em is null) as despachando,
           -- ADR-086 (revisão do #212): a volta marcada para mais tarde não é fila — conta à parte, abaixo da decisão.
@@ -486,7 +487,7 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
             and coalesce(t.motivo_interrupcao::text, '') <> 'absorvido'
           order by t.criado_em desc, t.id desc limit 1
         ) u on true`;
-      return new Map(linhas.map((l) => [l.id, { parando: l.parando, despachando: l.despachando, pendentes: l.pendentes, aguardandoDespertar: l.despertar, aguardandoComando: l.comando, esperandoOutro: l.esperando, decisaoPendente: l.decisao, aguardandoColega: l.colega, ...(l.pergunta_vencida ? { perguntaVencida: true, ...(l.vencida_tipo ? { vencidaTipo: l.vencida_tipo } : {}) } : {}), ultimo: l.ultimo_estado ? { estado: l.ultimo_estado, motivo: l.ultimo_motivo } : null }]));
+      return new Map(linhas.map((l) => [l.id, { parando: l.parando, despachando: l.despachando, pendentes: l.pendentes, aguardandoDespertar: l.despertar, aguardandoComando: l.comando, esperandoOutro: l.esperando, decisaoPendente: l.decisao, aguardandoColega: l.colega, ...(l.parado ? { paradoPelaPessoa: true } : {}), ...(l.pergunta_vencida ? { perguntaVencida: true, ...(l.vencida_tipo ? { vencidaTipo: l.vencida_tipo } : {}) } : {}), ultimo: l.ultimo_estado ? { estado: l.ultimo_estado, motivo: l.ultimo_motivo } : null }]));
     },
 
     /** Nome de quem pediu, da rotina, a última fala e o turno vivo de cada trabalho, numa consulta. */

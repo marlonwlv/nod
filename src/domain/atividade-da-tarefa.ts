@@ -1,6 +1,6 @@
 import type { EstadoTrabalho } from "../contracts/trabalho.ts";
 import type { MotivoInterrupcao } from "../contracts/motivos.ts";
-import type { AtividadeTarefa } from "../contracts/tarefa.ts";
+import type { AtividadeTarefa, EstadoTarefa } from "../contracts/tarefa.ts";
 import type { EstadoTurno } from "../contracts/turno.ts";
 
 /**
@@ -32,6 +32,12 @@ export type FatosDaAtividade = {
   aguardandoComando?: boolean;
   /** A última pergunta à pessoa venceu sem resposta (NOD-264): o trabalho parou sem retomada. */
   perguntaVencida?: boolean;
+  /**
+   * ADR-192 (emenda 5, achado das jornadas de QA): a pessoa apertou Parar (trabalho `parado`). Quando o bot esperava um
+   * comando em segundo plano, o último turno já tinha "concluído" e o Parar só cancelava a espera — a projeção não via
+   * interrupção nenhuma, e a lista dizia "Em andamento" enquanto a tela dizia "Você parou a tarefa".
+   */
+  paradoPelaPessoa?: boolean;
   /** O turno terminal mais recente. */
   ultimo: { estado: EstadoTurno; motivo: MotivoInterrupcao | null } | null;
 };
@@ -42,7 +48,8 @@ export type FatosDaAtividade = {
  * 1. decisão/pergunta pendente à dona → `precisa_de_voce` (mesmo com o turno vivo parado nela);
  * 2. turno `despachando`, ou `pendente` elegível → `trabalhando`;
  * 3. pendente esperando outro trabalho, pedido a colega aberto, volta marcada ou comando esperando → `em_espera`;
- * 4. o Parar pedido com o processo acabando, a pergunta vencida ou o último turno terminal `interrompido` → `interrompida`;
+ * 4. o Parar pedido com o processo acabando, o trabalho parado pela pessoa, a pergunta vencida ou o último turno terminal
+ *    `interrompido` → `interrompida`;
  * 5. senão `null` — um turno concluído não produz atividade "concluída": conclusão é do turno, resolução é da Tarefa.
  */
 export function atividadeDaTarefa(f: FatosDaAtividade): AtividadeDaTarefa | null {
@@ -50,9 +57,19 @@ export function atividadeDaTarefa(f: FatosDaAtividade): AtividadeDaTarefa | null
   if (f.despachando > 0) return "trabalhando";
   if (f.pendentes > 0 && !f.esperandoOutro) return "trabalhando";
   if (f.pendentes > 0 || f.aguardandoColega || f.aguardandoDespertar || f.aguardandoComando) return "em_espera";
-  if ((f.parando ?? 0) > 0 || f.perguntaVencida) return "interrompida";
+  if ((f.parando ?? 0) > 0 || f.paradoPelaPessoa || f.perguntaVencida) return "interrompida";
   if (f.ultimo?.estado === "interrompido") return "interrompida";
   return null;
+}
+
+/**
+ * ADR-192 (emenda 5): a atividade que a tela mostra ao lado do objetivo. Na Tarefa resolvida ou arquivada, a pessoa já
+ * decidiu: só "trabalhando" (o "deixar terminar") ainda diz algo; interrupção, espera e pergunta sobrando viram ruído
+ * ("Resolvida · interrompida"). As perguntas pendentes são fechadas ao resolver e arquivar (tarefas-acoes.ts).
+ */
+export function atividadeNoObjetivo(estado: EstadoTarefa, atividade: AtividadeDaTarefa | null): AtividadeDaTarefa | null {
+  if (estado === "resolvida" || estado === "arquivada") return atividade === "trabalhando" ? atividade : null;
+  return atividade;
 }
 
 /**

@@ -10,7 +10,7 @@ import { quemPediu } from "../../lib/dono.ts";
 import { agente } from "../../telas/trabalhos.ts";
 import {
   botsDaNovaTarefa, contasDoBot, esperasDaConversa, GRUPOS_DO_BOT, GRUPOS_DO_ESTADO, ICONE_DO_GRUPO, iconeDaTarefa, linhasDosBots, origemNaTela,
-  passoDaTarefa, plural, prontas, trabalhosDaTela, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
+  comArquivadas, htmlDasArquivadas, passoDaTarefa, plural, prontas, trabalhosDaTela, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
 } from "../../telas/tela-tarefas.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
@@ -66,12 +66,12 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
         {botsDaNovaTarefa(estado).length > 0 && <button type="button" className="tf-nova" aria-haspopup="menu" onClick={(e) => acoes.novaTarefa(e.currentTarget)}>+ Nova tarefa</button>}
       </header>
       <div className="tf-filtros" role="group" aria-label="Filtrar tarefas">
-        {chip("abertas", <>Abertas <span className="tf-chip-n">{abertas}</span></>)}{chip("feitas", "Feitas")}{chip("todas", "Todas")}
+        {chip("abertas", <>Abertas <span className="tf-chip-n">{abertas}</span></>)}{chip("feitas", "Feitas")}{chip("todas", "Todas")}{comArquivadas(estado) && chip("arquivadas", "Arquivadas")}
         <span className="tf-traco" aria-hidden="true" />
         <button type="button" className="tf-chip tf-chip-bots" aria-haspopup="menu" aria-pressed={!!bot} onClick={(e) => acoes.menuDeBots(e.currentTarget)}>{bot?.nome ?? "Todos os bots"}{html(SETA_MENU)}</button>
       </div>
       {html(pilulaDaCota(estado.trabalhos.cota, estado.trabalhos.trabalhos, estado.agora, estado.trabalhos.pedidosNaFila))}
-      <div className="tf-lista">{porBot ? <PorBot estado={estado} tela={tela} acoes={acoes} html={html} /> : <PorEstado estado={estado} tela={tela} acoes={acoes} html={html} />}</div>
+      <div className="tf-lista">{mostrar === "arquivadas" && comArquivadas(estado) ? html(htmlDasArquivadas(estado, tela.bot)) : porBot ? <PorBot estado={estado} tela={tela} acoes={acoes} html={html} /> : <PorEstado estado={estado} tela={tela} acoes={acoes} html={html} />}</div>
     </section>
   );
 }

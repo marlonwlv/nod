@@ -22,7 +22,7 @@ import { acabaLogo, DISCO_ALERTA_MB, DISCO_CRITICO_MB, esperaDoMac, esperaNaMaqu
 import { pastaDoBot } from "../domain/nativas.ts";
 import { nomeDaMaquina, semContatoDesde as semContatoDaMaquina } from "../domain/presenca-da-maquina.ts";
 import { ehFrente, pedidoDoDono, tituloDoLote } from "../domain/frente.ts";
-import { atividadeDaTarefa, divergenciaDaAtividade } from "../domain/atividade-da-tarefa.ts";
+import { atividadeDaTarefa, atividadeNoObjetivo, divergenciaDaAtividade } from "../domain/atividade-da-tarefa.ts";
 import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, tituloOuNada, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
 import type { ExtrasTrabalho, NovoTrabalho } from "../repositories/trabalhos.repo.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
@@ -155,6 +155,9 @@ export async function sincronizarDasDecisoes(deps: DepsTrabalho & Partial<Pick<D
 
 /** A regra que fecha as decisões de uma task parada (revisão do épico, S1). */
 export const REGRA_TRABALHO_PARADO = "regra:trabalho_parado" as const;
+/** ADR-192 (emenda 5): as regras que fecham as perguntas que sobraram quando a pessoa resolve ou arquiva a Tarefa. */
+export const REGRA_TAREFA_RESOLVIDA = "regra:tarefa_resolvida" as const;
+export const REGRA_TAREFA_ARQUIVADA = "regra:tarefa_arquivada" as const;
 
 /**
  * definido em 2026-10-08 (revisão do épico, S1): o Parar da task, o "Fazer aqui" e o Parar do chat fecham por regra as
@@ -162,19 +165,19 @@ export const REGRA_TRABALHO_PARADO = "regra:trabalho_parado" as const;
  * Antes a aprovação aberta voltava a task para `precisa_de_voce` e, aprovada depois do Parar, abria uma retomada que a
  * reabria. Na transação da dona (fecharPorRegra exige owner = pessoa).
  */
-export async function fecharDecisoesDoTrabalho(deps: DepsTrabalho, trabalhoId: string): Promise<RuntimeEvent[]> {
+export async function fecharDecisoesDoTrabalho(deps: DepsTrabalho, trabalhoId: string, regra: `regra:${string}` = REGRA_TRABALHO_PARADO): Promise<RuntimeEvent[]> {
   const agora = deps.agora();
   const events: RuntimeEvent[] = [];
-  const autoria = { ...autoriaPessoa(deps.escopo), decidido_por: REGRA_TRABALHO_PARADO };
+  const autoria = { ...autoriaPessoa(deps.escopo), decidido_por: regra };
   for (const d of await deps.repos.decisoes.abertasDoTrabalho(trabalhoId)) {
-    const fechada = await deps.repos.decisoes.fecharPorRegra(d.id, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora });
+    const fechada = await deps.repos.decisoes.fecharPorRegra(d.id, { regra, regraVersao: 1, agora });
     if (!fechada) continue;
     // Ninguém continua esta decisão: sem a marca, o assentamento do turno parado (continuarAprovacoesDoTurno) via uma
     // aprovação 'decidida' sem continuação e abria a retomada que reabria a task (medido no teste da S1).
     await deps.repos.decisoes.reivindicarContinuacao(fechada.id, "turno", agora);
     const proposta = await deps.repos.propostas.buscar(fechada.id);
     if (proposta?.estado === "pendente") await deps.repos.propostas.decidir(proposta.id, "recusada");
-    events.push(evento(deps.escopo, { kind: "decisao_decidida", autoria, agora, conversaId: fechada.conversaId, turnoId: fechada.turnoId, dados: { decisao_id: fechada.id, tipo: fechada.tipo, regra: REGRA_TRABALHO_PARADO, trabalho_id: trabalhoId } }));
+    events.push(evento(deps.escopo, { kind: "decisao_decidida", autoria, agora, conversaId: fechada.conversaId, turnoId: fechada.turnoId, dados: { decisao_id: fechada.id, tipo: fechada.tipo, regra, trabalho_id: trabalhoId } }));
   }
   return events;
 }
@@ -253,7 +256,7 @@ async function tarefasDosTrabalhos(deps: Pick<Deps, "repos">, trabalhos: readonl
   const m = new Map<string, TarefaNoTrabalho>();
   for (const [trabalhoId, t] of porTrabalho) {
     const f = fatos.get(trabalhoId);
-    m.set(trabalhoId, { id: t.id, estado: t.estado, atividade: f ? atividadeDaTarefa(f) : null, versao: t.versao, entregueEm: t.entregueEm, resolvidaEm: t.resolvidaEm });
+    m.set(trabalhoId, { id: t.id, estado: t.estado, atividade: atividadeNoObjetivo(t.estado, f ? atividadeDaTarefa(f) : null), versao: t.versao, entregueEm: t.entregueEm, resolvidaEm: t.resolvidaEm });
   }
   return m;
 }

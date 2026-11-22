@@ -501,6 +501,8 @@ export function criarApi(escopo: Escopo) {
     // explícita da pessoa (`turnoVivo`); a versão lida faz a corrida de dois cliques perder com 409.
     acaoNaTarefa: (tarefaId: string, acao: "resolver" | "reabrir" | "arquivar" | "desarquivar", corpo: { versao?: number; turnoVivo?: "parar" | "manter" } = {}) =>
       post<RespostaMutacao & { tarefa: TarefaDto; mudou: boolean }>(`tarefas/${encodeURIComponent(tarefaId)}/${acao}`, corpo),
+    // ADR-192 (emenda 5): as Tarefas arquivadas, para o chip "Arquivadas" da tela Tarefas.
+    tarefasArquivadas: () => get<{ tarefas: TarefaDto[] }>("tarefas?estado=arquivada&arquivadas=1"),
     // ADR-187 §6 (2026-11-18): o nome novo da tarefa, dado na aba.
     renomearTrabalho: (id: string, titulo: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/titulo`, { titulo }),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.

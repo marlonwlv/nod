@@ -125,7 +125,7 @@ async function retornoComplementar(deps: DepsFecho, lote: LoteDeFrentes, frente:
     trabalhoId: trabalhoDoRetorno(lote, [f]),
     prazoEm: agora + PRAZO_DECISAO_PADRAO_MS,
     profundidade: abertoPor.profundidade,
-    entradaTexto: entradaComplementar(f),
+    entradaTexto: entradaComplementar(f, (await deps.repos.tarefas.deTrabalhos([f.id])).size > 0),
     entradaConfianca: abertoPor.entradaConfianca,
     sobProcuracaoDe: abertoPor.sobProcuracaoDe ?? null,
     modelo: agente?.modelo ?? abertoPor.modelo,
@@ -172,7 +172,8 @@ async function devolverAoDono(deps: DepsFecho, p: { lote: LoteDeFrentes; abertoP
     trabalhoId: p.trabalhoDoRetorno,
     prazoEm: agora + PRAZO_DECISAO_PADRAO_MS,
     profundidade: abertoPor.profundidade,
-    entradaTexto: entradaDoRetorno({ frentes: p.frentes, faltam: p.faltam, total: p.total }),
+    // ADR-192 (emenda 5): com Tarefa ligada, o retorno fala em entrega (espera a avaliação), não em fim.
+    entradaTexto: entradaDoRetorno({ frentes: p.frentes, faltam: p.faltam, total: p.total, comObjetivo: (await deps.repos.tarefas.deTrabalhos(p.frentes.map((f) => f.id))).size > 0 }),
     entradaConfianca: abertoPor.entradaConfianca,
     sobProcuracaoDe: abertoPor.sobProcuracaoDe ?? null,
     modelo: agente?.modelo ?? abertoPor.modelo,

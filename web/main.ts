@@ -594,7 +594,7 @@ if (telasNoReact) {
           const bot = botEscolhido ?? t.bot;
           navegar({ tipo: "trabalhos", ...(porEstado ? { filtro: "todos" as const } : {}), ...(t.mostrar ? { mostrar: t.mostrar } : {}), ...(bot ? { bot } : {}) });
         },
-        mostrar: (m) => { const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const }; navegar({ ...t, mostrar: m }); },
+        mostrar: (m) => { const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const }; navegar({ ...t, mostrar: m }); if (m === "arquivadas") void carregarArquivadas(); },
         menuDeBots: (botao) => abrirMenuDeBotsDasTarefas(botao),
         novaTarefa: (botao) => abrirNovaTarefa(botao),
         alternarBot: (id) => dispatch({ tipo: "bot-trabalhos", agenteId: estado.botAbertoEmTrabalhos !== id ? id : null }),
@@ -4056,6 +4056,15 @@ function atualizarComposer(): void {
   atualizarParar();
 }
 
+/** ADR-192 (emenda 5): lê as Tarefas arquivadas para o chip "Arquivadas" (a cada clique: desarquivar muda a lista). */
+async function carregarArquivadas(): Promise<void> {
+  try {
+    dispatch({ tipo: "tarefas-arquivadas", tarefas: api ? (await api.tarefasArquivadas()).tarefas : [] });
+  } catch {
+    dispatch({ tipo: "tarefas-arquivadas", tarefas: [] });
+  }
+}
+
 /** ADR-187 §6 (lote B, passo 4, 2026-11-18): o estado do campo da tarefa `id` (web/telas/tarefa-detalhada.ts). */
 function campoDaTela(id: string): CampoDaTarefa {
   const d = estado.trabalhoDetalhe[id];
@@ -4081,7 +4090,8 @@ function atualizarCampoDaTarefa(): void {
   const nota = document.getElementById("composer-nota");
   const html = c.nota ? `<span class="tk-nota">${esc(c.nota)}</span>${c.dica ? `<span class="tk-nota-dica" aria-hidden="true">${esc(c.dica)}</span>` : ""}` : "";
   if (nota && nota.dataset.tarefa !== html) { nota.innerHTML = html; nota.dataset.tarefa = html; nota.classList.add("tk-nota-linha"); }
-  regiao("composer-pergunta", c.saida ? htmlSaidaDaParada(t.id) : "");
+  const comObjetivo = !!(estado.trabalhoDetalhe[t.id]?.trabalho ?? trabalhoPorId(estado, t.id))?.tarefa;
+  regiao("composer-pergunta", c.saida ? htmlSaidaDaParada(t.id, comObjetivo) : "");
   document.querySelector("#composer .composer .box")?.classList.toggle("tk-precisa-campo", c.precisa);
 }
 
@@ -9335,7 +9345,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "mostrar-tarefas": (el) => {
     const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
     const m = el.dataset.id;
-    if (m === "abertas" || m === "feitas" || m === "todas") navegar({ ...t, mostrar: m });
+    if (m === "abertas" || m === "feitas" || m === "todas" || m === "arquivadas") navegar({ ...t, mostrar: m });
+    if (m === "arquivadas") void carregarArquivadas();
   },
   "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>

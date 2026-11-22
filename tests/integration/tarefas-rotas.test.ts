@@ -104,7 +104,8 @@ describeIntegracao("rotas /tarefas (ADR-192, etapa 3)", () => {
       const criada = (await (await servidor.chamar(s, "POST", `/agentes/${ada.agenteId}/tarefas`, { texto: "Revise o contrato" })).json()) as { tarefa: TarefaDto; turnoId: string };
       const id = criada.tarefa.id;
       const resolvida = (await (await servidor.chamar(s, "POST", `/tarefas/${id}/resolver`, { turnoVivo: "parar" })).json()) as { tarefa: TarefaDto };
-      expect(resolvida.tarefa).toMatchObject({ estado: "resolvida", atividade: "interrompida" });
+      // Emenda 5: na Tarefa resolvida a interrupção não é mostrada (atividadeNoObjetivo); o turno, sim, foi interrompido.
+      expect(resolvida.tarefa).toMatchObject({ estado: "resolvida", atividade: null });
       expect((await trx<{ estado: string }[]>`select estado from turnos where id = ${criada.turnoId}`)[0]!.estado).toBe("interrompido");
 
       const reaberta = (await (await servidor.chamar(s, "POST", `/tarefas/${id}/reabrir`, {})).json()) as { tarefa: TarefaDto };

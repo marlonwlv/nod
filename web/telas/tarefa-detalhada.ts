@@ -213,6 +213,8 @@ const CAMPO_NEUTRO: CampoDaTarefa = { placeholder: "Escreva para esta tarefa…"
  */
 export function campoDaTarefa(t: TrabalhoDto | undefined, bot: string, guardadas = 0): CampoDaTarefa {
   if (!t) return CAMPO_NEUTRO;
+  // ADR-192 (emenda 5): a Tarefa arquivada não recebe mensagem (o servidor recusa); o caminho é o Desarquivar acima.
+  if (t.tarefa?.estado === "arquivada") return { placeholder: "Desarquive para continuar a tarefa", nota: "Arquivada · desarquive (acima) para continuar a conversa com " + bot + ".", dica: "", parar: false, saida: false, precisa: false };
   switch (t.estado) {
     case "rodando":
       return {
@@ -293,9 +295,13 @@ export function htmlObjetivoDaTarefa(t: Pick<TrabalhoDto, "estado" | "turnoVivoI
   return `<section class="tk-objetivo" aria-label="Objetivo da tarefa"><span class="tk-objetivo-estado" data-estado="${esc(o.estado)}">${jaDito ? "" : esc(rotuloDoObjetivo(o))}</span><div class="tk-objetivo-acoes" role="group" aria-label="Ações da tarefa">${acoes.join("")}</div></section>`;
 }
 
-/** Paper 4l: as duas saídas da tarefa parada, acima do campo. */
-export function htmlSaidaDaParada(id: string): string {
-  return `<div class="tk-saida" role="group" aria-label="A tarefa parou"><button type="button" class="tk-saida-bt" data-act="continuar-tarefa" data-id="${esc(id)}">Continuar de onde parou</button><button type="button" class="tk-saida-bt" data-act="encerrar-tarefa" data-id="${esc(id)}">Encerrar a tarefa</button></div>`;
+/**
+ * Paper 4l: as duas saídas da tarefa parada, acima do campo. ADR-192 (emenda 5): com Tarefa ligada, "Encerrar a tarefa"
+ * sai — ele resolvia a Tarefa, o mesmo que o "Marcar como resolvida" do bloco do objetivo logo abaixo.
+ */
+export function htmlSaidaDaParada(id: string, comObjetivo = false): string {
+  const encerrar = comObjetivo ? "" : `<button type="button" class="tk-saida-bt" data-act="encerrar-tarefa" data-id="${esc(id)}">Encerrar a tarefa</button>`;
+  return `<div class="tk-saida" role="group" aria-label="A tarefa parou"><button type="button" class="tk-saida-bt" data-act="continuar-tarefa" data-id="${esc(id)}">Continuar de onde parou</button>${encerrar}</div>`;
 }
 
 /** O texto que o "Continuar de onde parou" manda à tarefa (é uma fala da pessoa: aparece na conversa dela). */

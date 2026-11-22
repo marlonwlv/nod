@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { atividadeDaTarefa, atividadesEsperadasDoLegado, divergenciaDaAtividade, type AtividadeDaTarefa, type FatosDaAtividade } from "../../../src/domain/atividade-da-tarefa.ts";
+import { atividadeDaTarefa, atividadeNoObjetivo, atividadesEsperadasDoLegado, divergenciaDaAtividade, type AtividadeDaTarefa, type FatosDaAtividade } from "../../../src/domain/atividade-da-tarefa.ts";
 import { estadoDoTrabalho, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
 
 const base: FatosDaAtividade = { despachando: 0, pendentes: 0, parando: 0, esperandoOutro: false, decisaoPendente: false, aguardandoColega: false, ultimo: null };
@@ -20,6 +20,9 @@ describe("atividadeDaTarefa (ADR-192: decisão > turno vivo > espera > interrup�
     ["último turno interrompido sem retomada", { ultimo: { estado: "interrompido", motivo: "maquina_sem_contato" } }, "interrompida"],
     ["parado pela pessoa", { ultimo: { estado: "interrompido", motivo: "parado_pela_pessoa" } }, "interrompida"],
     ["Parar pedido, processo acabando", { parando: 1 }, "interrompida"],
+    // Emenda 5: o Parar que só cancelou a espera de um comando (o último turno já tinha concluído) também é interrupção.
+    ["trabalho parado pela pessoa, último turno concluído", { paradoPelaPessoa: true, ultimo: { estado: "concluido", motivo: null } }, "interrompida"],
+    ["parado, mas a pessoa já mandou continuar (turno na fila)", { paradoPelaPessoa: true, pendentes: 1 }, "trabalhando"],
     ["pergunta vencida", { perguntaVencida: true, ultimo: { estado: "concluido", motivo: null } }, "interrompida"],
     ["interrompido, mas a retomada já está na fila", { pendentes: 1, ultimo: { estado: "interrompido", motivo: "maquina_sem_contato" } }, "trabalhando"],
     ["interrompido, mas espera um colega", { aguardandoColega: true, ultimo: { estado: "interrompido", motivo: "maquina_sem_contato" } }, "em_espera"],
@@ -64,5 +67,18 @@ describe("shadow read: atividade nova × estado legado (etapa 0)", () => {
 
   it("todo estado legado tem ao menos uma atividade esperada", () => {
     for (const e of ["na_fila", "rodando", "precisa_de_voce", "fechado_ocioso", "terminado", "parado", "falhou"] as const) expect(atividadesEsperadasDoLegado(e).length).toBeGreaterThan(0);
+  });
+});
+
+describe("atividadeNoObjetivo (emenda 5): resolvida ou arquivada só mostram o 'trabalhando'", () => {
+  it.each<[Parameters<typeof atividadeNoObjetivo>[0], AtividadeDaTarefa | null, AtividadeDaTarefa | null]>([
+    ["resolvida", "interrompida", null],
+    ["resolvida", "precisa_de_voce", null],
+    ["resolvida", "trabalhando", "trabalhando"],
+    ["arquivada", "em_espera", null],
+    ["entregue", "precisa_de_voce", "precisa_de_voce"],
+    ["em_andamento", "interrompida", "interrompida"],
+  ])("%s + %s → %s", (estado, atividade, esperado) => {
+    expect(atividadeNoObjetivo(estado, atividade)).toBe(esperado);
   });
 });

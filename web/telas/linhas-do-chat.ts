@@ -425,6 +425,14 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
       planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlDaRede(m.id) });
       continue;
     }
+    // ADR-192 (emenda 5, achado das jornadas de QA): a tarefa aberta pelo "+ Nova tarefa" também aparece na conversa
+    // principal, com o mesmo cartão vivo da que o bot abre — antes a conversa só recebia o retorno do bot, sem card.
+    // Só a do "+ Nova tarefa": ela é gravada pelo turno da própria tarefa (`trabalhoId` da mensagem = o do payload). A de
+    // origem pessoa do abrir_task antigo veio do turno do dono (sem trabalho) e segue escondida.
+    if (m.destino === "anexo" && pelaTela(m)) {
+      planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlDaAberturaPelaTela(m.id) });
+      continue;
+    }
     // Chat limpo (ADR-114): a abertura é `anexo` — dá o título e a origem acima, mas não vira linha (mora na Atividade).
     if (m.destino === "anexo") {
       planos.set(m.id, { tipo: "oculta" });
@@ -764,6 +772,15 @@ function linhaFrentesTerminadas(frentes: readonly { trabalhoId: string; titulo: 
 }
 
 /** A tarefa que a rede abriu (ADR-187, protótipo 1d): a linha discreta que diz o porquê e o lugar do cartão vivo. */
+/** A abertura do "+ Nova tarefa" (ADR-192, emenda 5): origem pessoa, gravada pelo turno da própria tarefa. */
+export function pelaTela(m: Mensagem): boolean {
+  return m.payload?.kind === "trabalho_aberto" && m.payload.origem === "pessoa" && m.trabalhoId === m.payload.trabalhoId;
+}
+
+function htmlDaAberturaPelaTela(mensagemId: string): string {
+  return `<article class="message bot rede-virou" data-mensagem="${esc(mensagemId)}"><div class="bubble-wrap"><p class="rede-virou-linha"><span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span>Você abriu uma tarefa</p>${marcadorDoProgresso(mensagemId)}</div></article>`;
+}
+
 function htmlDaRede(mensagemId: string): string {
   return `<article class="message bot rede-virou" data-mensagem="${esc(mensagemId)}"><div class="bubble-wrap"><p class="rede-virou-linha"><span class="linha-ic" aria-hidden="true">${ICONE.seta}</span>Seguiu numa tarefa para o chat ficar livre</p>${marcadorDoProgresso(mensagemId)}</div></article>`;
 }
