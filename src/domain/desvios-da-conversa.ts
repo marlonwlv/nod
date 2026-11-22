@@ -1,7 +1,7 @@
 import type { BotaoDoDesvio, IdDesvio, PayloadDesvio } from "../contracts/desvio.ts";
 import type { CausaSemIa } from "../contracts/inventario.ts";
 import type { MotivoFalha, MotivoInterrupcao } from "../contracts/motivos.ts";
-import { classificarErroFornecedor, quandoDaFrase } from "./erro-fornecedor.ts";
+import { classificarErroFornecedor, horaMinuto, quandoDaFrase } from "./erro-fornecedor.ts";
 
 /**
  * Lote B das Jornadas da IA ("Mandar uma mensagem", definido em 2026-11-22; Paper "Jornadas da IA · conectar e
@@ -164,7 +164,7 @@ const ponto = (s: string): string => (s.endsWith(".") ? s : `${s}.`);
  * A linha discreta de quando o nod resolveu sozinho (B3 do Paper): o que aconteceu e com quem a conversa seguiu.
  * Sem termos internos; a máquina e a conta pelos nomes.
  */
-export function linhaDaRecuperacao(desvio: IdDesvio, onde: Passo, n: NomesDoDesvio, o: { tentativa?: number; esperaMs?: number; agora: number }): PayloadDesvio {
+export function linhaDaRecuperacao(desvio: IdDesvio, onde: Passo, n: NomesDoDesvio, o: { tentativa?: number; esperaMs?: number; agora: number; desde?: number | null }): PayloadDesvio {
   const seguiu = onde === "proxima_conta" && n.contaQueSeguiu ? ` Respondendo com a ${n.contaQueSeguiu}.` : onde === "outra_ia" && n.outraIa ? ` Respondendo pelo ${n.outraIa}.` : "";
   const textos: Record<IdDesvio, string> = {
     sessao_sumiu: `A sessão anterior não estava mais ${n.maquina ? noNa(n.maquina) : "na máquina"}. ${n.bot} recomeçou pelo histórico.`,
@@ -179,8 +179,8 @@ export function linhaDaRecuperacao(desvio: IdDesvio, onde: Passo, n: NomesDoDesv
     sem_acesso: `A ${n.conta ?? `conta do ${n.ia}`} está sem acesso${n.organizacao ? ` (a ${n.organizacao} desligou o uso por assinatura)` : ""}.${seguiu}`,
     ia_nao_abriu: "",
     erro_desconhecido: `A ${n.conta ?? `conta do ${n.ia}`} parou com um erro. Tentando de novo uma vez.`,
-    nod_atualizou: "O nod atualizou e retomou de onde parou.",
-    computador_dormiu: "",
+    nod_atualizou: `O nod atualizou no meio da resposta. ${n.bot} retoma de onde parou.`,
+    computador_dormiu: `${n.maquina ? oA(n.maquina) : "O computador do bot"} parou de responder${o.desde ? ` às ${horaMinuto(o.desde)}` : ""}. A resposta continua quando ${ehFeminina(n.maquina ?? "") ? "ela" : "ele"} voltar.`,
   };
   return { kind: "desvio", desvio, forma: "linha", titulo: "", texto: textos[desvio].trim(), botoes: [] };
 }
@@ -194,7 +194,7 @@ function duracao(ms: number): string {
  * O cartão de quando o nod parou: o motivo, o que acontece com a mensagem e os botões (Paper, coluna "Depois"). `ate` é a
  * hora em que a espera acaba sozinha (o limite volta), quando se sabe.
  */
-export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: number; ate?: number | null; turnoId?: string; turnoEsperandoId?: string | null; contaId?: string | null; maquinaId?: string | null; ia?: string | null; relatado?: boolean; erro?: string | null }): PayloadDesvio {
+export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: number; ate?: number | null; turnoId?: string; turnoEsperandoId?: string | null; contaId?: string | null; maquinaId?: string | null; ia?: string | null; outraIaId?: string | null; relatado?: boolean; erro?: string | null }): PayloadDesvio {
   const conta = n.conta ?? `conta do ${n.ia}`;
   const onde = n.maquina ? ` ${noNa(n.maquina)}` : "";
   const aMaquina = n.maquina ? oA(n.maquina) : "O computador do bot";
@@ -203,7 +203,7 @@ export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: n
   const verErro: BotaoDoDesvio[] = [{ acao: "ver_erro", rotulo: "Ver o erro" }];
   const erro = o.erro ? { erro: o.erro.slice(0, ERRO_NO_CARTAO_MAX) } : {};
   const outraMaquina: BotaoDoDesvio[] = n.outraMaquina && o.turnoId ? [{ acao: "rodar_em_outra_maquina", rotulo: `Rodar ${noNa(n.outraMaquina.nome)} desta vez`, dados: { turnoId: o.turnoId, maquinaId: n.outraMaquina.id, maquinaNome: n.outraMaquina.nome } }] : [];
-  const outraIa: BotaoDoDesvio[] = n.outraIa && o.turnoId ? [{ acao: "responder_com_outra_ia", rotulo: `Responder com o ${n.outraIa} desta vez`, dados: { turnoId: o.turnoId } }] : [];
+  const outraIa: BotaoDoDesvio[] = n.outraIa && o.turnoId ? [{ acao: "responder_com_outra_ia", rotulo: `Responder com o ${n.outraIa} desta vez`, dados: { turnoId: o.turnoId, ...(o.outraIaId ? { ia: o.outraIaId } : {}) } }] : [];
   const quando = o.ate && o.ate > o.agora ? quandoDaFrase(o.ate, o.agora) : null;
   const c = (titulo: string, texto: string, botoes: BotaoDoDesvio[], extra: Partial<PayloadDesvio> = {}): PayloadDesvio => {
     // "Ver o erro" só com o texto do erro em mãos.

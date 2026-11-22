@@ -178,11 +178,11 @@ async function paradoNumDesvio(d: Deps, turno: Turno): Promise<boolean> {
  * Lote B das Jornadas da IA (desvio 3 e 10, 2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio. Refaz
  * o turno uma vez na outra IA pronta da pessoa; o bot segue com a IA dele (regra 5: o "desta vez" não muda o bot).
  */
-export async function responderComOutraIa(d: Deps, p: { conversaId: string; turnoId: string; prontos: readonly IdHarness[] }): Promise<SaidaDaNota> {
+export async function responderComOutraIa(d: Deps, p: { conversaId: string; turnoId: string; ia: IdHarness; prontos: readonly IdHarness[] }): Promise<SaidaDaNota> {
   await d.repos.contasIa.travar();
   const turno = await turnoDaNota(d, p);
-  const atual = harnessFixado(turno.harness, turno.modelo) ?? turno.harness;
-  const outra = p.prontos.find((ia) => ia !== atual) ?? null;
+  // A IA do botão (a que o cartão ofereceu), só se ainda estiver pronta numa máquina viva.
+  const outra = p.prontos.includes(p.ia) ? p.ia : null;
   if (!outra) return { data: { turnoId: null, motivo: "conta_fora_da_maquina" }, events: [] };
   const r = await refazerTurnoDaNota(d, { turno, harnessDestaVez: outra, linha: { texto: `Respondendo com o ${nomeDaIaCurto(outra)} desta vez.` } });
   log("info", "responder_com_outra_ia", { turno_id: turno.id, novo_turno_id: r.data.turnoId, para: outra, motivo: r.data.motivo });

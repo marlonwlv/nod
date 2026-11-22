@@ -9,7 +9,7 @@ import type { Turno } from "../../src/contracts/turno.ts";
 import { vincularEscopo } from "../../src/db/tx.ts";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
-import { maquinaFalsa, PRONTO, type MaquinaFalsa } from "../helpers/maquina-falsa-http.ts";
+import { contaFalsa, maquinaFalsa, PRONTO, type MaquinaFalsa } from "../helpers/maquina-falsa-http.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
 import { telaDaConversa, VARIACOES, type TelaDaConversa } from "../helpers/tela-da-conversa.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
@@ -77,8 +77,15 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
 
   let mac: MaquinaFalsa;
   beforeAll(async () => {
-    mac = await maquinaFalsa(srv, { nome: "MacBook de teste", plataforma: "darwin", harnesses: { "claude-cli": PRONTO("2.1.327") } });
+    // As contas que a máquina tem logadas (ADR-102), como o app anuncia: a do Claude e a do ChatGPT, a 1ª de cada IA na fila.
+    mac = await maquinaFalsa(srv, { nome: "MacBook de teste", plataforma: "darwin", harnesses: { "claude-cli": PRONTO("2.1.327"), "codex-cli": PRONTO("0.159.0") }, contas: [contaFalsa(1, "claude-cli", "Pessoal"), contaFalsa(2, "codex-cli", "Pessoal")] });
   }, 30_000);
+
+  const SINAIS_SEM_SAIDA = { attempted: true, rejected: false, promptSubmitted: true, producedOutput: false };
+  const SESSAO_SUMIU = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "error_during_execution | No conversation found with session ID: 6413c71a-b189-4a59-8388-a5738582fdd2", sinais: SINAIS_SEM_SAIDA } as const;
+  const ERRO_ESTRANHO = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "success | Unexpected token in stream at position 4182", sinais: SINAIS_SEM_SAIDA } as const;
+  const NAO_ABRIU = { desfecho: "interrompido", motivoInterrupcao: "lancamento_falhou", sinais: { attempted: true, rejected: false, promptSubmitted: false, producedOutput: false } } as const;
+  const tem = (t: string) => `document.body.innerText.includes(${JSON.stringify(t)})`;
 
   it("caminho feliz: a pessoa escreve e o bot responde", async () => {
     const { conversaId } = await bot("Bot feliz");
@@ -87,16 +94,123 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     expect(plano.turnoId).toBe(turnoId);
     expect(await mac.entregar(plano, { desfecho: "sucesso", texto: "Resumi a call: três decisões e dois próximos passos." })).toBe(200);
     expect((await assentado(turnoId)).estado).toBe("concluido");
-    const texto = await printar("00-caminho-feliz", "01-resposta", conversaId, `document.body.innerText.includes("três decisões")`);
-    expect(texto).toContain("três decisões");
+    await printar("00-caminho-feliz", "01-resposta", conversaId, tem("três decisões"));
   }, 120_000);
 
-  it("desvio 1 · a sessão sumiu (antes): o aviso genérico de tente de novo", async () => {
-    const { conversaId } = await bot("Bot da sessão");
+  it("desvio 1 · a sessão sumiu: o nod recomeça pelo histórico, com uma linha, e a resposta chega", async () => {
+    const { conversaId } = await bot("QA Nod");
     const turnoId = await enviar(conversaId, "Você não está mergeando os PRs que abre?");
-    const plano = await mac.puxarAte();
-    expect(await mac.entregar(plano, { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "error_during_execution | No conversation found with session ID: 6413c71a-b189-4a59-8388-a5738582fdd2", sinais: { attempted: true, rejected: false, promptSubmitted: true, producedOutput: false } })).toBe(200);
+    expect(await mac.entregar(await mac.puxarAte(), SESSAO_SUMIU)).toBe(200);
     await assentado(turnoId);
-    await printar("antes/desvio-01-sessao-sumiu", "01-aviso", conversaId, `document.body.innerText.includes("Turno interrompido") || document.body.innerText.includes("parou")`);
-  }, 120_000);
+    const repeticao = await mac.puxarAte();
+    expect(repeticao.turnoId).not.toBe(turnoId);
+    await printar("desvio-01-sessao-sumiu/a-recomecou", "01-linha", conversaId, tem("recomeçou pelo histórico"));
+    expect(await mac.entregar(repeticao, { desfecho: "sucesso", texto: "Não, de propósito: merge só sai com pedido seu. Os três PRs estão com a CI verde." })).toBe(200);
+    await assentado(repeticao.turnoId);
+    const texto = await printar("desvio-01-sessao-sumiu/a-recomecou", "02-resposta", conversaId, tem("CI verde"));
+    expect(texto).not.toMatch(/tente de novo|claude-cli|erro_execucao/);
+  }, 180_000);
+
+  it("desvio 1 · se o nod falhar: a sessão nova também para — o cartão com o motivo e as saídas", async () => {
+    const { conversaId } = await bot("QA Nod 2");
+    const turnoId = await enviar(conversaId, "Você não está mergeando os PRs que abre?");
+    expect(await mac.entregar(await mac.puxarAte(), SESSAO_SUMIU)).toBe(200);
+    await assentado(turnoId);
+    const repeticao = await mac.puxarAte();
+    expect(await mac.entregar(repeticao, SESSAO_SUMIU)).toBe(200);
+    await assentado(repeticao.turnoId);
+    const texto = await printar("desvio-01-sessao-sumiu/b-se-falhar", "01-cartao", conversaId, tem("não conseguiu recomeçar"));
+    expect(texto).toContain("Responder com o ChatGPT desta vez");
+    expect(texto).not.toMatch(/tente de novo|claude-cli|erro_execucao/);
+  }, 180_000);
+
+  it("desvio 10 · erro desconhecido: tenta uma vez sozinho, com uma linha, e responde", async () => {
+    const { conversaId } = await bot("Bot da planilha");
+    const turnoId = await enviar(conversaId, "Atualiza a planilha de custos");
+    expect(await mac.entregar(await mac.puxarAte(), ERRO_ESTRANHO)).toBe(200);
+    await assentado(turnoId);
+    const repeticao = await mac.puxarAte();
+    await printar("desvio-10-erro-desconhecido/a-tentou-de-novo", "01-linha", conversaId, tem("Tentando de novo uma vez"));
+    expect(await mac.entregar(repeticao, { desfecho: "sucesso", texto: "Atualizei a planilha: a linha de novembro entrou." })).toBe(200);
+    await assentado(repeticao.turnoId);
+    await printar("desvio-10-erro-desconhecido/a-tentou-de-novo", "02-resposta", conversaId, tem("linha de novembro"));
+  }, 180_000);
+
+  it("desvio 10 · o mesmo erro duas vezes: o cartão avisa o relato e responde com a outra IA pelo botão", async () => {
+    const { conversaId } = await bot("Bot dos custos");
+    const turnoId = await enviar(conversaId, "Atualiza a planilha de custos");
+    expect(await mac.entregar(await mac.puxarAte(), ERRO_ESTRANHO)).toBe(200);
+    await assentado(turnoId);
+    const repeticao = await mac.puxarAte();
+    expect(await mac.entregar(repeticao, ERRO_ESTRANHO)).toBe(200);
+    await assentado(repeticao.turnoId);
+    const texto = await printar("desvio-10-erro-desconhecido/b-duas-vezes", "01-cartao", conversaId, tem("parou duas vezes"));
+    expect(texto).toContain("O relato foi para o time do nod");
+    // O botão "Responder com o ChatGPT desta vez": o turno volta, fixo no Codex só desta vez.
+    await tela.avaliar(`document.querySelector('[data-act="responder-com-outra-ia"]').click()`);
+    const outra = await mac.puxarAte();
+    expect(outra.harness).toBe("codex-cli");
+    expect(await mac.entregar(outra, { desfecho: "sucesso", texto: "Pelo ChatGPT: a planilha de custos está atualizada." })).toBe(200);
+    await assentado(outra.turnoId);
+    await printar("desvio-10-erro-desconhecido/b-duas-vezes", "02-respondeu-pelo-chatgpt", conversaId, tem("Pelo ChatGPT"));
+  }, 180_000);
+
+  const LOGIN_VENCEU = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "success | Failed to authenticate: OAuth session expired and could not be refreshed", sinais: SINAIS_SEM_SAIDA } as const;
+  /** A pessoa entra de novo na conta do Claude: a máquina reanuncia com um login mais novo que a marca do servidor. */
+  const entrarDeNovoNoClaude = () => mac.mudar({ contas: [contaFalsa(1, "claude-cli", "Pessoal", { logadaEm: Date.now() }), contaFalsa(2, "codex-cli", "Pessoal")] });
+
+  it("desvio 2 · o login venceu e há outra conta: segue nela, com a linha e o Entrar de novo", async () => {
+    const { conversaId } = await bot("Bot do PR");
+    const turnoId = await enviar(conversaId, "Revisa o PR #224?");
+    const plano = await mac.puxarAte();
+    expect(plano.harness).toBe("claude-cli");
+    expect(await mac.entregar(plano, LOGIN_VENCEU)).toBe(200);
+    await assentado(turnoId);
+    const naOutra = await mac.puxarAte();
+    expect(naOutra.harness).toBe("codex-cli");
+    await printar("desvio-02-login-vencido/a-outra-conta", "01-linha", conversaId, tem("venceu"));
+    expect(await mac.entregar(naOutra, { desfecho: "sucesso", texto: "Revisei. Dois pontos no teste novo, comentei no PR." })).toBe(200);
+    await assentado(naOutra.turnoId);
+    const texto = await printar("desvio-02-login-vencido/a-outra-conta", "02-resposta", conversaId, tem("Dois pontos"));
+    expect(texto).toContain("Respondendo com a ChatGPT · Pessoal");
+    expect(texto).toContain("Entrar de novo");
+    await entrarDeNovoNoClaude();
+  }, 180_000);
+
+  it("desvio 2 · o login venceu e não há outra conta: a mensagem espera, a pessoa entra de novo e ela sai sozinha", async () => {
+    const { agenteId, conversaId } = await bot("Bot só Claude");
+    await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "claude-cli" });
+    const turnoId = await enviar(conversaId, "Revisa o PR #225?");
+    expect(await mac.entregar(await mac.puxarAte(), LOGIN_VENCEU)).toBe(200);
+    await assentado(turnoId);
+    const texto = await printar("desvio-02-login-vencido/b-sem-outra-conta", "01-cartao", conversaId, tem("Entre de novo"));
+    expect(texto).toContain("O login da Claude · Pessoal venceu no MacBook de teste");
+    expect(await mac.puxar()).toBeNull();
+    // A pessoa entra de novo: a conta fica pronta e a mensagem que esperava sai na hora (regra 1).
+    await entrarDeNovoNoClaude();
+    const saiu = await mac.puxarAte();
+    expect(await mac.entregar(saiu, { desfecho: "sucesso", texto: "Revisei o #225: está pronto para o merge." })).toBe(200);
+    await assentado(saiu.turnoId);
+    await printar("desvio-02-login-vencido/b-sem-outra-conta", "02-entrou-e-respondeu", conversaId, tem("pronto para o merge"));
+  }, 180_000);
+
+  it("desvio 9 · a IA não abriu: o cartão nomeia a máquina e roda na outra pelo botão", async () => {
+    const vm = await maquinaFalsa(srv, { nome: "VM do nod", plataforma: "linux", harnesses: { "claude-cli": PRONTO("2.1.327") }, contas: [contaFalsa(1, "claude-cli", "Pessoal")] });
+    try {
+      const { conversaId } = await bot("Bot do contrato");
+      const turnoId = await enviar(conversaId, "Revisa o contrato novo");
+      expect(await mac.entregar(await mac.puxarAte(), NAO_ABRIU)).toBe(200);
+      await assentado(turnoId);
+      const texto = await printar("desvio-09-ia-nao-abriu/a-outra-maquina", "01-cartao", conversaId, tem("não abriu"));
+      expect(texto).toContain("MacBook de teste");
+      expect(texto).toContain("Rodar na VM do nod desta vez");
+      await tela.avaliar(`document.querySelector('[data-act="rodar-desta-vez"]').click()`);
+      const naVm = await vm.puxarAte();
+      expect(await vm.entregar(naVm, { desfecho: "sucesso", texto: "Revisei na VM: duas cláusulas pedem atenção." })).toBe(200);
+      await assentado(naVm.turnoId);
+      await printar("desvio-09-ia-nao-abriu/a-outra-maquina", "02-respondeu-na-vm", conversaId, tem("duas cláusulas"));
+    } finally {
+      await vm.pedir("desconectar").catch(() => undefined);
+    }
+  }, 180_000);
 });

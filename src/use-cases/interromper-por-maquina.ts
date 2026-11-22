@@ -18,6 +18,9 @@ import { continuarAprovacoes } from "./decidir.ts";
 import { registrarDesfechoRotina } from "./disparar-rotina.ts";
 import { registrarInterrupcaoPorParada } from "./interrupcao-por-parada.ts";
 import type { Deps } from "./tipos.ts";
+import { linhaDaRecuperacao, TETO_TENTATIVAS_DA_MENSAGEM } from "../domain/desvios-da-conversa.ts";
+import { CONTATO_RECENTE_MS } from "./contas-do-turno.ts";
+import { enfileirarRetomada } from "./enfileirar-retomada.ts";
 import { sincronizarDoTurno } from "./trabalhos.ts";
 import { propagarSessaoDoTurno } from "./sessao-do-turno.ts";
 import { ehMaquinaDoMotor } from "../domain/plataforma-maquina.ts";
@@ -89,6 +92,14 @@ async function consequencias(deps: DepsQueda, c: Caido & { rotinaId: string | nu
   // NOD-168 (ADR-072): o turno-cérebro de uma ligação não ganha card "Retomar" nem aviso na conversa — a ligação conta
   // como acabou (o orquestrador encerra e grava a linha do motivo). A queda segue em `porMotivo` e no aviso do Mac.
   if (turno.origem === "ligacao") return { decisaoId: null, rotinaId: null, rotina: false };
+  // Lote B das Jornadas da IA (desvios 11 e 12, 2026-11-22): a conversa ganha a volta automática do fundo, UMA vez — o nod
+  // atualizou (retoma já) ou a máquina dormiu (retoma quando ela voltar a puxar) —, com uma linha. O "Retomar" de antes
+  // só aparece se a volta também cair.
+  const voltou = await voltaSozinhaNaConversa(deps, c, autoria, agora);
+  if (voltou) {
+    events.push(...voltou);
+    return { decisaoId: null, rotinaId: null, rotina: false };
+  }
   for (const anterior of await deps.repos.decisoes.pendentesDaConversa(turno.conversaId)) {
     if (anterior.tipo !== "retomar_turno") continue;
     // revisto em 2026-10-07 (ADR-083, S6): só a retomada da MESMA faixa sai — a queda de uma task não fecha o
@@ -107,6 +118,38 @@ async function consequencias(deps: DepsQueda, c: Caido & { rotinaId: string | nu
   if (decisao) events.push(evento(deps.escopo, { kind: "decisao_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { decisao_id: decisao.id, tipo: "retomar_turno" } }));
   if (aviso) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: aviso.id, kind: "sistema" } }));
   return { decisaoId: decisao?.id ?? null, rotinaId: null, rotina: false };
+}
+
+/**
+ * Lote B das Jornadas da IA (desvios 11 e 12, definido em 2026-11-22): a resposta da CONVERSA derrubada pelo reinício do nod
+ * (servidor ou motor) ou pela máquina que parou de responder volta sozinha, uma vez: a retomada de sempre (turno novo com
+ * `retoma_turno_id`, a sessão do CLI vem junto) nasce já, e a conversa ganha a linha discreta da tabela de desvios. Na
+ * máquina sem contato, a retomada fica na fila até ela voltar a puxar, e a linha oferece "Rodar em <outra> desta vez" quando
+ * há outra máquina viva. null = não é a fala da pessoa (a retomada que caiu de novo, a task, o fundo) ou passou do teto da
+ * mensagem: vale o "Retomar".
+ */
+async function voltaSozinhaNaConversa(deps: DepsQueda, c: Caido, autoria: Autoria, agora: number): Promise<RuntimeEvent[] | null> {
+  const { turno, motivo } = c;
+  if (turno.origem !== "conversa" || turno.trabalhoId || turno.pararSolicitadoEm !== null || turno.reenvios >= TETO_TENTATIVAS_DA_MENSAGEM) return null;
+  const desvio = motivo === "maquina_sem_contato" && !c.servidorFalhou ? "computador_dormiu" : motivo === "reinicio_servidor" || motivo === "reinicio_do_motor" || motivo === "maquina_sem_contato" ? "nod_atualizou" : null;
+  if (!desvio) return null;
+  const { turno: retomada, nova } = await enfileirarRetomada(deps, { original: turno, prazoEm: agora + PRAZO_DECISAO_PADRAO_MS, entradaTexto: entradaDaRetomadaDaQueda(motivoEmPortugues(motivo)), reenvios: turno.reenvios + 1 });
+  if (!retomada) return null;
+  const [agente, maquina, chaves] = await Promise.all([
+    deps.repos.agentes.buscar(turno.agenteId),
+    turno.machineId ? deps.repos.maquinaTokens.identificar(turno.machineId).catch(() => null) : Promise.resolve(null),
+    deps.repos.maquinaTokens.listar().catch(() => []),
+  ]);
+  // A outra máquina viva (contato recente), para o "Rodar em <outra> desta vez" da máquina que dormiu.
+  const outra = desvio === "computador_dormiu" ? chaves.find((k) => k.id !== turno.machineId && k.revogadaEm === null && k.ultimoUsoEm !== null && agora - k.ultimoUsoEm < CONTATO_RECENTE_MS) ?? null : null;
+  const base = linhaDaRecuperacao(desvio, "mesma_conta", { bot: agente?.nome ?? "O bot", ia: "", maquina: maquina?.nome ?? null, outraMaquina: outra ? { id: outra.id, nome: outra.nome } : null }, { agora, desde: c.perdidoDesde });
+  const payload = { ...base, botoes: outra ? [{ acao: "rodar_em_outra_maquina" as const, rotulo: "Rodar em outra máquina", dados: { maquinaId: outra.id, maquinaNome: outra.nome } }] : [] };
+  const linha = await deps.repos.mensagens.criar({ conversaId: turno.conversaId, turnoId: turno.id, autoria, kind: "sistema", texto: payload.texto, payload, confianca: "confiavel" });
+  const events: RuntimeEvent[] = [];
+  if (nova) events.push(evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: turno.conversaId, turnoId: retomada.id, dados: { origem: "retomada", retoma_turno_id: turno.id, volta_sozinha: desvio } }));
+  if (linha) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: linha.id, kind: "sistema" } }));
+  log("info", "desvio_recuperado", { turno_id: turno.id, novo_turno_id: retomada.id, desvio, onde: "retomada", reenvios: turno.reenvios + 1 });
+  return events;
 }
 
 /**

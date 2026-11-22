@@ -201,7 +201,6 @@ body.ocupado { cursor: progress; }
 .aviso-desvio .aviso-estado-txt > b { display: block; font-weight: 500; }
 .aviso-desvio .desvio-acoes { margin-top: 10px; }
 .aviso-desvio .aviso-estado-detalhes > p { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
-.linha-desvio .bt.link { padding: 0; min-height: 0; }
 .troca-rodape { display: block; margin-top: 10px; color: var(--ink-3); font-size: var(--fs-corpo-2); }
 .aviso-estado-detalhes { margin-top: 4px; color: var(--ink-2); font-size: var(--fs-rotulo); }
 .aviso-estado-detalhes > summary { cursor: pointer; width: fit-content; color: var(--ink-3); }

@@ -1,4 +1,4 @@
-import type { IdHarness } from "../../../contracts/harness.ts";
+import { HARNESSES, type IdHarness } from "../../../contracts/harness.ts";
 import type { ContasIaDto } from "../../../contracts/contas-ia.ts";
 import { ehIaComConta } from "../../../domain/contas-da-pessoa.ts";
 import { apelidoValido } from "../../../domain/contas-da-ia.ts";
@@ -171,10 +171,12 @@ export function rotasContasIa(deps: DepsRotasContas): Rota[] {
       padrao: /^\/conversas\/(?<id>[^/]+)\/responder-com-outra-ia$/,
       async handler(ctx) {
         const conversaId = assertUuid(ctx.params.id, "conversa");
-        const corpo = (await ctx.corpo()) as { turnoId?: unknown };
+        const corpo = (await ctx.corpo()) as { turnoId?: unknown; ia?: unknown };
         const turnoId = assertUuid(corpo.turnoId, "turno");
+        const ia = HARNESSES.find((h) => h.id === corpo.ia)?.id;
+        if (!ia) throw new ErroDeDominio("entrada_invalida", { cause: "ia" });
         const prontos = deps.prontosDaPessoa?.(ctx.escopo) ?? [];
-        const r = await deps.dentro(ctx.escopo, (d) => executar(d, (dd, i) => responderComOutraIa(dd, i), { conversaId, turnoId, prontos }));
+        const r = await deps.dentro(ctx.escopo, (d) => executar(d, (dd, i) => responderComOutraIa(dd, i), { conversaId, turnoId, ia, prontos }));
         ctx.json(200, r);
       },
     },

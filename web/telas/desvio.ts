@@ -12,8 +12,8 @@ import { botao, esc, hora } from "../lib/render.ts";
  */
 export function desvioNaConversa(m: Pick<Mensagem, "id" | "conversaId" | "criadoEm">, p: PayloadDesvio): string {
   if (p.forma === "linha") {
-    const link = p.botoes[0] ? ` ${botaoDoDesvio(m, p.botoes[0], "linha")}` : "";
-    return `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-desvio" data-desvio="${esc(p.desvio)}">${esc(p.texto)}${link}<span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></span></div>`;
+    const link = p.botoes[0] ? ` ${linkDaLinha(m, p.botoes[0])}` : "";
+    return `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-desvio" data-desvio="${esc(p.desvio)}"><span>${esc(p.texto)}${link} <span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></span></span></div>`;
   }
   const botoes = p.botoes.filter((b) => b.acao !== "ver_erro");
   const verErro = p.erro && p.botoes.some((b) => b.acao === "ver_erro")
@@ -23,6 +23,12 @@ export function desvioNaConversa(m: Pick<Mensagem, "id" | "conversaId" | "criado
   // Paper (momento B, coluna "Depois"): cartão branco de borda fina, como o aviso de troca de IA; o âmbar só no ícone de
   // quem espera sozinho ("tela limpa", T7: nada de cartão colorido).
   return avisoDeEstado({ tom: p.tom === "espera" ? "alerta" : "info", titulo: p.titulo, texto: p.texto, extra: `${acao}${verErro}`, classe: `aviso-desvio desvio-${p.desvio}` });
+}
+
+/** O link da linha discreta: o mesmo `linha-link` das outras linhas do chat ("Rodar em <outra> desta vez"). */
+function linkDaLinha(m: Pick<Mensagem, "conversaId">, b: BotaoDoDesvio): string {
+  const html = botaoDoDesvio(m, b, "linha");
+  return html.replace(/class="bt link"/, 'class="linha-link"');
 }
 
 /** Cada botão do cartão vira a ação que a tela já conhece. */
@@ -40,7 +46,7 @@ function botaoDoDesvio(m: Pick<Mensagem, "conversaId">, b: BotaoDoDesvio, estilo
     case "rodar_em_outra_maquina":
       return botao("rodar-desta-vez", esc(b.rotulo), { classe, dados: { conversa: m.conversaId, maquina: d.maquinaId ?? "", turno: d.turnoId ?? "" } });
     case "responder_com_outra_ia":
-      return botao("responder-com-outra-ia", esc(b.rotulo), { classe, dados: { conversa: m.conversaId, turno: d.turnoId ?? "" } });
+      return botao("responder-com-outra-ia", esc(b.rotulo), { classe, dados: { conversa: m.conversaId, turno: d.turnoId ?? "", ia: d.ia ?? "" } });
     case "cancelar":
       return botao("cancelar-turno", esc(b.rotulo), { classe, id: d.turnoId ?? "" });
     case "ver_erro":

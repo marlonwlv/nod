@@ -69,7 +69,7 @@ export async function telaDaConversa(o: { url: string; cookie: string }): Promis
     async fechar() {
       cdp.fechar();
       await espera(100);
-      rmSync(perfil, { recursive: true, force: true });
+      rmSync(perfil, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     },
   };
   return tela;

@@ -508,7 +508,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     events.push(...trocou);
   } else if (limite && (trocou = await aposLimiteDaIaNoFundo(deps, { turno: assentado, executor, ...limite, machineId: entrega.machineId, prontos: entrega.prontosDaPessoa ?? [], prontosPorMaquina: entrega.prontosPorMaquina ?? null, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, autoria, agora, custoUsd }))) {
     events.push(...trocou);
-  } else if (desvio && DESVIOS_DA_CONVERSA.has(desvio) && (trocou = await aposDesvioNaConversa(deps, { desvio, turno, executor, harness: entrega.harness ?? null, outraIa: entrega.outraIa ?? null, machineId: entrega.machineId, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru ?? null, autoria, agora, custoUsd }))) {
+  } else if (desvio && DESVIOS_DA_CONVERSA.has(desvio) && (trocou = await aposDesvioNaConversa(deps, { desvio, turno, executor, harness: entrega.harness ?? null, outraIa: entrega.outraIa ?? (entrega.prontosDaPessoa ?? []).find((ia) => ia !== entrega.harness) ?? null, prontosPorMaquina: entrega.prontosPorMaquina ?? null, machineId: entrega.machineId, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru ?? null, autoria, agora, custoUsd }))) {
     // Lote B das Jornadas da IA (2026-11-22): a conversa segue a tabela de desvios — tenta de novo sozinha (sessão sumida,
     // instável, erro desconhecido) com uma linha, ou para no cartão com o motivo e o botão (src/domain/desvios-da-conversa.ts).
     events.push(...trocou);
@@ -972,7 +972,7 @@ const DESVIOS_DA_CONVERSA: ReadonlySet<IdDesvio> = new Set(["sessao_sumiu", "log
 async function linhaDaContaQueSaiu(deps: Deps, p: { turno: Turno; contaId: string; para: { id: string }; ia: IdHarness; machineId: string; desvio: "login_vencido" | "sem_acesso"; autoria: Autoria; agora: number }): Promise<RuntimeEvent[]> {
   const [de, para, maquina] = await Promise.all([deps.repos.contasIa.buscar(p.contaId), deps.repos.contasIa.buscar(p.para.id), deps.repos.maquinaTokens.identificar(p.machineId).catch(() => null)]);
   const ia = nomeCurtoDaIa(p.ia);
-  const payload = linhaDaRecuperacao(p.desvio, "proxima_conta", { bot: "", ia, conta: de ? `${ia} · ${de.apelido}` : null, contaQueSeguiu: para ? `${ia} · ${para.apelido}` : null, maquina: maquina?.nome ?? null, organizacao: de?.organizacao ?? null }, { agora: p.agora });
+  const payload = linhaDaRecuperacao(p.desvio, "proxima_conta", { bot: "", ia, conta: de ? `${ia} · ${de.apelido}` : null, contaQueSeguiu: para ? `${nomeCurtoDaIa(para.ia)} · ${para.apelido}` : null, maquina: maquina?.nome ?? null, organizacao: de?.organizacao ?? null }, { agora: p.agora });
   const botoes = p.desvio === "login_vencido" ? [{ acao: "entrar_de_novo" as const, rotulo: "Entrar de novo", dados: { contaId: p.contaId, maquinaId: p.machineId } }] : [];
   const m = await deps.repos.mensagens.criar({ conversaId: p.turno.conversaId, turnoId: p.turno.id, autoria: p.autoria, kind: "sistema", texto: payload.texto, payload: { ...payload, botoes }, confianca: "confiavel" });
   return m ? [evento(deps.escopo, { kind: "mensagem_criada", autoria: p.autoria, agora: p.agora, conversaId: p.turno.conversaId, turnoId: p.turno.id, dados: { mensagem_id: m.id, kind: "sistema" } })] : [];
@@ -1442,7 +1442,8 @@ async function aposContaSemAcesso(
     turnoId: turno.id,
     autoria: autoriaAgente({ agenteId: turno.agenteId, contaDeExecucao: turno.ownerId, executor: p.executor, localityReason: "motor_ausente" }),
     kind: "negacao",
-    texto: redigir("executor-indisponivel", agora, { motivo: `${p.harness ?? "ia"} ${inventario.estado}: ${inventario.motivo}`, desde: horaDaFrase(agora, agora) }),
+    // Lote B (desvio 8): a frase da causa ("a organização desativou o uso por assinatura"), nunca o id da IA nem o estado cru.
+    texto: redigir("executor-indisponivel", agora, { motivo: `a conta ${p.harness ? `do ${nomeDaIa(p.harness)}` : "da IA"} entrou, mas está sem acesso${inventario.motivo?.includes(":") ? `: ${inventario.motivo.split(":").slice(1).join(":").trim().replace(/\.$/, "")}` : ""}`, desde: horaDaFrase(agora, agora) }),
     payload: { kind: "negacao", classe: "plano_ausente", nome: p.harness ?? "ia", motivo: "plano_ausente", terminal: true, causa, ...(ia ? { ia } : {}) },
     confianca: "confiavel",
   });

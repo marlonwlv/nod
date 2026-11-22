@@ -1,3 +1,4 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../../src/domain/desvios-da-conversa.ts";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ResultadoTurno } from "../../../src/contracts/turno.ts";
@@ -64,17 +65,30 @@ describe("assentarTurno: entrega depois de o Mac cair (ADR-045)", () => {
     expect(r.events.filter((e) => e.kind === "turno_interrompido")).toHaveLength(1);
   });
 
-  it("conversa: lease vencido e entrega cortada → fala parcial, UMA linha de sistema com o Mac e UM Retomar (não duas linhas)", async () => {
+  // revisto em 2026-11-22 (lote B, desvio 12): a conversa volta sozinha UMA vez — a retomada da queda fica na fila até a
+  // máquina voltar, com a linha discreta; o "Retomar" só quando a volta também cai (no teto da mensagem).
+  it("conversa: lease vencido e entrega cortada → fala parcial, UMA linha da máquina e a retomada na fila (sem Retomar)", async () => {
     const c = await cenario("conversa");
     c.passar(LEASE_MS + 20_000);
     const r = await c.entregar(cortado);
     expect(r.data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "maquina_sem_contato" });
     const novas = c.banco.mensagens.slice(c.antes);
     expect(novas.map((m) => [m.kind, m.parcial])).toEqual([["texto", true], ["sistema", false]]);
-    expect(novas[1]?.texto).toContain("seu Mac parou de responder");
-    expect(c.banco.decisoes.map((d) => [d.tipo, d.turnoId])).toEqual([["retomar_turno", c.turnoId]]);
+    expect(novas[1]?.payload).toMatchObject({ kind: "desvio", desvio: "computador_dormiu", forma: "linha" });
+    expect(novas[1]?.texto).toContain("A resposta continua quando");
+    expect(c.banco.decisoes).toEqual([]);
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId).map((t) => [t.estado, t.entradaTexto.startsWith(ENTRADA_DA_RETOMADA_DA_QUEDA)])).toEqual([["pendente", true]]);
     expect(c.banco.incidentes).toMatchObject([{ rotinas: 0, conversas: 1 }]);
     expect(r.events.filter((e) => e.kind === "turno_interrompido")).toHaveLength(1);
+  });
+
+  it("conversa no teto da mensagem: a volta não se repete — UMA linha de sistema com o Mac e UM Retomar", async () => {
+    const c = await cenario("conversa");
+    c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = TETO_TENTATIVAS_DA_MENSAGEM;
+    c.passar(LEASE_MS + 20_000);
+    await c.entregar(cortado);
+    expect(c.banco.mensagens.slice(c.antes)[1]?.texto).toContain("seu Mac parou de responder");
+    expect(c.banco.decisoes.map((d) => [d.tipo, d.turnoId])).toEqual([["retomar_turno", c.turnoId]]);
   });
 
   it("sucesso depois do lease vencido é trabalho terminado: concluído, com a fala, sem aviso", async () => {
@@ -110,22 +124,36 @@ describe("assentarTurno: entrega depois de o Mac cair (ADR-045)", () => {
   });
 
   describe("NOD-264 (E8): sucesso tardio depois da queda", () => {
-    it("conversa sem retomada: concluído, fala inteira e o Retomar fecha por entrega_tardia_com_sucesso", async () => {
+    it("conversa com a volta automática na fila: concluído, fala inteira e a volta é absorvida (não responde duas vezes)", async () => {
       const c = await cenario("conversa");
+      c.passar(LEASE_MS + 20_000);
+      const [vencido] = await c.deps.repos.turnos.vencidos(c.deps.agora());
+      await interromperPorMaquina(c.deps, { turnos: [vencido!] });
+      expect(c.banco.decisoes).toEqual([]);
+      const r = await c.entregar(pronto);
+      expect(r.data).toMatchObject({ tardia: true, turno: { estado: "concluido" } });
+      expect(c.banco.mensagens.slice(c.antes).filter((m) => m.kind === "texto").map((m) => [m.texto, m.parcial])).toEqual([["Resumo: 3 e-mails novos.", false]]);
+      expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId).map((t) => [t.estado, t.motivoInterrupcao])).toEqual([["interrompido", "absorvido"]]);
+      expect(r.events.filter((e) => e.kind === "turno_encerrado")).toHaveLength(1);
+    });
+
+    it("conversa no teto (com o Retomar): concluído, fala inteira e o Retomar fecha por entrega_tardia_com_sucesso", async () => {
+      const c = await cenario("conversa");
+      c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = TETO_TENTATIVAS_DA_MENSAGEM;
       c.passar(LEASE_MS + 20_000);
       const [vencido] = await c.deps.repos.turnos.vencidos(c.deps.agora());
       await interromperPorMaquina(c.deps, { turnos: [vencido!] });
       expect(c.banco.decisoes.map((d) => [d.tipo, d.estado])).toEqual([["retomar_turno", "pendente"]]);
       const r = await c.entregar(pronto);
       expect(r.data).toMatchObject({ tardia: true, turno: { estado: "concluido" } });
-      expect(c.banco.mensagens.slice(c.antes).filter((m) => m.kind === "texto").map((m) => [m.texto, m.parcial])).toEqual([["Resumo: 3 e-mails novos.", false]]);
       expect(c.banco.decisoes.map((d) => [d.tipo, d.estado, d.desfecho])).toEqual([["retomar_turno", "decidida", expect.objectContaining({ tipo: "decidida_por_regra", regra: REGRA_ENTREGA_TARDIA })]]);
       expect(r.events.filter((e) => e.kind === "decisao_decidida").map((e) => e.dados.regra)).toEqual([REGRA_ENTREGA_TARDIA]);
-      expect(r.events.filter((e) => e.kind === "turno_encerrado")).toHaveLength(1);
     });
 
     it("com retomada já na fila: fica como hoje — turno interrompido, fala parcial, retomada intacta", async () => {
       const c = await cenario("conversa");
+      // No teto da mensagem (lote B): sem a volta automática, a retomada é a do Retomar, como antes.
+      c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = TETO_TENTATIVAS_DA_MENSAGEM;
       c.passar(LEASE_MS + 20_000);
       const [vencido] = await c.deps.repos.turnos.vencidos(c.deps.agora());
       await interromperPorMaquina(c.deps, { turnos: [vencido!] });
@@ -244,13 +272,15 @@ describe("ADR-131: o motor parou no meio do turno (atualização sozinha, restar
     expect(c.banco.incidentes).toEqual([]);
   });
 
-  it("conversa: UM Retomar com a frase do motor, sem aviso de máquina sem contato", async () => {
+  // revisto em 2026-11-22 (lote B, desvio 11): o nod atualizou — a conversa volta sozinha, com a linha, sem Retomar.
+  it("conversa: volta sozinha com a linha do nod que atualizou, sem Retomar e sem aviso de máquina sem contato", async () => {
     const c = await cenario("conversa");
     c.passar(30_000);
     const r = await c.entregar(doMotor);
     expect(r.data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "reinicio_do_motor" });
-    expect(c.banco.decisoes.map((d) => [d.tipo, d.turnoId, d.estado])).toEqual([["retomar_turno", c.turnoId, "pendente"]]);
-    expect(c.banco.decisoes[0]?.frase).toContain("o nod foi reiniciado na máquina");
+    expect(c.banco.decisoes).toEqual([]);
+    expect(c.banco.mensagens.slice(c.antes).map((m) => m.payload?.kind === "desvio" ? m.payload.desvio : null)).toContain("nod_atualizou");
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId).map((t) => t.estado)).toEqual(["pendente"]);
     expect(c.banco.incidentes).toEqual([]);
   });
 });
@@ -267,13 +297,14 @@ describe("NOD-245: entrega de um turno ADOTADO depois do reinício do servidor",
     expect(desfechoDaEntrega(livre, cortado, T0)).toMatchObject({ motivoInterrupcao: "trabalho_incompleto" });
   });
 
-  it("conversa: entrega adotada cortada → reinicio_servidor com UM Retomar aberto, sem aviso de Mac", async () => {
+  // revisto em 2026-11-22 (lote B, desvio 11): volta sozinha uma vez; o Retomar só no teto da mensagem.
+  it("conversa: entrega adotada cortada → reinicio_servidor, volta sozinha com a linha, sem Retomar nem aviso de Mac", async () => {
     const c = await cenario("conversa");
     c.passar(30_000);
     const r = await c.entregar(cortado, { adotada: true });
     expect(r.data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "reinicio_servidor" });
-    expect(c.banco.decisoes.map((d) => [d.tipo, d.turnoId, d.estado])).toEqual([["retomar_turno", c.turnoId, "pendente"]]);
-    expect(c.banco.decisoes[0]?.frase).toContain("o servidor reiniciou");
+    expect(c.banco.decisoes).toEqual([]);
+    expect(c.banco.mensagens.slice(c.antes).find((m) => m.payload?.kind === "desvio")?.texto).toContain("O nod atualizou no meio da resposta");
     expect(c.banco.incidentes).toEqual([]);
     expect(r.events.filter((e) => e.kind === "turno_interrompido")).toHaveLength(1);
   });

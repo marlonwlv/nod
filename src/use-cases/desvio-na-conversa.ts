@@ -44,6 +44,8 @@ export type EntradaDesvioNaConversa = {
   /** A IA que rodou o turno e a outra pronta para a pessoa (a ponte sabe), se houver. */
   harness: IdHarness | null;
   outraIa: IdHarness | null;
+  /** As IAs prontas em cada máquina viva da pessoa (o "Rodar no <outra> desta vez" do cartão). */
+  prontosPorMaquina?: Readonly<Record<string, readonly IdHarness[]>> | null;
   machineId: string;
   motivoInterrupcao: MotivoInterrupcao | null;
   motivoFalha: MotivoFalha | null;
@@ -65,7 +67,7 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   const botFixo = harnessFixado(turno.harness, turno.modelo) !== null;
   const outraIa = !botFixo && p.outraIa && p.outraIa !== p.harness ? p.outraIa : null;
   const decisao = decidirRecuperacao(desvio, { tentativas: turno.reenvios, repetidasPorEste: repetidas, pararSolicitado: turno.pararSolicitadoEm !== null, proximaConta: false, outraIa: outraIa !== null });
-  const nomes = await nomesDoDesvio(deps, { turno, harness: p.harness, outraIa, machineId: p.machineId });
+  const nomes = await nomesDoDesvio(deps, { turno, harness: p.harness, outraIa, machineId: p.machineId, prontosPorMaquina: p.prontosPorMaquina ?? null, botFixo });
   const events: RuntimeEvent[] = [
     evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, desvio, decisao: decisao.tipo === "repetir" ? decisao.onde : decisao.forma, custo_usd: p.custoUsd } }),
   ];
@@ -119,7 +121,7 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   // Parou: o cartão. O erro desconhecido que se repetiu vai sozinho para o time (regra 8), anexando só o cartão.
   const relatar = desvio === "erro_desconhecido" && repetidas > 0;
   const contaId = await deps.repos.turnos.contaDoTurno(turno.id).catch(() => null);
-  const cartao = cartaoDoDesvio(desvio, nomes, { agora, turnoId: turno.id, turnoEsperandoId, contaId, maquinaId: p.machineId, ia: p.harness, relatado: relatar, erro: p.erroCru ?? null });
+  const cartao = cartaoDoDesvio(desvio, nomes, { agora, turnoId: turno.id, turnoEsperandoId, contaId, maquinaId: p.machineId, ia: p.harness, outraIaId: outraIa, relatado: relatar, erro: p.erroCru ?? null });
   const id = await linhaOuCartao(cartao);
   if (relatar && id) {
     const r = await registrarRelato(deps, { mensagemId: id, categoria: "travou_ou_parou", alcance: "mensagem", texto: "Relato automático do nod: o mesmo erro desconhecido duas vezes seguidas (lote B, desvio 10)." }).catch(() => null);
@@ -129,8 +131,11 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   return events;
 }
 
-async function nomesDoDesvio(deps: Deps, p: { turno: Turno; harness: IdHarness | null; outraIa: IdHarness | null; machineId: string }): Promise<NomesDoDesvio> {
+async function nomesDoDesvio(deps: Deps, p: { turno: Turno; harness: IdHarness | null; outraIa: IdHarness | null; machineId: string; prontosPorMaquina: Readonly<Record<string, readonly IdHarness[]>> | null; botFixo: boolean }): Promise<NomesDoDesvio> {
   const [agente, maquina] = await Promise.all([deps.repos.agentes.buscar(p.turno.agenteId), deps.repos.maquinaTokens.identificar(p.machineId).catch(() => null)]);
+  // Outra máquina viva com a IA do turno pronta (no Automático, qualquer IA): o "Rodar no <outra> desta vez" do cartão.
+  const outraId = Object.entries(p.prontosPorMaquina ?? {}).find(([id, ias]) => id !== p.machineId && ias.length > 0 && (!p.botFixo || !p.harness || ias.includes(p.harness)))?.[0] ?? null;
+  const outra = outraId ? await deps.repos.maquinaTokens.identificar(outraId).catch(() => null) : null;
   const contaId = await deps.repos.turnos.contaDoTurno(p.turno.id).catch(() => null);
   const conta = contaId ? await deps.repos.contasIa.buscar(contaId).catch(() => null) : null;
   const ia = nomeDaIa(p.harness);
@@ -140,5 +145,6 @@ async function nomesDoDesvio(deps: Deps, p: { turno: Turno; harness: IdHarness |
     conta: conta?.apelido ? `${ia} · ${conta.apelido}` : null,
     outraIa: p.outraIa ? nomeDaIa(p.outraIa) : null,
     maquina: maquina?.nome ?? null,
+    outraMaquina: outraId && outra ? { id: outraId, nome: outra.nome } : null,
   };
 }
