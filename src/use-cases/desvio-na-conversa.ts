@@ -3,7 +3,7 @@ import type { IdHarness } from "../contracts/harness.ts";
 import type { IdDesvio, PayloadDesvio } from "../contracts/desvio.ts";
 import type { MotivoFalha, MotivoInterrupcao } from "../contracts/motivos.ts";
 import type { MotivoRecomeco, Turno } from "../contracts/turno.ts";
-import { cartaoDoDesvio, decidirRecuperacao, linhaDaRecuperacao, type NomesDoDesvio } from "../domain/desvios-da-conversa.ts";
+import { cartaoDoDesvio, decidirRecuperacao, IA_SEM_NOME, linhaDaRecuperacao, type NomesDoDesvio } from "../domain/desvios-da-conversa.ts";
 import { nomeDaIa as nomeCurto } from "../domain/espera-da-cota.ts";
 import { harnessFixado } from "../domain/harness.ts";
 import { iaDoModelo } from "../domain/ia-do-modelo.ts";
@@ -61,7 +61,7 @@ export type EntradaDesvioNaConversa = {
   jaInterrompido?: boolean;
 };
 
-const nomeDaIa = (ia: IdHarness | null): string => (ia ? nomeCurto(ia) : "sua IA");
+const nomeDaIa = (ia: IdHarness | null): string => (ia ? nomeCurto(ia) : IA_SEM_NOME);
 
 /** null = este desvio não se trata aqui (não é conversa, ou é um desvio que outro caminho cobre): o aviso de sempre. */
 export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConversa): Promise<RuntimeEvent[] | null> {

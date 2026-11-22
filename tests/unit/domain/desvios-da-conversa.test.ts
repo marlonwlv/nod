@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IDS_DESVIO, type IdDesvio } from "../../../src/contracts/desvio.ts";
-import { cartaoDoDesvio, decidirRecuperacao, DESVIOS, linhaDaRecuperacao, reconhecerDesvio, TETO_TENTATIVAS_DA_MENSAGEM, type ContextoDaTentativa, type FatosDoFim, type NomesDoDesvio } from "../../../src/domain/desvios-da-conversa.ts";
+import { cartaoDoDesvio, decidirRecuperacao, DESVIOS, linhaDaRecuperacao, reconhecerDesvio, TETO_TENTATIVAS_DA_MENSAGEM, type ContextoDaTentativa, type FatosDoFim, IA_SEM_NOME, type NomesDoDesvio } from "../../../src/domain/desvios-da-conversa.ts";
 
 /**
  * Lote B das Jornadas da IA (2026-11-22): a tabela dos 12 desvios do momento B, caminho por caminho. Estes testes travam
@@ -111,8 +111,10 @@ describe("as frases (regra 7): sem termos internos, com a conta e a máquina cer
     { bot: "Dino", ia: "Claude", conta: "Claude · Pessoal", contaQueSeguiu: "Claude · Trabalho", outraIa: "ChatGPT", maquina: "MacBook do escritório", outraMaquina: { id: "m2", nome: "VM do nod" }, organizacao: "Exemplo Ltda" },
     { bot: "Dino", ia: "ChatGPT", maquina: "VM sp-01" },
     { bot: "Dino", ia: "Claude" },
+    // O Automático antes do plano: o turno não diz a IA e a frase leva o artigo feminino ("a sua IA", "da sua IA").
+    { bot: "Dino", ia: IA_SEM_NOME },
   ];
-  const PROIBIDO = /claude-cli|codex-cli|executor|nao_autenticado|erro_execucao|undefined|null|NaN|tente de novo/i;
+  const PROIBIDO = /claude-cli|codex-cli|executor|nao_autenticado|erro_execucao|undefined|null|NaN|tente de novo|\b(o|do|no) sua IA/i;
   for (const id of IDS_DESVIO) {
     it(`${DESVIOS[id].numero} · ${DESVIOS[id].titulo}`, () => {
       for (const n of nomes) {
@@ -128,6 +130,10 @@ describe("as frases (regra 7): sem termos internos, com a conta e a máquina cer
   it("a VM leva artigo feminino e o MacBook, masculino", () => {
     expect(cartaoDoDesvio("computador_dormiu", { bot: "Dino", ia: "Claude", maquina: "VM sp-01" }, { agora: AGORA }).titulo).toBe("A VM sp-01 parou de responder");
     expect(cartaoDoDesvio("computador_dormiu", { bot: "Dino", ia: "Claude", maquina: "MacBook do escritório" }, { agora: AGORA }).titulo).toBe("O MacBook do escritório parou de responder");
+  });
+  it("sem o nome da IA, o artigo é feminino: 'A sua IA está instável', 'conta da sua IA'", () => {
+    expect(linhaDaRecuperacao("instavel", "mesma_conta", { bot: "Dino", ia: IA_SEM_NOME }, { agora: AGORA, esperaMs: 30_000, tentativa: 1 }).texto).toBe("A sua IA está instável. Tentando de novo em 30 s (1 de 3).");
+    expect(linhaDaRecuperacao("erro_desconhecido", "mesma_conta", { bot: "Dino", ia: IA_SEM_NOME }, { agora: AGORA }).texto).toBe("A conta da sua IA parou com um erro. Tentando de novo uma vez.");
   });
   it("4 · sem a hora do fornecedor: 'volta sem hora', nunca uma hora inventada", () => {
     const c = cartaoDoDesvio("limite", { bot: "Dino", ia: "ChatGPT", conta: "ChatGPT · Pessoal" }, { agora: AGORA, ate: null, turnoId: "t1" });

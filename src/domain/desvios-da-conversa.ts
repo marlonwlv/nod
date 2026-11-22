@@ -168,17 +168,17 @@ export function linhaDaRecuperacao(desvio: IdDesvio, onde: Passo, n: NomesDoDesv
   const seguiu = onde === "proxima_conta" && n.contaQueSeguiu ? ` Respondendo com a ${n.contaQueSeguiu}.` : onde === "outra_ia" && n.outraIa ? ` Respondendo pelo ${n.outraIa}.` : "";
   const textos: Record<IdDesvio, string> = {
     sessao_sumiu: `A sessão anterior não estava mais ${n.maquina ? noNa(n.maquina) : "na máquina"}. ${n.bot} recomeçou pelo histórico.`,
-    login_vencido: `O login da ${n.conta ?? `conta do ${n.ia}`} venceu${n.maquina ? ` ${noNa(n.maquina)}` : ""}.${seguiu}`,
-    limite_bot_fixo: `A ${n.conta ?? `conta do ${n.ia}`} chegou ao limite.${seguiu}`,
-    limite: `A ${n.conta ?? `conta do ${n.ia}`} chegou ao limite.${seguiu}`,
+    login_vencido: `O login da ${n.conta ?? `conta ${doIa(n.ia)}`} venceu${n.maquina ? ` ${noNa(n.maquina)}` : ""}.${seguiu}`,
+    limite_bot_fixo: `A ${n.conta ?? `conta ${doIa(n.ia)}`} chegou ao limite.${seguiu}`,
+    limite: `A ${n.conta ?? `conta ${doIa(n.ia)}`} chegou ao limite.${seguiu}`,
     instavel: onde === "mesma_conta"
-      ? `O ${n.ia} está instável. Tentando de novo ${o.esperaMs ? `em ${duracao(o.esperaMs)}` : "agora"} (${(o.tentativa ?? 1)} de ${DESVIOS.instavel.repeticoes + 1}).`
-      : `O ${n.ia} continuou instável.${seguiu}`,
+      ? `${oIa(n.ia, true)} está instável. Tentando de novo ${o.esperaMs ? `em ${duracao(o.esperaMs)}` : "agora"} (${(o.tentativa ?? 1)} de ${DESVIOS.instavel.repeticoes + 1}).`
+      : `${oIa(n.ia, true)} continuou instável.${seguiu}`,
     sem_ia_pronta: "",
     computador_fora: "",
-    sem_acesso: `A ${n.conta ?? `conta do ${n.ia}`} está sem acesso${n.organizacao ? ` (a ${n.organizacao} desligou o uso por assinatura)` : ""}.${seguiu}`,
+    sem_acesso: `A ${n.conta ?? `conta ${doIa(n.ia)}`} está sem acesso${n.organizacao ? ` (a ${n.organizacao} desligou o uso por assinatura)` : ""}.${seguiu}`,
     ia_nao_abriu: "",
-    erro_desconhecido: `A ${n.conta ?? `conta do ${n.ia}`} parou com um erro. Tentando de novo uma vez.`,
+    erro_desconhecido: `A ${n.conta ?? `conta ${doIa(n.ia)}`} parou com um erro. Tentando de novo uma vez.`,
     nod_atualizou: `O nod atualizou no meio da resposta. ${n.bot} retoma de onde parou.`,
     computador_dormiu: `${n.maquina ? oA(n.maquina) : "O computador do bot"} parou de responder${o.desde ? ` às ${horaMinuto(o.desde)}` : ""}. A resposta continua quando ${ehFeminina(n.maquina ?? "") ? "ela" : "ele"} voltar.`,
   };
@@ -195,7 +195,7 @@ function duracao(ms: number): string {
  * hora em que a espera acaba sozinha (o limite volta), quando se sabe.
  */
 export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: number; ate?: number | null; turnoId?: string; turnoEsperandoId?: string | null; contaId?: string | null; maquinaId?: string | null; ia?: string | null; outraIaId?: string | null; relatado?: boolean; erro?: string | null }): PayloadDesvio {
-  const conta = n.conta ?? `conta do ${n.ia}`;
+  const conta = n.conta ?? `conta ${doIa(n.ia)}`;
   const onde = n.maquina ? ` ${noNa(n.maquina)}` : "";
   const aMaquina = n.maquina ? oA(n.maquina) : "O computador do bot";
   // O Cancelar tira da fila a cópia que espera (não o turno que parou).
@@ -216,19 +216,19 @@ export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: n
     case "login_vencido":
       return c(`O login da ${conta} venceu${onde}`, `Entre de novo e a mensagem sai em seguida`, [{ acao: "entrar_de_novo", rotulo: "Entrar de novo", dados: { ...(o.contaId ? { contaId: o.contaId } : {}), ...(o.maquinaId ? { maquinaId: o.maquinaId } : {}), ...(o.ia ? { ia: o.ia } : {}), ...(n.conta ? { apelido: n.conta.replace(/^.* · /, "") } : {}) } }, ...outraMaquina, ...cancelar], { espera: { ate: null }, tom: "espera" });
     case "limite_bot_fixo":
-      return c(quando ? `Esperando o ${n.ia} voltar, ${quando.replace(/^às /, "")}` : `Esperando o ${n.ia} voltar · volta sem hora`, `${n.bot} só usa o ${n.ia}. A mensagem sai sozinha quando o limite passar`, [...outraIa, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
+      return c(quando ? `Esperando ${oIa(n.ia)} voltar, ${quando.replace(/^às /, "")}` : `Esperando ${oIa(n.ia)} voltar · volta sem hora`, `${n.bot} só usa ${oIa(n.ia)}. A mensagem sai sozinha quando o limite passar`, [...outraIa, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
     case "limite":
-      return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `O ${n.ia} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele voltar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
+      return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `${oIa(n.ia, true)} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele voltar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
     case "instavel":
-      return c(`O ${n.ia} continua instável`, n.outraIa ? `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes. ${n.bot} só usa o ${n.ia}, mas o ${n.outraIa} está pronto para responder desta vez` : `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes e não há outra IA pronta agora`, [...outraIa, ...outraMaquina, ...verErro]);
+      return c(`${oIa(n.ia, true)} continua instável`, n.outraIa ? `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes. ${n.bot} só usa ${oIa(n.ia)}, mas o ${n.outraIa} está pronto para responder desta vez` : `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes e não há outra IA pronta agora`, [...outraIa, ...outraMaquina, ...verErro]);
     case "sem_ia_pronta":
       return c(`Nenhuma IA conectada${onde}`, "A mensagem fica guardada e sai assim que uma conta entrar", [{ acao: "conectar_ia", rotulo: "Conectar uma IA" }, ...outraMaquina], { espera: { ate: null }, tom: "espera" });
     case "computador_fora":
       return c(`${aMaquina} está fora do ar`, `A mensagem sai quando ${ehFeminina(n.maquina ?? "") ? "ela" : "ele"} voltar${n.outraMaquina ? `. ${oA(n.outraMaquina.nome)} tem IA pronta agora` : ""}`, outraMaquina, { espera: { ate: null }, tom: "espera" });
     case "sem_acesso":
-      return c(n.organizacao ? `A ${n.organizacao} desligou o ${n.ia} por assinatura` : `A ${conta} está sem acesso`, `Era a única conta de ${n.bot}. Conecte outra e a mensagem sai em seguida`, [{ acao: "conectar_ia", rotulo: "Conectar outra conta" }, ...outraIa], { espera: { ate: null }, tom: "espera" });
+      return c(n.organizacao ? `A ${n.organizacao} desligou ${oIa(n.ia)} por assinatura` : `A ${conta} está sem acesso`, `Era a única conta de ${n.bot}. Conecte outra e a mensagem sai em seguida`, [{ acao: "conectar_ia", rotulo: "Conectar outra conta" }, ...outraIa], { espera: { ate: null }, tom: "espera" });
     case "ia_nao_abriu":
-      return c(`O ${n.ia} não abriu${onde}`, n.outraMaquina ? "Rode em outra máquina agora, ou reinicie o nod deste computador e mande de novo" : "Reinicie o nod deste computador e mande de novo", outraMaquina);
+      return c(`${oIa(n.ia, true)} não abriu${onde}`, n.outraMaquina ? "Rode em outra máquina agora, ou reinicie o nod deste computador e mande de novo" : "Reinicie o nod deste computador e mande de novo", outraMaquina);
     case "erro_desconhecido":
       return c(`A ${conta} parou duas vezes com o mesmo erro`, `Já tentei de novo uma vez.${o.relatado ? " O relato foi para o time do nod com o erro anexado" : ""}`, [...outraIa, ...outraMaquina, ...verErro]);
     case "nod_atualizou":
@@ -247,3 +247,12 @@ const ehFeminina = (nome: string): boolean => /^(vm\b|máquina|maquina)/i.test(n
 export const noNa = (nome: string): string => `${ehFeminina(nome) ? "na" : "no"} ${nome}`;
 /** "O MacBook do escritório" / "A VM sp-01". */
 export const oA = (nome: string): string => `${ehFeminina(nome) ? "A" : "O"} ${nome}`;
+/** O nome quando o turno não diz qual IA respondeu (o Automático antes do plano): "sua IA", feminino. */
+export const IA_SEM_NOME = "sua IA";
+/** "o Claude" / "a sua IA" (com `maiuscula`, no começo da frase). */
+export const oIa = (ia: string, maiuscula = false): string => {
+  const artigo = ia === IA_SEM_NOME ? "a" : "o";
+  return `${maiuscula ? artigo.toUpperCase() : artigo} ${ia}`;
+};
+/** "do Claude" / "da sua IA". */
+export const doIa = (ia: string): string => `${ia === IA_SEM_NOME ? "da" : "do"} ${ia}`;
