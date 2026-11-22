@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, binarioAgentBrowser, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, binarioAgentBrowser, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -18,10 +18,11 @@ let dados: string;
 let recebidos: { bin: string; args: readonly string[]; env: Readonly<Record<string, string>>; prazoMs: number }[];
 let respostas: ((args: readonly string[]) => { codigo: number | null; saida: string; estourou?: boolean })[];
 
-let versoesLidas = 0;
+let identidades: (readonly string[])[] = [];
+const UA_SEM_JANELA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36";
 const executor: ExecutorProcesso = async (p) => {
-  // A versão do Chrome (a identificação com janela) é lida uma vez, à parte da fila dos comandos.
-  if (p.bin === "/chrome") { versoesLidas++; return { codigo: 0, saida: "Google Chrome 157.0.8103.79\n", erro: "", estourou: false }; }
+  // A sessão à parte que pergunta ao Chrome como ele se apresenta (uma vez por motor) fica fora da fila dos comandos.
+  if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) { identidades.push(p.args); return { codigo: 0, saida: ok(p.args[0] === "eval" ? { result: UA_SEM_JANELA } : {}), erro: "", estourou: false }; }
   recebidos.push(p);
   const r = respostas.shift()?.(p.args) ?? { codigo: 0, saida: ok({}) };
   return { codigo: r.codigo, saida: r.saida, erro: "", estourou: r.estourou === true };
@@ -33,7 +34,7 @@ beforeEach(async () => {
   dados = await mkdtemp(join(tmpdir(), "nod-navegador-"));
   recebidos = [];
   respostas = [];
-  versoesLidas = 0;
+  identidades = [];
 });
 afterEach(async () => { await rm(dados, { recursive: true, force: true }); });
 
@@ -64,23 +65,27 @@ describe("argv e ambiente", () => {
   });
 
   // 2026-11-22 (teste do dono): o IMDb devolvia 403 ao "HeadlessChrome"; o Chrome do bot se apresenta como ele mesmo com janela.
-  it("sem a marca de automação e com a identificação que o mesmo Chrome dá com janela (a versão lida uma vez)", async () => {
-    const m = motor();
+  it("sem a marca de automação e com a identificação que o próprio Chrome dá, sem o Headless (perguntada uma vez, à parte)", async () => {
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor });
     await m.abrir(s, "https://example.com");
     await m.abrir(s, "https://example.org");
-    expect(versoesLidas).toBe(1);
-    expect(recebidos[0]!.env.AGENT_BROWSER_ARGS).toBe("--disable-blink-features=AutomationControlled");
-    expect(recebidos[0]!.env.AGENT_BROWSER_USER_AGENT).toBe(identificacaoComJanela("Google Chrome 157.0.8103.79", process.platform));
-    expect(recebidos[1]!.env.AGENT_BROWSER_USER_AGENT).toBe(recebidos[0]!.env.AGENT_BROWSER_USER_AGENT);
-    expect(identificacaoComJanela("Google Chrome 157.0.8103.79", "darwin")).toBe("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36");
-    expect(identificacaoComJanela("Chromium 156.0.8078.4 snap", "linux")).toBe("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36");
-    expect(identificacaoComJanela("", "darwin")).toBeNull();
-    // Sem o caminho do Chrome, fica a identificação do agent-browser; a marca de automação sai mesmo assim.
-    const semChrome = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor });
-    await semChrome.abrir(s, "https://example.com");
+    expect(identidades.map((a) => a[0])).toEqual(["eval", "close"]);
+    const comJanela = UA_SEM_JANELA.replace("HeadlessChrome/", "Chrome/");
+    for (const r of recebidos) expect(r.env).toMatchObject({ AGENT_BROWSER_ARGS: "--disable-blink-features=AutomationControlled", AGENT_BROWSER_USER_AGENT: comJanela });
+    expect(identificacaoComJanela(UA_SEM_JANELA)).toBe(comJanela);
+    // Já com janela (ou não é Chrome): nada a trocar.
+    expect(identificacaoComJanela(comJanela)).toBeNull();
+    expect(identificacaoComJanela("curl/8.4.0")).toBeNull();
+  });
+
+  it("se a pergunta falha, segue com a identificação do agent-browser e só tira a marca de automação", async () => {
+    const falha: ExecutorProcesso = async (p) => (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE)) ? { codigo: 1, saida: "", erro: "x", estourou: false } : executor(p));
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor: falha });
+    await m.abrir(s, "https://example.com");
     expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_USER_AGENT");
     expect(recebidos.at(-1)!.env.AGENT_BROWSER_ARGS).toBe("--disable-blink-features=AutomationControlled");
   });
+
 
   it("a sessão só tem [A-Za-z0-9_-] e a chave é por bot, hex de 64, estável", () => {
     expect(nomeDaSessao("ab/../c d;rm")).toBe("nod-abcdrm");
@@ -140,7 +145,7 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
 
   it("print lê o JPEG que o agent-browser gravou e apaga o arquivo", async () => {
     // O executor falso faz o que o agent-browser faz: grava o arquivo no caminho pedido e devolve `data.path`.
-    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => { recebidos.push(p); await writeFile(p.args[1]!, Buffer.from([0xff, 0xd8, 0xff])); return { codigo: 0, saida: ok({ path: p.args[1] }), erro: "", estourou: false }; } });
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => { if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false }; recebidos.push(p); await writeFile(p.args[1]!, Buffer.from([0xff, 0xd8, 0xff])); return { codigo: 0, saida: ok({ path: p.args[1] }), erro: "", estourou: false }; } });
     expect(await m.print(s)).toEqual({ jpeg: Buffer.from([0xff, 0xd8, 0xff]).toString("base64") });
     expect(recebidos.at(-1)!.args[0]).toBe("screenshot");
     expect(await readdir(join(dados, nomeDaSessao(A), "prints"))).toEqual([]);

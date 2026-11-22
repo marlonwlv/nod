@@ -175,13 +175,18 @@ const OCIOSO_PADRAO_MS = 10 * 60_000;
  */
 export const ARGS_CHROME_DO_BOT = ["--disable-blink-features=AutomationControlled"] as const;
 
-/** "Google Chrome 157.0.8103.79" → a identificação que esse Chrome dá com janela; null = versão ou sistema desconhecidos. */
-export function identificacaoComJanela(versao: string, plataforma: NodeJS.Platform): string | null {
-  const major = /(\d+)\.\d+\.\d+\.\d+/.exec(versao)?.[1];
-  if (!major) return null;
-  const sistema = plataforma === "darwin" ? "Macintosh; Intel Mac OS X 10_15_7" : plataforma === "linux" ? "X11; Linux x86_64" : plataforma === "win32" ? "Windows NT 10.0; Win64; x64" : null;
-  return sistema ? `Mozilla/5.0 (${sistema}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36` : null;
+/**
+ * A identificação que o mesmo Chrome dá com janela: a dele sem janela com "HeadlessChrome/" trocado por "Chrome/" (o
+ * OpenMausBot faz igual). null = não é um Chrome sem janela (já se apresenta como Chrome) ou não parece Chrome.
+ */
+export function identificacaoComJanela(semJanela: string): string | null {
+  if (!semJanela.includes("HeadlessChrome/")) return null;
+  const comJanela = semJanela.replace("HeadlessChrome/", "Chrome/");
+  return / Chrome\/\d+[.\d]* /u.test(comJanela) && !/headless/iu.test(comJanela) ? comJanela : null;
 }
+
+/** A sessão à parte (perfil próprio, nenhum bot) que pergunta ao Chrome como ele se apresenta. */
+export const SESSAO_IDENTIDADE = "identidade";
 /** medido em 2026-11-20: `wait --text` sem casar só volta aos 25 s ("Wait timed out after 25000ms"); o contrato é 10 s. */
 const PRAZO_ESPERAR_MS = 12_000;
 /** definido em 2026-11-20: a árvore de uma página grande cabe folgada; o proxy corta para o modelo (ler_mais). */
@@ -330,13 +335,29 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, nomeDaSessao(s.agenteId));
 
-  /** A identificação com janela do Chrome configurado, lida uma vez (`--version`); sem o caminho, fica a do agent-browser. */
+  /**
+   * A identificação com janela, perguntada ao próprio Chrome uma vez por processo (revisto em 2026-11-22: ler a versão do
+   * binário só valia com o caminho configurado, e no teste do dono o agent-browser escolhia o Chrome sozinho — o IMDb
+   * seguiu no 403). Numa sessão à parte: abre, lê `navigator.userAgent`, fecha; os bots sobem depois já com ela. Falhou,
+   * fica a do agent-browser (só a marca de automação sai).
+   */
   let identificacao: Promise<string | null> | null = null;
   function identificacaoDoChrome(): Promise<string | null> {
-    if (!o.chrome) return Promise.resolve(null);
-    identificacao ??= executor({ bin: o.chrome, args: ["--version"], env: { PATH: process.env.PATH ?? "/usr/bin:/bin" }, prazoMs: 10_000, limiteSaida: 1_000 })
-      .then((r) => (r.codigo === 0 ? identificacaoComJanela(r.saida, process.platform) : null))
-      .catch(() => null);
+    identificacao ??= (async () => {
+      if (!bin) return null;
+      const sessaoId = { agenteId: SESSAO_IDENTIDADE };
+      await mkdir(pasta(sessaoId), { recursive: true });
+      const args = (a: readonly string[]) => [...a, "--session", nomeDaSessao(SESSAO_IDENTIDADE), "--json", "--no-webmcp"];
+      try {
+        const r = await executor({ bin, args: args(["eval", "navigator.userAgent"]), env: ambiente(sessaoId, null), prazoMs: PRAZO_COMANDO_MS, limiteSaida: LIMITE_SAIDA });
+        const ua = lerResposta(r.saida, r.codigo).result;
+        return typeof ua === "string" ? identificacaoComJanela(ua) : null;
+      } catch {
+        return null;
+      } finally {
+        await executor({ bin, args: args(["close"]), env: ambiente(sessaoId, null), prazoMs: PRAZO_COMANDO_MS, limiteSaida: LIMITE_SAIDA }).catch(() => undefined);
+      }
+    })();
     return identificacao;
   }
 

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { criarMotorAgentBrowser, JS_CAMPOS_LOGIN, SELETOR_CAMPO, type ExecutorProcesso } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { criarMotorAgentBrowser, JS_CAMPOS_LOGIN, nomeDaSessao, SELETOR_CAMPO, SESSAO_IDENTIDADE, type ExecutorProcesso } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { inserirCodigo, preencherLogin } from "../../../src/adapters/navegador/preencher-login.ts";
 
 /**
@@ -22,6 +22,8 @@ let relayResponde: boolean;
 let campos: Record<string, boolean>;
 
 const executor: ExecutorProcesso = async (p) => {
+  // A pergunta da identidade do Chrome (uma sessão à parte, uma vez por motor) não é comando do bot.
+  if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false };
   argvs.push([...p.args]);
   const [cmd, sub] = p.args;
   if (cmd === "stream" && sub === "status") return { codigo: 0, saida: ok({ enabled: true, port: 51234 }), erro: "", estourou: false };

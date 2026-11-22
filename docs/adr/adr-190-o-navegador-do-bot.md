@@ -189,8 +189,11 @@ devolvida e continua) e o OpenMausBot (recusa clara; o controle volta sozinho de
 O IMDb (firewall da Amazon) devolvia "403 Forbidden" ao Chrome do bot. Sem janela (`--headless=new`), o Chrome se
 denuncia por duas coisas: a palavra "HeadlessChrome" na identificação e `navigator.webdriver = true`, que vem da marca
 de automação. O motor agora desliga a marca (`--disable-blink-features=AutomationControlled`) e informa a identificação
-que o mesmo binário dá com janela (a versão lida do próprio Chrome com `--version`, o sistema da máquina). É o que o
-OpenMausBot faz com o mesmo agent-browser. Medido: 403 → a lista de 2024 do IMDb abre normal.
+que o mesmo Chrome dá com janela: uma vez por processo, numa sessão à parte (perfil próprio, nenhum bot), pergunta
+`navigator.userAgent` ao Chrome que o agent-browser escolhe e troca só "HeadlessChrome/" por "Chrome/". É o que o
+OpenMausBot faz com o mesmo agent-browser. A primeira versão lia `--version` do binário e só valia com
+`NOD_NAVEGADOR_CHROME`; no teste do dono o agent-browser escolhia o Chrome sozinho e o 403 voltou. Medido: 403 → a lista
+de 2024 do IMDb abre normal, com 50 filmes.
 
 Fica de fora, por ora: as marcas de Client Hints (`navigator.userAgentData.brands`) saem vazias com a identificação
 trocada; o OpenMausBot as repõe por CDP em cada página e worker. Sites que barram por endereço de data center (o nod
