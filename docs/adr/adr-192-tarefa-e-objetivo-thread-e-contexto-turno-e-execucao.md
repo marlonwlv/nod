@@ -165,3 +165,16 @@ histórico da Tarefa precisar sair da conversa do bot (busca, retenção ou expo
   resolve a Tarefa ligada, com autoria e hora.
 - `turnos.thread_id` é preenchido pelo banco (0181) para todo turno de trabalho ligado a uma Tarefa, em qualquer caminho.
 
+## Emenda 3 — o backfill roda no servidor (2026-11-22, etapa 4)
+
+- O backfill (`src/use-cases/backfill-tarefas.ts`, regras puras em `src/domain/backfill-tarefas.ts`) roda uma vez por
+  boot, dois minutos depois de a cor ficar ativa, por pessoa e em lotes de 200, cada lote numa transação. A chave de
+  origem (`trabalho:<id>`, `card:<id>`) é única: rodar de novo não duplica, e o trabalho já ligado sai da consulta.
+  `NOD_TAREFAS_BACKFILL=0` desliga; `node scripts/backfill-tarefas.ts` simula (e `--aplicar` grava) com o relatório de
+  contagens antes e depois.
+- Frente de pessoa/rede → uma Tarefa; trabalhos de um Card → uma Tarefa por Card (a ponte no Card só quando a pessoa é
+  dona dele); filha de mãe já ligada → a Tarefa da mãe; rotina, colega e as `task` antigas ficam de fora. `terminado` →
+  `entregue`; parado, falho ou aberto → `em_andamento` (ou `nao_iniciada` se nunca começou). A trilha diz
+  `criada {backfill: true, legado}` e, nas entregues, `entregue` na hora em que o trabalho terminou.
+- O retorno do lote (`frentes_terminadas`) passa a levar `tarefaId` de cada frente ligada.
+

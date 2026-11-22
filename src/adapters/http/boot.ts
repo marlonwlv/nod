@@ -1,3 +1,4 @@
+import { iniciarBackfillTarefas } from "../fundo/backfill-tarefas.ts";
 import type { DriverComputador } from "../../contracts/computador.ts";
 import type { ProvedoresVoz } from "../voz/spi.ts";
 import { criarCodexCliDriver } from "../executor/drivers/codex-cli.ts";
@@ -319,6 +320,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
   let lacoMinhaConta: Laco = nada;
   let lacoDisjuntor: Laco = nada;
   let lacoPrsDoQuadro: Laco = nada;
+  let lacoBackfillTarefas: Laco = nada;
   let despachante: DespachanteOutbox | null = null;
   let lacosLigados = false;
   let ligando: Promise<void> | null = null;
@@ -411,6 +413,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
         opcoes: { listarPessoas: o.listarPessoas },
       });
     }
+    // ADR-192 (etapa 4): o backfill das Tarefas antigas, uma passada por boot (idempotente); NOD_TAREFAS_BACKFILL=0 desliga.
+    if (env.NOD_TAREFAS_BACKFILL !== "0") lacoBackfillTarefas = iniciarBackfillTarefas(db, { listarPessoas: o.listarPessoas });
   };
   // Idempotente: a drenagem para e o fechar() chama de novo (que só repete o parar do despachante, para o modo "só
   // ligações" que a drenagem pode ter ligado depois). O orquestrador (só existe no modo local) para só no fechar(): no
@@ -423,7 +427,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     (parandoLacos ??= (async () => {
       await ligando?.catch(() => undefined);
       const pararDespachante = o.soLigacoes ? despachante?.soLigacoes(() => app.voz.pessoasComLigacao()) : despachante?.parar();
-      await Promise.all([scheduler.parar(), varredorLease.parar(), varredorExpiracao.parar(), varredorOciosidade.parar(), varredorMaquinas.parar(), lacoMinhaConta.parar(), lacoDisjuntor.parar(), lacoPrsDoQuadro.parar(), pararDespachante]);
+      await Promise.all([scheduler.parar(), varredorLease.parar(), varredorExpiracao.parar(), varredorOciosidade.parar(), varredorMaquinas.parar(), lacoMinhaConta.parar(), lacoDisjuntor.parar(), lacoPrsDoQuadro.parar(), lacoBackfillTarefas.parar(), pararDespachante]);
       // Não religa: ligarLacos() já recusa com drenando/fechado; o estado() passa a dizer a verdade.
       lacosLigados = false;
     })());

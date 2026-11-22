@@ -1,4 +1,5 @@
 import type { AutorTipoTarefa, EstadoTarefa, EventoTarefa, TarefaObjetivo, Thread, TipoEventoTarefa, TipoThread } from "../contracts/tarefa.ts";
+import type { EstadoTrabalho, OrigemTrabalho } from "../contracts/trabalho.ts";
 import type { LinhaTarefa } from "../domain/tarefa.ts";
 import type { Conn, Escopo } from "../shared/types.ts";
 import { data, ms, msOuNull } from "./conversao.ts";
@@ -69,6 +70,22 @@ export type NovaTarefa = {
 };
 
 export type NovoEventoTarefa = { tarefaId: string; tipo: TipoEventoTarefa; autorTipo: AutorTipoTarefa; autorId: string; turnoId?: string | null; dados?: Record<string, string | number | boolean | null>; criadoEm?: number };
+
+/** Um trabalho antigo como o backfill da etapa 4 o lê (src/domain/backfill-tarefas.ts). */
+export type CandidatoAoBackfill = {
+  id: string; agenteId: string; conversaId: string; titulo: string; origem: OrigemTrabalho; forma: "task" | "frente"; estado: EstadoTrabalho;
+  criadoEm: number; iniciadoEm: number | null; terminadoEm: number | null; cardId: string | null; trabalhoMaeId: string | null; tarefaDaMae: string | null; tarefaObjetivoId: string | null;
+};
+interface LinhaC {
+  id: string; agente_id: string; conversa_id: string; titulo: string; origem: OrigemTrabalho; forma: "task" | "frente"; estado: EstadoTrabalho;
+  criado_em: Date; iniciado_em: Date | null; terminado_em: Date | null; card_id: string | null; trabalho_mae_id: string | null; tarefa_da_mae: string | null; tarefa_objetivo_id: string | null;
+}
+const paraCandidato = (l: LinhaC): CandidatoAoBackfill => ({
+  id: l.id, agenteId: l.agente_id, conversaId: l.conversa_id, titulo: l.titulo, origem: l.origem, forma: l.forma, estado: l.estado,
+  criadoEm: ms(l.criado_em), iniciadoEm: msOuNull(l.iniciado_em), terminadoEm: msOuNull(l.terminado_em), cardId: l.card_id, trabalhoMaeId: l.trabalho_mae_id, tarefaDaMae: l.tarefa_da_mae, tarefaObjetivoId: l.tarefa_objetivo_id,
+});
+const COLUNAS_C = `w.id, w.agente_id, w.conversa_id, w.titulo, w.origem, w.forma, w.estado, w.criado_em, w.iniciado_em, w.terminado_em, w.tarefa_id as card_id,
+  w.trabalho_mae_id, m.tarefa_objetivo_id as tarefa_da_mae, w.tarefa_objetivo_id`;
 
 export type FiltroTarefas = { agenteId?: string; estado?: EstadoTarefa; comArquivadas?: boolean; limite?: number };
 
@@ -256,6 +273,37 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
       for (const t of trabalhos) m.get(t.tarefa_objetivo_id)!.trabalhoId = t.id;
       for (const c of cards) m.get(c.tarefa_objetivo_id)!.cardId = c.id;
       return m;
+    },
+
+    /**
+     * ADR-192 (etapa 4): os trabalhos antigos da dona ainda sem Tarefa que o backfill considera — frente de pessoa/rede,
+     * trabalho de Card, filha de mãe já ligada —, em ordem de criação, depois do cursor (o backfill é retomável).
+     */
+    async candidatosAoBackfill(depois: { criadoEm: number; id: string } | null, limite: number): Promise<CandidatoAoBackfill[]> {
+      const linhas = await conn<LinhaC[]>`
+        select ${conn.unsafe(COLUNAS_C)}
+        from trabalhos w left join trabalhos m on m.tenant_id = w.tenant_id and m.id = w.trabalho_mae_id
+        where w.tenant_id = ${escopo.tenantId} and w.owner_id = ${escopo.pessoaId} and w.tarefa_objetivo_id is null
+          and ((w.forma = 'frente' and w.origem in ('pessoa', 'rede')) or w.tarefa_id is not null or (w.trabalho_mae_id is not null and m.tarefa_objetivo_id is not null))
+          ${depois ? conn`and (w.criado_em, w.id) > (${data(depois.criadoEm)}, ${depois.id})` : conn``}
+        order by w.criado_em, w.id limit ${Math.min(Math.max(limite, 1), 1000)}`;
+      return linhas.map(paraCandidato);
+    },
+
+    /** Os trabalhos da dona ligados a um Card (o estado da Tarefa do Card sai deles). */
+    async trabalhosDoCard(cardId: string): Promise<CandidatoAoBackfill[]> {
+      const linhas = await conn<LinhaC[]>`
+        select ${conn.unsafe(COLUNAS_C)}
+        from trabalhos w left join trabalhos m on m.tenant_id = w.tenant_id and m.id = w.trabalho_mae_id
+        where w.tenant_id = ${escopo.tenantId} and w.owner_id = ${escopo.pessoaId} and w.tarefa_id = ${cardId}
+        order by w.criado_em, w.id`;
+      return linhas.map(paraCandidato);
+    },
+
+    /** Põe na Thread os turnos de um trabalho que ainda não têm uma (backfill); devolve quantos. */
+    async ligarTurnosDoTrabalho(trabalhoId: string, threadId: string): Promise<number> {
+      const r = await conn`update turnos set thread_id = ${threadId} where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and trabalho_id = ${trabalhoId} and thread_id is null returning id`;
+      return r.length;
     },
 
     /** Liga um Card à Tarefa (ponte explícita; nunca automática no primeiro rollout). */
