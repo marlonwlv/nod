@@ -144,9 +144,9 @@ describe("fila da conversa com a máquina do bot fora do ar (exceção do nod, C
   });
 
   it("sem IA NESTE computador: a mesma linha, sem pedir terminal", () => {
-    const e = { ...com("vm", [{ ...maquina("vm", "Windows de Marlon", true), ias: { "claude-cli": "ausente" as const } }]), estaMaquina: { id: "vm", nome: "Windows de Marlon", plataforma: "win32" as const } };
+    const e = { ...com("vm", [{ ...maquina("vm", "Windows da pessoa", true), ias: { "claude-cli": "ausente" as const } }]), estaMaquina: { id: "vm", nome: "Windows da pessoa", plataforma: "win32" as const } };
     const s = situacaoNaFila(mensagem("m2"), e);
-    expect(s?.texto).toBe("Nenhuma IA pronta em Windows de Marlon: a mensagem sai assim que uma conta entrar");
+    expect(s?.texto).toBe("Nenhuma IA pronta em Windows da pessoa: a mensagem sai assim que uma conta entrar");
     expect(s?.texto).not.toContain("nod-motor");
   });
 

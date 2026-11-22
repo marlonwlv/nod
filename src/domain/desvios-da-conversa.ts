@@ -24,7 +24,7 @@ import { classificarErroFornecedor, horaMinuto, quandoDaFrase } from "./erro-for
  * tabela caminho por caminho.
  */
 
-/** definido em 2026-11-22 (regra 2, decisão do Marlon): tentativas automáticas por mensagem, somadas entre os desvios. */
+/** definido em 2026-11-22 (regra 2, decisão do dono): tentativas automáticas por mensagem, somadas entre os desvios. */
 export const TETO_TENTATIVAS_DA_MENSAGEM = 3;
 
 /** Onde a próxima tentativa roda. `mesma_conta` = de novo, igual (só para causa conhecida que passa sozinha). */
@@ -150,7 +150,7 @@ export type NomesDoDesvio = {
   ia: string;
   /** A outra IA pronta ("ChatGPT"). */
   outraIa?: string | null;
-  /** A máquina do turno, pelo nome que a pessoa deu ("MacBook do escritório", "VM leapy-01"). */
+  /** A máquina do turno, pelo nome que a pessoa deu ("MacBook do escritório", "VM sp-01"). */
   maquina?: string | null;
   /** A máquina com IA pronta para o "desta vez" ({ id, nome }). */
   outraMaquina?: { id: string; nome: string } | null;
@@ -243,7 +243,7 @@ export const ERRO_NO_CARTAO_MAX = 400;
 
 /** VM e máquina são femininas; o resto (MacBook, Mac, PC, computador, o nome que a pessoa deu) fica no masculino. */
 const ehFeminina = (nome: string): boolean => /^(vm\b|máquina|maquina)/i.test(nome.trim());
-/** "no MacBook do escritório" / "na VM leapy-01". */
+/** "no MacBook do escritório" / "na VM sp-01". */
 export const noNa = (nome: string): string => `${ehFeminina(nome) ? "na" : "no"} ${nome}`;
-/** "O MacBook do escritório" / "A VM leapy-01". */
+/** "O MacBook do escritório" / "A VM sp-01". */
 export const oA = (nome: string): string => `${ehFeminina(nome) ? "A" : "O"} ${nome}`;

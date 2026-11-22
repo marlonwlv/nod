@@ -109,7 +109,7 @@ describe("a recuperação segue a ordem e para nos tetos", () => {
 describe("as frases (regra 7): sem termos internos, com a conta e a máquina certas", () => {
   const nomes: NomesDoDesvio[] = [
     { bot: "Dino", ia: "Claude", conta: "Claude · Pessoal", contaQueSeguiu: "Claude · Trabalho", outraIa: "ChatGPT", maquina: "MacBook do escritório", outraMaquina: { id: "m2", nome: "VM do nod" }, organizacao: "Exemplo Ltda" },
-    { bot: "Dino", ia: "ChatGPT", maquina: "VM leapy-01" },
+    { bot: "Dino", ia: "ChatGPT", maquina: "VM sp-01" },
     { bot: "Dino", ia: "Claude" },
   ];
   const PROIBIDO = /claude-cli|codex-cli|executor|nao_autenticado|erro_execucao|undefined|null|NaN|tente de novo/i;
@@ -126,7 +126,7 @@ describe("as frases (regra 7): sem termos internos, com a conta e a máquina cer
     });
   }
   it("a VM leva artigo feminino e o MacBook, masculino", () => {
-    expect(cartaoDoDesvio("computador_dormiu", { bot: "Dino", ia: "Claude", maquina: "VM leapy-01" }, { agora: AGORA }).titulo).toBe("A VM leapy-01 parou de responder");
+    expect(cartaoDoDesvio("computador_dormiu", { bot: "Dino", ia: "Claude", maquina: "VM sp-01" }, { agora: AGORA }).titulo).toBe("A VM sp-01 parou de responder");
     expect(cartaoDoDesvio("computador_dormiu", { bot: "Dino", ia: "Claude", maquina: "MacBook do escritório" }, { agora: AGORA }).titulo).toBe("O MacBook do escritório parou de responder");
   });
   it("4 · sem a hora do fornecedor: 'volta sem hora', nunca uma hora inventada", () => {

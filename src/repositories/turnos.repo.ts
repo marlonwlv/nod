@@ -225,7 +225,7 @@ function iaDoTurnoSql(c: Conn) {
 }
 
 /**
- * definido em 2026-10-12 (ADR-099 §7, decisão do Marlon): a cota da IA segura o turno `t`? Com a IA do turno na reserva (99%
+ * definido em 2026-10-12 (ADR-099 §7, decisão do dono): a cota da IA segura o turno `t`? Com a IA do turno na reserva (99%
  * de uma janela), trabalho NOVO de fundo — task que nunca rodou, de qualquer origem, e rotina ou pedido de colega sem task —
  * espera: o 1% fica para a conversa com a pessoa. Com a IA no limite, TODO o fundo espera (o que já começou e a volta
  * marcada também), até a janela renovar, em vez de falhar. A conversa com a pessoa (conversa, sala, a retomada que ela

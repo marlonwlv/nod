@@ -160,13 +160,13 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 | Ação | O que faz | Risco | No chat | Rotas |
 | --- | --- | --- | --- | --- |
-| `cartoes.decidir` | Aprovar ou recusar um cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/decisoes\/(?<id>[^/]+)\/decidir$` |
-| `cartoes.responder` | Responder a uma pergunta do bot no cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/decisoes\/(?<id>[^/]+)\/responder$` |
-| `cartoes.reabrir` | Reabrir um cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/decisoes\/(?<id>[^/]+)\/reabrir$` |
-| `cartoes.dispensar` | Dispensar um cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/decisoes\/(?<id>[^/]+)\/dispensar$` |
-| `cartoes.confirmar_proposta` | Confirmar uma proposta | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/propostas\/(?<id>[^/]+)\/confirmar$` |
-| `cartoes.recusar_proposta` | Recusar uma proposta | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/propostas\/(?<id>[^/]+)\/recusar$` |
-| `cartoes.permitir_pasta` | Permitir uma pasta pedida pelo bot | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do Marlon) | `POST ^\/propostas\/(?<id>[^/]+)\/permitir-pasta$` |
+| `cartoes.decidir` | Aprovar ou recusar um cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/decisoes\/(?<id>[^/]+)\/decidir$` |
+| `cartoes.responder` | Responder a uma pergunta do bot no cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/decisoes\/(?<id>[^/]+)\/responder$` |
+| `cartoes.reabrir` | Reabrir um cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/decisoes\/(?<id>[^/]+)\/reabrir$` |
+| `cartoes.dispensar` | Dispensar um cartão | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/decisoes\/(?<id>[^/]+)\/dispensar$` |
+| `cartoes.confirmar_proposta` | Confirmar uma proposta | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/propostas\/(?<id>[^/]+)\/confirmar$` |
+| `cartoes.recusar_proposta` | Recusar uma proposta | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/propostas\/(?<id>[^/]+)\/recusar$` |
+| `cartoes.permitir_pasta` | Permitir uma pasta pedida pelo bot | pessoa_confirma | nunca: cartão se decide no cartão: aprovar pelo chat não (decisão do dono) | `POST ^\/propostas\/(?<id>[^/]+)\/permitir-pasta$` |
 | `cartoes.guardar_credencial` | Guardar a chave pedida pelo bot | pessoa_confirma | nunca: o valor é segredo: só pelo campo seguro do cartão | `POST ^\/propostas\/(?<id>[0-9a-f-]{36})\/credencial$` |
 
 ## turnos
