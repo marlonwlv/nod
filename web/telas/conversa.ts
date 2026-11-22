@@ -1734,6 +1734,10 @@ export function turnosDeTrabalho(c: ConversaEstado, estado: Estado): ReadonlySet
   for (const t of c.turnosEmCurso) if (t.trabalhoId) ids.add(t.id);
   for (const t of trabalhosConhecidos(estado, c.conversa.id)) if (t.turnoVivoId) ids.add(t.turnoVivoId);
   for (const t of Object.values(estado.turnosVivos)) if (t.trabalhoId) ids.add(t.turnoId);
+  // 2026-11-22 (teste do dono): o turno que a rede tirou do chat no meio ("Virou a tarefa …", trabalho_aberto de origem
+  // "rede") continua como o turno da task, mas nasceu sem trabalho — nenhuma das fontes acima soube da troca, e o ao vivo
+  // dele ("Rodou um comando") seguia no chat, embaixo da mensagem nova da pessoa, ao lado do "Trabalhando" do turno dela.
+  for (const m of c.mensagens) if (m.turnoId && m.payload?.kind === "trabalho_aberto" && m.payload.origem === "rede") ids.add(m.turnoId);
   return ids;
 }
 
