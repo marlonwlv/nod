@@ -82,13 +82,16 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   // Os quatro de destino temporal ficam no chat enquanto pedem ação e a Atividade os lista sempre, no filtro "Máquina e IA"
   // (plano, 1a; QA do PR 2: com categoria null eles só apareciam em "Tudo").
   "negacao.plano_ausente": { destino: "chat", categoria: "maquina_ia", temporal: true },
-  "ia.trocada": { destino: "atividade", categoria: "maquina_ia" },
+  // revisto em 2026-11-22 (lote B das Jornadas da IA, regra 3 e Paper B3): a troca que o nod fez sozinho volta ao chat como
+  // UMA linha discreta — é ela que explica por que a resposta veio de outra conta ou de outra IA. Antes (chat limpo,
+  // revisão 3 do #550) a pessoa recebia a resposta sem saber que a conta dela tinha parado.
+  "ia.trocada": { destino: "chat", categoria: "maquina_ia" },
   "ia.troca": { destino: "chat", categoria: "maquina_ia", temporal: true },
   "ia.limite_do_plano": { destino: "chat", categoria: "maquina_ia", temporal: true },
   // A fala da pessoa espera a hora do limite (NOD-268): ela não teve resposta e a linha diz quando volta.
   "ia.fala_espera": { destino: "chat", categoria: null },
-  "conta.trocada": { destino: "atividade", categoria: "maquina_ia" },
-  "conta.seguiu": { destino: "atividade", categoria: "maquina_ia" },
+  "conta.trocada": { destino: "chat", categoria: "maquina_ia" },
+  "conta.seguiu": { destino: "chat", categoria: "maquina_ia" },
   "conta.escolhida": { destino: "atividade", categoria: "maquina_ia" },
   "conta.nota": { destino: "atividade", categoria: "maquina_ia" },
   // "Seguir com" numa conta que não está na máquina: o clique não fez nada e a linha diz o que fazer.

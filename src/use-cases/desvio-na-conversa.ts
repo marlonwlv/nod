@@ -54,6 +54,11 @@ export type EntradaDesvioNaConversa = {
   autoria: Autoria;
   agora: number;
   custoUsd: number | null;
+  /** O limite: a hora real em que passa (null = o fornecedor não disse) e quando a mensagem tenta de novo sozinha. */
+  ate?: number | null;
+  acordarEm?: number;
+  /** Quem chama já emitiu o `turno_interrompido` e marcou as falas parciais (o caminho da lista de contas). */
+  jaInterrompido?: boolean;
 };
 
 const nomeDaIa = (ia: IdHarness | null): string => (ia ? nomeCurto(ia) : "sua IA");
@@ -65,13 +70,16 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   const recomeco = RECOMECO_DO_DESVIO[desvio] ?? null;
   const repetidas = recomeco ? await deps.repos.turnos.repeticoesDaMensagem(turno.mensagemOrigemId, recomeco) : 0;
   const botFixo = harnessFixado(turno.harness, turno.modelo) !== null;
-  const outraIa = !botFixo && p.outraIa && p.outraIa !== p.harness ? p.outraIa : null;
+  // A outra IA: o botão "Responder com o <outra> desta vez" a oferece sempre (vale só para esta mensagem); a troca
+  // AUTOMÁTICA, só com o bot no Automático (regra 5).
+  const outraParaOBotao = p.outraIa && p.outraIa !== p.harness ? p.outraIa : null;
+  const outraIa = !botFixo ? outraParaOBotao : null;
   const decisao = decidirRecuperacao(desvio, { tentativas: turno.reenvios, repetidasPorEste: repetidas, pararSolicitado: turno.pararSolicitadoEm !== null, proximaConta: false, outraIa: outraIa !== null });
-  const nomes = await nomesDoDesvio(deps, { turno, harness: p.harness, outraIa, machineId: p.machineId, prontosPorMaquina: p.prontosPorMaquina ?? null, botFixo });
-  const events: RuntimeEvent[] = [
+  const nomes = await nomesDoDesvio(deps, { turno, harness: p.harness, outraIa: outraParaOBotao, machineId: p.machineId, prontosPorMaquina: p.prontosPorMaquina ?? null, botFixo });
+  const events: RuntimeEvent[] = p.jaInterrompido ? [] : [
     evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, desvio, decisao: decisao.tipo === "repetir" ? decisao.onde : decisao.forma, custo_usd: p.custoUsd } }),
   ];
-  await deps.repos.mensagens.marcarParciaisDoTurno(turno.id);
+  if (!p.jaInterrompido) await deps.repos.mensagens.marcarParciaisDoTurno(turno.id);
   const linhaOuCartao = async (payload: PayloadDesvio): Promise<string | null> => {
     const texto = payload.forma === "linha" ? payload.texto : `${payload.titulo}. ${payload.texto}`;
     const m = await deps.repos.mensagens.criar({ conversaId: turno.conversaId, turnoId: turno.id, autoria, kind: "sistema", texto, payload, confianca: "confiavel" });
@@ -114,14 +122,14 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   // (contas-ia.ts acorda a espera) — ou, sem ninguém entrar, na hora marcada, quando o teto da mensagem decide de novo.
   let turnoEsperandoId: string | null = null;
   if (decisao.forma === "espera") {
-    const adiada = await adiarFala(deps, { turno, executor: p.executor, acordarEm: agora + ESPERA_POR_UMA_CONTA_MS, autoria, agora, texto: null, causa: desvio });
+    const adiada = await adiarFala(deps, { turno, executor: p.executor, acordarEm: p.acordarEm ?? agora + ESPERA_POR_UMA_CONTA_MS, autoria, agora, texto: null, causa: desvio });
     if (adiada) events.push(...adiada);
     turnoEsperandoId = adiada?.find((e) => e.kind === "turno_criado")?.turnoId ?? null;
   }
   // Parou: o cartão. O erro desconhecido que se repetiu vai sozinho para o time (regra 8), anexando só o cartão.
   const relatar = desvio === "erro_desconhecido" && repetidas > 0;
   const contaId = await deps.repos.turnos.contaDoTurno(turno.id).catch(() => null);
-  const cartao = cartaoDoDesvio(desvio, nomes, { agora, turnoId: turno.id, turnoEsperandoId, contaId, maquinaId: p.machineId, ia: p.harness, outraIaId: outraIa, relatado: relatar, erro: p.erroCru ?? null });
+  const cartao = cartaoDoDesvio(desvio, nomes, { agora, ate: p.ate ?? null, turnoId: turno.id, turnoEsperandoId, contaId, maquinaId: p.machineId, ia: p.harness, outraIaId: outraParaOBotao, relatado: relatar, erro: p.erroCru ?? null });
   const id = await linhaOuCartao(cartao);
   if (relatar && id) {
     const r = await registrarRelato(deps, { mensagemId: id, categoria: "travou_ou_parou", alcance: "mensagem", texto: "Relato automático do nod: o mesmo erro desconhecido duas vezes seguidas (lote B, desvio 10)." }).catch(() => null);

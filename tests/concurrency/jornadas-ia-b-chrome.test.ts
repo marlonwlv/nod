@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { Agente } from "../../src/contracts/agente.ts";
 import type { RespostaMutacao } from "../../src/contracts/api.ts";
+import type { ContasIaDto } from "../../src/contracts/contas-ia.ts";
 import type { Conversa } from "../../src/contracts/conversa.ts";
 import type { EstadoOnboarding } from "../../src/contracts/onboarding.ts";
 import type { Turno } from "../../src/contracts/turno.ts";
@@ -85,7 +86,8 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   const SESSAO_SUMIU = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "error_during_execution | No conversation found with session ID: 6413c71a-b189-4a59-8388-a5738582fdd2", sinais: SINAIS_SEM_SAIDA } as const;
   const ERRO_ESTRANHO = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "success | Unexpected token in stream at position 4182", sinais: SINAIS_SEM_SAIDA } as const;
   const NAO_ABRIU = { desfecho: "interrompido", motivoInterrupcao: "lancamento_falhou", sinais: { attempted: true, rejected: false, promptSubmitted: false, producedOutput: false } } as const;
-  const tem = (t: string) => `document.body.innerText.includes(${JSON.stringify(t)})`;
+  // Só a conversa aberta (a barra lateral repete a última linha de cada bot) e já carregada.
+  const tem = (t: string) => `(() => { const tl = [...document.querySelectorAll('.timeline')].find((x) => x.offsetParent !== null); return !!tl && !document.querySelector('.carregando-conversa') && tl.innerText.includes(${JSON.stringify(t)}); })()`;
 
   it("caminho feliz: a pessoa escreve e o bot responde", async () => {
     const { conversaId } = await bot("Bot feliz");
@@ -192,6 +194,65 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     expect(await mac.entregar(saiu, { desfecho: "sucesso", texto: "Revisei o #225: está pronto para o merge." })).toBe(200);
     await assentado(saiu.turnoId);
     await printar("desvio-02-login-vencido/b-sem-outra-conta", "02-entrou-e-respondeu", conversaId, tem("pronto para o merge"));
+  }, 180_000);
+
+  const LIMITE_CLAUDE = (voltaEm: number) => ({ desfecho: "falha", motivoFalha: "limite_do_plano", limiteVoltaEm: voltaEm, erroCru: "success | api_error: usage_limit_reached | You've hit your 5-hour limit", sinais: SINAIS_SEM_SAIDA }) as const;
+  const LIMITE_CODEX_SEM_HORA = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro) to continue.", sinais: SINAIS_SEM_SAIDA } as const;
+  // O Codex diz a hora no relógio da máquina, sem fuso; a hora real vem da leitura de cota que o driver anexa ao turno.
+  const VOLTA_DO_CODEX = Date.now() + 9 * 3_600_000;
+  const LIMITE_CODEX_8H = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "You've hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at 8:00 AM.", sinais: SINAIS_SEM_SAIDA,
+    usoDoPlano: { harness: "codex-cli", situacao: "esgotado", cincoHoras: { utilizacao: 0.4, renovaEm: Date.now() + 3_600_000 }, semana: { utilizacao: 1, renovaEm: VOLTA_DO_CODEX }, medidoEm: Date.now() } } as const;
+
+  /** Os cenários de limite começam com as contas livres (o "Tentar de novo" da conta, a mesma rota da tela). */
+  async function contasLivres(): Promise<void> {
+    const { contas } = await srv.json<ContasIaDto>("GET", "contas-ia");
+    for (const c of contas) if (c.noLimiteAte !== null) await srv.json("POST", `contas-ia/${c.id}/tentar-de-novo`, {});
+  }
+
+  it("desvio 4 · limite com outra conta pronta: segue nela com a hora real em que a conta volta", async () => {
+    await contasLivres();
+    const { conversaId } = await bot("Bot do relatório");
+    const turnoId = await enviar(conversaId, "Fecha o relatório da semana");
+    const plano = await mac.puxarAte();
+    expect(await mac.entregar(plano, LIMITE_CLAUDE(Date.now() + 5 * 3_600_000))).toBe(200);
+    await assentado(turnoId);
+    const naOutra = await mac.puxarAte();
+    expect(naOutra.harness).not.toBe(plano.harness);
+    expect(await mac.entregar(naOutra, { desfecho: "sucesso", texto: "Fechei. Está na pasta Relatórios, com o resumo no topo." })).toBe(200);
+    await assentado(naOutra.turnoId);
+    await printar("desvio-04-limite/a-outra-conta", "01-seguiu-e-respondeu", conversaId, tem("resumo no topo"));
+  }, 180_000);
+
+  it("desvio 3 · limite com o bot preso ao ChatGPT: a mensagem espera a hora real, com o botão da outra IA", async () => {
+    await contasLivres();
+    const { agenteId, conversaId } = await bot("Dino");
+    await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "codex-cli" });
+    const turnoId = await enviar(conversaId, "Roda os testes do quadro de novo");
+    const plano = await mac.puxarAte();
+    expect(plano.harness).toBe("codex-cli");
+    expect(await mac.entregar(plano, LIMITE_CODEX_8H)).toBe(200);
+    await assentado(turnoId);
+    const texto = await printar("desvio-03-limite-bot-fixo/a-espera", "01-cartao", conversaId, tem("Esperando o ChatGPT voltar"));
+    expect(texto).toContain("Responder com o Claude desta vez");
+    expect(texto).not.toMatch(/sem hora/);
+    // "Responder com o Claude desta vez": a mensagem sai uma vez no Claude; o bot continua só no ChatGPT.
+    await tela.avaliar(`document.querySelector('[data-act="responder-com-outra-ia"]').click()`);
+    const noClaude = await mac.puxarAte();
+    expect(noClaude.harness).toBe("claude-cli");
+    expect(await mac.entregar(noClaude, { desfecho: "sucesso", texto: "Rodei pelo Claude: 214 testes passaram." })).toBe(200);
+    await assentado(noClaude.turnoId);
+    await printar("desvio-03-limite-bot-fixo/a-espera", "02-respondeu-pelo-claude", conversaId, tem("214 testes"));
+  }, 180_000);
+
+  it("desvio 4 · limite sem a hora do fornecedor: nada de hora inventada", async () => {
+    await contasLivres();
+    const { agenteId, conversaId } = await bot("Bot sem hora");
+    await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "codex-cli" });
+    const turnoId = await enviar(conversaId, "Resume a planilha");
+    expect(await mac.entregar(await mac.puxarAte(), LIMITE_CODEX_SEM_HORA)).toBe(200);
+    await assentado(turnoId);
+    const texto = await printar("desvio-04-limite/b-sem-hora", "01-cartao", conversaId, tem("volta sem hora"));
+    expect(texto).not.toMatch(/\d{1,2}:\d{2}\./);
   }, 180_000);
 
   it("desvio 9 · a IA não abriu: o cartão nomeia a máquina e roda na outra pelo botão", async () => {

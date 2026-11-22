@@ -37,6 +37,18 @@ export async function telaDaConversa(o: { url: string; cookie: string }): Promis
   const host = new URL(o.url).hostname;
   await cdp.enviar("Page.enable");
   await cdp.enviar("Network.enable");
+  // As exceções da página entram no erro do teste: uma tela que não desenha costuma ser um erro de JS, não do servidor.
+  const excecoes: string[] = [];
+  await cdp.enviar("Runtime.enable");
+  cdp.ouvir("Runtime.exceptionThrown", (p) => {
+    const d = p.exceptionDetails as { text?: string; exception?: { description?: string } } | undefined;
+    excecoes.push((d?.exception?.description ?? d?.text ?? "exceção").slice(0, 600));
+  });
+  cdp.ouvir("Runtime.consoleAPICalled", (p) => {
+    if (p.type !== "error") return;
+    const args = (p.args as { value?: unknown; description?: string }[] | undefined) ?? [];
+    excecoes.push(`console.error: ${args.map((x) => String(x.value ?? x.description ?? "")).join(" ")}`.slice(0, 600));
+  });
   await cdp.enviar("Network.setCookie", { name: "nod_sessao", value: valor, domain: host, path: "/", httpOnly: true });
   const esperarAte = async (expressao: string, prazoMs: number): Promise<boolean> => {
     const fim = Date.now() + prazoMs;
@@ -54,8 +66,8 @@ export async function telaDaConversa(o: { url: string; cookie: string }): Promis
       const abriu = await esperarAte(`(() => { const b = document.querySelector('[data-act="abrir-conversa"][data-conversa="${p.conversaId}"]'); if (b) b.click(); return !!b; })()`, 10_000);
       if (!abriu) throw new Error(`telaDaConversa: a conversa ${p.conversaId} não aparece no app`);
       const ok = await esperarAte(p.pronto, p.prazoMs ?? 20_000);
-      const texto = await avaliar<string>(cdp, `(document.querySelector('.conversa, main, #conversa') ?? document.body).innerText`);
-      if (!ok) throw new Error(`telaDaConversa (${p.variacao.nome}): a tela não mostrou o esperado (${p.pronto}). Viu:\n${texto.slice(-1500)}`);
+      const texto = await avaliar<string>(cdp, `(document.querySelector('.timeline') ?? document.body).innerText`);
+      if (!ok) throw new Error(`telaDaConversa (${p.variacao.nome}): a tela não mostrou o esperado (${p.pronto}). Viu:\n${texto.slice(-1500)}${excecoes.length ? `\nExceções da página:\n${excecoes.slice(-3).join("\n")}` : ""}`);
       // As animações de entrada (linhas novas, o mascote) assentam antes do print.
       await espera(400);
       return texto;

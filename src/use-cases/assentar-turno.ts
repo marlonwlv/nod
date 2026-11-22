@@ -19,7 +19,7 @@ import { ehMotivoDaQueda, ultimoSinalDoTurno, type MotivoDaQueda } from "../doma
 import { NATIVA_MCP_DA_PESSOA, NATIVAS_DO_TERMINAL, NATIVAS_DO_TERMINAL_CODEX, pastaDoBot } from "../domain/nativas.ts";
 import { motivoDependeDaMaquina, motivoNaMaquina, redigir } from "../domain/redacao.ts";
 import { iasNoLimite, inteligenciaDoAgente, ordemEfetiva, podeReenviar, prazoDoLimite, prazoDoLimiteDaConta, proximaIaNoLimite } from "../domain/inteligencia.ts";
-import { usoDoPlanoValido } from "../domain/uso-do-plano.ts";
+import { usoDoPlanoValido, voltaPelaLeituraDaCota } from "../domain/uso-do-plano.ts";
 import { trabalhoAberto } from "../domain/trabalho.ts";
 import { cadeiaJaEsperou, contasPelaCota, cotaDasContas, ehVoltaDoFundo, ENTRADA_DA_VOLTA_DA_COTA, entradaDaNovaTentativa, entradaDoRecomecoPorAutocompactacao, entradaDaTrocaDeConta, entradaDaTrocaDeIa, entradaDaVoltaDaCota } from "../domain/cota-da-ia.ts";
 import { fraseDaDecisao } from "../domain/contas-da-ia.ts";
@@ -428,7 +428,8 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     && (desfecho.motivoFalha === "limite_do_plano" || (desfecho.motivoFalha !== null && classificarErroFornecedor(resultado.erroCru) === "limite_de_uso"));
   // Jornadas da IA (2026-11-19): a hora em que o limite volta — a do protocolo e, sem ela, a lida do texto do fornecedor
   // ("resets 6:50pm (America/Sao_Paulo)", "try again in 2 hours"); só sem nenhuma das duas fica o prazo sem hora.
-  const voltaDoLimite = ehLimite ? (desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null) ?? horaDeVoltaNoTexto(resultado.erroCru, agora) : null;
+  // Lote B (desvio 4, regra 4): e, sem nenhuma das duas, a da leitura de cota que o turno trouxe (o Codex a lê no fim do turno).
+  const voltaDoLimite = ehLimite ? (desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null) ?? horaDeVoltaNoTexto(resultado.erroCru, agora) ?? voltaPelaLeituraDaCota(resultado.usoDoPlano, agora) : null;
   // Lote B das Jornadas da IA (2026-11-22): o desvio do momento B que este fim de turno é (tabela única). Só no assentamento
   // da entrega na hora: a tardia já teve o desvio decidido por quem a interrompeu.
   const desvio = tardia ? null : reconhecerDesvio({ estado: desfecho.estado, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru, causaSemIa: resultado.causaSemIa ?? null, queda: motivoDaQuedaNaEntrega, botFixo: harnessFixado(turno.harness, turno.modelo) !== null });
@@ -816,6 +817,15 @@ async function aposLimiteDaConta(
   }
   await deps.repos.mensagens.marcarParciaisDoTurno(turno.id);
   const events: RuntimeEvent[] = [interrompido];
+  // Lote B das Jornadas da IA (desvios 3 e 4, 2026-11-22): a conversa sem outra conta para seguir — o bot preso a uma IA, ou
+  // todas as contas no limite — não perde a mensagem: ela espera a hora real (ou volta sem hora, uma vez) com o cartão do
+  // desvio, que oferece a outra IA "desta vez" e o Cancelar. O bot não muda (regra 5).
+  // Com uma conta da mesma IA fora da fila (ADR-108, R6), vale o aviso com o "Continuar na conta <x>" — é a próxima conta.
+  if (!segue && turno.origem === "conversa" && !turno.trabalhoId && (p.iaFixa || decisao.tipo === "todas_no_limite") && !contaForaDaFila(p.daMaquina, p.conta.ia, agora)) {
+    const ia = HARNESSES.find((h) => h.id === p.conta.ia)?.id ?? null;
+    const doDesvio = await aposDesvioNaConversa(deps, { desvio: p.iaFixa ? "limite_bot_fixo" : "limite", turno, executor: p.executor, harness: ia, outraIa: p.prontos.find((x) => x !== ia) ?? null, prontosPorMaquina: p.prontosPorMaquina, machineId: p.machineId, motivoInterrupcao: p.motivoInterrupcao, motivoFalha: p.motivoFalha, autoria, agora, custoUsd: p.custoUsd, ate: p.semHora ? null : p.voltaEm, acordarEm: p.voltaEm, jaInterrompido: true });
+    if (doDesvio) return [...events, ...doDesvio];
+  }
   if (!segue || turno.origem !== "conversa") {
     // R6: o bot fixo sem conta da IA dele na fila — o aviso com os caminhos no lugar da nota (sem caminho, a nota de sempre).
     const a = p.iaFixa && turno.origem === "conversa" ? await alvo() : null;

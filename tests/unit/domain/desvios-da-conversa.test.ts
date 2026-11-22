@@ -145,3 +145,15 @@ describe("as frases (regra 7): sem termos internos, com a conta e a máquina cer
     expect(cartaoDoDesvio("erro_desconhecido", nomes[0]!, { agora: AGORA, relatado: false }).texto).not.toContain("relato");
   });
 });
+
+describe("4 · a hora real do limite pela leitura de cota (regra 4)", () => {
+  it("a janela cheia que renova por último; sem janela cheia com hora, null (nunca um palpite)", async () => {
+    const { voltaPelaLeituraDaCota } = await import("../../../src/domain/uso-do-plano.ts");
+    const uso = (c: number, s: number, rc: number | null, rs: number | null) => ({ harness: "codex-cli" as const, situacao: "esgotado" as const, cincoHoras: { utilizacao: c, renovaEm: rc }, semana: { utilizacao: s, renovaEm: rs }, medidoEm: AGORA });
+    expect(voltaPelaLeituraDaCota(uso(1, 1, AGORA + 3_600_000, AGORA + 9 * 3_600_000), AGORA)).toBe(AGORA + 9 * 3_600_000);
+    expect(voltaPelaLeituraDaCota(uso(0.4, 1, AGORA + 3_600_000, AGORA + 9 * 3_600_000), AGORA)).toBe(AGORA + 9 * 3_600_000);
+    expect(voltaPelaLeituraDaCota(uso(0.4, 0.98, AGORA + 3_600_000, AGORA + 9 * 3_600_000), AGORA)).toBeNull();
+    expect(voltaPelaLeituraDaCota(uso(1, 0.2, null, AGORA + 9 * 3_600_000), AGORA)).toBeNull();
+    expect(voltaPelaLeituraDaCota(undefined, AGORA)).toBeNull();
+  });
+});
