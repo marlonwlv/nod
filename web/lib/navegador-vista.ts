@@ -102,6 +102,9 @@ export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "ap
   return b ? b.charAt(0).toUpperCase() + b.slice(1, 40) : p.classe === "apagar" ? "Apagar" : "Enviar";
 }
 
+/** A pergunta curta da pílula na aprovação, pelo tipo da ação (a inteira vai no cartão). */
+const PERGUNTA_CURTA: Readonly<Record<"pagar" | "apagar" | "enviar", string>> = { pagar: "Posso pagar?", apagar: "Posso apagar?", enviar: "Posso enviar?" };
+
 /**
  * A pílula (D1b, A): a mesma da tela cheia do computador (`.ctc-controle`, branca nos dois temas), com o texto do navegador.
  * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito). Na
@@ -130,8 +133,11 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
     case "aprovacao": {
       const p = pedido?.tipo === "aprovacao" ? pedido : null;
       const pergunta = p ? esc(p.pergunta) : "Posso seguir?";
+      // Ponto 14 dos cenários (2026-11-22): a pergunta inteira cortava ("Checkout no saucedemo.c…"); na pílula vai a curta,
+      // pelo tipo da ação, e a inteira fica no title, no leitor de tela e no cartão.
+      const curta = p ? PERGUNTA_CURTA[p.classe] : "Posso seguir?";
       const sim = p ? esc(rotuloDaAprovacao(p)) : "Sim";
-      corpo = `<span class="ctc-estado nv-precisa-txt nv-pergunta" title="${pergunta}"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>${pergunta}</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="recusar">Não</button><button type="button" class="ctc-bt nv-aprovar" data-nv="aprovar">${sim}</button></span>`;
+      corpo = `<span class="ctc-estado nv-precisa-txt nv-pergunta" title="${pergunta}"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span aria-hidden="true">${curta}</span><span class="sr-only">${pergunta}</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="recusar">Não</button><button type="button" class="ctc-bt nv-aprovar" data-nv="aprovar">${sim}</button></span>`;
       break;
     }
     default:
@@ -142,8 +148,8 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
         : `<span class="ctc-estado">${OLHO}<span>Assistindo</span></span>${assumir()}`;
   }
   const terminou = terminouEm !== null && estado === "assistindo";
-  const nota = estado === "aprovacao" && pedido?.tipo === "aprovacao" && pedido.avisoTouchId ? `<p class="nv-pilula-nota">${esc(pedido.avisoTouchId)}</p>` : "";
-  return `<div class="ctc-controle nv-pilula${terminou ? " nv-pilula-terminou" : ""}" data-estado="${estado}" role="group" aria-label="Controle do navegador ${esc(deNome(nome))}">${corpo}</div>${nota}`;
+  // Ponto 14: o aviso do Touch ID mora só no cartão (embaixo da pílula ele quebrava em duas linhas, fora dela).
+  return `<div class="ctc-controle nv-pilula${terminou ? " nv-pilula-terminou" : ""}" data-estado="${estado}" role="group" aria-label="Controle do navegador ${esc(deNome(nome))}">${corpo}</div>`;
 }
 
 // ---- a barra do navegador (D2, A e B) -------------------------------------------------------------------------------------
@@ -637,7 +643,8 @@ export function tituloDaAbaAtiva(v: Pick<VistaNavegador, "abas">): string {
 
 /** D1d: a legenda da aba ("Navegador da Ada · lendo os voos diretos") e o título da tela cheia ("Ada · clicando em Buscar"). */
 export function legendaDoPasso(nome: string, v: Pick<VistaNavegador, "passo" | "controle" | "estado" | "pedido"> | null, onde: "aba" | "tela-cheia"): string {
-  const frase = v?.pedido ? "precisa de você" : v?.controle === "pessoa" ? "você está no controle" : v?.passo?.frase ? fraseMinuscula(v.passo.frase) : v?.estado === "terminou" ? "terminou" : "";
+  // Ponto 10 dos cenários (2026-11-22): terminado, o título diz "terminou", não o último passo ("lendo www.google.com").
+  const frase = v?.pedido ? "precisa de você" : v?.controle === "pessoa" ? "você está no controle" : v?.estado === "terminou" ? "terminou" : v?.passo?.frase ? fraseMinuscula(v.passo.frase) : "";
   const quem = onde === "aba" ? `Navegador ${deNome(nome)}` : nome;
   return frase ? `${quem} · ${frase}` : quem;
 }

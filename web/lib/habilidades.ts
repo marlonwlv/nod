@@ -11,7 +11,7 @@ import type { TelaHabilidades } from "./navegador-cartoes.ts";
  */
 export const MS_DESFAZER_HABILIDADE = 5_500;
 
-type Api = { tarefasEnsinadas(agenteId: string): Promise<{ tarefas: TarefaEnsinada[] }>; apagarTarefaEnsinada(agenteId: string, id: string): Promise<{ ok: true }> };
+type Api = { tarefasEnsinadas(agenteId: string): Promise<{ tarefas: TarefaEnsinada[]; espacoBytes?: number | null }>; apagarTarefaEnsinada(agenteId: string, id: string): Promise<{ ok: true }> };
 type Opcoes = {
   api: () => Api | null;
   render: () => void;
@@ -57,7 +57,7 @@ function criarControlador(o: Opcoes) {
     pedidos.add(id);
     try {
       const r = await api.tarefasEnsinadas(id);
-      mudar(id, { tarefas: r.tarefas, erro: false });
+      mudar(id, { tarefas: r.tarefas, erro: false, espacoBytes: r.espacoBytes ?? null });
     } catch {
       mudar(id, { erro: true });
     }

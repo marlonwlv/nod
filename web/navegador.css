@@ -54,7 +54,7 @@ html.nv-arrastando, html.nv-arrastando * { cursor: col-resize !important; user-s
 .nv-lugares.nv-lugar-unico { display: inline-flex; align-items: center; gap: 6px; padding: 0 2px; background: none; font-size: var(--fs-corpo-2); line-height: 16px; color: var(--ink); white-space: nowrap; }
 .nv-lugares-escuro.nv-lugar-unico { padding: 0; background: none; color: #ffffffd9; font-size: var(--fs-rotulo); } /* cor-fixa: sobre o #141414 da tela cheia */
 .nv-lugar-ponto { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--nv-vivo); }
-.nv-lugar-ponto[data-ponto="precisa"] { background: var(--nv-precisa); animation: nv-cresce 400ms var(--curva) 1; }
+.nv-lugar-ponto[data-ponto="precisa"] { background: var(--aguardando-ponto); animation: nv-cresce 400ms var(--curva) 1; }
 .nv-acoes { display: flex; align-items: center; gap: 2px; flex: none; }
 .nv-ic { display: grid; place-items: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); cursor: pointer; }
 .nv-ic:hover { background: var(--hover); color: var(--ink); }
@@ -100,7 +100,7 @@ html.nv-arrastando, html.nv-arrastando * { cursor: col-resize !important; user-s
 .nv-favicon { display: grid; place-items: center; flex: none; width: 14px; height: 14px; border-radius: var(--raio-4); background: hsl(var(--nv-matiz, 220) 62% 52%); color: var(--on-signal); font-size: 9px; line-height: 1; font-weight: var(--peso-forte); } /* cor-fixa: a matiz vem do domínio; branco sobre ela nos dois temas */
 .nv-favicon-giro { background: none; border: 1.5px solid var(--borda); border-top-color: var(--ink-2); border-radius: 50%; box-sizing: border-box; animation: nv-gira .8s linear infinite; }
 .nv-aba-cursor { flex: none; color: var(--nv-cursor); }
-.nv-aba-ponto { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--nv-precisa); }
+.nv-aba-ponto { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--aguardando-ponto); }
 /* Achado 6 do crítico: com 4 abas ou mais, no painel estreito as inativas mostram só o favicon (o nome no title e no aria-label). */
 .nv-barra { container: nv-barra / inline-size; }
 @container nv-barra (max-width: 560px) {
@@ -195,8 +195,8 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-pergunta { min-width: 0; max-width: 260px; }
 .nv-pergunta > span { overflow: hidden; text-overflow: ellipsis; }
 .nv-precisa-txt { color: var(--nv-precisa); }
-.ctc-controle .nv-ponto-precisa { background: var(--nv-precisa); }
-.nv-pronto { background: var(--nv-precisa); color: var(--on-signal); }
+.ctc-controle .nv-ponto-precisa { background: var(--aguardando-ponto); }
+.nv-pronto { background: var(--action); color: var(--on-action); }
 .nv-pronto:hover { filter: brightness(1.08); }
 /* A1 e achado 1 do crítico: o "sim" da aprovação é preto, como o botão do cartão; sem o Mac, o aviso curto embaixo. */
 .nv-aprovar { background: var(--action); color: var(--on-action); }
@@ -233,7 +233,7 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 /* No modo abas o botão do canto entra na fileira, antes do painel (não fica solto no topo). */
 .cabecalho-pilula .abas-tarefa .nv-canto, .tk-topo .nv-canto { position: static; }
 .nv-aba-lugar-ponto { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--nv-vivo); }
-.nv-aba-lugar-ponto[data-ponto="precisa"] { background: var(--nv-precisa); animation: nv-cresce 400ms var(--curva) 1; }
+.nv-aba-lugar-ponto[data-ponto="precisa"] { background: var(--aguardando-ponto); animation: nv-cresce 400ms var(--curva) 1; }
 .nv-aba-lugar[data-estado="parada"] .at-titulo { color: var(--ink-3); }
 .nv-aba-lugar-erro { flex: none; font-weight: var(--peso-forte); color: var(--danger); }
 .nv-aba-mao { flex: none; color: var(--ink); }
@@ -250,11 +250,11 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-canto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 /* D8: o ponto ao vivo respira 100 % → 45 % em 2 s só aqui (parado nas abas e nas linhas). */
 .nv-canto-ponto { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--nv-vivo); animation: nv-respira 2s ease-in-out infinite; }
-.nv-canto-ponto[data-ponto="precisa"] { background: var(--nv-precisa); animation: nv-cresce 400ms var(--curva) 1; }
+.nv-canto-ponto[data-ponto="precisa"] { background: var(--aguardando-ponto); animation: nv-cresce 400ms var(--curva) 1; }
 .nv-linha { display: flex; align-items: center; gap: 12px; max-width: 560px; margin: 8px 0; padding: 10px 8px 10px 16px; box-sizing: border-box; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); animation: nv-sobe-6 200ms var(--curva) both; }
 .nv-linha-ponto { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--ink-4); }
 .nv-linha[data-ponto="vivo"] .nv-linha-ponto { background: var(--nv-vivo); }
-.nv-linha[data-ponto="precisa"] .nv-linha-ponto { background: var(--nv-precisa); }
+.nv-linha[data-ponto="precisa"] .nv-linha-ponto { background: var(--aguardando-ponto); }
 .nv-linha-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .nv-linha-txt b { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-regular); color: var(--ink); }
 .nv-linha-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-2); }
@@ -359,34 +359,16 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 
 /* ---------- Animações (D8: ≤ 320 ms, nenhuma bloqueia clique) ---------- */
 /* ---------- Os cartões do navegador na conversa, em Sua vez e no celular (L, A; K3, M4) ----------
-   Paper (get_jsx): borda 1 px no azul a 33 %, raio 14, padding 14, gap 10; título 14/19 semibold com o ponto azul de 7 px;
-   subtítulo 12/19; botões 13/19 de raio 10 (preto 9/12, contorno 8); indisponível cinza com o motivo de 11 px. */
-.nvc { display: flex; flex-direction: column; gap: 10px; max-width: 462px; margin: 0; padding: 14px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--nv-precisa) 33%, transparent); border-radius: var(--raio-14); background: var(--surface-elevated); font-size: var(--fs-rotulo); line-height: 16px; overflow-wrap: anywhere; }
+   2026-11-22 (pedido do Marlon): o molde do cartão do Computador (D5, D7; web/computador-cartoes.css). O .cc-cartao dá o
+   fundo, o raio 24, a sombra, o título, o texto e as pílulas; aqui só o que é do navegador. Na conversa, o espaço acima é
+   o mesmo entre dois balões (quem põe é a .bubble-wrap): o cartão não soma margem própria. */
+.nvc.cc-cartao { margin: 0; overflow-wrap: anywhere; }
 .nvc p { margin: 0; }
-.nvc-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.nvc-tit { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: var(--fs-corpo); line-height: 19px; font-weight: 600; }
-.nvc-ponto { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--nv-precisa); }
-.nvc-sub { color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; }
-.nvc-nota { color: var(--ink-2); font-size: var(--fs-legenda); line-height: 19px; }
-.nvc-erro { color: var(--danger); font-size: var(--fs-rotulo); line-height: 18px; }
-.nvc-ops { display: flex; flex-direction: column; gap: 8px; }
-.nvc-par { display: flex; gap: 8px; }
-.nvc-par > * { flex: 1 1 0; min-width: 0; }
-.nvc-op { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 37px; margin: 0; padding: 8px 12px; box-sizing: border-box; border: 1px solid transparent; border-radius: var(--raio-10); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 19px; text-align: left; cursor: pointer; }
-/* O nome da opção ("Usar o cofre do nod") fica inteiro; quem corta é o rótulo do item ("itau.com.br · marlon@…"). */
-.nvc-op > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nvc-op small { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-legenda); line-height: 19px; }
-.nvc-op-centro { justify-content: center; text-align: center; }
-.nvc-op-principal { border-color: var(--action); background: var(--action); color: var(--on-action); }
-.nvc-op-principal small { color: color-mix(in srgb, var(--on-action) 66%, transparent); }
-.nvc-op-principal:hover:not(:disabled) { background: color-mix(in srgb, var(--action) 88%, var(--surface)); }
-.nvc-op-contorno { border-color: color-mix(in srgb, var(--ink) 16%, transparent); }
-.nvc-op-contorno:hover:not(:disabled) { background: var(--hover); }
-.nvc-op-indisponivel { border-color: transparent; background: var(--nv-endereco); color: var(--ink-3); cursor: default; }
-.nvc-op-indisponivel small { color: var(--ink-2); }
-.nvc-op:disabled:not(.nvc-op-indisponivel) { opacity: .55; cursor: default; }
-.nvc-op:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.nvc-mac { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: var(--fs-corpo-2); line-height: 19px; }
+.nvc-nota { color: var(--ink-2); font-size: 13px; line-height: 18px; }
+.nvc-erro { color: var(--danger); font-size: 13px; line-height: 18px; }
+.nvc .cc-bt:focus-visible, .nvc .cc-x:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.nvc .nvc-op-indisponivel { cursor: default; }
+.nvc-mac { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; line-height: 20px; }
 .nvc-giro { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border: 1.6px solid var(--borda); border-top-color: var(--nv-precisa); border-radius: 50%; animation: nv-gira .8s linear infinite; }
 .nvc-link { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-rotulo); line-height: 19px; cursor: pointer; }
 .nvc-link:hover { color: var(--ink); text-decoration: underline; }
@@ -395,12 +377,13 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .lista > li.nvc-item, .decisoes-ancoradas > li.nvc-item, li.decisao.nvc-item { list-style: none; max-width: 462px; margin: 12px 0; padding: 0; border: 0 !important; border-left: 0 !important; border-radius: 0; background: none !important; box-shadow: none; }
 /* L4: o campo privado do código, 2 px de tinta, com os dígitos espaçados. */
 .nvc-codigo-linha { display: flex; gap: 8px; }
-.nvc-codigo-campo { flex: 1 1 0; min-width: 0; height: 41px; padding: 9px 10px; box-sizing: border-box; border: 2px solid var(--ink); border-radius: var(--raio-10); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); letter-spacing: .3em; }
+.nvc-codigo-campo { flex: 1 1 0; min-width: 0; height: 40px; padding: 9px 12px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--raio-12); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); letter-spacing: .3em; }
 .nvc-codigo-campo:disabled { opacity: .6; }
-.nvc-enviar { flex: none; padding: 9px 14px; }
+.nvc-codigo-linha { align-items: center; }
+.nvc .nvc-enviar { flex: none; }
 /* A3: a citação do que vai ser enviado e o "Não perguntar de novo". */
-.nvc-citacao { margin: 0; padding: 8px 10px; border-radius: var(--raio-8); background: var(--nv-endereco); color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; }
-.nvc-lembrar { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: var(--fs-rotulo); line-height: 19px; cursor: pointer; }
+.nvc-citacao.cc-acao { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 20px; }
+.nvc-lembrar { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; line-height: 20px; cursor: pointer; }
 .nvc-lembrar input { width: 14px; height: 14px; margin: 0; accent-color: var(--action); }
 /* L5: a linha discreta "Guardar no cofre?". */
 .nvc-guardar { display: flex; align-items: center; gap: 10px; max-width: 462px; margin: 4px 0 12px auto; padding: 10px 14px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); font-size: var(--fs-corpo-2); line-height: 19px; }
@@ -455,6 +438,7 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nvh-linha .gv-linha-txt small { display: block; }
 .nvh-linha .gv-link + .gv-link { margin-left: 4px; }
 .nvh-apagar { color: var(--danger); }
+.nvh-espaco { margin: 8px 4px 0; font-size: var(--fs-rotulo); line-height: 18px; }
 .nvh-passos { margin: 0 12px 10px 40px; padding: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 18px; }
 
 /* Configurações › Cofre › Logins de sites (ADR-190, decisão 6). */
@@ -507,13 +491,14 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 .nvl-ligada.fora { color: var(--ink-4); }
 .nvl-div { height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
 .nvl-mais { display: flex; flex-direction: column; gap: 2px; width: 100%; margin: 0; padding: 8px 10px; box-sizing: border-box; border: 0; border-radius: var(--raio-8); background: none; font: inherit; text-align: left; cursor: pointer; }
-.nvl-mais b { color: var(--nv-precisa); font-size: var(--fs-corpo-2); line-height: 18px; font-weight: var(--peso-regular); }
+.nvl-mais b { color: var(--ink); font-size: var(--fs-corpo-2); line-height: 18px; font-weight: var(--peso-regular); }
 .nvl-mais small { color: var(--ink-3); font-size: var(--fs-rotulo); line-height: 16px; }
 .nvl-mais:hover { background: var(--hover); }
 .nvl-item:focus-visible, .nvl-mais:focus-visible, .nvl-bt:focus-visible, .nvl-desfazer:focus-visible, .nvl-trava:focus-visible, .nvl-trocar:focus-visible, .nvl-frase-txt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
 /* M2/J1/N1 e M3/K1: o cartão-pergunta (borda azul a 33 %, raio 14, padding 14, gap 10). */
-.nvl-cartao { position: relative; display: flex; flex-direction: column; gap: 10px; max-width: 520px; margin: 6px 0; padding: 14px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--nv-precisa) 33%, transparent); border-radius: var(--raio-14); background: var(--surface-elevated); overflow-wrap: anywhere; }
+/* O molde do cartão do Computador (D5): sem borda, raio 24 e a sombra fina. */
+.nvl-cartao { position: relative; display: flex; flex-direction: column; gap: 10px; max-width: 462px; margin: 6px 0; padding: 14px 16px 16px; box-sizing: border-box; border: 0; border-radius: 24px; background: var(--surface-elevated); box-shadow: var(--chat-cartao-sombra); overflow-wrap: anywhere; }
 .nvl-titulo { margin: 0; color: var(--ink); font-size: var(--fs-corpo); line-height: 19px; font-weight: 600; }
 .nvl-texto { margin: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; }
 .nvl-bts { display: flex; gap: 8px; }
@@ -524,7 +509,7 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 .nvl-frase { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .nvl-frase-txt { margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-rotulo); line-height: 17px; text-align: left; cursor: pointer; }
 .nvl-frase-txt b { color: var(--ink); font-weight: 600; }
-.nvl-trocar { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--nv-precisa); font: inherit; font-size: var(--fs-rotulo); line-height: 17px; cursor: pointer; }
+.nvl-trocar { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); text-decoration: underline; font: inherit; font-size: var(--fs-rotulo); line-height: 17px; cursor: pointer; }
 .nvl-cartao .nvl-pop { top: auto; bottom: 8px; left: auto; right: 8px; transform: translateY(100%); }
 
 /* J2/K2 e N "Quando algo muda": a linha num cartão claro (raio 12), o texto e a ação à direita. */
@@ -582,7 +567,7 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
   .nvl-chave span { background: CanvasText; }
   .nvl-chave[aria-checked="true"] { background: Highlight; }
   .nvl-item[aria-checked="true"] { outline: 1px solid Highlight; }
-  .nvc-op:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible, .nv-grav-bt:focus-visible, .nv-grav-nome-campo:focus-visible, .cofre-olho:focus-visible { outline: 2px solid Highlight; }
+  .nvc .cc-bt:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible, .nv-grav-bt:focus-visible, .nv-grav-nome-campo:focus-visible, .cofre-olho:focus-visible { outline: 2px solid Highlight; }
   .nv-lugar-ponto, .nv-canto-ponto, .nv-aba-lugar-ponto, .nv-linha-ponto { forced-color-adjust: none; background: CanvasText; }
 }
 
@@ -604,7 +589,7 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 .pilula-frentes.pf-com-lugar .pf-botao.pf-lugar { gap: 8px; color: var(--ink); font-weight: var(--peso-medio); }
 .pilula-frentes.pf-com-lugar .pf-lugar .pf-resto { color: var(--ink-2); font-weight: var(--peso-regular); }
 .pf-ponto-lugar { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--nv-vivo); }
-.pf-ponto-lugar[data-ponto="precisa"] { background: var(--nv-precisa); }
+.pf-ponto-lugar[data-ponto="precisa"] { background: var(--aguardando-ponto); }
 .pf-lista .pf-lugar-linha .pf-ponto-lugar { margin: 0 3px; }
 /* Achado 14 do crítico: aberto pelo "Abrir em aba" do navegador, a fileira entra em 300 ms com a curva do projeto. */
 .abas-com-pilula.entrando.nv-rapido > :not(.at-pilula, .at-fechar-abas) { animation-duration: 240ms; animation-delay: 60ms; animation-timing-function: var(--curva); }

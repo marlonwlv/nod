@@ -7,7 +7,8 @@ describe("o Chrome do bot acompanha quem assiste (emenda de 2026-11-20 da ADR-19
   it("largura = clamp(round(w × 1,6), 800, 1440) e altura na proporção da área, até 2400", () => {
     expect(viewportDeQuemAssiste({ w: 560, h: 700 })).toEqual({ w: 896, h: 1120 });
     // Celular: a área de 390 px vira o piso de 800 (o layout de computador), na proporção da folha.
-    expect(viewportDeQuemAssiste({ w: 390, h: 300 })).toEqual({ w: 800, h: 615 });
+    expect(viewportDeQuemAssiste({ w: 390, h: 300 })).toEqual({ w: 640, h: 492 });
+    expect(viewportDeQuemAssiste({ w: 300, h: 600 })).toEqual({ w: 640, h: 1280 });
     // Tela cheia larga: o teto de 1440.
     expect(viewportDeQuemAssiste({ w: 1400, h: 800 })).toEqual({ w: 1440, h: 823 });
     // Muito alta: a altura para em 2400.

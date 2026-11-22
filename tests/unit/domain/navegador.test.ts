@@ -145,9 +145,12 @@ describe("ensinar uma tarefa (T)", () => {
   it("grava em linguagem simples, junta digitação no mesmo campo e nunca guarda o texto", () => {
     let g = novaGravacao(0);
     for (const e of [{ tipo: "abriu", url: "https://www.itau.com.br/x" }, { tipo: "entrou", site: "itau.com.br" }, { tipo: "clicou", papel: "link", nome: "Faturas" }, { tipo: "digitou", campo: "Busca", protegido: false }, { tipo: "digitou", campo: "Busca", protegido: false }, { tipo: "escolheu", campo: "Mês", opcao: "Novembro" }] as const) g = gravar(g, e, 1000).gravacao;
-    expect(g.eventos.map(fraseDoPasso)).toEqual(["Abriu itau.com.br", "Entrou em itau.com.br (senha não gravada)", 'Clicou em "Faturas"', 'Preencheu "Busca"', 'Escolheu "Novembro"']);
+    expect(g.eventos.map(fraseDoPasso)).toEqual(["Abriu itau.com.br/x", "Entrou em itau.com.br (senha não gravada)", 'Clicou em "Faturas"', 'Preencheu "Busca"', 'Escolheu "Novembro"']);
     expect(rotuloDaGravacao(g, 42_000)).toBe("0:42 · 5 passos");
-    expect(arquivoDosPassos("Baixar a fatura do Itaú", g)).toContain("1. Abriu itau.com.br");
+    expect(arquivoDosPassos("Baixar a fatura do Itaú", g)).toContain("1. Abriu itau.com.br/x");
+    // Ponto 15 dos cenários (22/11): o caminho fica, a busca e o fragmento (dados da sessão) não.
+    expect(fraseDoPasso({ tipo: "abriu", url: "https://demoqa.com/text-box?sessao=abc#topo" })).toBe("Abriu demoqa.com/text-box");
+    expect(fraseDoPasso({ tipo: "abriu", url: "https://demoqa.com/" })).toBe("Abriu demoqa.com");
     expect(nomeSugerido(g)).toBe("Faturas em itau.com.br");
   });
 

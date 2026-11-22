@@ -29,6 +29,16 @@ export function hostDaUrl(url: string): string {
 }
 const host = hostDaUrl;
 
+/**
+ * Ponto 15 dos cenários (2026-11-22): o passo "Abriu" leva o caminho da página ("demoqa.com/text-box"), sem a busca nem o
+ * fragmento (que costumam ter dados da sessão); só o domínio fazia a repetição perder a página exata.
+ */
+export function paginaDaUrl(url: string): string {
+  const m = url.match(/^[a-z][a-z0-9+.-]*:\/\/(?:[^/?#:@]+@)?[^/?#:]+(?::\d+)?(\/[^?#]*)?/i);
+  const caminho = (m?.[1] ?? "").replace(/\/+$/u, "");
+  return curto(`${host(url)}${caminho}`, 90);
+}
+
 function curto(t: string, n = 60): string {
   const s = t.replace(/\s+/g, " ").trim();
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
@@ -47,7 +57,7 @@ export function gravar(g: Gravacao, e: EventoGravado, agora: number): { gravacao
 /** O passo em linguagem simples, como na lista "PASSOS GRAVADOS" (T2). */
 export function fraseDoPasso(e: EventoGravado): string {
   switch (e.tipo) {
-    case "abriu": return `Abriu ${host(e.url)}`;
+    case "abriu": return `Abriu ${paginaDaUrl(e.url)}`;
     case "clicou": return `Clicou em "${curto(e.nome)}"`;
     case "digitou": return e.protegido ? `Preencheu ${curto(e.campo)} (não gravado)` : `Preencheu "${curto(e.campo)}"`;
     case "escolheu": return `Escolheu "${curto(e.opcao)}"`;

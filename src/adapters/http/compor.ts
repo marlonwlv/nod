@@ -455,7 +455,18 @@ export function comporApp(o: OpcoesCompor): App {
   const estadoVivo = criarEstadoVivo(criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) }), { agora: relogio });
   // C1 (2026-11-12): o frame que pode trazer fala para a sessão viva acorda o long-poll do laço (aguardarMensagem).
   const avisoDeMensagem = criarAvisoDeMensagem();
-  const barramento = comAvisoDeMensagem(estadoVivo.barramento, avisoDeMensagem);
+  // Ponto 10 dos cenários (2026-11-22): o fim do turno marca o navegador do bot "terminou" na hora (antes, só o varredor de
+  // 1 min). Ligado depois que o portão do navegador existe (mais abaixo).
+  let aoFimDoTurno: (pessoaId: string, turnoId: string) => void = () => undefined;
+  const comFimDoTurno = (b: Barramento): Barramento => ({
+    ...b,
+    publicar(pessoaId, tipo, dados) {
+      const f = b.publicar(pessoaId, tipo, dados);
+      if ((tipo === "turno.encerrado" || tipo === "turno.interrompido") && typeof dados.turnoId === "string") aoFimDoTurno(pessoaId, dados.turnoId);
+      return f;
+    },
+  });
+  const barramento = comFimDoTurno(comAvisoDeMensagem(estadoVivo.barramento, avisoDeMensagem));
   const interruptor = criarInterruptor();
   // revisto em 2026-10-12 (NOD-214): o token que falta na memória (o processo é novo, o turno seguiu na máquina durante o
   // deploy) é procurado pelo hash em `turno_credenciais`, no escopo que o token alega, e só vale com o turno ainda
@@ -681,7 +692,7 @@ export function comporApp(o: OpcoesCompor): App {
     const efeitos: EfeitoAposCommit[] = [];
     const r = await abrirTxEscopada(db, escopo)((trx) => fn({ ...depsDe(trx, escopo), aposCommit: (e) => void efeitos.push(e) }));
     // Pelo Nod (e no clique do cartão do lote), a ação já commitou: a falha do efeito vira aviso no log, não erro do lote.
-    for (const e of efeitos) await rodarAposCommit(escopo, e).catch((erro: unknown) => log("aviso", "efeito_apos_commit_falhou", { tipo: e.tipo, ...(e.tipo === "desligar_computador" ? { agente_id: e.agenteId } : e.tipo === "remover_computador" ? { maquina_id: e.maquinaId } : { importacao_id: e.importacaoId }), erro: erro instanceof Error ? erro.message : String(erro) }));
+    for (const e of efeitos) await rodarAposCommit(escopo, e).catch((erro: unknown) => log("aviso", "efeito_apos_commit_falhou", { tipo: e.tipo, ...(e.tipo === "desligar_computador" ? { agente_id: e.agenteId } : e.tipo === "remover_computador" ? { maquina_id: e.maquinaId } : e.tipo === "importar_linear" ? { importacao_id: e.importacaoId } : {}), erro: erro instanceof Error ? erro.message : String(erro) }));
     return r;
   };
   // ADR-165 (0170): os passos do run gravados no ponto em que os frames ao vivo saem (publicarDoPlano), com o escopo da dona
@@ -921,14 +932,16 @@ export function comporApp(o: OpcoesCompor): App {
   const vivoDaMaquina = canalNavegador ? criarVivoDaMaquina({ canal: canalNavegador, maquinaDoBot: (escopo, agenteId) => maquinaDoLugar(navegadores.vistaDe(escopo, agenteId).lugar, escopo) }) : null;
   const vivoNavegador = criarVivoNavegador({ portao: navegadores, ...(vivoDaMaquina ? { maquina: vivoDaMaquina } : {}) });
   vivoDoNavegador = vivoNavegador;
+  aoFimDoTurno = (pessoaId, turnoId) => navegadores.turnoAcabou(pessoaId, turnoId);
   services.navegadores = navegadores;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") {
-      // ADR-190: o bot excluído também perde o Chrome (o perfil fica no disco, cifrado).
-      await navegadores.desligar(escopo, efeito.agenteId).catch((e: unknown) => log("aviso", "navegador_desligar_falhou", { agente_id: efeito.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+      // ADR-190: o bot excluído também perde o Chrome; desde 2026-11-22 (ponto 09 dos cenários), o perfil sai do disco.
+      await navegadores.desligar(escopo, efeito.agenteId, { apagarPerfil: true }).catch((e: unknown) => log("aviso", "navegador_desligar_falhou", { agente_id: efeito.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
       return computadores.desligarExcluido(escopo, efeito.agenteId);
     }
     if (efeito.tipo === "remover_computador") return removerDepoisDoCommit(escopo, efeito);
+    if (efeito.tipo === "pedidos_dispensados") { navegadores.pedidosDispensados(escopo, efeito.decisaoIds); return; }
     // NOD-422: a busca do Linear roda em segundo plano (minutos, com progresso); quem confirmou não espera por ela.
     const rodar: RodarNaTx = (fn) => dentro(escopo, async (d) => executar(d, (dd) => fn(dd), undefined));
     void trazerImportacao(rodar, efeito.importacaoId).catch((erro: unknown) => log("erro", "importar_linear_falhou", { importacao_id: efeito.importacaoId, erro: erro instanceof Error ? erro.message : String(erro) }));
@@ -1736,7 +1749,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasComputadores(computadores),
     ...rotasNavegador(navegadores, { dentro, ligadas: (escopo) => canalNavegador?.ligadas(escopo) ?? [] }),
     ...rotasCofreLogins({ dentro, cifrar: (s) => cifrar(s, chave) }),
-    ...rotasTarefasEnsinadas({ dentro }),
+    ...rotasTarefasEnsinadas({ dentro, espaco: (escopo, agenteId) => navegadores.espaco(escopo, agenteId) }),
     ...rotasWorkspaces(workspaces, dentro),
     ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),

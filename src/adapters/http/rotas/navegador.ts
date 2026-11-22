@@ -124,11 +124,13 @@ export function rotasCofreLogins(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) =>
  * (o nome, os passos em frases e a data) e apagar. Só a dona: o filtro por owner_id no repositório, além do RLS. A lista
  * do bot é a mesma que `navegador_tarefa_ensinada` devolve a ele (mais novas primeiro, até TAREFAS_POR_BOT).
  */
-export function rotasTarefasEnsinadas(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) => Promise<T>): Promise<T> }): Rota[] {
+export function rotasTarefasEnsinadas(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) => Promise<T>): Promise<T>; espaco?: (escopo: Escopo, agenteId: string) => Promise<number | null> }): Rota[] {
   return [
     { metodo: "GET", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/habilidades$/, async handler(ctx) {
       const tarefas: TarefaEnsinada[] = await d.dentro(ctx.escopo, (deps) => deps.repos.navegadorTarefas.doAgente(ctx.params.id!));
-      ctx.json(200, { tarefas });
+      // Ponto 09 dos cenários (2026-11-22): o espaço que o navegador do bot ocupa no disco (só a dona; null = sem perfil).
+      const espacoBytes = d.espaco ? await d.espaco(ctx.escopo, ctx.params.id!).catch(() => null) : null;
+      ctx.json(200, { tarefas, espacoBytes });
     } },
     { metodo: "DELETE", acao: "navegador.apagar_tarefa", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/habilidades\/(?<tarefa>[^/]+)$/, async handler(ctx) {
       if (!UUID.test(ctx.params.tarefa ?? "")) throw new ErroDeDominio("nao_encontrado");

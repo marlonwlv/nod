@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, binarioAgentBrowser, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, ARGS_CHROME_DO_BOT, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -71,7 +71,7 @@ describe("argv e ambiente", () => {
     await m.abrir(s, "https://example.org");
     expect(identidades.map((a) => a[0])).toEqual(["eval", "close"]);
     const comJanela = UA_SEM_JANELA.replace("HeadlessChrome/", "Chrome/");
-    for (const r of recebidos) expect(r.env).toMatchObject({ AGENT_BROWSER_ARGS: "--disable-blink-features=AutomationControlled", AGENT_BROWSER_USER_AGENT: comJanela });
+    for (const r of recebidos) expect(r.env).toMatchObject({ AGENT_BROWSER_ARGS: ARGS_CHROME_DO_BOT.join(","), AGENT_BROWSER_USER_AGENT: comJanela });
     expect(identificacaoComJanela(UA_SEM_JANELA)).toBe(comJanela);
     // Já com janela (ou não é Chrome): nada a trocar.
     expect(identificacaoComJanela(comJanela)).toBeNull();
@@ -83,7 +83,8 @@ describe("argv e ambiente", () => {
     const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor: falha });
     await m.abrir(s, "https://example.com");
     expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_USER_AGENT");
-    expect(recebidos.at(-1)!.env.AGENT_BROWSER_ARGS).toBe("--disable-blink-features=AutomationControlled");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_ARGS).toBe(ARGS_CHROME_DO_BOT.join(","));
+    expect(ARGS_CHROME_DO_BOT[0]).toBe("--disable-blink-features=AutomationControlled");
   });
 
 
@@ -109,6 +110,24 @@ describe("argv e ambiente", () => {
     expect(bin).not.toBeNull();
     expect(existsSync(bin!)).toBe(true);
     expect(binarioAgentBrowser("plan9-mips")).toBeNull();
+  });
+});
+
+describe("o disco do perfil (cenários 22/11, ponto 09)", () => {
+  it("limpar tira os caches e mantém cookies, logins e dados dos sites; apagar tira a pasta do bot", async () => {
+    const m = motor();
+    const perfil = join(dados, nomeDaSessao(A), "perfil");
+    const { mkdir } = await import("node:fs/promises");
+    for (const c of CACHES_DO_PERFIL) { await mkdir(join(perfil, c), { recursive: true }); await writeFile(join(perfil, c, "x"), "0".repeat(1000)); }
+    await mkdir(join(perfil, "Default", "IndexedDB"), { recursive: true });
+    await writeFile(join(perfil, "Default", "Cookies"), "c".repeat(100));
+    await writeFile(join(perfil, "Default", "IndexedDB", "site"), "i".repeat(50));
+    expect(await m.espaco!(s)).toBe(CACHES_DO_PERFIL.length * 1000 + 150);
+    expect(await m.limparCache!(s)).toBe(150);
+    expect(existsSync(join(perfil, "Default", "Cookies"))).toBe(true);
+    expect(existsSync(join(perfil, "Default", "Cache"))).toBe(false);
+    await m.apagarPerfil!(s);
+    expect(existsSync(join(dados, nomeDaSessao(A)))).toBe(false);
   });
 });
 

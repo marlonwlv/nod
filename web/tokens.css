@@ -278,12 +278,13 @@
   --chat-cartao-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 6px #1c1c1c0a;
   --chat-barra-andando: #1c1c1c40;
   --chat-barra-vazia: #1c1c1c14;
-  /* ADR-190 (Paper "Navegador, computador e seu Mac"): o navegador do bot. Verde ao vivo, azul "precisa de você", o roxo do
+  /* ADR-190 (Paper "Navegador, computador e seu Mac"): o navegador do bot. Verde ao vivo, o laranja de "Aguardando você"
+     no "precisa de você" (2026-11-22: o DS do nod x Grok Bot deixa o azul só para o que é novo), o roxo do
      cursor do bot, o lilás do "ligando", a faixa clara do letterbox (nunca preta) e a barra do Chrome. */
   --nv-vivo: #16835b;
   --nv-vivo-soft: #f2faf6;
-  --nv-precisa: #2563eb;
-  --nv-precisa-soft: #eef3fe;
+  --nv-precisa: var(--aguardando);
+  --nv-precisa-soft: var(--aguardando-soft);
   --nv-cursor: #7b5cfa;
   --nv-cursor-tinta: #ffffff;
   --nv-letterbox: #f1f1f1;
@@ -453,8 +454,8 @@
     --chat-barra-vazia: #f5f5f514;
     --nv-vivo: #3fbf8a;
     --nv-vivo-soft: #12271e;
-    --nv-precisa: #6b9bff;
-    --nv-precisa-soft: #172240;
+    --nv-precisa: var(--aguardando);
+    --nv-precisa-soft: var(--aguardando-soft);
     --nv-cursor: #9d86ff;
     /* definido em 2026-11-20 (achado 3 do crítico): o nome do cursor no lilás do escuro com tinta escura, 6,3:1 pela fórmula da WCAG (a branca dava 2,9:1). */
     --nv-cursor-tinta: #161616;
@@ -623,8 +624,8 @@
   --chat-barra-vazia: #f5f5f514;
   --nv-vivo: #3fbf8a;
   --nv-vivo-soft: #12271e;
-  --nv-precisa: #6b9bff;
-  --nv-precisa-soft: #172240;
+  --nv-precisa: var(--aguardando);
+  --nv-precisa-soft: var(--aguardando-soft);
   --nv-cursor: #9d86ff;
   /* definido em 2026-11-20 (achado 3 do crítico): o nome do cursor no lilás do escuro com tinta escura, 6,3:1 pela fórmula da WCAG (a branca dava 2,9:1). */
   --nv-cursor-tinta: #161616;

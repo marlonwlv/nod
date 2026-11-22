@@ -39,7 +39,7 @@ import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDo
 import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
 import { htmlCartaoDaPergunta } from "../lib/navegador-lugar-tela.ts";
 import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
-import { htmlLinhaGuardar, linhaDaRespostaDoNavegador } from "../lib/navegador-cartoes.ts";
+import { htmlLinhaGuardar, linhaDaRespostaDoNavegador, pedidoDoNavegadorNaFala } from "../lib/navegador-cartoes.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -78,7 +78,7 @@ import { avisoContaSemAcesso, avisoHarnessFora, avisoModeloRecusado, ehIa, inven
 import { escolhaEfetiva, iasDaTela, inteligenciaDoBot } from "./inteligencia.ts";
 import { htmlBotaoDitado, htmlPilulaDitado } from "./ditado.ts";
 import { renderLinhaLigacao } from "./ligacao.ts";
-import { conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
+import { comPedidosDoNavegadorDepoisDaFala, conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
 import { trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { TEXTO_FALHA_LEITURA } from "../lib/ouvir.ts";
 import { acoesDaFala, chipsDeReacao, citacaoAcimaDoBalao } from "./acoes-da-fala.ts";
@@ -1880,7 +1880,8 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
   // resultado dela não somem por horas atrás de uma fala que não anda (definido em 2026-10-28).
   const rodandoDesde = vivosDoChat.flatMap((t) => { const d = inicioDaTrava(t, estado.agora); return d === undefined ? [] : [d]; }).reduce<number | null>((min, d) => (min === null || d < min ? d : min), null);
   const vivos = { desde: rodandoDesde, turnos: new Set(vivosDoChat.map((t) => t.turnoId)) };
-  const mensagens = emOrdemDoChat(c.mensagens, vivos);
+  // Ponto 06 dos cenários (2026-11-22): o cartão do pedido do navegador vai para baixo da fala do turno, como os outros.
+  const mensagens = comPedidosDoNavegadorDepoisDaFala(emOrdemDoChat(c.mensagens, vivos), vivos.turnos, (m) => pedidoDoNavegadorNaFala(m.texto) !== null);
   const co = mensagens === c.mensagens ? c : { ...c, mensagens: [...mensagens] };
   // O pedido (cartão) de um turno cuja fala está segurada fica segurado com ela: ancorado por `criadoEm`, cairia no meio do
   // turno da pessoa.

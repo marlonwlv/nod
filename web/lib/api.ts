@@ -312,7 +312,7 @@ export function criarApi(escopo: Escopo) {
     guardarNoCofre: (login: { site: string; usuario: string; senha: string }) => post<{ ok: true; login: LoginDoCofreNaTela }>("cofre/logins", login),
     apagarDoCofre: (id: string) => del<{ ok: true }>(`cofre/logins/${encodeURIComponent(id)}`),
     /** ADR-190 (T3): as habilidades do bot — as tarefas que a pessoa ensinou no navegador dele. */
-    tarefasEnsinadas: (agenteId: string) => get<{ tarefas: TarefaEnsinada[] }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades`),
+    tarefasEnsinadas: (agenteId: string) => get<{ tarefas: TarefaEnsinada[]; espacoBytes?: number | null }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades`),
     apagarTarefaEnsinada: (agenteId: string, id: string) => del<{ ok: true }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades/${encodeURIComponent(id)}`),
     /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
     urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,

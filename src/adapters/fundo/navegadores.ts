@@ -514,16 +514,34 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     let pausados = 0;
     for (const est of estados.values()) {
       if (!est.vivo || !deveriaPausar(est.vista, agora())) continue;
-      const motor = motorDe(est);
-      const abas = await motor?.abas(sessao(est.vista.agenteId)).catch(() => null);
-      est.abasGuardadas = (abas ?? est.vista.abas).map((a) => a.url).filter(enderecoPermitido).slice(0, ABAS_GUARDADAS_MAX);
-      est.vivo = false;
-      est.refs = null; est.refsPorTamanho = false;
+      await pausar(est);
       pausados++;
-      await motor?.fechar(sessao(est.vista.agenteId)).catch((e: unknown) => log("aviso", "navegador_pausar_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
-      mudar(est, { estado: "pausa", passo: null });
     }
     return pausados;
+  }
+
+  /** Fecha o Chrome do bot: as abas ficam guardadas e o perfil guarda os logins (D0). */
+  async function pausar(est: Estado): Promise<void> {
+    const motor = motorDe(est);
+    const abas = await motor?.abas(sessao(est.vista.agenteId)).catch(() => null);
+    est.abasGuardadas = (abas ?? est.vista.abas).map((a) => a.url).filter(enderecoPermitido).slice(0, ABAS_GUARDADAS_MAX);
+    est.vivo = false;
+    est.refs = null; est.refsPorTamanho = false;
+    await motor?.fechar(sessao(est.vista.agenteId)).catch((e: unknown) => log("aviso", "navegador_pausar_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+    mudar(est, { estado: "pausa", passo: null });
+    // Ponto 09 dos cenários (2026-11-22): com o Chrome fechado, o cache sai do disco (os logins ficam).
+    if (motor?.limparCache && !est.vivo) await motor.limparCache(sessao(est.vista.agenteId)).catch((e: unknown) => log("aviso", "navegador_limpar_cache_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+  }
+
+  /**
+   * Ponto 03 dos cenários (2026-11-22): com o teto cheio, o bot novo esperou 6 min porque os 4 Chromes eram de bots que já
+   * tinham terminado (só pausam depois de 10 min parados). O Chrome de quem terminou há mais tempo pausa na hora e cede a
+   * vaga; quem trabalha, espera alguém, está com a pessoa ou gravando uma tarefa nunca é tirado.
+   */
+  function quemCedeAVaga(): Estado | null {
+    const livres = [...estados.values()].filter((e) => e.vivo && e.vista.lugar.tipo === "nod" && e.vista.estado === "terminou"
+      && e.vista.controle === "bot" && !e.vista.pedido && !e.gravacao);
+    return livres.sort((a, b) => a.vista.atividadeEm - b.vista.atividadeEm)[0] ?? null;
   }
 
   /** O Chrome do bot conta no limite; sem vaga, o bot espera na fila (ADR-190, decisão 8). Só o lugar "nod" tem limite. */
@@ -532,6 +550,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     if (est.vista.lugar.tipo === "nod") {
       const vivos = () => [...estados.values()].filter((e) => e.vivo && e.vista.lugar.tipo === "nod").length;
       if (vivos() >= max) await pausarOciosos();
+      if (vivos() >= max) { const cede = quemCedeAVaga(); if (cede) await pausar(cede); }
       if (vivos() >= max) return false;
     }
     est.vivo = true;
@@ -1332,6 +1351,34 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const e = estados.get(agenteId);
       return e && e.escopo.pessoaId === escopo.pessoaId && e.escopo.tenantId === escopo.tenantId ? e.vista : null;
     },
+    /**
+     * ADR-191 no navegador (ponto 02 dos cenários de 2026-11-22): a mensagem nova da pessoa dispensou estes pedidos (login,
+     * código, ajuda). A vista solta o pedido e o navegador volta à Ada: o cartão vira linha, o painel deixa de dizer
+     * "Precisa de você" e a barra lateral sai de "Aguardando você". Assumido à mão sem pedido, fica com a pessoa.
+     */
+    pedidosDispensados(escopo: Escopo, decisaoIds: readonly string[]): void {
+      const ids = new Set(decisaoIds);
+      for (const est of estados.values()) {
+        if (est.escopo.pessoaId !== escopo.pessoaId || est.escopo.tenantId !== escopo.tenantId || !est.vista.pedido || !ids.has(est.vista.pedido.decisaoId)) continue;
+        est.assumidoEm = null;
+        est.entradaPessoaEm = null;
+        est.turnoEsperando = null;
+        limparCaptura(est);
+        mudar(est, { controle: "bot", pedido: null, devolveEm: null, atividadeEm: agora() });
+      }
+    },
+    /**
+     * Ponto 10 dos cenários (2026-11-22): o turno que mexeu por último acabou (o frame turno.encerrado/interrompido). A vista
+     * vai a "terminou" na hora, com o último passo: a aba e a tela cheia deixam de dizer "ao vivo" e "lendo…". Com pedido,
+     * com a pessoa ou gravando, nada muda (como no varredor, marcarTerminados).
+     */
+    turnoAcabou(pessoaId: string, turnoId: string): void {
+      for (const est of estados.values()) {
+        if (est.escopo.pessoaId !== pessoaId || est.turnoId !== turnoId || !est.vivo || est.vista.estado !== "ao_vivo" || est.vista.controle !== "bot" || est.vista.pedido || est.gravacao) continue;
+        est.turnoId = null;
+        mudar(est, { estado: "terminou", passo: est.ultimoPasso });
+      }
+    },
     /** D4: assumir, devolver, pedir e resolver o controle. null = a transição não vale do estado atual. */
     controlar(escopo: Escopo, agenteId: string, op: OperacaoControle): VistaNavegador | null {
       const est = estadoDe(escopo, agenteId);
@@ -1354,13 +1401,28 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       return (await motorDe(est)?.portaDoStream(sessao(agenteId))) ?? null;
     },
     /** Desliga o Chrome do bot (excluir o bot, a pessoa pediu). */
-    async desligar(escopo: Escopo, agenteId: string): Promise<void> {
+    async desligar(escopo: Escopo, agenteId: string, o2: { apagarPerfil?: boolean } = {}): Promise<void> {
       const est = estados.get(agenteId);
+      if (o2.apagarPerfil) {
+        // O bot excluído: o perfil do lugar "nod" sai do disco mesmo sem estado na memória (o servidor reiniciou).
+        if (est && est.escopo.pessoaId !== escopo.pessoaId) return;
+        const motor = est ? motorDe(est) : o.motor({ tipo: "nod" }, escopo);
+        if (est?.vivo) await motor?.fechar(sessao(agenteId)).catch(() => undefined);
+        if (est) { est.vivo = false; mudar(est, { estado: "desligado", passo: null, abas: [] }); estados.delete(agenteId); }
+        if (motor?.lugar.tipo === "nod") await motor.apagarPerfil?.(sessao(agenteId));
+        return;
+      }
       if (!est || est.escopo.pessoaId !== escopo.pessoaId) return;
       est.vivo = false;
       est.refs = null; est.refsPorTamanho = false;
       await motorDe(est)?.fechar(sessao(agenteId));
       mudar(est, { estado: "desligado", passo: null, abas: [] });
+    },
+    /** Ponto 09 dos cenários (2026-11-22): o espaço do navegador do bot no disco do nod (null = noutro lugar ou sem perfil). */
+    async espaco(escopo: Escopo, agenteId: string): Promise<number | null> {
+      await conferirDona(escopo, agenteId);
+      const motor = o.motor({ tipo: "nod" }, escopo);
+      return motor?.espaco ? motor.espaco(sessao(agenteId)) : null;
     },
     pausarOciosos,
     conferirDona,

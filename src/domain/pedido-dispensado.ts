@@ -6,6 +6,15 @@ import { PREFIXO_PEDIDO_DE_TELA, SUFIXO_PEDIDO_DE_TELA } from "./computador.ts";
  * não depende de banco: a frase curta do pedido e a linha fixa que o bot lê no turno seguinte.
  */
 
+/**
+ * As falas que abrem os pedidos do navegador do bot (login, código, ajuda; FALA_DO_LOGIN, FALA_DO_CODIGO e FALA_DA_AJUDA
+ * de src/adapters/fundo/navegadores.ts). Como a ajuda do computador, não se respondem com texto: a mensagem nova da pessoa
+ * as dispensa (ponto 02 dos cenários de 2026-11-22: "deixa pra lá" deixava o CAPTCHA aberto).
+ */
+export function ehPedidoDoNavegador(texto: string): boolean {
+  return /^Preciso entrar em .+ no meu navegador para continuar: /u.test(texto) || texto.startsWith("Preciso do código que chegou para você: ") || texto.startsWith("Preciso de você no meu navegador: ");
+}
+
 /** definido em 2026-11-20: a frase curta cabe numa linha da conversa e no histórico; o resto do pedido já está na fala do bot. */
 export const FRASE_CURTA_MAX = 160;
 

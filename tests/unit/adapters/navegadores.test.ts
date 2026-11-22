@@ -574,6 +574,58 @@ describe("limite de Chromes vivos (NOD_NAVEGADORES_MAX)", () => {
     expect(n.vivos()).toBe(1);
     expect(chamadas.filter((c) => c.op === "fechar")).toHaveLength(1);
   });
+
+  it("com o teto cheio, o Chrome de quem já terminou cede a vaga na hora (cenários 22/11, ponto 03)", async () => {
+    const n = criar({ max: 1 });
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    concluidos.add("turno-a");
+    agora += 30_000;
+    expect(await n.chamar(MARLON, plano(B), "navegador_ler", {})).toMatchObject({ ok: true, confianca: "nao_confiavel" });
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "pausa" });
+    expect(n.vivos()).toBe(1);
+    // Ponto 09: o Chrome fechado leva o cache junto (os logins ficam no perfil).
+    expect(ops().slice(ops().indexOf("fechar"))).toContain("limparCache");
+  });
+
+  it("o bot excluído leva o perfil do disco, mesmo sem o navegador na memória (ponto 09)", async () => {
+    const n = criar();
+    await n.desligar(MARLON, A, { apagarPerfil: true });
+    expect(ops()).toEqual(["apagarPerfil"]);
+    await n.chamar(MARLON, plano(B), "navegador_ler", {});
+    chamadas = [];
+    await n.desligar(MARLON, B, { apagarPerfil: true });
+    expect(ops()).toEqual(["fechar", "apagarPerfil"]);
+    expect(n.vista(MARLON, B)).toBeNull();
+  });
+
+  it("quem ainda trabalha não cede: o bot novo fica na fila", async () => {
+    const n = criar({ max: 1 });
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    agora += 30_000;
+    expect(corpo(await n.chamar(MARLON, plano(B), "navegador_ler", {}))).toMatchObject({ estado: "na_fila" });
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "ao_vivo" });
+  });
+});
+
+describe("o fim do turno (cenários 22/11, ponto 10)", () => {
+  it("o frame do fim do turno marca a vista 'terminou' na hora, com o último passo", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "ao_vivo" });
+    n.turnoAcabou("outra-pessoa", "turno-a");
+    n.turnoAcabou(MARLON.pessoaId, "turno-b");
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "ao_vivo" });
+    n.turnoAcabou(MARLON.pessoaId, "turno-a");
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "terminou" });
+  });
+
+  it("com pedido aberto, não muda", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    await n.chamar(MARLON, plano(A), "navegador_pedir_ajuda", { motivo: "resolver o CAPTCHA" });
+    n.turnoAcabou(MARLON.pessoaId, "turno-a");
+    expect(n.vista(MARLON, A)?.estado).not.toBe("terminou");
+  });
 });
 
 describe("script", () => {
@@ -724,7 +776,7 @@ describe("ensinar uma tarefa (T)", () => {
     await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 10, y: 80 });
     n.doStream(MARLON, A, { abas: [{ id: "t1", titulo: "Faturas", url: "https://itau.com.br/faturas", ativa: true }] });
     const passos = n.vista(MARLON, A)!.gravacao!.passos;
-    expect(passos).toEqual(["Abriu itau.com.br", 'Preencheu "Agência"', "Preencheu Senha (não gravado)", 'Clicou em "Faturas"', "Abriu itau.com.br"]);
+    expect(passos).toEqual(["Abriu itau.com.br", 'Preencheu "Agência"', "Preencheu Senha (não gravado)", 'Clicou em "Faturas"', "Abriu itau.com.br/faturas"]);
     expect(JSON.stringify(passos)).not.toMatch(/1234|hunter22/);
     const { tarefa, vista } = await n.ensinar(MARLON, A, "salvar", "  Baixar a fatura ");
     expect(tarefa).toMatchObject({ nome: "Baixar a fatura", passos });
@@ -898,5 +950,17 @@ describe("CAPTCHA na página (prova real de 2026-11-20: o modelo pediu no chat, 
     const n = criar();
     await n.chamar(MARLON, plano(A), "navegador_pedir_ajuda", { motivo: "resolver o CAPTCHA" });
     expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "ajuda", motivo: "resolver o CAPTCHA" } });
+  });
+
+  it("a mensagem nova que dispensa o pedido (ADR-191) devolve o navegador à Ada e tira o 'precisa de você' (cenários 22/11, ponto 02)", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_pedir_ajuda", { motivo: "resolver o CAPTCHA" });
+    const decisaoId = n.vista(MARLON, A)?.pedido?.decisaoId ?? "";
+    n.pedidosDispensados({ ...MARLON, pessoaId: "outra-pessoa" }, [decisaoId]);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa" });
+    n.pedidosDispensados(MARLON, ["outra-decisao"]);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa" });
+    n.pedidosDispensados(MARLON, [decisaoId]);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot", pedido: null });
   });
 });

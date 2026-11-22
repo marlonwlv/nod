@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { hkdfSync, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -115,6 +115,34 @@ export interface MotorNavegador {
   /** O tamanho da página em CSS px (`set viewport`): acompanha a área de quem assiste (emenda de 2026-11-20 da ADR-190). */
   tamanho(s: SessaoNavegador, w: number, h: number): Promise<void>;
   fechar(s: SessaoNavegador): Promise<void>;
+  /**
+   * Ponto 09 dos cenários (2026-11-22): com o Chrome fechado, apaga o que o Chrome refaz sozinho (caches, o modelo do
+   * optimization guide) e mantém o que é da pessoa (cookies, logins, IndexedDB, Local Storage). Devolve os bytes que sobraram.
+   */
+  limparCache?(s: SessaoNavegador): Promise<number>;
+  /** O bot foi excluído: o perfil inteiro sai do disco (logins, arquivos e prints dele). */
+  apagarPerfil?(s: SessaoNavegador): Promise<void>;
+  /** O espaço que o navegador do bot ocupa no disco, em bytes. */
+  espaco?(s: SessaoNavegador): Promise<number>;
+}
+
+/** O que o Chrome refaz sozinho: sai na pausa (relativo à pasta do perfil). */
+export const CACHES_DO_PERFIL = [
+  "Default/Cache", "Default/Code Cache", "Default/GPUCache", "Default/DawnGraphiteCache", "Default/DawnWebGPUCache",
+  "Default/Service Worker/CacheStorage", "Default/Service Worker/ScriptCache", "GraphiteDawnCache", "GrShaderCache", "ShaderCache",
+  "optimization_guide_model_store", "component_crx_cache",
+] as const;
+
+/** O tamanho de uma pasta (bytes), sem seguir links; o que não dá para ler conta zero. */
+export async function tamanhoDaPasta(caminho: string): Promise<number> {
+  let total = 0;
+  const entradas = await readdir(caminho, { withFileTypes: true }).catch(() => []);
+  for (const e of entradas) {
+    const c = join(caminho, e.name);
+    if (e.isDirectory()) total += await tamanhoDaPasta(c);
+    else if (e.isFile()) total += (await stat(c).catch(() => null))?.size ?? 0;
+  }
+  return total;
 }
 
 /** O que roda o binário (injetável: o teste nunca sobe Chrome). */
@@ -173,7 +201,13 @@ const OCIOSO_PADRAO_MS = 10 * 60_000;
  * o resto é o que o mesmo binário diz com janela. Nada é inventado: a versão é a do próprio binário, o sistema é o da
  * máquina. Medido no IMDb (firewall da Amazon): 403 → página normal.
  */
-export const ARGS_CHROME_DO_BOT = ["--disable-blink-features=AutomationControlled"] as const;
+export const ARGS_CHROME_DO_BOT = [
+  "--disable-blink-features=AutomationControlled",
+  // Ponto 09 dos cenários (2026-11-22): o cache de cada perfil fica em até 64 MB e o Chrome não baixa os modelos do
+  // "optimization guide" (41 MB por bot no teste).
+  "--disk-cache-size=67108864",
+  "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints",
+] as const;
 
 /**
  * A identificação que o mesmo Chrome dá com janela: a dele sem janela com "HeadlessChrome/" trocado por "Chrome/" (o
@@ -530,5 +564,12 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     portaDoStream,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
     async fechar(s) { await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; }); },
+    async limparCache(s) {
+      const perfil = join(pasta(s), "perfil");
+      for (const c of CACHES_DO_PERFIL) await rm(join(perfil, c), { recursive: true, force: true }).catch(() => undefined);
+      return tamanhoDaPasta(pasta(s));
+    },
+    async apagarPerfil(s) { await rm(pasta(s), { recursive: true, force: true }); },
+    espaco: (s) => tamanhoDaPasta(pasta(s)),
   };
 }

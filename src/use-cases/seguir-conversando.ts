@@ -2,7 +2,7 @@ import type { PayloadPedidoDispensado } from "../contracts/cartao-encolhido.ts";
 import type { Proposta } from "../contracts/conversa.ts";
 import { TIPOS_DISPENSADOS_AO_SEGUIR, type Decisao, type TipoDecisao } from "../contracts/decisao.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
-import { fraseCurtaDoPedido, linhaDoPedidoDispensado } from "../domain/pedido-dispensado.ts";
+import { ehPedidoDoNavegador, fraseCurtaDoPedido, linhaDoPedidoDispensado } from "../domain/pedido-dispensado.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
 import { depoisDeDispensar } from "./dispensar-decisao.ts";
 import { autoriaDaPessoa } from "./registrar-negacao.ts";
@@ -39,7 +39,7 @@ export type PedidoDispensado = { decisaoId: string; tipo: TipoDecisao; mensagemI
  * gravar a mensagem da pessoa e ANTES do turno novo: `criado_em` é clock_timestamp(), então a linha entra no "desde a sua
  * última vez" (sessão retomada) ou no histórico do turno que a mensagem cria.
  */
-export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "escopo" | "agora" | "tx">, input: { conversaId: string; antesDe: number }): Promise<{ dispensados: PedidoDispensado[]; events: RuntimeEvent[] }> {
+export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "escopo" | "agora" | "tx" | "aposCommit">, input: { conversaId: string; antesDe: number }): Promise<{ dispensados: PedidoDispensado[]; events: RuntimeEvent[] }> {
   const agora = deps.agora();
   const pessoa = deps.escopo.pessoaId;
   const [abertas, propostas, vivos] = await Promise.all([
@@ -51,7 +51,7 @@ export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "e
   const doTurnoVivo = (turnoId: string | null | undefined) => !!turnoId && turnosVivos.has(turnoId);
   const candidatas = abertas.filter((d) => DISPENSADOS.has(d.tipo) && d.ownerId === pessoa && d.decisorId === pessoa && d.tarefaId === undefined
     && (d.estado === "pendente" || d.estado === "reaberta") && Date.parse(d.criadoEm) <= input.antesDe && !doTurnoVivo(d.turnoId));
-  const ajudas = await ajudasDoComputador(deps, candidatas);
+  const { ajudas, doNavegador } = await ajudasDoComputador(deps, candidatas);
   const events: RuntimeEvent[] = [];
   const dispensados: PedidoDispensado[] = [];
   const feitas = new Set<string>();
@@ -73,6 +73,9 @@ export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "e
     events.push(...recibo.events);
     dispensados.push({ decisaoId: decisao.id, tipo: decisao.tipo, mensagemId: recibo.mensagemId });
   }
+  // O navegador do bot guarda o pedido na vista (memória do portão): depois do commit, ela solta o pedido e o controle.
+  const doNavegadorFeitos = [...feitas].filter((id) => doNavegador.has(id));
+  if (doNavegadorFeitos.length) deps.aposCommit?.({ tipo: "pedidos_dispensados", decisaoIds: doNavegadorFeitos });
 
   // O card de conexão ("Conectar o Google Drive para a Frida") é só a proposta: sem decisão, sai recusado.
   for (const p of propostas) {
@@ -90,12 +93,17 @@ export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "e
   return { dispensados, events };
 }
 
-/** As perguntas abertas que são o pedido de ajuda do computador: o balão de cada uma (`ajudaDoComputador` no payload). */
-async function ajudasDoComputador(deps: Pick<Deps, "repos">, decisoes: readonly Decisao[]): Promise<ReadonlySet<string>> {
+/**
+ * As perguntas abertas que são o pedido de ajuda do computador (`ajudaDoComputador` no payload) ou um pedido do navegador
+ * do bot (login, código, ajuda: reconhecidos pela fala, ehPedidoDoNavegador).
+ */
+async function ajudasDoComputador(deps: Pick<Deps, "repos">, decisoes: readonly Decisao[]): Promise<{ ajudas: ReadonlySet<string>; doNavegador: ReadonlySet<string> }> {
   const perguntas = decisoes.filter((d) => d.tipo === "pergunta" && d.turnoId !== null);
-  if (perguntas.length === 0) return new Set();
-  const baloes = await deps.repos.mensagens.pedidosAPessoaDasDecisoes(perguntas.flatMap((d) => (d.turnoId ? [d.turnoId] : [])));
-  return new Set(baloes.flatMap((m) => (m.payload?.kind === "pedido_a_pessoa" && m.payload.ajudaDoComputador ? [m.payload.decisaoId] : [])));
+  if (perguntas.length === 0) return { ajudas: new Set(), doNavegador: new Set() };
+  const baloes = (await deps.repos.mensagens.pedidosAPessoaDasDecisoes(perguntas.flatMap((d) => (d.turnoId ? [d.turnoId] : []))))
+    .flatMap((m) => (m.payload?.kind === "pedido_a_pessoa" ? [{ decisaoId: m.payload.decisaoId, computador: m.payload.ajudaDoComputador === true, navegador: ehPedidoDoNavegador(m.texto) }] : []));
+  const doNavegador = new Set(baloes.filter((b) => b.navegador).map((b) => b.decisaoId));
+  return { ajudas: new Set(baloes.filter((b) => b.computador || b.navegador).map((b) => b.decisaoId)), doNavegador };
 }
 
 /**

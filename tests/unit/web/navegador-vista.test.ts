@@ -65,10 +65,13 @@ describe("a pílula (D1b A, D4, A1)", () => {
     // A1 (Paper): o "sim" é o preto do cartão, não o azul de "Pronto, pode seguir".
     expect(ap).toContain('class="ctc-bt nv-aprovar" data-nv="aprovar"');
     expect(ap).not.toContain("nv-pilula-nota");
-    // Achado 1 do crítico: sem o app do Mac, "Pagar sem Touch ID" e o aviso curto do cartão embaixo da pílula.
+    // Ponto 14 dos cenários (22/11): a pergunta curta à vista; a inteira no title e no leitor de tela.
+    expect(ap).toContain('<span aria-hidden="true">Posso pagar?</span><span class="sr-only">Pagar R$ 3.780 na TAP?</span>');
+    // Sem o app do Mac, "Pagar sem Touch ID"; o aviso fica só no cartão (embaixo da pílula ele quebrava em duas linhas).
     expect(rotuloDaAprovacao({ ...aprovacao, touchId: false })).toBe("Pagar sem Touch ID");
     const semMac = htmlPilula("Nina", "aprovacao", { ...aprovacao, touchId: false, avisoTouchId: "Seu Mac está desligado: a confirmação vai só pelo botão, sem o Touch ID." });
-    expect(semMac).toMatch(/Pagar sem Touch ID<\/button>.*<p class="nv-pilula-nota">Seu Mac está desligado/s);
+    expect(semMac).toContain("Pagar sem Touch ID</button>");
+    expect(semMac).not.toContain("Seu Mac está desligado");
     expect(rotuloDaAprovacao({ ...aprovacao, classe: "enviar", botao: "enviar", touchId: false })).toBe("Enviar");
   });
 

@@ -48,12 +48,16 @@ describe("as falas do portão viram o cartão do navegador (cópia conferida com
 describe("L1, L2, M4, K3: o cartão de login", () => {
   it("o item que casa é o botão preto com o usuário mascarado; depois Entrar eu mesmo e Trazer do meu Chrome", () => {
     const html = htmlCartaoLogin(login(), { nome: "Ada", agenteId: "a1", url: "https://www.itau.com.br/login" });
-    // L1 (Paper): com o artigo.
-    expect(html).toContain("A Ada precisa entrar no Itaú");
+    // D7 (DS do nod x Grok Bot): o título fala com a pessoa; o nome do bot com o artigo fica no rótulo do grupo.
+    expect(html).toContain('aria-label="A Ada precisa entrar no Itaú"');
+    expect(html).toContain('<p class="cc-titulo">Entre no Itaú</p>');
     expect(html).toContain("Para baixar a fatura de novembro · itau.com.br");
-    expect(ordemDosBotoes(html)).toEqual(["Usar o 1Password", "Entrar eu mesmo", "Trazer do meu Chrome"]);
-    expect(html).toMatch(/nvc-op-principal"[^>]*data-fonte="1password"[^>]*data-ref="op:\/\/Pessoal\/Itau"><span>Usar o 1Password<\/span><small>Itaú · marlon@…<\/small>/);
-    expect(html).toContain('class="nvc-par"');
+    expect(html).toContain("No 1Password: Itaú · marlon@….");
+    // As pílulas à direita, a preta por último.
+    expect(ordemDosBotoes(html)).toEqual(["Entrar eu mesmo", "Trazer do meu Chrome", "Usar o 1Password"]);
+    expect(html).toMatch(/cc-bt cc-uma pri"[^>]*data-fonte="1password"[^>]*data-ref="op:\/\/Pessoal\/Itau" title="Itaú · marlon@…">Usar o 1Password</);
+    expect(html).toContain('class="cc-cartao nvc nvc-login"');
+    expect(html).not.toContain("nvc-ponto");
   });
 
   it("M4/K3: o 1Password sem o Mac fica cinza com o motivo; o cofre do nod vira o preto; sem Chrome", () => {
@@ -66,17 +70,17 @@ describe("L1, L2, M4, K3: o cartão de login", () => {
     });
     expect(botoesDoLogin(p).map((b) => [b.tipo, b.principal])).toEqual([["cofre", false], ["cofre", true], ["eu_mesmo", false]]);
     const html = htmlCartaoLogin(p, { nome: "Ada", agenteId: "a1" });
-    expect(html).toContain("A Ada precisa entrar na TAP");
-    expect(ordemDosBotoes(html)).toEqual(["Usar o 1Password", "Usar o cofre do nod", "Entrar eu mesmo"]);
-    expect(html).toMatch(/nvc-op-indisponivel" disabled aria-disabled="true"><span>Usar o 1Password<\/span><small>precisa do Mac ligado<\/small>/);
+    expect(html).toContain("Entre na TAP");
+    expect(ordemDosBotoes(html)).toEqual(["Usar o 1Password", "Entrar eu mesmo", "Usar o cofre do nod"]);
+    expect(html).toMatch(/nvc-op-indisponivel" disabled aria-disabled="true" title="precisa do Mac ligado">Usar o 1Password</);
+    expect(html).toContain("1Password indisponível: precisa do Mac ligado.");
     expect(html).not.toContain("Trazer do meu Chrome");
-    expect(html).not.toContain("nvc-par");
   });
 
   it("sem nenhum item disponível, o preto vira Entrar eu mesmo", () => {
     const p = login({ opcoes: [{ fonte: "bitwarden", ref: "abc", rotulo: "Itaú · m…", disponivel: false, motivoIndisponivel: "destravar no seu Mac" }] });
     expect(botoesDoLogin(p).find((b) => b.tipo === "eu_mesmo")?.principal).toBe(true);
-    expect(htmlCartaoLogin(p, { nome: "Ada", agenteId: "a1" })).toMatch(/nvc-op-principal nvc-op-centro" data-act="nv-login"[^>]*data-escolha="eu_mesmo"/);
+    expect(htmlCartaoLogin(p, { nome: "Ada", agenteId: "a1" })).toMatch(/cc-bt cc-uma pri" data-act="nv-login"[^>]*data-escolha="eu_mesmo"/);
   });
 
   it("L2: confirme no Mac no lugar das opções (também no celular); o erro da última tentativa aparece", () => {
@@ -97,7 +101,7 @@ describe("L1, L2, M4, K3: o cartão de login", () => {
 describe("L4, L5: o código e guardar no cofre", () => {
   it("o campo do código é privado: sem valor, sem autocompletar comum, sem corretor; a nota diz para onde vai", () => {
     const html = htmlCartaoCodigo({ decisaoId: "d-2", agenteId: "a1", motivo: "O Itaú mandou um código por SMS.", nome: "Ada" });
-    expect(html).toContain("O Itaú mandou um código por SMS</span>");
+    expect(html).toContain('<p class="cc-titulo">O Itaú mandou um código por SMS</p>');
     expect(html).toContain('data-form="nv-codigo"');
     const campo = /<input[^>]*>/.exec(html)![0];
     expect(campo).toContain('autocomplete="one-time-code"');
@@ -140,10 +144,10 @@ describe("A1, A2, A3: as aprovações do navegador", () => {
     expect(ordemDosBotoes(html).slice(-2)).toEqual(["Não", "Enviar"]);
   });
 
-  it("A2: o combinado com o sim preto primeiro; sem a vista, a pergunta do item com Não | Sim", () => {
+  it("A2: o combinado com o sim preto por último (DS); sem a vista, a pergunta do item com Não | Sim", () => {
     const html = htmlCartaoCombinar({ tipo: "combinar", decisaoId: "d-4", titulo: "Vou comprar em tap.pt: 1 passagem, até R$ 4.000,00", texto: "Com isso eu pago sem perguntar de novo, se o valor ficar dentro do limite.", sim: "Pode, até R$ 4.000,00", nao: "Me pergunte antes de pagar", touchId: false }, { agenteId: "a1", nome: "Ada", dono: false });
-    expect(ordemDosBotoes(html)).toEqual(["Pode, até R$ 4.000,00", "Me pergunte antes de pagar"]);
-    expect(html).toMatch(/nvc-op-principal nvc-op-centro" data-act="nv-decidir"[^>]*data-aprovar="1">Pode/);
+    expect(ordemDosBotoes(html)).toEqual(["Me pergunte antes de pagar", "Pode, até R$ 4.000,00"]);
+    expect(html).toMatch(/cc-bt cc-uma pri" data-act="nv-decidir"[^>]*data-aprovar="1">Pode/);
     const sem = htmlCartaoAprovacaoSemVista({ decisaoId: "d-5", agenteId: "a1", pergunta: "Apagar o pedido no loja.com?", nome: "Ada", dono: true });
     expect(ordemDosBotoes(sem)).toEqual(["Ver a tela", "Não", "Sim"]);
   });
@@ -155,6 +159,7 @@ describe("T: ensinar uma tarefa", () => {
     expect(rotuloDaGravacao({ desde: 0, passos: ["a"] }, 61_000)).toBe("1:01 · 1 passo");
     expect(nomeSugeridoDosPassos(["Abriu itau.com.br", "Entrou em Itaú (senha não gravada)", 'Clicou em "Faturas"', 'Escolheu "Novembro"'])).toBe("Faturas em itau.com.br");
     expect(nomeSugeridoDosPassos([])).toBe("Tarefa ensinada");
+    expect(nomeSugeridoDosPassos(["Abriu itau.com.br/faturas/2026", 'Clicou em "Baixar"'])).toBe("Baixar em itau.com.br");
   });
 
   it("T2: a barra com Descartar e Salvar e ensinar; o campo do nome com a sugestão; o teto avisa", () => {
@@ -205,10 +210,36 @@ describe("achado 7 do crítico: o nome do bot nos cartões (o artigo pela termin
   it("da/do, à/ao e a/o no código, na ajuda, no caminho até a vista e na gravação", () => {
     expect(htmlCartaoCodigo({ decisaoId: "d", agenteId: "a1", motivo: "O Itaú mandou um código", nome: "Milton" })).toContain("nem chega ao Milton.");
     const ajuda = htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "Resolver o CAPTCHA", nome: "Milton" });
-    expect(ajuda).toContain("O navegador do Milton já está com você: faça esse passo e devolva. O Milton não vê o que você digita.");
-    expect(htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "x", nome: "Ada" })).toContain("O navegador da Ada já está com você: faça esse passo e devolva. A Ada não vê o que você digita.");
+    expect(ajuda).toContain("O Milton precisa de você no navegador");
+    expect(ajuda).toContain("Resolver o CAPTCHA. Faça esse passo no navegador e clique em Já resolvi. O Milton não vê o que você digita.");
+    expect(htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "x", nome: "Ada" })).toContain("A Ada não vê o que você digita.");
     expect(htmlCartaoPedidoSemVista({ tipo: "ajuda", motivo: "x" }, { decisaoId: "d", agenteId: "a1", nome: "Milton" })).toContain("Abrir o navegador do Milton");
     expect(htmlHabilidades({ tarefas: [], erro: false, abertas: new Set(), apagando: new Set() }, { agenteId: "a1", nome: "Ada", temNavegador: true })).toContain("mostre no navegador da Ada.");
+  });
+});
+
+describe("ponto 08 dos cenários (22/11): o cartão de ajuda com título curto", () => {
+  it("o motivo sem www, sem o 'resolva e devolva' do fim e sem a maiúscula no domínio", async () => {
+    const { motivoDaAjuda } = await import("../../../web/lib/navegador-cartoes.ts");
+    expect(motivoDaAjuda("www.google.com pede para provar que é gente (CAPTCHA). Resolva na tela e devolva para mim")).toBe("google.com pede para provar que é gente (CAPTCHA)");
+    expect(motivoDaAjuda("O banco pede a confirmação no app. Confirme no celular e me avise.")).toBe("O banco pede a confirmação no app. Confirme no celular e me avise");
+    expect(motivoDaAjuda("o banco pede o token")).toBe("O banco pede o token");
+    const html = htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "www.google.com pede para provar que é gente (CAPTCHA). Resolva na tela e devolva para mim", nome: "Ada" });
+    expect(html).toContain('<p class="cc-titulo">A Ada precisa de você no navegador</p>');
+    expect(html).not.toContain("Www.");
+    expect(html.match(/devolv/gu)).toBeNull();
+  });
+});
+
+describe("ponto 09 dos cenários (22/11): o espaço do navegador no disco", () => {
+  it("o rótulo e a linha no fim de Habilidades", async () => {
+    const { rotuloDoEspaco } = await import("../../../web/lib/navegador-cartoes.ts");
+    expect(rotuloDoEspaco(200_000)).toBe("menos de 1 MB");
+    expect(rotuloDoEspaco(46 * 1024 * 1024 + 10)).toBe("46 MB");
+    expect(rotuloDoEspaco(1.5 * 1024 * 1024 * 1024)).toBe("1,5 GB");
+    const html = htmlHabilidades({ tarefas: [], erro: false, abertas: new Set(), apagando: new Set(), espacoBytes: 46 * 1024 * 1024 }, { agenteId: "a1", nome: "Ada", temNavegador: true });
+    expect(html).toContain("O navegador da Ada ocupa 46 MB no disco.");
+    expect(htmlHabilidades({ tarefas: [], erro: false, abertas: new Set(), apagando: new Set() }, { agenteId: "a1", nome: "Ada", temNavegador: true })).not.toContain("no disco");
   });
 });
 

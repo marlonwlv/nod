@@ -10,10 +10,24 @@ import { aoNome, aspasCurvas, comArtigo, deNome, dominioDe, fraseMaiuscula, nome
  * Um pedido aponta para UMA decisão: respondido num lugar (pílula, conversa, Sua vez, celular), a decisão fecha, o
  * `navegador.mudou` e o SSE da conversa reidratam, e o cartão vira linha nos outros.
  *
- * Medidas do Paper (get_jsx): cartão com borda 1 px azul a 33 %, raio 14, padding 14 e gap 10; título 14/19 semibold com o
- * ponto azul de 7 px; subtítulo 12/19 cinza; botões de 13/19 com raio 10 (o preto em 9/12, os de contorno em 8);
- * indisponível no cinza claro com o motivo de 11 px à direita.
+ * Molde (2026-11-22, pedido do Marlon: "seguir o DS do nod x Grok Bot"): o mesmo cartão do Computador (D5 e D7 da página
+ * "D · Computador do bot", web/computador-cartoes.css). Sem borda, raio 24 e a sombra fina; a linha de cima com o ícone e
+ * "Navegador"; o título 15/22 semibold; o texto 14/20 secundário; as pílulas de 32 à direita (fantasma, cinza e a preta
+ * por último). Nada de azul: azul é só o que é novo, e o "precisa de você" é o laranja de "Aguardando você".
  */
+
+const ICONE_GLOBO = '<svg class="cc-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>';
+const ICONE_X = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
+
+/** A linha de cima do cartão: o ícone, "Navegador" e, quando houver, o X à direita. */
+function cabecalho(x = ""): string {
+  return `<div class="cc-cab">${ICONE_GLOBO}<span class="cc-rotulo">Navegador</span>${x}</div>`;
+}
+
+/** Endereços no texto sem o "www." (o "Www.google.com" do teste de 22/11 vinha da maiúscula em cima do www). */
+export function semWww(t: string): string {
+  return t.replace(/\b(?:https?:\/\/)?www\./giu, "");
+}
 
 // ---- as falas do bot que abrem os pedidos (cópia das frases de src/adapters/fundo/navegadores.ts) ----------------------
 
@@ -106,34 +120,38 @@ const ICONE_GIRO = '<span class="nvc-giro" aria-hidden="true"></span>';
 export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: string; url?: string; fonte?: FonteCofre | null }): string {
   const site = nomeDoSite(p.site);
   const host = (o.url ? dominioDe(o.url) : "") || (/\./u.test(p.site) ? p.site.replace(/^www\./u, "") : "");
-  // L1 (Paper): "A Ada precisa entrar no Itaú", com o artigo.
-  const titulo = `${fraseMaiuscula(comArtigo(o.nome))} precisa entrar ${noOuNa(site)} ${site}`;
-  const sub = [p.motivo.trim().replace(/\.$/u, ""), host].filter(Boolean).join(" · ");
+  // D7 (DS): o título fala com a pessoa, "Entre no Itaú"; o motivo e o domínio vêm no texto.
+  const titulo = `Entre ${noOuNa(site)} ${site}`;
+  const rotulo = `${fraseMaiuscula(comArtigo(o.nome))} precisa entrar ${noOuNa(site)} ${site}`;
+  const motivo = semWww(p.motivo.trim().replace(/\.$/u, ""));
+  const sub = [motivo ? frase(motivo) : "", host].filter(Boolean).join(" · ");
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(p.decisaoId)}"`;
-  const cab = `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${sub ? `<p class="nvc-sub">${esc(sub)}</p>` : ""}`;
+  const cab = `${cabecalho()}<p class="cc-titulo">${esc(titulo)}</p>${sub ? `<p class="cc-texto">${esc(sub)}</p>` : ""}`;
   const erro = p.erro ? `<p class="nvc-erro" role="alert">${esc(p.erro)}</p>` : "";
   if (p.etapa === "confirme_no_mac") {
     const com = o.fonte ? ` · entrando com ${NOME_DA_FONTE[o.fonte]}` : "";
-    return `<div class="nvc nvc-login" role="group" aria-label="${esc(titulo)}" ${dados} data-etapa="confirme_no_mac">${cab}<p class="nvc-mac" role="status">${ICONE_GIRO}<span><b>Confirme no seu Mac</b>${esc(com)}</span></p><p class="nvc-nota">O seu Mac pede o Touch ID ou a senha do Keychain. A senha vai direto para a página.</p></div>`;
+    return `<div class="cc-cartao nvc nvc-login" role="group" aria-label="${esc(rotulo)}" ${dados} data-etapa="confirme_no_mac">${cab}<p class="nvc-mac" role="status">${ICONE_GIRO}<span><b>Confirme no seu Mac</b>${esc(com)}</span></p><p class="nvc-nota">O seu Mac pede o Touch ID ou a senha do Keychain. A senha vai direto para a página.</p></div>`;
   }
   const bts = botoesDoLogin(p);
-  const linha = (b: BotaoDoLogin): string => {
+  // As pílulas à direita, a preta por último (DS): fora da ordem do servidor só na tela; a ordem de leitura segue a mesma.
+  const pilula = (b: BotaoDoLogin): string => {
+    const cls = b.principal ? "cc-bt cc-uma pri" : "cc-bt cc-resto";
     if (b.tipo === "cofre") {
       const op = b.opcao;
-      const rotulo = ROTULO_DA_FONTE[op.fonte];
-      if (!op.disponivel) {
-        return `<button type="button" class="nvc-op nvc-op-indisponivel" disabled aria-disabled="true"><span>${esc(rotulo)}</span><small>${htmlDoMotivo(op.motivoIndisponivel ?? "indisponível agora")}</small></button>`;
-      }
-      return `<button type="button" class="nvc-op${b.principal ? " nvc-op-principal" : " nvc-op-contorno"}" data-act="nv-login" ${dados} data-escolha="cofre" data-fonte="${esc(op.fonte)}" data-ref="${esc(op.ref)}"><span>${esc(rotulo)}</span><small>${esc(op.rotulo)}</small></button>`;
+      const r = ROTULO_DA_FONTE[op.fonte];
+      if (!op.disponivel) return `<button type="button" class="cc-bt cc-resto nvc-op-indisponivel" disabled aria-disabled="true" title="${esc(op.motivoIndisponivel ?? "indisponível agora")}">${esc(r)}</button>`;
+      return `<button type="button" class="${cls}" data-act="nv-login" ${dados} data-escolha="cofre" data-fonte="${esc(op.fonte)}" data-ref="${esc(op.ref)}" title="${esc(op.rotulo)}">${esc(r)}</button>`;
     }
-    if (b.tipo === "eu_mesmo") return `<button type="button" class="nvc-op${b.principal ? " nvc-op-principal" : " nvc-op-contorno"} nvc-op-centro" data-act="nv-login" ${dados} data-escolha="eu_mesmo">Entrar eu mesmo</button>`;
-    return `<button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-login" ${dados} data-escolha="chrome">Trazer do meu Chrome</button>`;
+    if (b.tipo === "eu_mesmo") return `<button type="button" class="${b.principal ? cls : "cc-bt cc-ver"}" data-act="nv-login" ${dados} data-escolha="eu_mesmo">Entrar eu mesmo</button>`;
+    return `<button type="button" class="cc-bt cc-ver" data-act="nv-login" ${dados} data-escolha="chrome">Trazer do meu Chrome</button>`;
   };
-  const cofres = bts.filter((b) => b.tipo === "cofre").map(linha).join("");
-  const resto = bts.filter((b) => b.tipo !== "cofre");
-  // L1: "Entrar eu mesmo" e "Trazer do meu Chrome" lado a lado quando há os dois; sozinho, ocupa a largura (K3, M4).
-  const fim = resto.length > 1 ? `<div class="nvc-par">${resto.map(linha).join("")}</div>` : resto.map(linha).join("");
-  return `<div class="nvc nvc-login" role="group" aria-label="${esc(titulo)}" ${dados} data-etapa="escolher">${cab}${erro}<div class="nvc-ops">${cofres}${fim}</div></div>`;
+  // A conta de cada cofre e o porquê dos indisponíveis, numa linha só embaixo do motivo.
+  const contas = p.opcoes.map((op) => op.disponivel
+    ? `No ${esc(NOME_DA_FONTE[op.fonte].replace(/^o /u, ""))}: ${esc(op.rotulo)}.`
+    : `${esc(fraseMaiuscula(NOME_DA_FONTE[op.fonte].replace(/^o /u, "")))} indisponível: ${htmlDoMotivo(op.motivoIndisponivel ?? "tente de novo daqui a pouco")}.`).join(" ");
+  const nota = `<p class="cc-texto nvc-contas">${contas ? `${contas} ` : ""}A senha vai direto para a página; ${esc(comArtigo(o.nome))} não vê.</p>`;
+  const ordem = [...bts.filter((b) => !b.principal), ...bts.filter((b) => b.principal)];
+  return `<div class="cc-cartao nvc nvc-login" role="group" aria-label="${esc(rotulo)}" ${dados} data-etapa="escolher">${cab}${nota}${erro}<div class="cc-botoes">${ordem.map(pilula).join("")}</div></div>`;
 }
 
 /** D4, D: a pessoa escolheu "Entrar eu mesmo" — o cartão fecha e a pílula assume. Na conversa fica esta linha. */
@@ -159,29 +177,46 @@ export function htmlCartaoCodigo(o: { decisaoId: string; agenteId: string; motiv
   const titulo = frase(o.motivo) || "A página pediu um código";
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}"`;
   const erro = o.erro ? `<p class="nvc-erro" role="alert">${esc(o.erro)}</p>` : "";
-  return `<form class="nvc nvc-codigo" data-form="nv-codigo" ${dados} autocomplete="off" aria-label="${esc(titulo)}">`
-    + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${erro}`
+  return `<form class="cc-cartao nvc nvc-codigo" data-form="nv-codigo" ${dados} autocomplete="off" aria-label="${esc(titulo)}">`
+    + `${cabecalho()}<p class="cc-titulo">${esc(titulo)}</p>${erro}`
     + `<div class="nvc-codigo-linha"><input class="nvc-codigo-campo" name="codigo" type="text" inputmode="text" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="64" required aria-label="Código" data-privado="1"${o.enviando ? " disabled" : ""}>`
-    + `<button type="submit" class="nvc-op nvc-op-principal nvc-enviar"${o.enviando ? ' disabled aria-busy="true"' : ""}>${o.enviando ? "Enviando…" : "Enviar"}</button></div>`
-    + `<p class="nvc-nota">Vai direto para a página. Não fica na conversa nem chega ${esc(aoNome(o.nome))}.</p></form>`;
+    + `<button type="submit" class="cc-bt cc-uma pri nvc-enviar"${o.enviando ? ' disabled aria-busy="true"' : ""}>${o.enviando ? "Enviando…" : "Enviar"}</button></div>`
+    + `<p class="cc-texto">Vai direto para a página. Não fica na conversa nem chega ${esc(aoNome(o.nome))}.</p></form>`;
 }
 
-/** O pedido de ajuda sem código (CAPTCHA, confirmação no app do banco): assumir o controle ou dizer que já resolveu. */
+/**
+ * O que o bot escreveu no pedido de ajuda, sem o "resolva e devolva" do fim (o cartão já diz) e sem "www.": "google.com
+ * pede para provar que é gente (CAPTCHA)". O teste de 22/11 mostrou o motivo inteiro como título, em 4 linhas, repetido.
+ */
+export function motivoDaAjuda(motivo: string): string {
+  const s = semWww(motivo).trim()
+    .replace(/[.;,]?\s*(?:por favor,?\s*)?(?:resolv[ae]|fa[çc]a|complete|marque|entre)\b[^.]*\b(?:devolv[ae]\w*|me avis[ae]\w*)[^.]*\.?$/iu, "")
+    .replace(/[.\s]+$/u, "");
+  // Começa por um domínio ("google.com pede…"): fica em minúscula, como se escreve o endereço.
+  return /^[a-z0-9-]+\.[a-z]/u.test(s) ? s : frase(s);
+}
+
+/**
+ * O pedido de ajuda sem código (CAPTCHA, confirmação no app do banco), no molde do D7: título curto, o motivo como texto,
+ * "Já resolvi" cinza e "Abrir o navegador" preto.
+ */
 export function htmlCartaoAjudaNavegador(o: { decisaoId: string; agenteId: string; motivo: string; nome: string }): string {
-  const titulo = frase(o.motivo) || `${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`;
+  const titulo = `${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`;
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}"`;
-  return `<div class="nvc nvc-ajuda" role="group" aria-label="${esc(`${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`)}" ${dados}>`
-    + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>`
-    + `<p class="nvc-sub">O navegador ${esc(deNome(o.nome))} já está com você: faça esse passo e devolva. ${esc(fraseMaiuscula(comArtigo(o.nome)))} não vê o que você digita.</p>`
-    + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-resolver" ${dados}>Já resolvi</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador</button></div></div>`;
+  const motivo = motivoDaAjuda(o.motivo);
+  return `<div class="cc-cartao nvc nvc-ajuda" role="group" aria-label="${esc(titulo)}" ${dados}>`
+    + `${cabecalho()}<p class="cc-titulo">${esc(titulo)}</p>`
+    + `<p class="cc-texto">${motivo ? `${esc(motivo)}. ` : ""}Faça esse passo no navegador e clique em Já resolvi. ${esc(fraseMaiuscula(comArtigo(o.nome)))} não vê o que você digita.</p>`
+    + `<div class="cc-botoes"><button type="button" class="cc-bt cc-resto" data-act="nv-resolver" ${dados}>Já resolvi</button><button type="button" class="cc-bt cc-uma pri" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador</button></div></div>`;
 }
 
 /** O pedido aberto sem a vista à mão (a vista ainda não chegou, ou é de outro aparelho): o título e o caminho até ela. */
 export function htmlCartaoPedidoSemVista(p: PedidoNaFala, o: { decisaoId: string; agenteId: string; nome: string }): string {
-  const titulo = p.tipo === "login" ? `${fraseMaiuscula(comArtigo(o.nome))} precisa entrar ${noOuNa(nomeDoSite(p.site))} ${nomeDoSite(p.site)}` : frase(p.motivo);
-  return `<div class="nvc nvc-espera" role="group" aria-label="${esc(titulo)}" data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}">`
-    + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${p.tipo === "login" && p.motivo ? `<p class="nvc-sub">${esc(frase(p.motivo))}</p>` : ""}`
-    + `<button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador ${esc(deNome(o.nome))}</button></div>`;
+  const titulo = p.tipo === "login" ? `Entre ${noOuNa(nomeDoSite(p.site))} ${nomeDoSite(p.site)}` : `${fraseMaiuscula(comArtigo(o.nome))} precisa de você no navegador`;
+  const texto = p.tipo === "login" ? (p.motivo ? frase(semWww(p.motivo)) : "") : motivoDaAjuda(p.motivo);
+  return `<div class="cc-cartao nvc nvc-espera" role="group" aria-label="${esc(titulo)}" data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}">`
+    + `${cabecalho()}<p class="cc-titulo">${esc(titulo)}</p>${texto ? `<p class="cc-texto">${esc(texto)}</p>` : ""}`
+    + `<div class="cc-botoes"><button type="button" class="cc-bt cc-uma pri" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador ${esc(deNome(o.nome))}</button></div></div>`;
 }
 
 // ---- L3: o selo do login embaixo da vista ----------------------------------------------------------------------------------
@@ -238,38 +273,42 @@ export function htmlLinhaGuardar(o: { oferta: OfertaGuardarLogin; agenteId: stri
 type PedidoAprovacao = Extract<PedidoDaVistaNavegador, { tipo: "aprovacao" }>;
 type PedidoCombinar = Extract<PedidoDaVistaNavegador, { tipo: "combinar" }>;
 
-const verATela = (agenteId: string, dono: boolean): string => (dono ? `<button type="button" class="nvc-link nvc-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}">Ver a tela</button>` : "");
+/** "Ver a tela", a pílula fantasma da esquerda (D5); só a dona do bot abre a tela dele. */
+const verATela = (agenteId: string, dono: boolean): string => (dono ? `<button type="button" class="cc-bt cc-ver nvc-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}">Ver a tela</button>` : "");
+
+/** O X da linha de cima: nega uma vez, como o do cartão do Computador. */
+const xNegar = (dados: string): string => `<button type="button" class="cc-x" data-act="nv-decidir" ${dados} data-aprovar="0" aria-label="Não" title="Não">${ICONE_X}</button>`;
 
 /**
- * A1 e A3 na conversa (o mesmo pedido da pílula): "Pagar R$ 3.780 na TAP?" [Não] [Pagar com Touch ID]; no envio, a
- * citação e "☑ Não perguntar de novo para o Pedro" já marcado (o `sempre` da decisão). Sem o Mac, o botão comum e o aviso.
+ * A1 e A3 na conversa (o mesmo pedido da pílula), no molde do D5: "Pagar R$ 3.780 na TAP?", a citação na caixa cinza,
+ * "☑ Não perguntar de novo para o Pedro" já marcado (o `sempre` da decisão) e [Ver a tela] [Não] [Pagar com Touch ID].
  */
 export function htmlCartaoAprovacao(p: PedidoAprovacao, o: { agenteId: string; nome: string; dono: boolean }): string {
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(p.decisaoId)}"`;
-  const citacao = p.citacao ? `<blockquote class="nvc-citacao">“${esc(p.citacao)}”</blockquote>` : "";
+  const citacao = p.citacao ? `<blockquote class="cc-acao nvc-citacao">“${esc(p.citacao)}”</blockquote>` : "";
   const lembrar = p.lembrar ? `<label class="nvc-lembrar"><input type="checkbox" class="nvc-lembrar-caixa" name="sempre"${p.lembrar.padrao ? " checked" : ""}><span>${esc(p.lembrar.texto)}</span></label>` : "";
-  const aviso = p.avisoTouchId ? `<p class="nvc-nota">${esc(p.avisoTouchId)}</p>` : p.touchId ? '<p class="nvc-nota">O seu Mac pede o Touch ID na hora de pagar.</p>' : "";
+  const aviso = p.avisoTouchId ? `<p class="cc-texto">${esc(p.avisoTouchId)}</p>` : p.touchId ? '<p class="cc-texto">O seu Mac pede o Touch ID na hora de pagar.</p>' : "";
   const sim = rotuloDaAprovacao(p);
-  return `<div class="nvc nvc-aprovacao" role="group" aria-label="${esc(`Pedido de ${o.nome} no navegador`)}" ${dados} data-classe="${esc(p.classe)}">`
-    + `<div class="nvc-cab"><p class="nvc-tit"><span>${esc(p.pergunta)}</span></p>${verATela(o.agenteId, o.dono)}</div>${citacao}${lembrar}${aviso}`
-    + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-decidir" ${dados} data-aprovar="0">Não</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="nv-decidir" ${dados} data-aprovar="1">${esc(sim)}</button></div></div>`;
+  return `<div class="cc-cartao nvc nvc-aprovacao" role="group" aria-label="${esc(`Pedido de ${o.nome} no navegador`)}" ${dados} data-classe="${esc(p.classe)}">`
+    + `${cabecalho(xNegar(dados))}<p class="cc-titulo">${esc(p.pergunta)}</p>${citacao}${lembrar}${aviso}`
+    + `<div class="cc-botoes">${verATela(o.agenteId, o.dono)}<button type="button" class="cc-bt cc-resto" data-act="nv-decidir" ${dados} data-aprovar="0">Não</button><button type="button" class="cc-bt cc-uma pri" data-act="nv-decidir" ${dados} data-aprovar="1">${esc(sim)}</button></div></div>`;
 }
 
-/** A2: o combinado de antemão. "Vou comprar na TAP: 1 passagem, até R$ 4.000" [Pode, até R$ 4.000] [Me pergunte antes de pagar]. */
+/** A2: o combinado de antemão. "Vou comprar na TAP: 1 passagem, até R$ 4.000" [Me pergunte antes de pagar] [Pode, até R$ 4.000]. */
 export function htmlCartaoCombinar(p: PedidoCombinar, o: { agenteId: string; nome: string; dono: boolean }): string {
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(p.decisaoId)}"`;
-  const nota = p.touchId ? '<p class="nvc-nota">O seu Mac pede o Touch ID para guardar o limite.</p>' : "";
-  return `<div class="nvc nvc-combinar" role="group" aria-label="${esc(`Combinado com ${o.nome} no navegador`)}" ${dados}>`
-    + `<div class="nvc-cab"><p class="nvc-tit"><span>${esc(p.titulo)}</span></p>${verATela(o.agenteId, o.dono)}</div><p class="nvc-sub">${esc(p.texto)}</p>${nota}`
-    + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="nv-decidir" ${dados} data-aprovar="1">${esc(p.sim)}</button><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-decidir" ${dados} data-aprovar="0">${esc(p.nao)}</button></div></div>`;
+  const nota = p.touchId ? '<p class="cc-texto">O seu Mac pede o Touch ID para guardar o limite.</p>' : "";
+  return `<div class="cc-cartao nvc nvc-combinar" role="group" aria-label="${esc(`Combinado com ${o.nome} no navegador`)}" ${dados}>`
+    + `${cabecalho()}<p class="cc-titulo">${esc(p.titulo)}</p><p class="cc-texto">${esc(p.texto)}</p>${nota}`
+    + `<div class="cc-botoes">${verATela(o.agenteId, o.dono)}<button type="button" class="cc-bt cc-resto" data-act="nv-decidir" ${dados} data-aprovar="0">${esc(p.nao)}</button><button type="button" class="cc-bt cc-uma pri" data-act="nv-decidir" ${dados} data-aprovar="1">${esc(p.sim)}</button></div></div>`;
 }
 
 /** A aprovação do navegador sem a vista à mão (outro aparelho, a vista ainda não chegou): a pergunta do item e Não | Sim. */
 export function htmlCartaoAprovacaoSemVista(o: { decisaoId: string; agenteId: string; pergunta: string; nome: string; dono: boolean }): string {
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}"`;
-  return `<div class="nvc nvc-aprovacao" role="group" aria-label="${esc(`Pedido de ${o.nome} no navegador`)}" ${dados}>`
-    + `<div class="nvc-cab"><p class="nvc-tit"><span>${esc(o.pergunta)}</span></p>${verATela(o.agenteId, o.dono)}</div>`
-    + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-decidir" ${dados} data-aprovar="0">Não</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="nv-decidir" ${dados} data-aprovar="1">Sim</button></div></div>`;
+  return `<div class="cc-cartao nvc nvc-aprovacao" role="group" aria-label="${esc(`Pedido de ${o.nome} no navegador`)}" ${dados}>`
+    + `${cabecalho(xNegar(dados))}<p class="cc-titulo">${esc(o.pergunta)}</p>`
+    + `<div class="cc-botoes">${verATela(o.agenteId, o.dono)}<button type="button" class="cc-bt cc-resto" data-act="nv-decidir" ${dados} data-aprovar="0">Não</button><button type="button" class="cc-bt cc-uma pri" data-act="nv-decidir" ${dados} data-aprovar="1">Sim</button></div></div>`;
 }
 
 // ---- T: ensinar uma tarefa ------------------------------------------------------------------------------------------------
@@ -283,7 +322,8 @@ export function rotuloDaGravacao(g: Pick<GravacaoNavegador, "desde" | "passos">,
 
 /** O nome pronto para "Salvar e ensinar" (T2): o último clique e o site ("Faturas em itau.com.br"); o servidor tem o mesmo. */
 export function nomeSugeridoDosPassos(passos: readonly string[]): string {
-  const site = passos.map((p) => /^Abriu (.+)$/u.exec(p)?.[1]).find(Boolean) ?? "";
+  // Desde 2026-11-22 o "Abriu" leva o caminho ("demoqa.com/text-box"); o nome usa só o domínio, como o do servidor.
+  const site = passos.map((p) => /^Abriu ([^/\s]+)/u.exec(p)?.[1]).find(Boolean) ?? "";
   const clique = [...passos].reverse().map((p) => /^Clicou em "(.+)"$/u.exec(p)?.[1]).find(Boolean) ?? "";
   if (clique && site) return `${clique} em ${site}`;
   return clique || site || "Tarefa ensinada";
@@ -315,7 +355,15 @@ export function htmlPassosGravados(passos: readonly string[]): string {
 // ---- T3: as habilidades em Ajustes do bot ----------------------------------------------------------------------------------
 
 /** O estado da seção Habilidades de um bot (fora do reducer): null antes da 1ª leitura. */
-export type TelaHabilidades = { tarefas: readonly TarefaEnsinada[] | null; erro: boolean; abertas: ReadonlySet<string>; apagando: ReadonlySet<string> };
+export type TelaHabilidades = { tarefas: readonly TarefaEnsinada[] | null; erro: boolean; abertas: ReadonlySet<string>; apagando: ReadonlySet<string>; espacoBytes?: number | null };
+
+/** "46 MB" (ponto 09 dos cenários, 2026-11-22): o espaço do navegador do bot, arredondado; abaixo de 1 MB, "menos de 1 MB". */
+export function rotuloDoEspaco(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return "menos de 1 MB";
+  if (mb >= 1024) return `${(mb / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} GB`;
+  return `${Math.round(mb)} MB`;
+}
 
 /** Ajustes do bot › Habilidades: as tarefas ensinadas (nome, quantos passos, Ver e Apagar com Desfazer). "" = nada a mostrar. */
 export function htmlHabilidades(t: TelaHabilidades | null, o: { agenteId: string; nome: string; temNavegador: boolean }): string {
@@ -324,12 +372,14 @@ export function htmlHabilidades(t: TelaHabilidades | null, o: { agenteId: string
   const cab = '<h3>Habilidades</h3>';
   if (!t || (t.tarefas === null && !t.erro)) return `<section class="gv-secao nvh">${cab}<p class="mudo" role="status">Carregando…</p></section>`;
   if (t.erro && t.tarefas === null) return `<section class="gv-secao nvh">${cab}<p class="mudo">Não deu para ler as habilidades. <button type="button" class="gv-link" data-act="nv-habilidades-reler" data-agente="${esc(o.agenteId)}">Tentar de novo</button></p></section>`;
-  if (!lista?.length) return `<section class="gv-secao nvh">${cab}<p class="mudo">Nenhuma tarefa ensinada ainda. Use “Ensinar uma tarefa” no + do campo e mostre no navegador ${esc(deNome(o.nome))}.</p></section>`;
+  // O espaço no disco, numa linha discreta no fim da seção (o cache sai sozinho quando o navegador pausa).
+  const espaco = t.espacoBytes ? `<p class="mudo nvh-espaco">O navegador ${esc(deNome(o.nome))} ocupa ${rotuloDoEspaco(t.espacoBytes)} no disco. O cache sai sozinho quando ele pausa; os logins ficam.</p>` : "";
+  if (!lista?.length) return `<section class="gv-secao nvh">${cab}<p class="mudo">Nenhuma tarefa ensinada ainda. Use “Ensinar uma tarefa” no + do campo e mostre no navegador ${esc(deNome(o.nome))}.</p>${espaco}</section>`;
   const linhas = lista.map((x) => {
     const aberta = t.abertas.has(x.id);
     const n = x.passos.length;
     const passos = aberta ? `<ol class="nvh-passos">${x.passos.map((p) => `<li>${esc(aspasCurvas(p))}</li>`).join("")}</ol>` : "";
     return `<li class="nvh-item" data-tarefa="${esc(x.id)}"><div class="gv-linha nvh-linha"><span class="gv-linha-txt">${esc(x.nome)}<small>${n} ${n === 1 ? "passo" : "passos"}</small></span><button type="button" class="gv-link" data-act="nv-habilidade-ver" data-agente="${esc(o.agenteId)}" data-tarefa="${esc(x.id)}" aria-expanded="${aberta}">${aberta ? "Fechar" : "Ver"}</button><button type="button" class="gv-link nvh-apagar" data-act="nv-habilidade-apagar" data-agente="${esc(o.agenteId)}" data-tarefa="${esc(x.id)}" aria-label="${esc(`Apagar ${x.nome}`)}">Apagar</button></div>${passos}</li>`;
   }).join("");
-  return `<section class="gv-secao nvh">${cab}<ul class="gv-cartao nvh-lista">${linhas}</ul></section>`;
+  return `<section class="gv-secao nvh">${cab}<ul class="gv-cartao nvh-lista">${linhas}</ul>${espaco}</section>`;
 }

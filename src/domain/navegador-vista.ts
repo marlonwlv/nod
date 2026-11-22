@@ -87,9 +87,11 @@ export function temChromeVivo(estado: EstadoNavegador): boolean {
  * definido em 2026-11-20: largura = clamp(round(w × 1,6), 800, 1440); altura = largura × h / w, arredondada, até 2400. O
  * 1,6 põe um painel de 560 px em ~900 px de página (o "notebook pequeno" em que os sites não viram celular); 800 é o piso
  * em que os sites ainda mostram o layout de computador; 1440 e 2400 seguram o tamanho do quadro JPEG.
+ * revisto em 2026-11-22 (ponto 12 dos cenários): o piso passa a 640. No painel de ~410 px, 800 px de página viravam metade
+ * do tamanho (o Google Voos ilegível); em 640 os sites já usam o layout estreito, que se lê no painel.
  */
 export const VIEWPORT_ESCALA = 1.6;
-export const VIEWPORT_LARGURA_MIN = 800;
+export const VIEWPORT_LARGURA_MIN = 640;
 export const VIEWPORT_LARGURA_MAX = 1440;
 export const VIEWPORT_ALTURA_MAX = 2400;
 /**
