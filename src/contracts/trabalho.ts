@@ -4,7 +4,6 @@ export type { DonoDto, DonoNaConversa } from "./dono.ts";
 import type { CamposDeFrente } from "./frente.ts";
 import type { EpochMs, TenantId } from "./ids.ts";
 import type { Mensagem } from "./mensagem.ts";
-import type { TarefaNoTrabalho } from "./tarefa.ts";
 import type { PlataformaMaquina } from "./ponte.ts";
 import type { PassoDoRun } from "./quadro-comentarios.ts";
 import type { CotaNosTrabalhos, CotaNoTrabalho, LeituraDaMaquinaViva, LeituraDeMaquinaDto, MaquinaDoTrabalho } from "./maquina.ts";
@@ -55,8 +54,7 @@ export type Trabalho = CamposDeFrente & {
 
 /** O que a web recebe: o trabalho mais o que a faixa e as listas mostram sem outra ida ao servidor. */
 export type TrabalhoDto = Omit<Trabalho, "tenantId" | "sessaoCli" | "sessaoHarness" | "sessaoExecutor"> & {
-  /** ADR-192 (etapa 3): a Tarefa (objetivo) ligada, com o estado e a atividade; ausente = trabalho sem Tarefa. */
-  tarefa?: TarefaNoTrabalho;
+  tarefa?: import("./tarefa.ts").TarefaNoTrabalho; // ADR-192 (etapa 3): a Tarefa (objetivo) ligada, com estado e atividade; ausente = sem Tarefa
   /** Nome do bot que pediu (origem = colega), para a etiqueta "pedido do Chico". */
   pedidoPorNome: string | null;
   /** Nome da rotina (origem = rotina), para a etiqueta "rotina". */

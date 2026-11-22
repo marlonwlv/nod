@@ -4454,6 +4454,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       buscar: async () => null,
       primariasDe: async () => new Map(),
       vinculosDe: async () => new Map(),
+      deTrabalhos: async () => new Map(),
       listar: async () => [],
     }, { get: (alvo, m) => (m in alvo ? Reflect.get(alvo, m) : () => { throw new Error(`tarefas.${String(m)} só existe no Postgres`); }) }) as Repos["tarefas"],
     // ADR-165 (0170): os passos do run só existem no Postgres (tests/integration/turno-passos.test.ts); aqui nada grava.
