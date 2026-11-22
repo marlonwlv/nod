@@ -1,5 +1,6 @@
 import type { EstadoTrabalho } from "../contracts/trabalho.ts";
 import type { MotivoInterrupcao } from "../contracts/motivos.ts";
+import type { AtividadeTarefa } from "../contracts/tarefa.ts";
 import type { EstadoTurno } from "../contracts/turno.ts";
 
 /**
@@ -7,7 +8,7 @@ import type { EstadoTurno } from "../contracts/turno.ts";
  * estado gravado nem entidade — é a projeção dos fatos que `turnos`, `decisoes` e as esperas já registram, ortogonal ao
  * estado do objetivo (`nao_iniciada`, `em_andamento`, `entregue`, `resolvida`, `arquivada`). Sem sinal nenhum, `null`.
  */
-export type AtividadeDaTarefa = "trabalhando" | "precisa_de_voce" | "em_espera" | "interrompida";
+export type AtividadeDaTarefa = AtividadeTarefa;
 
 export const ATIVIDADES_DA_TAREFA = ["trabalhando", "precisa_de_voce", "em_espera", "interrompida"] as const satisfies readonly AtividadeDaTarefa[];
 

@@ -4438,6 +4438,15 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       foto: async () => null,
       definirFoto: soNoPostgres,
     },
+    // ADR-192 (0180): Tarefa e Thread só existem no Postgres (tests/integration/tarefas-*.test.ts). Em memória nenhum trabalho
+    // tem Tarefa ligada (as leituras voltam vazias, como num banco de antes da etapa 2); escrever é erro do teste.
+    tarefas: new Proxy<object>({
+      doTrabalho: async () => null,
+      buscar: async () => null,
+      primariasDe: async () => new Map(),
+      vinculosDe: async () => new Map(),
+      listar: async () => [],
+    }, { get: (alvo, m) => (m in alvo ? Reflect.get(alvo, m) : () => { throw new Error(`tarefas.${String(m)} só existe no Postgres`); }) }) as Repos["tarefas"],
     // ADR-165 (0170): os passos do run só existem no Postgres (tests/integration/turno-passos.test.ts); aqui nada grava.
     turnoPassos: {
       gravar: async () => [],
