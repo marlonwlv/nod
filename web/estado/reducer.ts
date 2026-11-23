@@ -407,6 +407,12 @@ export type Estado = {
   turnosDesmentidos: Readonly<Record<string, number>>;
   /** Cancelar só a mensagem na fila (web/lib/cancelar-na-fila.ts): turnoId → a fase do cancelamento dela. */
   cancelando: Readonly<Record<string, Cancelamento>>;
+  /**
+   * Lote B das Jornadas da IA (auditoria de 2026-11-22): o botão do cartão do desvio que a pessoa clicou nesta aba —
+   * id da mensagem do cartão → a ação e o resultado que o cartão encolhido diz depois ("Respondido pelo ChatGPT").
+   * `agindo` é o pedido no ar (o botão gira); sai com o erro, e o cartão fecha quando a conversa segue.
+   */
+  desviosAgindo: Readonly<Record<string, AcaoDoCartao>>;
   salas: { sala: Sala; membros: MembroSala[] }[];
   suaVez: SuaVezDto | null;
   /** Não lidos (0039): o que chegou depois do "lido até" de cada conversa; null = ainda não carregou. */
@@ -618,8 +624,12 @@ export type Estado = {
   tempoTaskAberto: string | null;
 };
 
+/** O clique num botão do cartão do desvio: a ação, o que a linha diz enquanto roda e depois, e se o pedido está no ar. */
+export type AcaoDoCartao = { acao: string; agora: string; feito: string; agindo: boolean };
+
 export type Acao =
   | AcaoAgenda
+  | { tipo: "desvio-agindo"; mensagemId: string; valor: AcaoDoCartao | null }
   | { tipo: "conexao-app"; slug: string; valor: ConexaoApp | null }
   | { tipo: "gaveta"; agenteId: string; nivel: NivelGaveta | null }
   | { tipo: "historico-perfil"; agenteId: string; mudanca: Partial<HistoricoDoBot> }
@@ -770,6 +780,7 @@ export const estadoInicial: Estado = {
   subagentesDoFim: {},
   turnosDesmentidos: {},
   cancelando: {},
+  desviosAgindo: {},
   salas: [],
   suaVez: null,
   naoLidos: null,
@@ -1711,6 +1722,10 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       }));
     case "fala-pendente-sai":
       return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
+    case "desvio-agindo": {
+      const { [acao.mensagemId]: _antes, ...resto } = estado.desviosAgindo;
+      return { ...estado, desviosAgindo: acao.valor ? { ...resto, [acao.mensagemId]: acao.valor } : resto };
+    }
     case "cancelando-turno":
     case "turno-cancelado":
     case "cancelamento-recusado":

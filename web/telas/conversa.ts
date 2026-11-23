@@ -1,4 +1,4 @@
-import { cartaoSemIaPronta, desvioNaConversa } from "./desvio.ts";
+import { cartaoSemIaPronta, desvioNaConversa, encolhidoDoDesvio, faseDoCartao } from "./desvio.ts";
 import { textoAberto } from "../lib/textos-abertos.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
 import { renderCardColunas } from "./card-colunas.ts";
@@ -302,11 +302,7 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // ADA-28 (ADR-159, U1/U7): a linha cinza que aponta para a tarefa; o código abre a tarefa no quadro.
   if (p?.kind === "tarefa_linha") return linhaDaTarefa(m, p);
   // Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (web/telas/desvio.ts).
-  if (p?.kind === "desvio") {
-    const c = estado.conversas[m.conversaId];
-    const canceladas = new Set([...(c?.turnosCancelados ?? []).map((t) => t.id), ...Object.entries(estado.cancelando).filter(([, x]) => x.fase === "cancelando" || x.fase === "cancelada" || x.fase === "voltou").map(([id]) => id)]);
-    return desvioNaConversa(m, p, { canceladas });
-  }
+  if (p?.kind === "desvio") return desvioNaConversa(m, p, { fase: faseDoCartao(m, p.botoes, estado) });
   if (m.kind === "sistema") return cartaoRitmoRotina(m) ?? linhaDeIa(m, estado) ?? linhaDaMemoria(m, estado) ?? linhaDoTurnoPreso(m, estado) ?? `<div class="msg-sistema">${paragrafos(m.texto)}</div>`;
   if (p?.kind === "handoff") {
     // definido em 2026-09-24 (ADR-047): a tarefa delegada assina "Taga · por você" — autoria composta (ADR-023).
@@ -746,7 +742,12 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
     }
     // Chat limpo (PR 4): o recibo da decisão é o cartão do pedido, encolhido com o resultado — alinhado às falas do bot,
     // como o cartão aberto estava, e não no centro como as linhas.
-    const encolhido = dadosDoEncolhido(m, estado);
+    // Lote B (auditoria de 2026-11-22): o cartão do desvio fecha do mesmo jeito quando a conversa segue ou a ação acontece.
+    const encolhido = dadosDoEncolhido(m, estado)
+      ?? (m.payload?.kind === "desvio" && m.payload.forma === "cartao" ? encolhidoDoDesvio(m, m.payload.titulo, faseDoCartao(m, m.payload.botoes, estado))
+      // O desvio 8 (a conta sem acesso, da negação): o mesmo fechamento quando a conversa segue.
+      : m.payload?.kind === "negacao" && m.payload.causa ? encolhidoDoDesvio(m, "A conta da IA estava sem acesso", faseDoCartao(m, [], estado))
+      : null);
     return `<div class="msg-linha${encolhido ? " msg-encolhido" : ""}" data-mensagem="${esc(m.id)}">${encolhido ? renderCartaoEncolhido(encolhido, m.id) : corpoMensagem(m, estado)}${acoesDaMensagem(m, estado, sala)}${faixaDaMensagem(m, estado)}</div>`;
   }
   const ehPessoa = m.autoria.autor_tipo === "pessoa";

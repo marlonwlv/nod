@@ -333,8 +333,11 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   ]);
   // Cancelado antes de rodar = interrompido pela pessoa sem nunca ter sido reivindicado (attempted
   // nasce false e só o reivindicar o liga). Um Parar no meio da execução não entra: aquele rodou.
+  // Lote B (auditoria de 2026-11-22): a cópia que esperava e saiu da fila porque um botão do cartão refez a fala
+  // ("Responder com o Claude desta vez") não foi cancelada pela pessoa: um turno mais novo da mesma fala a substituiu.
+  const substituida = (t: (typeof turnosRecentes)[number]) => turnosRecentes.some((o) => o.id !== t.id && o.mensagemOrigemId === t.mensagemOrigemId && o.criadoEm > t.criadoEm);
   const turnosCancelados = turnosRecentes
-    .filter((t) => t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && !t.sinais.attempted && t.mensagemOrigemId)
+    .filter((t) => t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && !t.sinais.attempted && t.mensagemOrigemId && !substituida(t))
     .map((t) => ({ id: t.id, mensagemId: t.mensagemOrigemId as string }));
   const turnosEmCurso = vivos
     .filter((t): t is typeof t & { estado: "pendente" | "despachando" } => t.estado === "pendente" || t.estado === "despachando")

@@ -109,6 +109,14 @@ body { font-size: var(--fs-corpo); line-height: var(--lh-corpo); }
    esquerda como as falas, na largura do conteúdo até 480 px (a medida a partir da qual o Grok recua os blocos do bot),
    12 px depois do balão e 10 px antes do próximo bloco. Antes ele ia centrado e quase na largura da coluna. */
 .timeline .msg-linha:has(> .aviso-estado) { max-width: none; margin-left: 0; margin-right: 0; }
+/* Agindo (auditoria de 2026-11-22): o botão clicado gira até o pedido voltar (ou a IA reinstalada abrir) e diz o que
+   está fazendo ("Reinstalando…"); os outros botões param. O mesmo anel serve ao link da linha discreta. */
+.bt-girando { flex: none; width: 12px; height: 12px; box-sizing: border-box; border-radius: var(--raio-full); border: 1.5px solid currentColor; border-right-color: transparent; animation: ds-gira 800ms linear infinite; }
+.aviso-estado-acoes .bt[aria-busy="true"]:disabled { opacity: 1; cursor: progress; }
+.linha-agindo { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-weight: var(--peso-medio); }
+.linha-feito { color: var(--ink-2); font-weight: var(--peso-medio); }
+@keyframes ds-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bt-girando { animation: none; border-right-color: currentColor; opacity: .6; } }
 /* Compacto (barra lateral, campo, ligação): uma linha, o botão em 24 px. */
 .aviso-compacto { flex-direction: row; align-items: center; gap: 8px; width: auto; max-width: none; margin: 0 12px 6px; padding: 7px 8px 7px 10px; border-radius: var(--raio-10); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
 .aviso-compacto .aviso-estado-cab { flex: 1; }

@@ -93,6 +93,8 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
   /** Configurações › Provedores de IA aberta (o destino de "Entrar de novo", "Conectar uma IA", "Conectar outra conta"). */
   const PROVEDORES = `(() => { const e = document.querySelector('#espaco'); return !!e && e.getBoundingClientRect().width > 0 && /Provedores de IA/.test(e.innerText); })()`;
   const ERRO_ABERTO = `!!document.querySelector('details.desvio-erro[open]')`;
+  /** O cartão fechou: nenhum cartão de desvio aberto na conversa e a linha encolhida com o resultado. */
+  const fechou = (resultado: string) => `(() => { const tl = [...document.querySelectorAll('.timeline')].find((x) => x.offsetParent !== null); return !!tl && !tl.querySelector('.aviso-desvio') && [...tl.querySelectorAll('.msg-encolhido')].some((e) => e.innerText.includes(${JSON.stringify(resultado)})); })()`;
 
   let mac: MaquinaFalsa;
   beforeAll(async () => {
@@ -149,9 +151,11 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     await clicar('[data-act="responder-com-outra-ia"]');
     const outra = await mac.puxarAte(undefined, conversaId);
     expect(outra.harness).toBe("codex-cli");
+    // O cartão fecha na hora: a linha diz o que foi escolhido e o bot aparece trabalhando.
+    await printar("desvio-01-sessao-sumiu/b-se-falhar", "03-respondendo-pelo-chatgpt", conversaId, fechou("Respondendo pelo ChatGPT"));
     expect(await mac.entregar(outra, { desfecho: "sucesso", texto: "Pelo ChatGPT: não, merge só sai com pedido seu." })).toBe(200);
     await assentado(outra.turnoId);
-    await printar("desvio-01-sessao-sumiu/b-se-falhar", "03-respondeu-pelo-chatgpt", conversaId, tem("merge só sai com pedido seu"));
+    await printar("desvio-01-sessao-sumiu/b-se-falhar", "04-respondeu-pelo-chatgpt", conversaId, `${tem("merge só sai com pedido seu")} && ${fechou("Respondido pelo ChatGPT")}`);
   }, 180_000);
 
   it("desvio 10 · erro desconhecido: tenta uma vez sozinho, com uma linha, e responde", async () => {
@@ -181,9 +185,10 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     await clicar('[data-act="responder-com-outra-ia"]');
     const outra = await mac.puxarAte(undefined, conversaId);
     expect(outra.harness).toBe("codex-cli");
+    await printar("desvio-10-erro-desconhecido/b-duas-vezes", "03-respondendo-pelo-chatgpt", conversaId, fechou("Respondendo pelo ChatGPT"));
     expect(await mac.entregar(outra, { desfecho: "sucesso", texto: "Pelo ChatGPT: a planilha de custos está atualizada." })).toBe(200);
     await assentado(outra.turnoId);
-    await printar("desvio-10-erro-desconhecido/b-duas-vezes", "03-respondeu-pelo-chatgpt", conversaId, tem("Pelo ChatGPT"));
+    await printar("desvio-10-erro-desconhecido/b-duas-vezes", "04-respondeu-pelo-chatgpt", conversaId, `${tem("Pelo ChatGPT")} && ${fechou("Respondido pelo ChatGPT")}`);
   }, 180_000);
 
   const LOGIN_VENCEU = { desfecho: "falha", motivoFalha: "erro_execucao", erroCru: "success | Failed to authenticate: OAuth session expired and could not be refreshed", sinais: SINAIS_SEM_SAIDA } as const;
@@ -225,7 +230,7 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const saiu = await mac.puxarAte(undefined, conversaId);
     expect(await mac.entregar(saiu, { desfecho: "sucesso", texto: "Revisei o #225: está pronto para o merge." })).toBe(200);
     await assentado(saiu.turnoId);
-    await printar("desvio-02-login-vencido/b-sem-outra-conta", "03-entrou-e-respondeu", conversaId, tem("pronto para o merge"));
+    await printar("desvio-02-login-vencido/b-sem-outra-conta", "03-entrou-e-respondeu", conversaId, `${tem("pronto para o merge")} && ${fechou("A mensagem saiu")}`);
   }, 180_000);
 
   it("desvio 2 · o login venceu e não há outra conta: o Cancelar tira a mensagem da espera", async () => {
@@ -237,10 +242,8 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     try {
       await printar("desvio-02-login-vencido/c-cancelar", "01-cartao", conversaId, tem("Entre de novo"));
       await clicar('.aviso-desvio [data-act="cancelar-turno"]');
-      const texto = await printar("desvio-02-login-vencido/c-cancelar", "02-cancelada", conversaId, tem("Cancelada"));
-      // O Cancelar sai do cartão; o "Entrar de novo" fica (a conta continua sem login).
-      expect(texto).toContain("Entrar de novo");
-      expect(await tela.avaliar<number>(`document.querySelectorAll('.aviso-desvio [data-act="cancelar-turno"]').length`)).toBe(0);
+      // O cartão fecha como "Cancelada" (o balão da pessoa diz "Cancelada · não rodou", com o Desfazer).
+      await printar("desvio-02-login-vencido/c-cancelar", "02-cancelada", conversaId, fechou("Cancelada"));
     } finally {
       await entrarDeNovoNoClaude();
     }
@@ -290,9 +293,12 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     await clicar('[data-act="responder-com-outra-ia"]');
     const noClaude = await mac.puxarAte(undefined, conversaId);
     expect(noClaude.harness).toBe("claude-cli");
+    await printar("desvio-03-limite-bot-fixo/a-espera", "02-respondendo-pelo-claude", conversaId, fechou("Respondendo pelo Claude"));
     expect(await mac.entregar(noClaude, { desfecho: "sucesso", texto: "Rodei pelo Claude: 214 testes passaram." })).toBe(200);
     await assentado(noClaude.turnoId);
-    await printar("desvio-03-limite-bot-fixo/a-espera", "02-respondeu-pelo-claude", conversaId, tem("214 testes"));
+    const depois = await printar("desvio-03-limite-bot-fixo/a-espera", "03-respondeu-pelo-claude", conversaId, `${tem("214 testes")} && ${fechou("Respondido pelo Claude")}`);
+    // A cópia que esperava saiu da fila porque o botão refez a fala: a mensagem da pessoa não aparece como cancelada.
+    expect(depois).not.toContain("Cancelada");
   }, 180_000);
 
   it("desvio 3 · limite com o bot preso ao ChatGPT: o Cancelar tira a mensagem da espera", async () => {
@@ -304,7 +310,19 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     await assentado(turnoId);
     await printar("desvio-03-limite-bot-fixo/b-cancelar", "01-cartao", conversaId, tem("Esperando o ChatGPT voltar"));
     await clicar('.aviso-desvio [data-act="cancelar-turno"]');
-    await printar("desvio-03-limite-bot-fixo/b-cancelar", "02-cancelada", conversaId, tem("Cancelada"));
+    await printar("desvio-03-limite-bot-fixo/b-cancelar", "02-cancelada", conversaId, fechou("Cancelada"));
+  }, 180_000);
+
+  it("desvio 3 · a pessoa segue conversando: o cartão fecha como 'Você seguiu a conversa' e a mensagem nova vai junto", async () => {
+    await contasLivres();
+    const { agenteId, conversaId } = await bot("Dino 3");
+    await srv.json("PUT", `agentes/${agenteId}/inteligencia`, { modo: "fixa", fixa: "codex-cli" });
+    const turnoId = await enviar(conversaId, "Roda os testes do quadro de novo");
+    expect(await mac.entregar(await mac.puxarAte(undefined, conversaId), LIMITE_CODEX_8H)).toBe(200);
+    await assentado(turnoId);
+    await printar("desvio-03-limite-bot-fixo/c-conversa-segue", "01-cartao", conversaId, tem("Esperando o ChatGPT voltar"));
+    await enviar(conversaId, "Deixa, me lembra amanhã");
+    await printar("desvio-03-limite-bot-fixo/c-conversa-segue", "02-voce-seguiu", conversaId, `${tem("me lembra amanhã")} && ${fechou("Você seguiu a conversa")}`);
   }, 180_000);
 
   it("desvio 4 · limite sem a hora do fornecedor: nada de hora inventada", async () => {
@@ -317,7 +335,7 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const texto = await printar("desvio-04-limite/b-sem-hora", "01-cartao", conversaId, tem("volta sem hora"));
     expect(texto).not.toMatch(/\d{1,2}:\d{2}\./);
     await clicar('.aviso-desvio [data-act="cancelar-turno"]');
-    await printar("desvio-04-limite/b-sem-hora", "02-cancelada", conversaId, tem("Cancelada"));
+    await printar("desvio-04-limite/b-sem-hora", "02-cancelada", conversaId, fechou("Cancelada"));
   }, 180_000);
 
   /** O banco do teste, no escopo da pessoa: só para simular o tempo (a escada do instável, o lease, o contato). */
@@ -369,9 +387,10 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     await clicar('[data-act="responder-com-outra-ia"]');
     const outra = await mac.puxarAte(undefined, conversaId);
     expect(outra.harness).toBe("codex-cli");
+    await printar("desvio-05-instavel/b-se-falhar", "03-respondendo-pelo-chatgpt", conversaId, fechou("Respondendo pelo ChatGPT"));
     expect(await mac.entregar(outra, { desfecho: "sucesso", texto: "Pelo ChatGPT: o lançamento fica para terça." })).toBe(200);
     await assentado(outra.turnoId);
-    await printar("desvio-05-instavel/b-se-falhar", "03-respondeu-pelo-chatgpt", conversaId, tem("Pelo ChatGPT"));
+    await printar("desvio-05-instavel/b-se-falhar", "04-respondeu-pelo-chatgpt", conversaId, `${tem("Pelo ChatGPT")} && ${fechou("Respondido pelo ChatGPT")}`);
   }, 240_000);
 
   it("desvio 11 · o nod atualizou no meio: a conversa volta sozinha, com a linha, e a resposta chega", async () => {
@@ -431,9 +450,11 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
       expect(texto).toContain("A resposta continua quando ele voltar");
       await clicar('.linha-desvio [data-act="rodar-desta-vez"]');
       const naVm = await vm.puxarAte(undefined, conversaId);
+      // A linha diz que a resposta foi para a outra máquina (o link vira "Respondido na VM sp-01" quando ela responde).
+      await printar("desvio-12-computador-dormiu/b-outra-maquina", "02-rodando-na-outra", conversaId, `${tem("Rodando na VM sp-01")} && !document.querySelector('.linha-desvio .linha-link')`);
       expect(await vm.entregar(naVm, { desfecho: "sucesso", texto: "Rodei na VM: 3 tabelas novas." })).toBe(200);
       await assentado(naVm.turnoId);
-      await printar("desvio-12-computador-dormiu/b-outra-maquina", "02-respondeu-na-outra", conversaId, tem("Rodei na VM"));
+      await printar("desvio-12-computador-dormiu/b-outra-maquina", "03-respondeu-na-outra", conversaId, `${tem("Rodei na VM")} && ${tem("Respondido na VM sp-01")}`);
       // A volta automática na máquina que dormiu foi substituída pela escolha: o Mac não recebe a mesma mensagem.
       expect(await mac.puxar()).toBeNull();
     } finally {
@@ -453,9 +474,10 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     expect(texto).toContain("O Mac da sala está fora do ar");
     await clicar('[data-act="rodar-desta-vez"]');
     const noMac = await mac.puxarAte(undefined, conversaId);
+    await printar("desvio-07-computador-fora/a-outra-maquina", "02-rodando-no-macbook", conversaId, fechou("Rodando no MacBook de teste"));
     expect(await mac.entregar(noMac, { desfecho: "sucesso", texto: "Mandei o resumo no canal do time." })).toBe(200);
     await assentado(noMac.turnoId);
-    await printar("desvio-07-computador-fora/a-outra-maquina", "02-respondeu-na-outra", conversaId, tem("canal do time"));
+    await printar("desvio-07-computador-fora/a-outra-maquina", "03-respondeu-na-outra", conversaId, `${tem("canal do time")} && ${fechou("Respondido no MacBook de teste")}`);
   }, 180_000);
 
   it("desvio 8 · a organização tirou o acesso e não há outra conta: o aviso com a causa e o botão, sem termos internos", async () => {
@@ -506,14 +528,15 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
       expect(texto).toContain("O Claude não abriu no MacBook do escritório");
       expect(texto).toContain("Reinstalar e tentar");
       await clicar('[data-act="reinstalar-e-tentar"]');
-      await printar("desvio-09-ia-nao-abriu/a-reinstalar", "02-reinstalando", conversaId, tem("Reinstalando o Claude"));
+      // Enquanto a máquina reinstala, o botão gira ("Reinstalando…") e os outros param.
+      await printar("desvio-09-ia-nao-abriu/a-reinstalar", "02-reinstalando", conversaId, `${tem("Reinstalando o Claude")} && !!document.querySelector('.aviso-desvio [aria-busy="true"]')`);
       // A fala espera a IA: nada sai antes de a máquina anunciar o Claude reinstalado.
       expect(await escritorio.puxar()).toBeNull();
       await escritorio.mudar({ harnesses: { "claude-cli": PRONTO("2.1.330") } });
       const saiu = await escritorio.puxarAte(undefined, conversaId);
       expect(await escritorio.entregar(saiu, { desfecho: "sucesso", texto: "Revisei: duas cláusulas pedem atenção." })).toBe(200);
       await assentado(saiu.turnoId);
-      await printar("desvio-09-ia-nao-abriu/a-reinstalar", "03-reinstalou-e-respondeu", conversaId, tem("duas cláusulas"));
+      await printar("desvio-09-ia-nao-abriu/a-reinstalar", "03-reinstalou-e-respondeu", conversaId, `${tem("duas cláusulas")} && ${fechou("Reinstalado · a mensagem saiu")}`);
     } finally {
       await desligar(escritorio);
     }
@@ -531,9 +554,10 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
       expect(texto).toContain("Rodar na VM do nod");
       await clicar('[data-act="rodar-desta-vez"]');
       const naVm = await vm.puxarAte(undefined, conversaId);
+      await printar("desvio-09-ia-nao-abriu/b-outra-maquina", "02-rodando-na-vm", conversaId, fechou("Rodando na VM do nod"));
       expect(await vm.entregar(naVm, { desfecho: "sucesso", texto: "Revisei na VM: duas cláusulas pedem atenção." })).toBe(200);
       await assentado(naVm.turnoId);
-      await printar("desvio-09-ia-nao-abriu/b-outra-maquina", "02-respondeu-na-vm", conversaId, tem("Revisei na VM"));
+      await printar("desvio-09-ia-nao-abriu/b-outra-maquina", "03-respondeu-na-vm", conversaId, `${tem("Revisei na VM")} && ${fechou("Respondido na VM do nod")}`);
     } finally {
       await desligar(vm);
     }
