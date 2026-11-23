@@ -280,7 +280,9 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
 
     /**
      * ADR-192 (etapa 4): os trabalhos antigos da dona ainda sem Tarefa que o backfill considera — frente de pessoa/rede,
-     * trabalho de Card, filha de mãe já ligada —, em ordem de criação, depois do cursor (o backfill é retomável).
+     * trabalho de Card, filha de mãe já ligada —, em ordem de criação, depois do cursor (o backfill é retomável). A ordem
+     * e o cursor usam a mesma hora em milissegundos (a do cursor em JS): com os microssegundos do banco, o último do lote
+     * voltava no lote seguinte (QA-195).
      */
     async candidatosAoBackfill(depois: { criadoEm: number; id: string } | null, limite: number): Promise<CandidatoAoBackfill[]> {
       const linhas = await conn<LinhaC[]>`
@@ -288,8 +290,8 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
         from trabalhos w left join trabalhos m on m.tenant_id = w.tenant_id and m.id = w.trabalho_mae_id
         where w.tenant_id = ${escopo.tenantId} and w.owner_id = ${escopo.pessoaId} and w.tarefa_objetivo_id is null
           and ((w.forma = 'frente' and w.origem in ('pessoa', 'rede')) or w.tarefa_id is not null or (w.trabalho_mae_id is not null and m.tarefa_objetivo_id is not null))
-          ${depois ? conn`and (w.criado_em, w.id) > (${data(depois.criadoEm)}, ${depois.id})` : conn``}
-        order by w.criado_em, w.id limit ${Math.min(Math.max(limite, 1), 1000)}`;
+          ${depois ? conn`and (date_trunc('milliseconds', w.criado_em), w.id) > (${data(depois.criadoEm)}, ${depois.id})` : conn``}
+        order by date_trunc('milliseconds', w.criado_em), w.id limit ${Math.min(Math.max(limite, 1), 1000)}`;
       return linhas.map(paraCandidato);
     },
 
