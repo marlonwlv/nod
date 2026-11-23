@@ -114,8 +114,8 @@ describe("cookies do Chrome (SQLite e security falsos)", () => {
   }
   const microsDoChrome = (unix: number) => BigInt(unix + 11_644_473_600) * 1_000_000n;
 
-  async function bancoDoChrome(linhas: { host: string; nome: string; valor?: string; cifrado?: Buffer; expira?: bigint; samesite?: number }[]) {
-    const dir = join(home, "Library", "Application Support", "Google", "Chrome", "Default");
+  async function bancoDoChrome(linhas: { host: string; nome: string; valor?: string; cifrado?: Buffer; expira?: bigint; samesite?: number }[], perfil: readonly string[] = ["Google", "Chrome", "Default"]) {
+    const dir = join(home, "Library", "Application Support", ...perfil);
     await mkdir(dir, { recursive: true });
     const db = new DatabaseSync(join(dir, "Cookies"));
     db.exec("create table meta (key text, value text); insert into meta values ('version', '24');");
@@ -141,6 +141,20 @@ describe("cookies do Chrome (SQLite e security falsos)", () => {
       { name: "pref", value: "claro", domain: "www.itau.com.br", path: "/", expires: -1, secure: true, httpOnly: true, sameSite: "Lax" },
     ]);
     expect(await argv("security")).toEqual(["find-generic-password -w -s Chrome Safe Storage"]);
+  });
+
+  it("2026-11-23: o perfil com a sessão vence, no Arc ou noutro perfil; só o Keychain dele é pedido", async () => {
+    await bancoDoChrome([{ host: ".linkedin.com", nome: "bcookie", valor: "b" }, { host: ".linkedin.com", nome: "lidc", valor: "l" }]);
+    await bancoDoChrome([{ host: ".linkedin.com", nome: "bcookie", valor: "b" }], ["Google", "Chrome", "Profile 1"]);
+    await bancoDoChrome([
+      { host: ".www.linkedin.com", nome: "li_at", cifrado: cifrarComoChrome("sessao-do-arc", ".www.linkedin.com") },
+      { host: ".www.linkedin.com", nome: "JSESSIONID", valor: "j" },
+      { host: ".linkedin.com", nome: "bcookie", valor: "b" },
+    ], ["Arc", "User Data", "Profile 1"]);
+    const security = await script("security", `printf '%s\\n' '${PASSE_DO_CHROME}'`);
+    const cookies = await cookiesDoChrome({ host: "www.linkedin.com", home, executar: executarDoCofre, security });
+    expect(cookies.map((c) => [c.name, c.value])).toEqual([["li_at", "sessao-do-arc"], ["JSESSIONID", "j"], ["bcookie", "b"]]);
+    expect(await argv("security")).toEqual(["find-generic-password -w -s Arc Safe Storage"]);
   });
 
   it("sem cookie cifrado o Keychain nem é pedido; o Keychain recusado vira 'recusado'; sem Chrome, indisponível", async () => {
