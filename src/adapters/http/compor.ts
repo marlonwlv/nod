@@ -30,6 +30,7 @@ import { criarVivoNavegador } from "../navegador/vivo.ts";
 import { criarCanalNavegador } from "../navegador/canal-maquina.ts";
 import { criarMotorRemoto } from "../navegador/motor-remoto.ts";
 import { criarVivoDaMaquina } from "../navegador/vivo-maquina.ts";
+import { criarChromeDesteMac } from "../navegador/chrome-deste-mac.ts";
 import { criarMacDaPessoa } from "../navegador/mac-da-pessoa.ts";
 import type { MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
@@ -920,10 +921,13 @@ export function comporApp(o: OpcoesCompor): App {
   };
   // ADR-177/190 (L, A1): o cofre do Mac (1Password, Bitwarden), os cookies do Chrome e o Touch ID vêm do app pela mesma
   // fila; sem a fila, só o cofre do nod e a confirmação comum.
-  const macDoNavegador = canalNavegador ? criarMacDaPessoa({ canal: canalNavegador }) : null;
+  // 2026-11-23, só no desenvolvimento: o servidor de login stub no Mac da própria pessoa lê o Chrome deste Mac direto
+  // ("Trazer do meu Chrome" sem o app; chrome-deste-mac.ts). Nunca no compartilhado nem fora do macOS.
+  const chromeDesteMac = !canalNavegador && !compartilhado && env.NOD_LOGIN === "stub" && process.platform === "darwin" && env.NOD_NAVEGADOR_CHROME_DESTE_MAC === "1";
+  const macDoNavegador = canalNavegador ? criarMacDaPessoa({ canal: canalNavegador }) : chromeDesteMac ? criarChromeDesteMac({ home: env.HOME ?? homedir() }) : null;
   const navegadores = criarNavegadores({ dentro, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), max: numero(env.NOD_NAVEGADORES_MAX, 4),
     motor: (lugar, escopo) => (lugar.tipo === "nod" ? motorNoServidor : motorRemoto(lugar, escopo)),
-    ...(macDoNavegador ? { mac: macDoNavegador, maquinaDoLugar } : {}),
+    ...(macDoNavegador ? { mac: macDoNavegador, ...(canalNavegador ? { maquinaDoLugar } : {}) } : {}),
     algumLugar: () => motorNoServidor !== null || canalNavegador !== null,
     ...(canalNavegador ? { lugarDe: (d: Deps, escopo: Escopo, agenteId: string) => decidirLugarDoNavegador(d, agenteId, {
       ligadas: canalNavegador.ligadas(escopo),

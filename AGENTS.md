@@ -273,6 +273,8 @@ vários bots rodam `npm run check` ao mesmo tempo sem um contaminar o tenant pad
   `NOD_MODO=compartilhado`) liga a fila `navegador/*` da ponte, o motor remoto, a vista que a máquina abre e o lugar
   decidido por bot (Mac, máquina sempre ligada ou o nod). Desligada, o navegador só roda no servidor
   (`NOD_NAVEGADOR_NO_SERVIDOR=1`) e as rotas `navegador/*` da máquina dão 404 (o app e o motor tentam de novo em 10 min).
+  Só no desenvolvimento, `NOD_NAVEGADOR_CHROME_DESTE_MAC=1` (login stub, fora do compartilhado, no macOS) faz o "Trazer do
+  meu Chrome" ler o Chrome do próprio Mac do servidor, sem o app (`src/adapters/navegador/chrome-deste-mac.ts`).
 - **PRs do GitHub no quadro atrás de env** (NOD-421): `NOD_QUADRO_GITHUB_REPOS="dono/repo,…"` (até 5) liga o laço
   `src/adapters/fundo/prs-do-quadro.ts`. A cada 30 s ele lê os PRs de cada repo, com `NOD_QUADRO_GITHUB_TOKEN` por uma
   chamada GraphQL (produção: a imagem não tem `gh`; o token vem do segredo `nod-github-quadro-token`; a base é

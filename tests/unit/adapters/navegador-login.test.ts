@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AVISO_SEM_TOUCH_ID, CONFIRME_NO_MAC, criarNavegadores, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
+import { AVISO_SEM_TOUCH_ID, CHROME_SEM_SESSAO, CONFIRME_NO_MAC, criarNavegadores, fraseDaMaquina, TROUXE_DO_CHROME, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MacDaPessoa } from "../../../src/adapters/navegador/mac-da-pessoa.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador, SELETOR_CAMPO } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
 import type { EntradaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import { SEM_LIBERACOES, type LiberacoesNavegador } from "../../../src/domain/navegador-aprovacao.ts";
-import { DIGITADO_DURA_MS, MOTIVO_SEM_MAC } from "../../../src/domain/navegador-cofre.ts";
+import { DIGITADO_DURA_MS, googleRecusouOLogin, MOTIVO_SEM_MAC } from "../../../src/domain/navegador-cofre.ts";
 import type { ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
 import { MARLON } from "../use-cases/deps-l5.ts";
 
@@ -313,6 +313,59 @@ describe("L1: trazer do meu Chrome", () => {
     mac.ligado = false;
     await expect(n.escolherLogin(MARLON, A, decisao, "chrome")).rejects.toThrow("estado_invalido");
     await expect(n.escolherLogin(MARLON, A, decisao, { fonte: "1password", ref: "" })).rejects.toThrow("estado_invalido");
+  });
+});
+
+describe("2026-11-23: trazer do meu Chrome pelo ⋯ e na recusa do Google", () => {
+  const REJEITADO = "https://accounts.google.com/v3/signin/rejected?continue=https%3A%2F%2Fwww.linkedin.com&flowName=GlifWebSignIn";
+
+  it("a tela de recusa do Google é reconhecida só nela", () => {
+    expect(googleRecusouOLogin(REJEITADO)).toBe(true);
+    expect(googleRecusouOLogin("https://accounts.google.com/signin/rejected")).toBe(true);
+    expect(googleRecusouOLogin("https://accounts.google.com/v3/signin/identifier?x=1")).toBe(false);
+    expect(googleRecusouOLogin("https://evil.com/accounts.google.com/v3/signin/rejected")).toBe(false);
+    expect(googleRecusouOLogin("https://accounts.google.com.evil.com/v3/signin/rejected")).toBe(false);
+  });
+
+  it("o bot cai na recusa: a vista guarda o site de origem, o bot ouve para não contornar e a pessoa traz do Chrome", async () => {
+    mac.cookies = [{ name: "li_at", value: "x", domain: ".linkedin.com", path: "/", expires: -1, secure: true, httpOnly: true, sameSite: "Lax" }];
+    const n = criar();
+    await chamar(n, "navegador_abrir", { url: "https://www.linkedin.com/login" });
+    const r = corpo(await chamar(n, "navegador_abrir", { url: REJEITADO }));
+    expect(String(r.instrucao)).toContain("não tente de novo nem contorne");
+    expect(String(r.instrucao)).toContain("linkedin.com");
+    expect(n.vista(MARLON, A)!.googleRecusou).toEqual({ site: "www.linkedin.com" });
+    const t = await n.trazerDoChrome(MARLON, A);
+    expect(mac.chamadas.at(-1)).toEqual({ op: "cookies", args: [A, "www.linkedin.com", false] });
+    expect(chamadas.find((c) => c.op === "definirCookies")?.args).toEqual([mac.cookies]);
+    // A página de agora era a do Google: o navegador vai ao site, já com a sessão (e a recusa sai da vista).
+    expect(chamadas.filter((c) => c.op === "abrir").at(-1)?.args[0]).toBe("https://www.linkedin.com/");
+    expect(t).toMatchObject({ trazidos: 1, aviso: TROUXE_DO_CHROME("linkedin.com") });
+    expect(n.vista(MARLON, A)!.googleRecusou).toBeNull();
+  });
+
+  it("pelo ⋯ no site da aba: recarrega; um pedido de login aberto fecha com a frase do Chrome e o bot segue", async () => {
+    const n = criar();
+    const decisao = await noLoginDoItau(n);
+    const t = await n.trazerDoChrome(MARLON, A);
+    expect(mac.chamadas.at(-1)).toEqual({ op: "cookies", args: [A, "www.itau.com.br", false] });
+    expect(chamadas.find((c) => c.op === "historico")?.args).toEqual(["recarregar"]);
+    expect(t.trazidos).toBe(1);
+    expect(retomadas).toEqual([{ decisaoId: decisao, texto: expect.stringContaining("Trouxe do Chrome da pessoa a sessão de itau.com.br") }]);
+  });
+
+  it("sem sessão, com o Chrome que pede a extensão e com o aparelho desligado", async () => {
+    const n = criar();
+    await chamar(n, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    mac.cookies = [];
+    expect(await n.trazerDoChrome(MARLON, A)).toMatchObject({ trazidos: 0, aviso: CHROME_SEM_SESSAO("itau.com.br") });
+    const extensao = "instale a extensão do nod no seu Chrome e tente de novo";
+    const n2 = criar({ mac: { ...macFalso, cookies: async () => { throw new FalhaNavegador("indisponivel", extensao); } } });
+    await chamar(n2, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    expect(await n2.trazerDoChrome(MARLON, A)).toMatchObject({ trazidos: 0, aviso: fraseDaMaquina(extensao) });
+    expect(fraseDaMaquina(extensao)).toBe("Instale a extensão do nod no seu Chrome e tente de novo.");
+    mac.ligado = false;
+    await expect(n.trazerDoChrome(MARLON, A)).rejects.toThrow("estado_invalido");
   });
 });
 

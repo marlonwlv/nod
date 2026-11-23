@@ -40,7 +40,7 @@ import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDo
 import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
 import { htmlCartaoDaPergunta } from "../lib/navegador-lugar-tela.ts";
 import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
-import { htmlLinhaGuardar, linhaDaRespostaDoNavegador, pedidoDoNavegadorNaFala } from "../lib/navegador-cartoes.ts";
+import { htmlLinhaGoogleRecusou, htmlLinhaGuardar, linhaDaRespostaDoNavegador, pedidoDoNavegadorNaFala } from "../lib/navegador-cartoes.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -1782,6 +1782,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     { chave: "computador", html: linhaDoComputador(c, estado) },
     { chave: "navegador", html: linhaDoNavegador(c, estado) },
     { chave: "navegador-guardar", html: linhaGuardarDoNavegador(c, estado) },
+    { chave: "navegador-google", html: linhaGoogleDoNavegador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
@@ -1832,6 +1833,14 @@ function linhaGuardarDoNavegador(c: ConversaEstado, estado: Estado): string {
   if (!id || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return "";
   const oferta = estado.navegadores[id]?.vista.ofertaGuardar;
   return oferta ? htmlLinhaGuardar({ oferta, agenteId: id, agora: estado.agora || Date.now() }) : "";
+}
+
+/** 2026-11-23: o Google recusou o login no navegador do bot: "Trazer do meu Chrome" para o site de origem. */
+function linhaGoogleDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return "";
+  const recusa = estado.navegadores[id]?.vista.googleRecusou;
+  return recusa ? htmlLinhaGoogleRecusou({ site: recusa.site, agenteId: id }) : "";
 }
 
 export function renderHistoricoDaTimeline(c: ConversaEstado, estado: Estado): string {

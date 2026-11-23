@@ -8,7 +8,7 @@ import { ErroDeDominio } from "../../domain/erro.ts";
 import { modoNoTurno } from "../../domain/modo-aprovacao.ts";
 import { motorLe, tipoDoAnexo } from "../../domain/anexo.ts";
 import { classificarAcao, decidirNoNavegador, juntarLiberacoes, perguntaDaAcao, SEM_LIBERACOES, siteLegivel, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
-import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, hostDoSite, itemCasaComHost, textosDoAparelho, type AparelhoDaPessoa, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
+import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, ehLoginDoGoogle, googleRecusouOLogin, hostDoSite, itemCasaComHost, textosDoAparelho, type AparelhoDaPessoa, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, mensagemDoEnsinado, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
@@ -124,6 +124,8 @@ type Estado = {
   desvioAvisado: string | null;
   /** L: o host da aba quando o cartão de login foi montado (o preenchimento confere que a página não mudou de site). */
   loginHost: string | null;
+  /** 2026-11-23: o último site (fora do login do Google) em que o bot esteve: o do "Entrar com o Google" que o Google recusou. */
+  siteAntesDoGoogle: string | null;
   /** L2: o preenchimento em segundo plano (o Mac pede o Touch ID ou o Keychain). */
   loginEmCurso: Promise<void> | null;
   /** L5: o que a pessoa digita no login "Entrar eu mesmo", só em memória e cifrado, até `ate`. */
@@ -311,6 +313,11 @@ const SEGREDO_NA_PAGINA = { erro: "segredo_na_pagina", instrucao: "A página tem
 export const LOGIN_PREENCHIDO = (site: string) => `Login preenchido no ${site} (a senha não passa por você). A leitura e o print ficam travados até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de entrar com a referência da última leitura. Se a página seguinte pedir um código, chame navegador_pedir_ajuda com codigo: true.`;
 export const SO_USUARIO = (site: string) => `Preenchi só o usuário no ${site}: a página não mostra o campo de senha ainda. Clique em continuar (ou avançar) e chame navegador_entrar de novo na página da senha.`;
 export const CODIGO_ENVIADO = "Código enviado. A pessoa pôs o código no campo da página (você não o vê). A leitura fica travada até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de confirmar com a referência da última leitura.";
+/**
+ * 2026-11-23: o que o bot ouve quando a página é a recusa do Google ("pode não ser seguro"): não contornar, pedir à pessoa o
+ * "Trazer do meu Chrome" do site de origem.
+ */
+export const GOOGLE_RECUSOU = (site: string | null) => `O Google recusou o login neste navegador ("Esse navegador pode não ser seguro"). É regra do Google para navegadores automatizados: não tente de novo nem contorne. ${site ? `Chame navegador_pedir_ajuda dizendo que a pessoa pode tocar em "Trazer do meu Chrome" para entrar em ${site} com a sessão do Chrome dela` : "Chame navegador_pedir_ajuda dizendo que a pessoa pode tocar em \"Trazer do meu Chrome\" (menu ⋯ do navegador) no site em que quer entrar"}; quando ela trouxer, você é retomada.`;
 export const DO_CHROME = (site: string, n: number) => `Trouxe do Chrome da pessoa a sessão de ${site} (${n} cookies) e recarreguei a página. Leia a página de novo; se ainda pedir login, chame navegador_entrar.`;
 /**
  * As falas do bot que abrem os pedidos de login, de código e de ajuda (a mensagem `pedido_a_pessoa` da conversa). A web as
@@ -336,6 +343,18 @@ const ERRO_LOGIN: Readonly<Record<string, string>> = {
   sem_cookies: "O seu Chrome não tem uma sessão deste site.",
 };
 const PESSOA_FAZ = { erro: "a_pessoa_faz", instrucao: "Trocar senha, e-mail ou a segurança da conta é sempre a pessoa que faz. Nada foi executado. Chame navegador_pedir_ajuda com o motivo e encerre o turno." };
+
+/** A frase que a máquina da pessoa mandou ("instale a extensão do nod…"), para o cartão: maiúscula, ponto final, curta. */
+export function fraseDaMaquina(detalhe: string): string | undefined {
+  const t = detalhe.replace(/[\p{Cc}]/gu, " ").trim().slice(0, 300);
+  if (!t) return undefined;
+  const f = t[0]!.toLocaleUpperCase("pt-BR") + t.slice(1);
+  return /[.!?…]$/u.test(f) ? f : `${f}.`;
+}
+
+/** As frases do "Trazer do meu Chrome" solto (o ⋯ e a recusa do Google), para o aviso da web. */
+export const TROUXE_DO_CHROME = (site: string) => `Pronto: o navegador entrou em ${site} com a sessão do seu Chrome.`;
+export const CHROME_SEM_SESSAO = (site: string) => `O seu Chrome não tem uma sessão de ${site}. Entre nele no seu Chrome e tente de novo.`;
 
 function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; instrucao: string } {
   const instrucao = {
@@ -403,7 +422,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
-      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null, ultimoTexto: null,
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, siteAntesDoGoogle: null, loginEmCurso: null, captura: null, ultimoTexto: null,
       tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null, assumidoEm: null, entradaPessoaEm: null, turnoEsperando: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
@@ -630,6 +649,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const ativa = abas.find((a) => a.ativa);
     if (ativa && ativa.url !== est.url) {
       est.url = ativa.url;
+      notarUrl(est, ativa.url);
       est.refs = null; est.refsPorTamanho = false;
       est.campo = null;
       if (est.urlDoSegredo && !segredoAindaNaPagina(est.urlDoSegredo, ativa.url)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
@@ -768,14 +788,27 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     if (!est.vivo) throw new ErroDeDominio("estado_invalido", { cause: "desligado" });
     const url = await motor.url(sessao(est.vista.agenteId)).catch(() => est.url);
     est.url = url;
+    notarUrl(est, url);
     return { motor, url };
   }
 
-  /** O erro do cartão de login: o pedido volta a "escolher" com a frase. */
-  function erroNoLogin(est: Estado, decisaoId: string, causa: string): void {
+  /**
+   * 2026-11-23: a URL de agora. Guarda o último site fora do login do Google e liga/desliga o `googleRecusou` da vista (a
+   * recusa do Google "pode não ser seguro"), que a conversa mostra com "Trazer do meu Chrome".
+   */
+  function notarUrl(est: Estado, url: string): void {
+    const host = /^https?:/iu.test(url) ? hostDe(url) : "";
+    if (host && !ehLoginDoGoogle(host)) est.siteAntesDoGoogle = host;
+    const recusou = googleRecusouOLogin(url) ? { site: est.siteAntesDoGoogle ?? "" } : null;
+    const agora = est.vista.googleRecusou ?? null;
+    if (recusou?.site !== agora?.site || (recusou === null) !== (agora === null)) mudar(est, { googleRecusou: recusou });
+  }
+
+  /** O erro do cartão de login: o pedido volta a "escolher" com a frase (a da máquina, quando ela diz o que fazer). */
+  function erroNoLogin(est: Estado, decisaoId: string, causa: string, frase?: string): void {
     const p = est.vista.pedido;
     if (p?.tipo !== "login" || p.decisaoId !== decisaoId) return;
-    mudar(est, { pedido: { ...p, etapa: "escolher", erro: causa === "indisponivel" ? textos(est.escopo).aparelhoDesligado : ERRO_LOGIN[causa] ?? ERRO_LOGIN.acao_falhou! } });
+    mudar(est, { pedido: { ...p, etapa: "escolher", erro: frase ?? (causa === "indisponivel" ? textos(est.escopo).aparelhoDesligado : ERRO_LOGIN[causa] ?? ERRO_LOGIN.acao_falhou!) } });
   }
 
   /** Depois de preencher: a trava do segredo (L3) e o pedido fechado com a frase para o bot (sem valor nenhum). */
@@ -896,6 +929,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (!enderecoPermitido(url)) return { conteudo: { erro: "endereco_recusado", instrucao: "Só endereços http(s) da internet abrem no navegador do bot (nada de localhost, rede interna ou file:)." }, isError: true };
         const r = await m.abrir(s, url, args.nova_aba === true);
         c.est.url = r.url;
+        notarUrl(c.est, r.url);
         // 2026-11-22 (teste do dono, IMDb): o firewall passa por uma página de conferência que se recarrega sozinha; o
         // abrir voltava sem título e a leitura seguinte vinha vazia ("0 elementos"). Espera a página assentar (até 5 s).
         let titulo = r.titulo;
@@ -905,16 +939,17 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           if (typeof t === "string" && t.trim()) titulo = t.trim();
         }
         await atualizarAbas(c);
-        return { conteudo: { ok: true, url: r.url, titulo, instrucao: "Leia a página (navegador_ler) antes de agir." } };
+        return { conteudo: { ok: true, url: r.url, titulo, instrucao: c.est.vista.googleRecusou ? GOOGLE_RECUSOU(siteLegivel(c.est.vista.googleRecusou.site) || null) : "Leia a página (navegador_ler) antes de agir." } };
       }
       case "navegador_ler": {
         const l = await m.ler(s, { soInterativos: args.so_interativos !== false, ...(typeof args.dentro === "string" && args.dentro ? { dentro: args.dentro } : {}) });
         c.est.refs = l.refs;
         c.est.refsPorTamanho = false;
-        if (l.url) c.est.url = l.url;
+        if (l.url) { c.est.url = l.url; notarUrl(c.est, l.url); }
         const referencias = Object.keys(l.refs).length;
         const vazia = referencias === 0 ? { instrucao: "Nenhum elemento lido: a página pode estar carregando. Espere uns segundos e leia de novo; para o texto da página, leia com so_interativos=false." } : {};
-        return { conteudo: { url: l.url || c.est.url, referencias, arvore: redigirArvore(l.arvore), ...vazia } };
+        const recusa = c.est.vista.googleRecusou ? { instrucao: GOOGLE_RECUSOU(siteLegivel(c.est.vista.googleRecusou.site) || null) } : {};
+        return { conteudo: { url: l.url || c.est.url, referencias, arvore: redigirArvore(l.arvore), ...vazia, ...recusa } };
       }
       case "navegador_clicar": await m.clicar(s, alvo, args.duplo === true); break;
       case "navegador_preencher":
@@ -988,8 +1023,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     } else {
       // Clicar ou apertar uma tecla pode navegar: a URL de agora diz se as referências ainda valem.
       const url = await m.url(s).catch(() => c.est.url);
-      if (url !== c.est.url) { c.est.refs = null; c.est.refsPorTamanho = false; c.est.url = url; }
+      if (url !== c.est.url) { c.est.refs = null; c.est.refsPorTamanho = false; c.est.url = url; notarUrl(c.est, url); }
     }
+    if (c.est.vista.googleRecusou) return { conteudo: { ok: true, url: c.est.url, instrucao: GOOGLE_RECUSOU(siteLegivel(c.est.vista.googleRecusou.site) || null) } };
     return { conteudo: { ok: true, url: c.est.url, ...(c.est.refs ? {} : { instrucao: "A página mudou: leia de novo (navegador_ler) antes do próximo passo." }) } };
   }
 
@@ -1643,13 +1679,61 @@ export function criarNavegadores(o: OpcoesNavegadores) {
             : await preencherLogin(motor, s, await mac.ler(escopo, agenteId, fonte, escolha.ref, host));
           await depoisDePreencher(est, decisaoId, url, r);
         } catch (e) {
-          erroNoLogin(est, decisaoId, ehFalhaNavegador(e) ? e.motivo : "acao_falhou");
+          // A máquina ligada diz o que fazer com o Chrome (instalar a extensão, fechar o Chrome): a frase vai ao cartão.
+          const daMaquina = escolha === "chrome" && ehFalhaNavegador(e) && e.motivo === "indisponivel" && mac.maquina(escopo) ? fraseDaMaquina(e.detalhe) : undefined;
+          erroNoLogin(est, decisaoId, ehFalhaNavegador(e) ? e.motivo : "acao_falhou", daMaquina);
           if (!ehFalhaNavegador(e)) log("aviso", "navegador_login_falhou", { agente_id: agenteId, erro: e instanceof Error ? e.name : "desconhecido" });
         } finally {
           est.loginEmCurso = null;
         }
       })();
       return { vista: est.vista, aviso: textos(escopo).confirmeNoAparelho };
+    },
+    /**
+     * POST /agentes/:id/navegador/trazer-do-chrome (2026-11-23, o ⋯ e a recusa do Google): a sessão de um site do Chrome da
+     * pessoa para o navegador do bot, sem pedido de login aberto. O site é o pedido, o de origem da recusa do Google ou o da
+     * aba. Na recusa, o navegador volta ao site; senão, recarrega. Um pedido de login ou de ajuda aberto fecha com a frase do
+     * Chrome e o bot segue. A espera é a do aparelho (o macOS pede o Keychain); a resposta diz o que aconteceu, em uma frase.
+     */
+    async trazerDoChrome(escopo: Escopo, agenteId: string, site?: string): Promise<{ vista: VistaNavegador; trazidos: number; aviso: string }> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      if (est.loginEmCurso) throw new ErroDeDominio("estado_invalido", { cause: "login_em_curso" });
+      const { motor, url } = await motorAberto(est);
+      const recusa = est.vista.googleRecusou ?? null;
+      const host = site ? hostDoSite(site) : recusa?.site ? hostDoSite(recusa.site) : /^https?:/iu.test(url) ? hostDe(url) : "";
+      if (!host) throw new ErroDeDominio("estado_invalido", { cause: "sem_site" });
+      const mac = o.mac;
+      const macId = mac?.maquina(escopo) ?? null;
+      if (!mac || !macId) throw new ErroDeDominio("estado_invalido", { cause: "precisa_do_mac" });
+      const noMac = est.vista.lugar.tipo === "mac" && o.maquinaDoLugar?.(est.vista.lugar, escopo) === macId;
+      const s = sessao(agenteId);
+      const nome = siteLegivel(host);
+      let n = 0;
+      const trazer = (async () => {
+        if (noMac) { n = Number(await mac.cookies(escopo, agenteId, host, true)); return; }
+        const cookies = await mac.cookies(escopo, agenteId, host, false);
+        if (typeof cookies !== "number" && cookies.length) { await motor.definirCookies(s, cookies); n = cookies.length; }
+      })();
+      est.loginEmCurso = trazer.catch(() => undefined);
+      try {
+        await trazer;
+      } catch (e) {
+        if (!ehFalhaNavegador(e)) throw e;
+        const frase = e.motivo === "indisponivel" && mac.maquina(escopo) ? fraseDaMaquina(e.detalhe) : undefined;
+        return { vista: est.vista, trazidos: 0, aviso: frase ?? (e.motivo === "indisponivel" ? textos(escopo).aparelhoDesligado : ERRO_LOGIN[e.motivo] ?? ERRO_LOGIN.acao_falhou!) };
+      } finally {
+        est.loginEmCurso = null;
+      }
+      if (!n) return { vista: est.vista, trazidos: 0, aviso: CHROME_SEM_SESSAO(nome) };
+      // Na recusa do Google (ou noutro site), a página de agora não é do site: o navegador vai a ele, já com a sessão.
+      if (!itemCasaComHost(hostDe(url), host)) await motor.abrir(s, `https://${host}/`, false).catch(() => undefined);
+      else await motor.historico(s, "recarregar").catch(() => undefined);
+      est.refs = null; est.refsPorTamanho = false;
+      await atualizarAbasDe(est, motor);
+      const p = est.vista.pedido;
+      if (p && (p.tipo === "login" || p.tipo === "ajuda")) await fecharPedido(est, p.decisaoId, DO_CHROME(nome, n)).catch(() => undefined);
+      return { vista: est.vista, trazidos: n, aviso: TROUXE_DO_CHROME(nome) };
     },
     /** Só testes: espera o preenchimento em segundo plano (L2) terminar. */
     esperarLogin: async (agenteId: string): Promise<void> => { await estados.get(agenteId)?.loginEmCurso; },

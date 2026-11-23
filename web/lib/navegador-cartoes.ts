@@ -256,6 +256,17 @@ export function htmlLinhaGuardar(o: { oferta: OfertaGuardarLogin; agenteId: stri
   return `<div class="nvc-guardar" role="group" aria-label="Guardar o login no cofre" ${dados}><span class="nvc-guardar-txt">Você entrou ${esc(noOuNa(site))} ${esc(site)} digitando. Guardar no cofre?</span>${destino}<button type="button" class="nvc-guardar-sim" data-act="nv-guardar" ${dados} data-guardar="1">Guardar</button><button type="button" class="nvc-guardar-nao" data-act="nv-guardar" ${dados} data-guardar="0">Não</button></div>`;
 }
 
+/**
+ * 2026-11-23: o Google recusou o login no navegador do bot ("pode não ser seguro"). A linha discreta no fim da conversa
+ * oferece trazer a sessão do site de origem do Chrome da pessoa, enquanto o navegador está nessa tela.
+ */
+export function htmlLinhaGoogleRecusou(o: { site: string; agenteId: string }): string {
+  const site = o.site ? nomeDoSite(o.site) : "";
+  const dados = `data-agente="${esc(o.agenteId)}"${o.site ? ` data-site="${esc(o.site)}"` : ""}`;
+  const texto = site ? `O Google não deixa entrar pelo navegador do bot. Entre ${noOuNa(site)} ${site} com o login do seu Chrome.` : "O Google não deixa entrar pelo navegador do bot. Traga o login do site do seu Chrome.";
+  return `<div class="nvc-guardar nvc-google" role="group" aria-label="O Google recusou o login" ${dados}><span class="nvc-guardar-txt">${esc(texto)}</span><button type="button" class="nvc-guardar-sim" data-act="nv-trazer-chrome" ${dados}>Trazer do meu Chrome</button></div>`;
+}
+
 // ---- A1, A2, A3: as aprovações -------------------------------------------------------------------------------------------
 
 type PedidoAprovacao = Extract<PedidoDaVistaNavegador, { tipo: "aprovacao" }>;

@@ -60,6 +60,21 @@ export function hostDoSite(siteOuUrl: string): string {
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : "";
 }
 
+/**
+ * 2026-11-23 (teste do dono, LinkedIn com "Entrar com o Google"): o Google recusa o login em navegador automatizado com a
+ * tela "Esse navegador ou app pode não ser seguro" (`accounts.google.com/v3/signin/rejected`). É política dele e o nod não
+ * contorna: a saída é trazer a sessão do site de origem do Chrome da pessoa ("Trazer do meu Chrome").
+ */
+export function googleRecusouOLogin(url: string): boolean {
+  const t = url.trim().toLowerCase();
+  if (!/^https:\/\/accounts\.google\.com\//u.test(t)) return false;
+  const caminho = t.replace(/^https:\/\/accounts\.google\.com/u, "").split(/[?#]/u, 1)[0] ?? "";
+  return /(^|\/)signin\/rejected(\/|$)/u.test(caminho);
+}
+
+/** O host de login do Google (de onde o "Entrar com o Google" passa): não conta como o site de origem. */
+export const ehLoginDoGoogle = (host: string): boolean => host === "accounts.google.com";
+
 /** O domínio registrável ("internetpf.itau.com.br" → "itau.com.br"); um IP volta inteiro. */
 export function dominioRegistravel(host: string): string {
   const h = host.toLowerCase().replace(/\.$/, "");

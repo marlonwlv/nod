@@ -14,7 +14,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
-import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaMacDesligado, RespostaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
+import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaMacDesligado, RespostaNavegador, RespostaTrazerDoChrome, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -304,6 +304,11 @@ export function criarApi(escopo: Escopo) {
      * Mac" e o preenchimento segue no servidor (a vista muda pelo `navegador.mudou`). Nenhum segredo vai neste corpo.
      */
     escolherLoginNoNavegador: (agenteId: string, decisaoId: string, escolha: EscolhaLoginNavegador) => post<RespostaLoginNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/login`, { decisaoId, escolha }),
+    /**
+     * 2026-11-23: "Trazer do meu Chrome" solto (o ⋯ e a recusa do login pelo Google). Sem `site`: o da recusa ou o da aba.
+     * Espera o aparelho (o macOS pede o Keychain); `aviso` é a frase para a pessoa, deu certo ou não.
+     */
+    trazerDoChromeNoNavegador: (agenteId: string, site?: string) => post<RespostaTrazerDoChrome>(`agentes/${encodeURIComponent(agenteId)}/navegador/trazer-do-chrome`, site ? { site } : {}),
     /** ADR-190 (L4): o código de uso único do campo privado do cartão, direto para a página. */
     codigoNoNavegador: (agenteId: string, decisaoId: string, codigo: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/codigo`, { decisaoId, codigo }),
     /** ADR-190 (L5): "Guardar no cofre?" — `guardar: false` descarta (o texto sai da memória do servidor). */

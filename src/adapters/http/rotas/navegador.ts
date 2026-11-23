@@ -1,6 +1,6 @@
 import type { Navegadores } from "../../fundo/navegadores.ts";
 import type { Rota } from "../roteador.ts";
-import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaMacDesligado, type RespostaNavegador, type TarefaEnsinada } from "../../../contracts/navegador-do-bot.ts";
+import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaMacDesligado, type RespostaNavegador, type RespostaTrazerDoChrome, type TarefaEnsinada } from "../../../contracts/navegador-do-bot.ts";
 import { codigoValido, hostDoSite, mascararUsuario } from "../../../domain/navegador-cofre.ts";
 import type { LoginDoCofre } from "../../../repositories/cofre-logins.repo.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
@@ -83,6 +83,7 @@ export const MOTIVOS_DO_NAVEGADOR: Readonly<Record<string, string>> = {
   nao_preencheu: "Não achei o campo na página. Entre você mesmo pelo navegador.",
   sem_oferta: "Não há login para guardar agora.",
   nao_guardou: "O cofre do seu Mac não guardou o login. Tente de novo.",
+  sem_site: "Abra o site no navegador primeiro.",
 };
 
 function responderCausa(ctx: { json(status: number, corpo: unknown): void }, e: unknown): boolean {
@@ -202,6 +203,16 @@ export function rotasNavegador(navegadores: Navegadores, lugar?: DepsLugarNavega
       await comCausa(ctx, async (): Promise<RespostaLoginNavegador> => {
         const r = await navegadores.escolherLogin(ctx.escopo, ctx.params.id!, decisaoId, escolha);
         return { ok: true, vista: r.vista, aviso: r.aviso };
+      });
+    } },
+    /** 2026-11-23: "Trazer do meu Chrome" solto (o ⋯ e a recusa do Google): a sessão de um site, sem pedido de login. */
+    { metodo: "POST", acao: "navegador.trazer_do_chrome", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/trazer-do-chrome$/, async handler(ctx) {
+      const c = corpoObj(await ctx.corpo());
+      if (c.site !== undefined && (typeof c.site !== "string" || c.site.length > 300 || !hostDoSite(c.site))) throw new ErroDeDominio("entrada_invalida");
+      const site = c.site as string | undefined;
+      await comCausa(ctx, async (): Promise<RespostaTrazerDoChrome> => {
+        const r = await navegadores.trazerDoChrome(ctx.escopo, ctx.params.id!, site);
+        return { ok: true, ...r };
       });
     } },
     /** L4: o código de uso único, do campo privado do cartão direto para a página. */

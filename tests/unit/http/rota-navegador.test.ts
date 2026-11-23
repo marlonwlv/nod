@@ -36,7 +36,7 @@ function montar(falha: unknown = null) {
 
 describe("rotas do navegador do bot", () => {
   it("cada rota que muda declara a ação do registro", () => {
-    expect(montar().rotas.filter((r) => r.metodo === "POST").map((r) => r.acao)).toEqual(["navegador.operar", "navegador.ir_para", "navegador.trocar_aba", "navegador.login", "navegador.codigo", "navegador.guardar_login", "navegador.ensinar"]);
+    expect(montar().rotas.filter((r) => r.metodo === "POST").map((r) => r.acao)).toEqual(["navegador.operar", "navegador.ir_para", "navegador.trocar_aba", "navegador.login", "navegador.trazer_do_chrome", "navegador.codigo", "navegador.guardar_login", "navegador.ensinar"]);
   });
 
   it("GET devolve a vista e se o navegador roda aqui; POST confere o corpo antes do portão", async () => {

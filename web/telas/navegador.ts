@@ -42,6 +42,8 @@ export type OpcoesNavegadorNaTela = {
   mandarRecado: (agenteId: string, texto: string) => Promise<void>;
   /** "Logins deste site…" (D1c). */
   abrirLogins: (agenteId: string, site: string) => void;
+  /** 2026-11-23: "Trazer do meu Chrome" do ⋯ (a sessão do site da aba, do Chrome da pessoa). Ausente = o item não aparece. */
+  trazerDoChrome?: (agenteId: string) => void;
   /** "Abrir no meu navegador" (D1c). */
   abrirFora: (url: string) => void;
   aoErro: (e: unknown) => void;
@@ -805,7 +807,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const url = v?.abas.find((a) => a.ativa)?.url ?? "";
     const m = document.createElement("div");
     m.className = "nv-menu";
-    m.innerHTML = htmlMenuDoNavegador(nomeDe(agenteId), { daAba, temEndereco: !!url, controle: v?.controle === "pessoa", ensinar: !o.celular() && !!o.api()?.ensinarNoNavegador && !v?.gravacao });
+    m.innerHTML = htmlMenuDoNavegador(nomeDe(agenteId), { daAba, temEndereco: !!url, controle: v?.controle === "pessoa", ensinar: !o.celular() && !!o.api()?.ensinarNoNavegador && !v?.gravacao, trazerDoChrome: !!o.trazerDoChrome });
     const host = telaCheia?.dialog ?? document.body;
     host.append(m);
     const b = m.getBoundingClientRect();
@@ -838,6 +840,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       else if (acao === "copiar") void navigator.clipboard?.writeText(url).catch(() => undefined);
       else if (acao === "abrir-fora" && url) o.abrirFora(url);
       else if (acao === "logins") o.abrirLogins(agenteId, url);
+      else if (acao === "trazer-chrome") o.trazerDoChrome?.(agenteId);
       else if (acao === "ensinar") void ensinar(agenteId);
       else if (acao === "encerrar") void vm.operar("encerrar");
       else if (acao === "ao-lado") { abasDeLugar = new Set(abasDeLugar); abasDeLugar.delete(agenteId); gravarAbas(); desativarAba(agenteId); abrirPainel(agenteId); }

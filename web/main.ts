@@ -709,6 +709,26 @@ function hidratarVistaDoNavegador(agenteId: string, vista: VistaNavegador): void
 }
 
 /**
+ * 2026-11-23: "Trazer do meu Chrome" solto (o ⋯ e a linha da recusa do Google). Espera o aparelho (o macOS pede o
+ * Keychain); o aviso diz o que aconteceu. O botão da linha fica desligado enquanto espera.
+ */
+async function trazerDoChromeNoNavegador(agenteId: string, site?: string, botao?: HTMLButtonElement): Promise<void> {
+  if (!api || !agenteId) return;
+  if (botao) botao.disabled = true;
+  mostrarAvisoDesfazer({ texto: "Trazendo o login do seu Chrome…" });
+  try {
+    const r = await api.trazerDoChromeNoNavegador(agenteId, site);
+    hidratarVistaDoNavegador(agenteId, r.vista);
+    mostrarAvisoDesfazer({ texto: r.aviso });
+    if (r.trazidos > 0) invalidarPedidoDoNavegador();
+  } catch (e) {
+    mostrarErro(e);
+  } finally {
+    if (botao?.isConnected) botao.disabled = false;
+  }
+}
+
+/**
  * O "Não" de uma aprovação do navegador (pílula e cartão): numa decisão `aprovacao`, recusar é desmarcar os itens (o
  * `recusar: true` vale para pergunta e proposta, e numa aprovação seria lido como "aprovar o que está marcado"). Os ids
  * dos itens vêm de "Sua vez"; sem ela à mão (outra tela), relê antes.
@@ -1518,6 +1538,8 @@ const navegadorNaTela = criarNavegadorNaTela({
     await api.enviar(bot.conversaId, texto);
     dispatch({ tipo: "invalidar", quais: [`conversa:${bot.conversaId}`] });
   },
+  // 2026-11-23: "Trazer do meu Chrome" do ⋯ — a sessão do site da aba (ou o de origem da recusa do Google).
+  trazerDoChrome: (id) => void trazerDoChromeNoNavegador(id),
   // D1c: "Logins deste site…" abre o Cofre já filtrado pelo site da aba.
   abrirLogins: (_id, url) => { abrirEspaco("cofre"); telaCofre.filtrar(url); requestAnimationFrame(() => document.getElementById("cofre-logins")?.scrollIntoView({ block: "start" })); },
   abrirFora: (url) => {
@@ -9607,6 +9629,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     hidratarVistaDoNavegador(agenteId, r.vista);
     if (guardar) mostrarAvisoDesfazer({ texto: `Login guardado n${NOME_DA_FONTE[destino]}` });
   }),
+  // 2026-11-23: a recusa do Google na conversa — "Trazer do meu Chrome" para o site de origem.
+  "nv-trazer-chrome": (el) => void trazerDoChromeNoNavegador(el.dataset.agente ?? "", el.dataset.site || undefined, el as HTMLButtonElement),
   "nv-assumir": (el) => navegadorNaTela.assumir(el.dataset.agente ?? ""),
   "nv-resolver": (el) => agir(async () => { await navegadorNaTela.resolver(el.dataset.agente ?? ""); invalidarPedidoDoNavegador(); }),
   // ADR-190 (T1): "Ensinar uma tarefa" do + do campo.

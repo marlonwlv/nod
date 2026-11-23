@@ -66,6 +66,13 @@ export const ACOES_NAVEGADOR = [
     chat: { estado: "nunca", motivo: "o código vai do campo privado do cartão para a página; digitado no chat, passaria pela conversa e pelo bot" },
   },
   {
+    id: "navegador.trazer_do_chrome",
+    titulo: "Trazer do Chrome da pessoa a sessão de um site para o navegador do bot (o menu ⋯ e a recusa do login pelo Google)",
+    risco: "muda",
+    cartaoNoChat: false,
+    chat: { estado: "nunca", motivo: "a sessão sai do Chrome da pessoa só com o toque dela (o macOS pede o Keychain; no PC, a extensão do nod); pelo chat, o bot pede o login (navegador_entrar) e o cartão já oferece \"Trazer do meu Chrome\"" },
+  },
+  {
     id: "navegador.guardar_login",
     titulo: "Guardar no cofre (nod, 1Password, Bitwarden) o login que a pessoa digitou no navegador do bot, ou descartar",
     risco: "muda",

@@ -343,6 +343,9 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(daAba).toMatch(/Pôr ao lado da conversa.*Assumir o controle.*Abrir em tela cheia<span class="nv-menu-dica">⌘⇧F<\/span>.*Fechar aba<span class="nv-menu-dica">⌘W<\/span>.*Fechar os outros lugares/s);
     expect(htmlMenuDoNavegador("Ada", { ensinar: true })).toContain('<span class="nv-menu-sub">Mostre no navegador da Ada; ela aprende</span>');
     expect(htmlMenuDoNavegador("Ada", { daAba: true, controle: true })).not.toContain('data-nv-menu="assumir"');
+    // 2026-11-23: "Trazer do meu Chrome" logo depois de "Logins deste site…", quando a tela sabe fazer.
+    expect(htmlMenuDoNavegador("Ada", { trazerDoChrome: true })).toMatch(/Logins deste site…<\/button><button[^>]*data-nv-menu="trazer-chrome">Trazer do meu Chrome<span class="nv-menu-sub">Entra neste site com o login do seu Chrome<\/span>/u);
+    expect(htmlMenuDoNavegador("Ada")).not.toContain("trazer-chrome");
   });
 
   it("encerrar pergunta só com o bot no meio de algo", () => {

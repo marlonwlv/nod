@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OfertaGuardarLogin, PedidoDaVistaNavegador, TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts";
 import { CODIGO_ENVIADO, DO_CHROME, FALA_DA_AJUDA, FALA_DO_CODIGO, FALA_DO_LOGIN, LOGIN_PREENCHIDO, RETOMADA, SO_USUARIO } from "../../../src/adapters/fundo/navegadores.ts";
 import {
-  botoesDoLogin, htmlBarraDeGravacao, htmlCartaoAjudaNavegador, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoPedidoSemVista, htmlCartaoCombinar, htmlCartaoLogin, htmlHabilidades, htmlLinhaGuardar,
+  botoesDoLogin, htmlBarraDeGravacao, htmlCartaoAjudaNavegador, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoPedidoSemVista, htmlCartaoCombinar, htmlCartaoLogin, htmlHabilidades, htmlLinhaGoogleRecusou, htmlLinhaGuardar,
   htmlPassosGravados, htmlSeloDoLogin, linhaDaRespostaDoNavegador, nomeDoSite, nomeSugeridoDosPassos, noOuNa, pedidoDoNavegadorNaFala, rotuloDaGravacao,
 } from "../../../web/lib/navegador-cartoes.ts";
 import { htmlMenuDoMais } from "../../../web/telas/folha-mais.ts";
@@ -120,6 +120,15 @@ describe("L4, L5: o código e guardar no cofre", () => {
     const varios = htmlLinhaGuardar({ oferta: oferta(["nod", "1password", "bitwarden"]), agenteId: "a1", agora: 1_000 });
     expect(varios).toMatch(/<select class="nvc-destino"[^>]*><option value="nod">cofre do nod<\/option><option value="1password">1Password<\/option><option value="bitwarden">Bitwarden<\/option>/);
     expect(htmlLinhaGuardar({ oferta: oferta(["nod"], 500), agenteId: "a1", agora: 1_000 })).toBe("");
+  });
+
+  it("2026-11-23: a recusa do Google oferece trazer o login do site de origem do Chrome", () => {
+    const html = htmlLinhaGoogleRecusou({ site: "www.linkedin.com", agenteId: "a1" });
+    expect(html).toContain("O Google não deixa entrar pelo navegador do bot.");
+    expect(html).toMatch(/Entre no Linkedin com o login do seu Chrome\./u);
+    expect(html).toContain('data-act="nv-trazer-chrome" data-agente="a1" data-site="www.linkedin.com"');
+    expect(ordemDosBotoes(html)).toEqual(["Trazer do meu Chrome"]);
+    expect(htmlLinhaGoogleRecusou({ site: "", agenteId: "a1" })).not.toContain("data-site");
   });
 });
 

@@ -622,7 +622,7 @@ export function htmlAcoesDoPainel(o: { celular?: boolean } = {}): string {
  * O ⋯ do navegador (D1c): Recarregar a página · Copiar endereço · Abrir no meu navegador · Logins deste site… | Encerrar o
  * navegador (vermelho). No modo abas, o clique direito da aba (D7) leva os itens da aba antes (`daAba`).
  */
-export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean } = {}): string {
+export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean; trazerDoChrome?: boolean } = {}): string {
   // Achado 15 do crítico: um rótulo só ("Assumir o controle"), atalhos à direita em cinza e "Fechar os outros lugares".
   const aba = o.daAba
     ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir o controle</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia<span class="nv-menu-dica">⌘⇧F</span></button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">⌘W</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar os outros lugares</button><hr>`
@@ -633,6 +633,8 @@ export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEnder
     + `<button type="button" role="menuitem" data-nv-menu="copiar"${desligado}>Copiar endereço</button>`
     + `<button type="button" role="menuitem" data-nv-menu="abrir-fora"${desligado}>Abrir no meu navegador</button>`
     + '<button type="button" role="menuitem" data-nv-menu="logins">Logins deste site…</button>'
+    // 2026-11-23 (o dono no LinkedIn pelo Google): a sessão do site do Chrome da pessoa, a qualquer hora (não só no cartão).
+    + (o.trazerDoChrome ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="trazer-chrome"${desligado}>Trazer do meu Chrome<span class="nv-menu-sub">Entra neste site com o login do seu Chrome</span></button>` : "")
     // T1: "Ensinar uma tarefa" também mora aqui (nunca no celular: um passo a passo longo não cabe ali).
     + (o.ensinar ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="ensinar">Ensinar uma tarefa<span class="nv-menu-sub">${esc(subtituloDeEnsinar(nome))}</span></button>` : "")
     + `<hr><button type="button" role="menuitem" class="danger" data-nv-menu="encerrar">Encerrar o navegador ${esc(deNome(nome))}</button></div>`;
