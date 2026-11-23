@@ -260,7 +260,8 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
       await ponte.fechar();
       for (const chave of ["Google\\Chrome", "Google\\Chrome for Testing"]) { try { execFileSync("reg", ["delete", `HKCU\\Software\\${chave}\\NativeMessagingHosts\\${NOME_DO_HOST}`, "/f"], { stdio: "ignore" }); } catch { /* não havia */ } }
       delete process.env.NOD_MOTOR_HOME;
-      rmSync(raiz, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+      // O host (node) e o Chrome podem segurar a pasta um instante depois de morrer: a limpeza não esconde o resultado.
+      try { rmSync(raiz, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }); } catch { /* o runner apaga o Temp no fim */ }
     }
   }, 900_000);
 });
