@@ -193,8 +193,7 @@ export type EscolhaLoginNavegador = { fonte: FonteCofre; ref: string } | "eu_mes
 
 /** A resposta do POST /navegador/login: a vista e, quando o Mac pede a confirmação, a frase do celular (L2). */
 export type RespostaLoginNavegador = { ok: true; vista: VistaNavegador; aviso: string | null };
-/** POST …/navegador/trazer-do-chrome: `trazidos` 0 = não trouxe; `aviso` diz o que aconteceu. */
-export type RespostaTrazerDoChrome = { ok: true; vista: VistaNavegador; trazidos: number; aviso: string };
+export type RespostaTrazerDoChrome = { ok: true; vista: VistaNavegador; trazidos: number; aviso: string }; // trazidos 0 = não trouxe
 
 /** GET /cofre/logins: o cofre do nod na tela, sem a senha (só site, usuário mascarado e data). */
 export type LoginDoCofreNaTela = { id: string; site: string; usuario: string; criadoEm: number };
