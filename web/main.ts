@@ -4282,7 +4282,8 @@ async function carregarArquivadas(): Promise<void> {
 function campoDaTela(id: string): CampoDaTarefa {
   const d = estado.trabalhoDetalhe[id];
   const tr = d?.trabalho ?? trabalhoPorId(estado, id);
-  const excluido = tr && !botGerido(tr.agenteId) ? [...(estado.frota?.agentes ?? []), ...(estado.gestao?.agentes ?? [])].find((a) => a.id === tr.agenteId && a.excluidoEm) : undefined;
+  // QA-201: a frota não traz o bot excluído; o detalhe da tarefa diz.
+  const excluido = tr && !botGerido(tr.agenteId) ? d?.botExcluido : undefined;
   const bot = tr ? (botGerido(tr.agenteId)?.nome ?? excluido?.nome ?? "o bot") : "o bot";
   const guardadas = (d?.falasNaFila ?? []).filter((f) => f.situacao === "guardada").length;
   return campoDaTarefa(tr, bot, guardadas, !!excluido);

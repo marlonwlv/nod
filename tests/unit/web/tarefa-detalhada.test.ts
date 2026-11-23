@@ -63,7 +63,7 @@ describe("o campo da tarefa segue o estado dela (Paper 4k, 4l, 4m e 4n)", () => 
     for (const estado of ["parado", "terminado", "falhou", "precisa_de_voce"] as const) {
       const c = campoDaTarefa(tarefa({ estado }), "Ada", 0, true);
       expect(c).toMatchObject({ placeholder: "Bot excluído · restaure o bot para continuar", semEnvio: true, saida: false, parar: false, precisa: false });
-      expect(c.nota).toContain("Restaure o bot para continuar");
+      expect(c.nota).toContain("restaure o bot para continuar");
       expect(c.nota).not.toMatch(/continue a conversa|continua a tarefa/);
     }
     expect(campoDaTarefa(tarefa({ estado: "parado" }), "Ada").semEnvio).toBeFalsy();
