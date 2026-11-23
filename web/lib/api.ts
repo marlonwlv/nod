@@ -491,7 +491,10 @@ export function criarApi(escopo: Escopo) {
     // ADR-187 §6 (2026-11-18): com os anexos do clipe do campo da tarefa (ids soltos da conversa do trabalho).
     escreverNoTrabalho: (id: string, texto: string, anexos: readonly string[] = []) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, anexos.length ? { texto, anexos } : { texto }),
     // ADR-187 §7 (2026-11-18): a tarefa nova da pessoa nasce da primeira mensagem dela (⌘N, o "+" da aba).
-    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = []) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}) }),
+    // QA-196: a `chave` (a do envio, web/lib/envio-idempotente.ts) faz o reenvio depois de uma resposta perdida devolver a
+    // tarefa que o primeiro POST já criou (ADR-192, etapa 2), em vez de abrir outra igual com o bot rodando duas vezes.
+    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = [], chave?: string) =>
+      post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}), ...(chave ? { chave } : {}) }),
     // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
     fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
     pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),

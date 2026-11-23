@@ -5867,10 +5867,13 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
   if (!ta || !api || !texto) return;
   const a = api;
   const levar = levarContextoNaTarefa;
-  await enviarUmaVez(envios, `nova-tarefa:${tela.agenteId}`, texto, () => agir(async () => {
+  // QA-196: o idEnvio vai como chave de idempotência. A resposta perdida deixa o texto no campo e o aviso "confira e tente
+  // de novo"; o reenvio da mesma fala reusa a chave e o servidor devolve a tarefa já criada (sem tarefa nem turno em dobro).
+  let criada = false;
+  await enviarUmaVez(envios, `nova-tarefa:${tela.agenteId}`, texto, async (idEnvio) => { await agir(async () => {
     let id: string;
     try {
-      id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids)).trabalho.id;
+      id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids, idEnvio)).trabalho.id;
     } catch (e) {
       if (e instanceof ErroApi && e.codigo === "cota_provisorio") {
         await telaConta.abrir("cota", false);
@@ -5878,13 +5881,14 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
       }
       throw e;
     }
+    criada = true;
     limparDepoisDeEnviar(ta, chave, texto);
     if (fila.length) limparAnexos(filaChave);
     // ADR-187 §6: a aba "Nova tarefa" vira a aba dela já, antes de a lista relida trazer a tarefa.
     guardarAbas(abrirAba(abasDeTarefa, { id, agenteId: tela.agenteId }));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
     if (estado.tela === tela) navegar({ tipo: "trabalho", id, voltar: tela.voltar });
-  }));
+  }); return criada; }, ids);
 }
 
 async function mudarGestao(fn: () => Promise<unknown>): Promise<void> {

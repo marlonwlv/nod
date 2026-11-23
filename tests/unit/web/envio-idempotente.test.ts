@@ -113,3 +113,17 @@ describe("revisão W3 (2026-10-08): o campo da task com a trava do chat", () => 
     expect(await enviarUmaVez(envios, "trabalho:login", "x", async () => undefined)).toBe(true);
   });
 });
+
+describe("QA-196: a Nova tarefa leva a chave do envio e a guarda quando a resposta se perde", () => {
+  it("enviar que devolve false (falha já mostrada pelo agir) guarda a chave: o reenvio da mesma fala manda a mesma", async () => {
+    const envios = criarEnvios(contador());
+    const chaves: string[] = [];
+    expect(await enviarUmaVez(envios, "nova-tarefa:ada", "levantar contratos", async (k) => { chaves.push(k); return false; }, ["a1"])).toBe(true);
+    expect(await enviarUmaVez(envios, "nova-tarefa:ada", "levantar contratos", async (k) => { chaves.push(k); }, ["a1"])).toBe(true);
+    // Deu certo: a próxima tarefa com o mesmo texto é outra (chave nova); anexo diferente também é outra fala.
+    await enviarUmaVez(envios, "nova-tarefa:ada", "levantar contratos", async (k) => { chaves.push(k); return false; }, ["a1"]);
+    await enviarUmaVez(envios, "nova-tarefa:ada", "levantar contratos", async (k) => { chaves.push(k); }, ["a2"]);
+    expect(chaves).toEqual(["chave-1", "chave-1", "chave-2", "chave-3"]);
+  });
+
+});
