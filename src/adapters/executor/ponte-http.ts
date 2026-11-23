@@ -392,11 +392,12 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
           return e instanceof FalhaPonte && e.codigo === "rota_ausente" ? "sem_rota" : null;
         }
       },
-      async resultado(r: ResultadoComandoComputador): Promise<boolean> {
-        try { await chamar("computador/resultado", r, { rota404: true }); return true; } catch { return false; }
+      // 2026-11-23: "recusado" = 400 (o servidor recusou o corpo). Definitivo: o laço descarta em vez de guardar e repetir.
+      async resultado(r: ResultadoComandoComputador): Promise<boolean | "recusado"> {
+        try { await chamar("computador/resultado", r, { rota404: true }); return true; } catch (e) { return e instanceof FalhaPonte && e.codigo === "entrada_invalida" ? "recusado" : false; }
       },
-      async estado(e: EstadoComputadorRelatado): Promise<boolean> {
-        try { await chamar("computador/estado", e, { rota404: true }); return true; } catch { return false; }
+      async estado(e: EstadoComputadorRelatado): Promise<boolean | "recusado"> {
+        try { await chamar("computador/estado", e, { rota404: true }); return true; } catch (e) { return e instanceof FalhaPonte && e.codigo === "entrada_invalida" ? "recusado" : false; }
       },
       /**
        * NOD-95 (ADR-138): o fluxo da tela ao vivo. Um WebSocket de SAÍDA (o servidor nunca disca, ADR-021) para

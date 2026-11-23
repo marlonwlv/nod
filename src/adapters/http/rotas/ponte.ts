@@ -12,7 +12,7 @@ import type { SubagenteVivo, TarefaDoBot } from "../../../contracts/turno.ts";
 import type { ContaAnunciada, ProgressoDoLogin, PuxadaDeContas } from "../../../contracts/contas-ia.ts";
 import type { PedidoDeInstalacao, ProgressoDeInstalacao } from "../../../contracts/instalacoes-ssh.ts";
 import type { Escopo } from "../../../shared/types.ts";
-import { ErroDeDominio } from "../../../domain/erro.ts";
+import { ErroDeDominio, ehErroDeDominio } from "../../../domain/erro.ts";
 import { estadoDaMaquina } from "../../../domain/harness.ts";
 import { codigosDaMaquina } from "../../../domain/limpeza-das-tasks.ts";
 import { log } from "../../../obs/log.ts";
@@ -29,6 +29,8 @@ import type { MaquinaDaPessoa } from "../../computador/motor.ts";
 import { anuncioComputador, anuncioVmLocal, estadoComputadorRelatado, resultadoComandoComputador, capacidadesAnunciadas, contasAnunciadas, entrega, impressoes, progressoDoLogin, progressoDeInstalacao, exigir, falas, idsDeMensagens, inventario, memoria, objeto, relatoDesfazer, relatoEspera, sessaoDaRenovacao, sinais, texto, trechos, turnosEmAndamento, uuid } from "./ponte-validacao.ts";
 import { versaoAceita } from "../../../domain/versao-app.ts";
 import { relatoValido } from "../../../use-cases/limpeza-das-tasks.ts";
+import { ouvirOutbox } from "../../../shared/sinal-outbox.ts";
+import { RECHECAGEM_PUXAR_MS, REFORCO_AVISO_PUXAR_MS } from "../../../shared/constantes.ts";
 
 /**
  * `planos`: os turnos que esta máquina está rodando AGORA (definido em 2026-09-24). Com o pool de laços
@@ -120,6 +122,8 @@ export function criarPonteHttpServidor(d: {
   /** NOD-73: o vigia do turno avisou (só nome e números) — publica turno.vigia e registra no log. */
   vigia?(plano: PlanoTurno, aviso: VigiaVivo): void;
   longpollMs?: number;
+  /** Rede de segurança do `puxar` sem aviso do outbox. Default: RECHECAGEM_PUXAR_MS, no máximo um quarto do long-poll. */
+  rechecagemMs?: number;
   /** ADR-048: itens aprovados que esperam o gh do Mac desta pessoa, e o desfecho que o Mac relata. */
   itensLocais?(escopo: Escopo): Promise<ItemLocal[]>;
   concluirItemLocal?(escopo: Escopo, itemId: string, desfecho: DesfechoLocal): Promise<void>;
@@ -263,7 +267,16 @@ export function criarPonteHttpServidor(d: {
     return { metodo: "POST", padrao: new RegExp(`^/${nome}$`), maquina: true, ...(o.corpoMax ? { corpoMax: o.corpoMax } : {}), async handler(ctx) {
       ctx.res.setHeader("x-nod-versao-minima", VERSAO_MINIMA_APP);
       if (!versaoAceita(ctx.req.headers["x-nod-versao"], VERSAO_MINIMA_APP)) { ctx.json(426, { codigo: "atualize_app", versaoMinimaApp: VERSAO_MINIMA_APP }); return; }
-      await fn(ctx, objeto(await ctx.corpo()));
+      try {
+        await fn(ctx, objeto(await ctx.corpo()));
+      } catch (e) {
+        // definido em 2026-11-23: o 400 de corpo diz no log QUAL máquina (e o campo, quando o validador o nomeia). Em
+        // produção uma máquina mandou 4 corpos inválidos por segundo por horas e o log não deixava achar qual.
+        if (ehErroDeDominio(e) && e.codigo === "entrada_invalida" && !(e.cause instanceof SyntaxError)) {
+          throw new ErroDeDominio("entrada_invalida", { cause: `maquina ${ctx.params.chaveId ?? "?"}${typeof e.cause === "string" ? `: ${e.cause}` : ""}` });
+        }
+        throw e;
+      }
     } };
   }
   const rotas = [
@@ -406,17 +419,43 @@ export function criarPonteHttpServidor(d: {
       if (c.rebaixada) throw new ErroDeDominio("estado_invalido");
       if (c.puxando) throw new ErroDeDominio("estado_invalido");
       c.puxando = true;
+      // definido em 2026-11-23 (medido em produção: o Cloud SQL a 85–99% de CPU, a reivindicação era 26% das consultas
+      // ativas): o long-poll segue de 20 s com a volta de 250 ms (drenagem e conexão fechada cortam na hora), mas só
+      // pergunta ao banco (autorizar + reivindicar) na entrada, quando o outbox desta pessoa ganha linha (e de novo
+      // REFORCO_AVISO_PUXAR_MS depois, porque o aviso sai antes do commit), quando a máquina fica pronta, e a cada
+      // `rechecagem` sem aviso. Antes eram 4 perguntas por segundo por máquina.
+      const longpoll = d.longpollMs ?? 20_000;
+      const rechecagem = d.rechecagemMs ?? Math.min(RECHECAGEM_PUXAR_MS, longpoll / 4);
+      let avisado = false;
+      let reforcoEm = Number.POSITIVE_INFINITY;
+      const pararDeOuvir = ouvirOutbox((pessoas) => {
+        if (pessoas && !pessoas.includes(ctx.escopo.pessoaId)) return;
+        avisado = true;
+        reforcoEm = d.agora() + REFORCO_AVISO_PUXAR_MS;
+      });
       try {
-        const ate = d.agora() + (d.longpollMs ?? 20_000);
+        const ate = d.agora() + longpoll;
         let plano: PlanoTurno | null = null;
+        let proximaEm = Number.NEGATIVE_INFINITY;
+        let podiaReservar = false;
         do {
           if (ctx.res.destroyed) return;
-          const identidade = await d.autorizar((ctx.req.headers.authorization ?? "").slice(7));
-          if (!identidade) { ctx.json(401, { codigo: "nao_permitido" }); return; }
-          c.ultimo = d.agora();
-          if (drenando) break;
+          const agora = d.agora();
           // NOD-94: a máquina só-computador espera o longpoll e volta `{plano:null}` (o motor dela nem sobe o laço).
-          if (c.inv.estado === "pronto" && c.papel === "motor") {
+          const podeReservar = c.inv.estado === "pronto" && c.papel === "motor";
+          const perguntar = avisado || agora >= proximaEm || agora >= reforcoEm || (podeReservar && !podiaReservar);
+          podiaReservar = podeReservar;
+          c.ultimo = agora;
+          if (perguntar) {
+            avisado = false;
+            if (agora >= reforcoEm) reforcoEm = Number.POSITIVE_INFINITY;
+            proximaEm = agora + rechecagem;
+            const identidade = await d.autorizar((ctx.req.headers.authorization ?? "").slice(7));
+            if (!identidade) { ctx.json(401, { codigo: "nao_permitido" }); return; }
+            c.ultimo = d.agora();
+          }
+          if (drenando) break;
+          if (perguntar && podeReservar) {
             reservando++;
             // Revisão do #209: a leitura entra uma vez por pedido. Repetida a cada 250 ms durante a espera de até 20 s,
             // ela passava por cima da mais nova que a renovação trouxe e o nível ia e voltava na tela.
@@ -428,7 +467,7 @@ export function criarPonteHttpServidor(d: {
           await esperar(250);
         } while (d.agora() < ate);
         ctx.json(200, { plano });
-      } finally { c.puxando = false; }
+      } finally { pararDeOuvir(); c.puxando = false; }
     }),
     rota("renovar", async (ctx, b) => {
       const c = conexao(ctx), turnoId = uuid(b.turnoId);
