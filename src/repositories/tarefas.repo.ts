@@ -181,7 +181,10 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
       const linhas = await conn<LinhaE[]>`
         select id, tarefa_id, tipo, autor_tipo, autor_id, turno_id, dados, criado_em from tarefa_eventos
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and tarefa_id = ${tarefaId}
-        order by criado_em, id`;
+        -- QA-193 (2026-11-23): o backfill grava "criada", "thread_criada" e às vezes "entregue" com o mesmo criado_em (o da
+        -- Tarefa); só o id (uuid aleatório) desempatava e a trilha saía fora de ordem em metade das vezes. No empate, a
+        -- ordem do ciclo de vida.
+        order by criado_em, case tipo when 'criada' then 0 when 'thread_criada' then 1 when 'iniciada' then 2 when 'entregue' then 3 else 4 end, id`;
       return linhas.map(paraEvento);
     },
 

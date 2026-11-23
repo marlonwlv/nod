@@ -106,14 +106,17 @@ export const continuarTarefa: CasoDeUso<{ tarefaId: string; texto: string; anexo
 };
 
 /**
- * O turno vivo da Tarefa (despachando ou na fila) e a escolha da pessoa. Sem turno vivo, nada a escolher. Com turno vivo e
+ * O turno vivo da Tarefa (despachando, na fila ou a espera dela: volta marcada, comando, colega) e a escolha da pessoa. Sem turno vivo, nada a escolher. Com turno vivo e
  * sem escolha, recusa (`entrada_invalida`, causa `turno_vivo`): a tela pergunta antes. "parar" para o trabalho como o
  * Parar da tarefa; "manter" deixa rodar.
  */
 async function aplicarEscolha(deps: Deps, trabalhoId: string | null, escolha: EscolhaTurnoVivo | undefined): Promise<RuntimeEvent[]> {
   if (!trabalhoId) return [];
   const f = (await deps.repos.trabalhos.fatosDeVarios([trabalhoId])).get(trabalhoId);
-  const vivo = f ? f.despachando + f.pendentes + (f.parando ?? 0) > 0 : false;
+  // QA-192 (2026-11-23): a frente que só espera — a volta marcada (me_chame_as), um comando (esperar_comando), um colega
+  // ou outra frente (depois_de) — também está viva: a tela já mostra "Resolver e parar" (tarefaComExecucaoViva, estado
+  // `rodando`/`na_fila`), e sem isto o "parar" não parava nada e a volta acordava o bot na Tarefa já resolvida.
+  const vivo = f ? f.despachando + f.pendentes + (f.parando ?? 0) > 0 || f.aguardandoDespertar === true || f.aguardandoComando === true || f.aguardandoColega === true || f.esperandoOutro === true : false;
   if (!vivo) return [];
   if (escolha === undefined) throw new ErroDeDominio("entrada_invalida", { cause: "turno_vivo" });
   if (escolha === "manter") return [];
