@@ -245,6 +245,9 @@ export async function refazerTurnoDaNota(
   const { turno } = p;
   const agora = d.agora();
   const nada = (motivo: MotivoNaoRefez): SaidaDaNota => ({ data: { turnoId: null, motivo }, events: [] });
+  // QA-199 (r198): o cartão ficou na tela e o bot saiu (outra aba). Sem isto, o gatilho do banco recusa o turno novo com
+  // "agente inativo" e a pessoa via "Algo deu errado" (500) — tentar de novo nunca funciona. Não encontrado, como o chat.
+  if (!(await d.repos.agentes.buscar(turno.agenteId))) throw new ErroDeDominio("nao_encontrado", { cause: "bot excluído" });
   if (turno.estado !== "interrompido" || !(paradoPelaConta(turno) || presoSemContato(turno) || (await paradoNumDesvio(d, turno))) || !ORIGENS_REFAZIVEIS.includes(turno.origem)) return nada("turno_nao_interrompido");
   const mesmaFala = (t: Turno) => t.id !== turno.id && t.agenteId === turno.agenteId && t.criadoEm >= turno.criadoEm
     && (turno.mensagemOrigemId ? t.mensagemOrigemId === turno.mensagemOrigemId : t.entradaTexto === turno.entradaTexto);
