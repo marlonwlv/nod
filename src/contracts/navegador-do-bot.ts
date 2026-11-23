@@ -136,10 +136,7 @@ export type VistaNavegador = {
    * (textosDoAparelho). Ausente = o Mac (a vista de antes).
    */
   aparelho?: "mac" | "pc";
-  /**
-   * 2026-11-23: o Google recusou o login neste navegador ("pode não ser seguro"). `site` é o host de onde o bot veio (o do
-   * "Entrar com o Google"); a conversa oferece "Trazer do meu Chrome" para ele. null/ausente = não está nessa tela.
-   */
+  /** 2026-11-23: o Google recusou o login aqui; `site` = o host de origem, para o "Trazer do meu Chrome". */
   googleRecusou?: { site: string } | null;
 };
 
@@ -196,7 +193,7 @@ export type EscolhaLoginNavegador = { fonte: FonteCofre; ref: string } | "eu_mes
 
 /** A resposta do POST /navegador/login: a vista e, quando o Mac pede a confirmação, a frase do celular (L2). */
 export type RespostaLoginNavegador = { ok: true; vista: VistaNavegador; aviso: string | null };
-/** POST /agentes/:id/navegador/trazer-do-chrome (2026-11-23): `trazidos` 0 = não trouxe; `aviso` diz o que aconteceu. */
+/** POST …/navegador/trazer-do-chrome: `trazidos` 0 = não trouxe; `aviso` diz o que aconteceu. */
 export type RespostaTrazerDoChrome = { ok: true; vista: VistaNavegador; trazidos: number; aviso: string };
 
 /** GET /cofre/logins: o cofre do nod na tela, sem a senha (só site, usuário mascarado e data). */
