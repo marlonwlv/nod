@@ -207,8 +207,21 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
       }
     }
     await new Promise((r) => setTimeout(r, 2_000));
+    // O que ficou no banco do perfil padrão (diagnóstico: o cookie chegou ao disco? cifrado como?).
+    const diagnostico = await (async () => {
+      const banco = [join(padrao, "Default", "Network", "Cookies"), join(padrao, "Default", "Cookies")].find((c) => existsSync(c));
+      if (!banco) return `sem banco de cookies em ${padrao}\\Default (Local State: ${existsSync(join(padrao, "Local State"))})`;
+      const copia = join(mkdtempSync(join(tmpdir(), "nod-diag-")), "Cookies");
+      writeFileSync(copia, readFileSync(banco));
+      const { DatabaseSync } = (await import("node:sqlite")) as unknown as { DatabaseSync: new (c: string, o: { readOnly: boolean }) => { prepare(q: string): { all(): Record<string, unknown>[] }; close(): void } };
+      const db = new DatabaseSync(copia, { readOnly: true });
+      try {
+        const linhas = db.prepare("select host_key, name, substr(encrypted_value, 1, 3) as pre from cookies").all();
+        return `${linhas.length} cookies: ${linhas.map((l) => `${String(l.host_key)}/${String(l.name)}/${Buffer.from(l.pre as Uint8Array).toString("latin1")}`).join(", ")}`;
+      } finally { db.close(); }
+    })().catch((e: unknown) => `diagnóstico falhou: ${String(e)}`);
     // Fechado o Chrome, sem dizer a pasta: o padrão do usuário, como o motor faz.
     const cookies = await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env });
-    expect(cookies).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome", httpOnly: true })]);
+    expect(cookies, diagnostico).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome", httpOnly: true })]);
   }, 240_000);
 });
