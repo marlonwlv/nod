@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RESPOSTA_NA_TROCA_MAX } from "../../../src/contracts/troca-entre-bots.ts";
-import { caiuDeVez, decidirFecho, destinoDoLote, entradaComplementar, entradaDoRetorno, INSTRUCAO_DO_RETORNO, motivoDaFrente, PERGUNTA_DA_QUEDA, PERGUNTA_DA_RECONEXAO, recusouDeVez, respostaAoColega, respostaComplementarAoColega, resumoMudou, respostaNaTroca, textoFrentesTerminadas, textoPedidoRespondido, type FrenteNoFecho } from "../../../src/domain/retorno-do-lote.ts";
+import { caiuDeVez, decidirFecho, destinoDoLote, entradaComplementar, entradaDoRetorno, INSTRUCAO_DO_RETORNO, motivoDaFrente, PERGUNTA_DA_QUEDA, PERGUNTA_DA_RECONEXAO, recusouDeVez, respostaAoColega, respostaComplementarAoColega, resumoMudou, respostaNaTroca, textoFrentesTerminadas, textoPedidoRespondido, type FrenteNoFecho, ENTREGA_NO_RETORNO } from "../../../src/domain/retorno-do-lote.ts";
 
 const frente = (id: string, extra: Partial<FrenteNoFecho> = {}): FrenteNoFecho => ({ id, titulo: `Frente ${id}`, estado: "terminado", resumo: { feito: `fiz ${id}` }, deFora: false, motivoInterrupcao: null, ...extra });
 
@@ -205,5 +205,15 @@ describe("NOD-282 (G7): o retorno complementar", () => {
     const texto = respostaComplementarAoColega(frente("x", { titulo: "Publicar", resumo: { feito: "Publiquei" } }));
     expect(texto).toMatch(/^Complemento: a frente "Publicar", que tinha ficado pendente, terminou agora\. /);
     expect(texto).toContain("Publiquei");
+  });
+});
+
+describe("emenda 5 do ADR-192: o retorno da frente com Tarefa fala em entrega", () => {
+  const f = { id: "w1", titulo: "Haicai", estado: "terminado" as const, resumo: { feito: "Escrevi o haicai." }, deFora: false };
+  it("com Tarefa, a instrução diz 'entregue, espera a avaliação'; sem, segue a de antes", () => {
+    expect(entradaDoRetorno({ frentes: [f], faltam: 0, total: 1, comObjetivo: true })).toContain(ENTREGA_NO_RETORNO);
+    expect(entradaDoRetorno({ frentes: [f], faltam: 0, total: 1 })).not.toContain(ENTREGA_NO_RETORNO);
+    expect(entradaComplementar(f, true)).toContain(ENTREGA_NO_RETORNO);
+    expect(entradaComplementar(f)).not.toContain(ENTREGA_NO_RETORNO);
   });
 });

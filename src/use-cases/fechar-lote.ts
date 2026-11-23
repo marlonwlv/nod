@@ -125,7 +125,7 @@ async function retornoComplementar(deps: DepsFecho, lote: LoteDeFrentes, frente:
     trabalhoId: trabalhoDoRetorno(lote, [f]),
     prazoEm: agora + PRAZO_DECISAO_PADRAO_MS,
     profundidade: abertoPor.profundidade,
-    entradaTexto: entradaComplementar(f),
+    entradaTexto: entradaComplementar(f, (await deps.repos.tarefas.deTrabalhos([f.id])).size > 0),
     entradaConfianca: abertoPor.entradaConfianca,
     sobProcuracaoDe: abertoPor.sobProcuracaoDe ?? null,
     modelo: agente?.modelo ?? abertoPor.modelo,
@@ -172,7 +172,8 @@ async function devolverAoDono(deps: DepsFecho, p: { lote: LoteDeFrentes; abertoP
     trabalhoId: p.trabalhoDoRetorno,
     prazoEm: agora + PRAZO_DECISAO_PADRAO_MS,
     profundidade: abertoPor.profundidade,
-    entradaTexto: entradaDoRetorno({ frentes: p.frentes, faltam: p.faltam, total: p.total }),
+    // ADR-192 (emenda 5): com Tarefa ligada, o retorno fala em entrega (espera a avaliação), não em fim.
+    entradaTexto: entradaDoRetorno({ frentes: p.frentes, faltam: p.faltam, total: p.total, comObjetivo: (await deps.repos.tarefas.deTrabalhos(p.frentes.map((f) => f.id))).size > 0 }),
     entradaConfianca: abertoPor.entradaConfianca,
     sobProcuracaoDe: abertoPor.sobProcuracaoDe ?? null,
     modelo: agente?.modelo ?? abertoPor.modelo,
@@ -242,13 +243,15 @@ async function responderAoColega(deps: DepsFecho, p: { lote: LoteDeFrentes; aber
 /** A linha "3 frentes terminaram" na conversa do dono (payload `frentes_terminadas`, só títulos e estados). */
 async function linhaFrentesTerminadas(deps: DepsFecho, p: { lote: LoteDeFrentes; conversaId: string; turnoId: string | null; agenteId: string; frentes: readonly FrenteNoFecho[] }): Promise<RuntimeEvent[]> {
   const autoria = autoriaAgente({ agenteId: p.agenteId, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher", decididoPor: "regra:frentes" });
+  // ADR-192 (etapa 4): cada frente leva a Tarefa ligada, quando houver (a linha segue apontando para o trabalho).
+  const tarefas = await deps.repos.tarefas.deTrabalhos(p.frentes.map((f) => f.id));
   const m = await deps.repos.mensagens.criar({
     conversaId: p.conversaId,
     turnoId: p.turnoId,
     autoria,
     kind: "sistema",
     texto: textoFrentesTerminadas(p.frentes),
-    payload: { kind: "frentes_terminadas", loteId: p.lote.id, frentes: p.frentes.map((f) => ({ trabalhoId: f.id, titulo: f.titulo, estado: f.estado })) },
+    payload: { kind: "frentes_terminadas", loteId: p.lote.id, frentes: p.frentes.map((f) => ({ trabalhoId: f.id, titulo: f.titulo, estado: f.estado, ...(tarefas.has(f.id) ? { tarefaId: tarefas.get(f.id)!.id } : {}) })) },
     confianca: "confiavel",
   });
   return m ? [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: deps.agora(), conversaId: p.conversaId, turnoId: p.turnoId, dados: { mensagem_id: m.id, kind: "sistema", lote_id: p.lote.id } })] : [];

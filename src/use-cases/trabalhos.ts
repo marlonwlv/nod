@@ -8,6 +8,7 @@ import { USO_DO_MAC_PADRAO } from "../contracts/raio-x.ts";
 import type { LeituraDeMaquinaDto, MaquinaDoTrabalho } from "../contracts/maquina.ts";
 import type { LeituraMemoria, NivelPressao, ServicoDasMaquinas, Trabalho, TrabalhoDetalheDto, TrabalhoDto, TrabalhosDto } from "../contracts/trabalho.ts";
 import type { Turno } from "../contracts/turno.ts";
+import type { TarefaNoTrabalho } from "../contracts/tarefa.ts";
 import type { PedidoNaFilaDaCota } from "../contracts/cota.ts";
 import { cotaParaTela, cotaSegura, esperaDaCotaNaTela, situacaoDaCotaDoTrabalho } from "../domain/cota-da-ia.ts";
 import { ehIaComConta } from "../domain/contas-da-pessoa.ts";
@@ -21,6 +22,7 @@ import { acabaLogo, DISCO_ALERTA_MB, DISCO_CRITICO_MB, esperaDoMac, esperaNaMaqu
 import { pastaDoBot } from "../domain/nativas.ts";
 import { nomeDaMaquina, semContatoDesde as semContatoDaMaquina } from "../domain/presenca-da-maquina.ts";
 import { ehFrente, pedidoDoDono, tituloDoLote } from "../domain/frente.ts";
+import { atividadeDaTarefa, atividadeNoObjetivo, divergenciaDaAtividade } from "../domain/atividade-da-tarefa.ts";
 import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, tituloOuNada, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
 import type { ExtrasTrabalho, NovoTrabalho } from "../repositories/trabalhos.repo.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
@@ -29,8 +31,10 @@ import { donosDosBots, resolverDePresenca } from "./estado-do-dono.ts";
 import { fecharLoteSePronto } from "./fechar-lote.ts";
 import { resumoSeFaltar } from "./resumo-sem-chamada.ts";
 import { tarefasDasDecisoesFechadas } from "./tarefa-casa.ts";
+import { eventoTarefaMudou, resolverPeloTrabalho, sincronizarTarefaDoTrabalho } from "./tarefas.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 import { situacaoDasFalasNaFrente } from "../domain/fala-na-frente.ts";
+import { log } from "../obs/log.ts";
 
 /**
  * Trabalhos (definido em 2026-10-07, ADR-083, épico #188): criar, manter o estado e montar o que a tela recebe. O
@@ -84,6 +88,10 @@ export async function sincronizarTrabalho(deps: DepsTrabalho, trabalhoId: string
   const fatos = await deps.repos.trabalhos.fatos(trabalhoId);
   if (!fatos) return [];
   const novo = estadoDoTrabalho({ ...fatos, estadoAtual: atual.estado, iniciado: atual.iniciadoEm !== null });
+  // ADR-192 (etapa 0, shadow read): a atividade derivada é calculada ao lado do estado legado e só a divergência vai ao
+  // log; nada muda na tela nem no banco. A etapa 5 só vira a leitura com sete dias sem divergência conhecida.
+  const divergencia = divergenciaDaAtividade(novo, atividadeDaTarefa(fatos));
+  if (divergencia) log("aviso", "atividade_sombra_divergente", { trabalho_id: trabalhoId, origem: atual.origem, forma: atual.forma, estado: divergencia.estado, atividade: divergencia.atividade ?? "nenhuma" });
   if (novo === atual.estado) return [];
   // `terminado`/`falhou` reabrem pelos fatos como antes (turno novo, decisão aberta, resposta de colega);
   // `parado` é da pessoa e só ela o reabre (`reabrir`).
@@ -99,8 +107,10 @@ export async function sincronizarTrabalho(deps: DepsTrabalho, trabalhoId: string
   }
   // ADR-099 (I2): a frente que acabou sem devolver_resumo ganha o resumo montado pelo servidor.
   await resumoSeFaltar(deps, mudou, fatos.perguntaVencida ? { perguntaVencida: true, ...(fatos.vencidaTipo ? { vencidaTipo: fatos.vencidaTipo } : {}) } : {});
+  // ADR-192 (etapa 2): a Tarefa ligada, se houver, acompanha — começou → iniciar; terminou → entregue (nunca resolvida).
+  const daTarefa = await sincronizarTarefaDoTrabalho(deps, mudou, novo);
   // ADR-099 (I3): e fecha o lote dela, se era a vez (o trabalho já está travado; o lote trava por último).
-  return [eventoTrabalhoMudou(deps, mudou), ...(await fecharLoteSePronto(deps, mudou))];
+  return [eventoTrabalhoMudou(deps, mudou), ...daTarefa, ...(await fecharLoteSePronto(deps, mudou))];
 }
 
 /**
@@ -145,6 +155,9 @@ export async function sincronizarDasDecisoes(deps: DepsTrabalho & Partial<Pick<D
 
 /** A regra que fecha as decisões de uma task parada (revisão do épico, S1). */
 export const REGRA_TRABALHO_PARADO = "regra:trabalho_parado" as const;
+/** ADR-192 (emenda 5): as regras que fecham as perguntas que sobraram quando a pessoa resolve ou arquiva a Tarefa. */
+export const REGRA_TAREFA_RESOLVIDA = "regra:tarefa_resolvida" as const;
+export const REGRA_TAREFA_ARQUIVADA = "regra:tarefa_arquivada" as const;
 
 /**
  * definido em 2026-10-08 (revisão do épico, S1): o Parar da task, o "Fazer aqui" e o Parar do chat fecham por regra as
@@ -152,19 +165,19 @@ export const REGRA_TRABALHO_PARADO = "regra:trabalho_parado" as const;
  * Antes a aprovação aberta voltava a task para `precisa_de_voce` e, aprovada depois do Parar, abria uma retomada que a
  * reabria. Na transação da dona (fecharPorRegra exige owner = pessoa).
  */
-export async function fecharDecisoesDoTrabalho(deps: DepsTrabalho, trabalhoId: string): Promise<RuntimeEvent[]> {
+export async function fecharDecisoesDoTrabalho(deps: DepsTrabalho, trabalhoId: string, regra: `regra:${string}` = REGRA_TRABALHO_PARADO): Promise<RuntimeEvent[]> {
   const agora = deps.agora();
   const events: RuntimeEvent[] = [];
-  const autoria = { ...autoriaPessoa(deps.escopo), decidido_por: REGRA_TRABALHO_PARADO };
+  const autoria = { ...autoriaPessoa(deps.escopo), decidido_por: regra };
   for (const d of await deps.repos.decisoes.abertasDoTrabalho(trabalhoId)) {
-    const fechada = await deps.repos.decisoes.fecharPorRegra(d.id, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora });
+    const fechada = await deps.repos.decisoes.fecharPorRegra(d.id, { regra, regraVersao: 1, agora });
     if (!fechada) continue;
     // Ninguém continua esta decisão: sem a marca, o assentamento do turno parado (continuarAprovacoesDoTurno) via uma
     // aprovação 'decidida' sem continuação e abria a retomada que reabria a task (medido no teste da S1).
     await deps.repos.decisoes.reivindicarContinuacao(fechada.id, "turno", agora);
     const proposta = await deps.repos.propostas.buscar(fechada.id);
     if (proposta?.estado === "pendente") await deps.repos.propostas.decidir(proposta.id, "recusada");
-    events.push(evento(deps.escopo, { kind: "decisao_decidida", autoria, agora, conversaId: fechada.conversaId, turnoId: fechada.turnoId, dados: { decisao_id: fechada.id, tipo: fechada.tipo, regra: REGRA_TRABALHO_PARADO, trabalho_id: trabalhoId } }));
+    events.push(evento(deps.escopo, { kind: "decisao_decidida", autoria, agora, conversaId: fechada.conversaId, turnoId: fechada.turnoId, dados: { decisao_id: fechada.id, tipo: fechada.tipo, regra, trabalho_id: trabalhoId } }));
   }
   return events;
 }
@@ -198,6 +211,7 @@ export async function trabalhosParaDto(deps: Pick<Deps, "repos" | "services" | "
   const colegas = new Map<string, TrabalhoDto["esperandoColega"]>();
   for (const [id, e] of extras) if (e.esperandoColega) colegas.set(id, await colegaComCota(deps.repos, e.esperandoColega, deps.agora()));
   const esperasDaCota = await esperasDaCotaDe(deps, trabalhos);
+  const tarefas = await tarefasDosTrabalhos(deps, trabalhos);
   return trabalhos.map((t): TrabalhoDto => {
     const { tenantId: _tenant, sessaoCli: _sessao, sessaoHarness: _harness, sessaoExecutor: _executor, ...publico } = t;
     const e = extras.get(t.id);
@@ -226,8 +240,25 @@ export async function trabalhosParaDto(deps: Pick<Deps, "repos" | "services" | "
       esperandoComputadorDe: (e?.turnosAbertos ?? []).map((id) => deps.services.computadores?.esperandoPor?.(id) ?? null).find((x) => x !== null) ?? null,
       // definido em 2026-10-15 (NOD-277): só quando espera a cota — a task sem espera segue sem o campo.
       ...(esperasDaCota.has(t.id) ? { esperaDaConta: esperasDaCota.get(t.id)! } : {}),
+      ...(tarefas.has(t.id) ? { tarefa: tarefas.get(t.id)! } : {}),
     };
   }).map((dto) => (alemDisso ? { ...dto, ...alemDisso(dto, extras.get(dto.id)) } : dto));
+}
+
+/**
+ * ADR-192 (etapa 3, definido em 2026-11-22): a Tarefa ligada a cada trabalho, com a atividade projetada dos fatos dele
+ * (`atividadeDaTarefa`, a mesma função da sombra e da rota /tarefas) — duas consultas para a lista inteira.
+ */
+async function tarefasDosTrabalhos(deps: Pick<Deps, "repos">, trabalhos: readonly Trabalho[]): Promise<Map<string, TarefaNoTrabalho>> {
+  const porTrabalho = await deps.repos.tarefas.deTrabalhos(trabalhos.map((t) => t.id));
+  if (porTrabalho.size === 0) return new Map();
+  const fatos = await deps.repos.trabalhos.fatosDeVarios([...porTrabalho.keys()]);
+  const m = new Map<string, TarefaNoTrabalho>();
+  for (const [trabalhoId, t] of porTrabalho) {
+    const f = fatos.get(trabalhoId);
+    m.set(trabalhoId, { id: t.id, estado: t.estado, atividade: atividadeNoObjetivo(t.estado, f ? atividadeDaTarefa(f) : null), versao: t.versao, entregueEm: t.entregueEm, resolvidaEm: t.resolvidaEm });
+  }
+  return m;
 }
 
 /**
@@ -332,13 +363,13 @@ export const listarTrabalhos: CasoDeUso<{ agenteId?: string }, TrabalhosDto> = a
       const motivo = esperaDoMac(t, portao, agora);
       return { ...(motivo ? { esperaDoMac: motivo } : {}), ...cotaDoTrabalho(t, e) };
     });
-    return { data: { trabalhos: dtos, ...topo, donos } };
+    return { data: { trabalhos: dtos, ...topo, donos, ...(deps.leituraNovaDasTarefas ? { leituraNovaDasTarefas: true as const } : {}) } };
   }
   const { maquinas, ondeRoda, ultimoUso, nomes } = await maquinaDosTrabalhos(deps, servico, usoDoMac);
   // NOD-300: a frente presa a máquina sem contato espera no dono, pela mesma regra (e o mesmo último uso) da linha dela.
   const donos = [...(await donosDosBots(deps, bots, trabalhos, servico.conectada ? resolverDePresenca(servico, deps.escopo, ultimoUso, nomes) : undefined)).values()];
   const dtos = await trabalhosParaDto(deps, trabalhos, (t, e) => ({ ...ondeRoda(t, e), ...cotaDoTrabalho(t, e) }));
-  return { data: { trabalhos: dtos, ...topo, maquinas, donos } };
+  return { data: { trabalhos: dtos, ...topo, maquinas, donos, ...(deps.leituraNovaDasTarefas ? { leituraNovaDasTarefas: true as const } : {}) } };
 };
 
 /**
@@ -494,8 +525,11 @@ export const renomearTrabalho: CasoDeUso<{ trabalhoId: string; titulo: string },
   if (!titulo) throw new ErroDeDominio("entrada_invalida", { cause: "titulo" });
   const t = await deps.repos.trabalhos.renomear(input.trabalhoId, titulo);
   if (!t) throw new ErroDeDominio("nao_encontrado");
+  // ADR-192 (etapa 3): o título é do objetivo; a Tarefa ligada acompanha (o Card do quadro, não).
+  const tarefa = await deps.repos.tarefas.doTrabalho(t.id);
+  const renomeada = tarefa ? await deps.repos.tarefas.renomear(tarefa.id, t.titulo, deps.agora()) : null;
   const [dto] = await trabalhosParaDto(deps, [t]);
-  return { data: { trabalho: dto! }, events: [eventoTrabalhoMudou(deps, t)] };
+  return { data: { trabalho: dto! }, events: [eventoTrabalhoMudou(deps, t), ...(renomeada ? [eventoTarefaMudou(deps, renomeada, "renomeada", { trabalhoId: t.id })] : [])] };
 };
 
 /**
@@ -560,7 +594,9 @@ export const encerrarTrabalho: CasoDeUso<{ trabalhoId: string }, { trabalho: Tra
     }
   }
   const mudou = t.estado === "terminado" ? null : await deps.repos.trabalhos.mudarEstado(t.id, "terminado", deps.agora());
+  // ADR-192 (etapa 2): encerrar é o gesto explícito da pessoa — a Tarefa ligada fica resolvida, com autoria e hora.
+  const daTarefa = await resolverPeloTrabalho(deps, t);
   const [dto] = await trabalhosParaDto(deps, [mudou ?? trabalho]);
-  return { data: { trabalho: dto! }, events: mudou ? [eventoTrabalhoMudou(deps, mudou)] : [] };
+  return { data: { trabalho: dto! }, events: [...(mudou ? [eventoTrabalhoMudou(deps, mudou)] : []), ...daTarefa] };
 };
 

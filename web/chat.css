@@ -511,6 +511,16 @@
 .tk-timeline .tk-fim-quadrado { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--chat-tinta-3); }
 .tk-timeline .tk-fim-ok { display: inline-flex; width: 14px; height: 14px; color: var(--chat-tinta); }
 .tk-timeline .tk-fim.falhou .tk-fim-ok { color: var(--chat-critico-tinta); }
+/* ADR-192 (etapa 3): o estado do objetivo na linha "Abriu a tarefa" da conversa principal (o card compacto). */
+.linha-objetivo { margin-left: 6px; padding: 1px 8px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--chat-saida-contorno); font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-2); white-space: nowrap; }
+/* ADR-192 (etapa 3, 2026-11-22): o objetivo da tarefa e as ações da pessoa, por último na conversa da tarefa. O estado do
+   objetivo ("Entregue · precisa de você") à esquerda; os botões em pílula, como as saídas da tarefa parada. */
+.tk-timeline .tk-objetivo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 14px; padding: 8px 4px; border-top: 1px solid var(--chat-pedido-contorno); }
+.tk-timeline .tk-objetivo-estado { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--chat-tinta-2); }
+.tk-timeline .tk-objetivo-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.tk-timeline .tk-objetivo-bt { min-height: 32px; padding: 6px 12px; border: 0; border-radius: 999px; background: var(--chat-superficie); box-shadow: 0 0 0 1px var(--chat-saida-contorno); color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.tk-timeline .tk-objetivo-bt:hover { background: var(--chat-preenchido); }
+.tk-timeline .tk-objetivo-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .tk-timeline .tk-entrega { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--chat-superficie); box-shadow: inset 0 0 0 1px var(--chat-pedido-contorno); }
 .tk-timeline .tk-entrega-txt { font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
 .tk-timeline :is(.tk-entrega-falta, .tk-entrega-ref) { margin: 0; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }

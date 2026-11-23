@@ -156,7 +156,8 @@ export type PayloadMensagem =
   /** definido em 2026-10-12 (ADR-099, I2): a cópia, na conversa do dono, do recado que ele repassou a uma frente. */
   | { kind: "recado_a_frente"; trabalhoId: string; titulo: string }
   /** definido em 2026-10-12 (ADR-099, I3): a linha "3 frentes terminaram" (ou "A frente X terminou", com `avisar_a_cada_uma`) na conversa do dono. */
-  | { kind: "frentes_terminadas"; loteId: string; frentes: { trabalhoId: string; titulo: string; estado: EstadoTrabalho }[] }
+  /** ADR-192 (etapa 4): `tarefaId` = a Tarefa (objetivo) ligada à frente, quando houver; o retorno continua apontando para o trabalho. */
+  | { kind: "frentes_terminadas"; loteId: string; frentes: { trabalhoId: string; titulo: string; estado: EstadoTrabalho; tarefaId?: string }[] }
   /** ADR-099 (I3) e chat limpo (PR 3: `resposta`, `turnoRaizId`): troca-entre-bots.ts. */
   | PayloadPedidoRespondido
   /** Chat limpo, PR 4 (o cartão encolhido): cartao-encolhido.ts. */

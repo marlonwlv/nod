@@ -54,6 +54,7 @@ import type { salasRepo } from "./salas.repo.ts";
 import type { trilhaRepo } from "./trilha.repo.ts";
 import type { turnosRepo } from "./turnos.repo.ts";
 import type { trabalhosRepo } from "./trabalhos.repo.ts";
+import type { tarefasRepo } from "./tarefas.repo.ts";
 import type { frentesRepo } from "./frentes.repo.ts";
 import type { pedidosDeColegaRepo } from "./pedidos-de-colega.repo.ts";
 import type { donosRepo } from "./donos.repo.ts";
@@ -123,6 +124,8 @@ export interface Repos {
   times: ReturnType<typeof timesRepo>;
   turnos: ReturnType<typeof turnosRepo>;
   trabalhos: ReturnType<typeof trabalhosRepo>;
+  /** 0180 (ADR-192): a Tarefa como objetivo, a trilha dela e as Threads. */
+  tarefas: ReturnType<typeof tarefasRepo>;
   /** 0071 (ADR-099, partes 3/4): os lotes de frentes e o resumo da frente. */
   frentes: ReturnType<typeof frentesRepo>;
   /** ADR-099 (I7 revista): os pedidos entre bots vistos pela triagem do dono — espera circular, livres, quedas. */
