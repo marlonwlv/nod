@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
-import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
+import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
 import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import type { TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts";
 import { SEM_LIBERACOES, type LiberacoesNavegador } from "../../../src/domain/navegador-aprovacao.ts";
@@ -63,6 +63,8 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
+        case "baixar": return { nome: String(args[2]), bytes: 10 };
+        case "pdf": return { nome: `${String(args[1])}.pdf`, bytes: 20 };
         case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : String(args[1]).includes("document.title") ? tituloDepois : undefined;
         default: return undefined;
       }
@@ -537,6 +539,20 @@ describe("controle e pedidos à pessoa", () => {
     expect(vistas.some((v) => v.passo?.frase === "Lendo a página")).toBe(true);
     await n.chamar(MARLON, plano(A), "navegador_ler", {});
     expect(vistas.some((v) => v.passo?.frase === "Lendo loja.exemplo.com")).toBe(true);
+  });
+});
+
+describe("arquivos do navegador (QA-205)", () => {
+  it("baixar e PDF não prometem os Arquivos do bot: o retorno diz onde o arquivo ficou", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    const b = corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_baixar", argumentos: { alvo: "@e5", nome: "fatura.pdf" } }));
+    expect(b).toMatchObject({ ok: true, arquivo: "fatura.pdf", instrucao: expect.stringContaining("pasta do navegador") });
+    const p = corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_pdf", argumentos: { nome: "pagina" } }));
+    expect(p).toMatchObject({ ok: true, instrucao: expect.stringContaining("ainda não aparece nos Arquivos") });
+    for (const f of ["navegador_baixar", "navegador_pdf", "navegador_enviar_arquivo"] as const) {
+      expect(String(FERRAMENTAS_NAVEGADOR[f].description)).not.toMatch(/(nos|dos) Arquivos do bot\b(?! nem)/);
+    }
   });
 });
 

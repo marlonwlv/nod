@@ -535,7 +535,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async enviarArquivo(s, alvo, nomes) {
       const caminhos = await Promise.all(nomes.map(async (n) => {
         const a = await arquivoNaPasta(s, n);
-        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está nos arquivos do navegador`); });
+        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está na pasta do navegador do bot: só dá para enviar o que navegador_baixar ou navegador_pdf guardaram`); });
         return a.caminho;
       }));
       await rodar(s, ["upload", alvoOuFalha(alvo), ...caminhos]);

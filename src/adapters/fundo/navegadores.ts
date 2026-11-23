@@ -279,6 +279,12 @@ export const MS_DESAFIO_CONFERIR = 2500;
 const CONFEREM_DESAFIO: ReadonlySet<string> = new Set(["navegador_abrir", "navegador_ler", "navegador_ver", "navegador_clicar", "navegador_tecla", "navegador_procurar", "navegador_historico"]);
 export const INSTRUCAO_DO_DESAFIO = "A página mostra uma verificação de humano (CAPTCHA). O nod já passou o navegador para a pessoa, com o pedido na conversa: não peça no chat nem tente resolver. Encerre o turno; ela devolve e você continua.";
 /** As ferramentas cujo alvo a pessoa vê na imagem: o passo leva a caixa dele (o cursor com o nome e o anel, D2 C). */
+/**
+ * O que baixar e PDF devolvem ao bot (QA-205): o arquivo fica na pasta do navegador, fora dos Arquivos do bot e da
+ * conversa, até o TODO de levar o arquivo aos Arquivos sair. Sem isso o bot conta à pessoa que guardou onde ela não vê.
+ */
+export const ARQUIVO_SO_NO_NAVEGADOR = "O arquivo ficou na pasta do navegador do bot: dá para enviá-lo a um site com navegador_enviar_arquivo, mas ele ainda não aparece nos Arquivos do bot nem dá para anexá-lo na conversa. Não diga à pessoa que ele está nos Arquivos.";
+
 const FERRAMENTAS_COM_ALVO_NA_TELA: ReadonlySet<string> = new Set(["navegador_clicar", "navegador_preencher", "navegador_digitar", "navegador_selecionar", "navegador_marcar", "navegador_passar_mouse", "navegador_baixar", "navegador_enviar_arquivo", "navegador_rolar"]);
 
 function tipoDoPasso(ferramenta: string): PassoNavegador["tipo"] {
@@ -1000,12 +1006,12 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       case "navegador_baixar": {
         const r = await m.baixar(s, alvo, typeof args.nome === "string" && args.nome ? args.nome : `download-${agora()}`);
         // TODO(2026-11-20): levar o arquivo aos Arquivos do bot (hoje fica na pasta do navegador no servidor).
-        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes } };
+        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes, instrucao: ARQUIVO_SO_NO_NAVEGADOR } };
       }
       case "navegador_enviar_arquivo": await m.enviarArquivo(s, alvo, (args.arquivos as string[]) ?? []); break;
       case "navegador_pdf": {
         const r = await m.pdf(s, typeof args.nome === "string" && args.nome ? args.nome : `pagina-${agora()}`);
-        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes } };
+        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes, instrucao: ARQUIVO_SO_NO_NAVEGADOR } };
       }
       case "navegador_procurar": await m.procurar(s, { por: args.por as "texto", valor: String(args.valor), acao: args.acao as "clicar", ...(typeof args.texto === "string" ? { texto: args.texto } : {}), ...(typeof args.nome === "string" ? { nome: args.nome } : {}) }); break;
       case "navegador_avaliar": {
