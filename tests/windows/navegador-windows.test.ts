@@ -1,4 +1,5 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { existsSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -14,6 +15,12 @@ import { ambienteDoPowerShell, criarCofresDoWindows, executarNoWindows, opDaAgil
 import { cookiesDoChromeNoWindows, googleChromeDoWindows, PRESOS_AO_CHROME } from "../../desktop/cookies-do-chrome-windows.ts";
 import { cookiesDoChromeDoPc } from "../../desktop/cofres-do-windows.ts";
 import { criarPonteDoChrome, NOME_DO_HOST, pipeDoChrome, registrarHostNoWindows, senhaDoChrome } from "../../src/adapters/executor/chrome-da-pessoa.ts";
+
+/**
+ * As instalações longas (o bw pelo npm, o Chrome for Testing) sem travar o worker: com o `execFileSync` o laço de eventos
+ * parava por minutos e o vitest perdia a conversa com ele ("Timeout calling onTaskUpdate"), derrubando o job com tudo verde.
+ */
+const execFileAsync = promisify(execFile);
 
 /**
  * 2026-11-22 (o navegador no PC, com tudo o que o Mac tem): a prova no Windows de verdade (job `windows` da CI,
@@ -170,7 +177,7 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
   it("o Bitwarden de verdade: o bw do npm roda pelo atalho .cmd (node + script, sem cmd.exe) e, sem login, não quebra a lista", async () => {
     const prefixo = mkdtempSync(join(tmpdir(), "nod-bw-"));
     try {
-      execFileSync(process.execPath, [join(process.execPath, "..", "node_modules", "npm", "bin", "npm-cli.js"), "install", "-g", "--prefix", prefixo, "--no-fund", "--no-audit", "--loglevel=error", "@bitwarden/cli@2026.9.1"], { stdio: "ignore", timeout: 300_000 });
+      await execFileAsync(process.execPath, [join(process.execPath, "..", "node_modules", "npm", "bin", "npm-cli.js"), "install", "-g", "--prefix", prefixo, "--no-fund", "--no-audit", "--loglevel=error", "@bitwarden/cli@2026.9.1"], { timeout: 300_000, maxBuffer: 16 * 1024 * 1024 });
       const bwCmd = join(prefixo, "bw.cmd");
       expect(existsSync(bwCmd)).toBe(true);
       const env = { ...process.env, PATH: `${prefixo};${process.env.PATH}`, BITWARDENCLI_APPDATA_DIR: join(prefixo, "dados") };
@@ -231,7 +238,7 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     // O Chrome for Testing (o Chrome estável 137+ não carrega extensão fora da loja; a pessoa a instala pela loja).
     const raiz = mkdtempSync(join(tmpdir(), "nod-ext-"));
     const npx = join(process.execPath, "..", "node_modules", "npm", "bin", "npx-cli.js");
-    const saidaInstalar = execFileSync(process.execPath, [npx, "--yes", "@puppeteer/browsers@3.2.6", "install", "chrome@stable", "--path", join(raiz, "cft")], { encoding: "utf8", timeout: 600_000 });
+    const { stdout: saidaInstalar } = await execFileAsync(process.execPath, [npx, "--yes", "@puppeteer/browsers@3.2.6", "install", "chrome@stable", "--path", join(raiz, "cft")], { encoding: "utf8", timeout: 600_000, maxBuffer: 16 * 1024 * 1024 });
     const cft = saidaInstalar.trim().split(/\r?\n/u).at(-1)!.replace(/^\S+\s+/u, "").trim();
     expect(cft).toMatch(/chrome\.exe$/u);
     // O motor da prova: a pasta (NOD_MOTOR_HOME), a senha, o host registrado em HKCU e o pipe aberto.
