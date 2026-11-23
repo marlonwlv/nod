@@ -9955,16 +9955,16 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "responder-com-outra-ia": (el) => agirNoCartao(el, async () => {
     const conversaId = el.dataset.conversa ?? "";
     const r = await api!.responderComOutraIa(conversaId, el.dataset.turno ?? "", el.dataset.ia ?? "");
-    avisarMotivoDaNota(r?.data?.motivo);
+    avisarMotivoDaNota(r?.motivo);
     dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
-    return r?.data?.motivo;
+    return r?.motivo;
   }),
   "reinstalar-e-tentar": (el) => agirNoCartao(el, async () => {
     const conversaId = el.dataset.conversa ?? "";
     const r = await api!.reinstalarETentar(conversaId, el.dataset.turno ?? "", el.dataset.maquina ?? "", el.dataset.ia ?? "");
-    avisarMotivoDaNota(r?.data?.motivo);
+    avisarMotivoDaNota(r?.motivo);
     dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
-    return r?.data?.motivo;
+    return r?.motivo;
   }),
   // NOD-314: a task na fila de uma máquina sem contato roda em outra, desta vez; relê a task e a lista.
   "rodar-trabalho-desta-vez": (el) => agir(async () => {

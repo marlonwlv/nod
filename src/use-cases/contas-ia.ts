@@ -202,6 +202,10 @@ export const ESPERA_DA_REINSTALACAO_MS = 10 * 60_000;
 export async function reinstalarETentar(d: Deps, p: { conversaId: string; turnoId: string; ia: IdHarness; maquina: string }): Promise<SaidaDaNota> {
   await d.repos.contasIa.travar();
   const turno = await turnoDaNota(d, p);
+  // QA-198: a fala refeita aqui espera a IA (pendente com `acordarEm`) e o núcleo a toma pela cópia adiada à espera da
+  // conta, que ele cancela e refaz. O 2º clique (outra aba, recarregar) cancelava a 1ª, gravava outra linha e empurrava a
+  // espera mais 10 min. A linha "Reinstalando…" deste turno já na conversa = este botão já foi usado.
+  if (await jaReinstalando(d, turno)) return { data: { turnoId: null, motivo: "ja_refeito" }, events: [] };
   const r = await refazerTurnoDaNota(d, {
     turno,
     acordarEm: d.agora() + ESPERA_DA_REINSTALACAO_MS,
@@ -213,6 +217,12 @@ export async function reinstalarETentar(d: Deps, p: { conversaId: string; turnoI
   });
   log("info", "reinstalar_e_tentar", { turno_id: turno.id, novo_turno_id: r.data.turnoId, ia: p.ia, motivo: r.data.motivo });
   return r;
+}
+
+/** QA-198: o "Reinstalar e tentar" deste turno já deixou a linha do desvio 9 na conversa. */
+export async function jaReinstalando(d: Deps, turno: Turno): Promise<boolean> {
+  const recentes = await d.repos.mensagens.listarDaConversa(turno.conversaId, 30);
+  return recentes.some((m) => m.turnoId === turno.id && m.payload?.kind === "desvio" && m.payload.desvio === "ia_nao_abriu" && m.payload.forma === "linha");
 }
 
 /** O turno da nota: pelo `turnoId` do botão (NOD-284), na conversa dele. Outro id, ou de outra conversa = não encontrado. */

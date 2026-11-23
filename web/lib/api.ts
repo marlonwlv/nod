@@ -687,9 +687,9 @@ export function criarApi(escopo: Escopo) {
     // Lote B (2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio — refaz o turno uma vez na outra IA.
     // Lote B (desvio 9): "Reinstalar e tentar" — a máquina reinstala a cópia da IA e a fala sai quando ela abrir.
     reinstalarETentar: (conversaId: string, turnoId: string, maquinaId: string, ia: string) =>
-      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/reinstalar-e-tentar`, { turnoId, maquinaId, ia }),
+      post<{ turnoId: string | null; motivo: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/reinstalar-e-tentar`, { turnoId, maquinaId, ia }),
     responderComOutraIa: (conversaId: string, turnoId: string, ia: string) =>
-      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId, ia }),
+      post<{ turnoId: string | null; motivo: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId, ia }),
     // ADR-102: as contas de IA da pessoa em todas as máquinas, o login numa máquina pela tela e o convite da VM.
     contasIa: () => get<ContasIaDto>("contas-ia"),
     ordemContas: (ids: string[]) => pedir<null>("PUT", `${base}/contas-ia/ordem`, { ids }),
