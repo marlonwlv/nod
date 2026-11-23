@@ -5,6 +5,7 @@ import { aposReleitura, reduzirCancelamento, type AcaoDoCancelamento, type Cance
 import type { AnexoDaConversa } from "../../src/contracts/anexo.ts";
 import type { AtividadeDto } from "../../src/contracts/atividade.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
+import type { TarefaDto } from "../../src/contracts/tarefa.ts";
 import type { ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
 import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
@@ -116,7 +117,7 @@ export type Tela =
 export type FiltroTrabalhos = "todos" | "voce" | "rotinas" | "bots";
 
 /** ADR-187 §8 (Paper 5a): as tarefas abertas (o padrão), as que terminaram hoje ou as duas. */
-export type MostrarTarefas = "abertas" | "feitas" | "todas";
+export type MostrarTarefas = "abertas" | "feitas" | "todas" | "arquivadas";
 
 /**
  * "Seu espaço" (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"): o que é da CONTA abre pelo menu do avatar numa
@@ -408,6 +409,12 @@ export type Estado = {
   turnosDesmentidos: Readonly<Record<string, number>>;
   /** Cancelar só a mensagem na fila (web/lib/cancelar-na-fila.ts): turnoId → a fase do cancelamento dela. */
   cancelando: Readonly<Record<string, Cancelamento>>;
+  /**
+   * Lote B das Jornadas da IA (auditoria de 2026-11-22): o botão do cartão do desvio que a pessoa clicou nesta aba —
+   * id da mensagem do cartão → a ação e o resultado que o cartão encolhido diz depois ("Respondido pelo ChatGPT").
+   * `agindo` é o pedido no ar (o botão gira); sai com o erro, e o cartão fecha quando a conversa segue.
+   */
+  desviosAgindo: Readonly<Record<string, AcaoDoCartao>>;
   salas: { sala: Sala; membros: MembroSala[] }[];
   suaVez: SuaVezDto | null;
   /** Não lidos (0039): o que chegou depois do "lido até" de cada conversa; null = ainda não carregou. */
@@ -610,6 +617,8 @@ export type Estado = {
   faixaTrabalhosAberta: string | null;
   /** definido em 2026-10-12 (ADR-099, parte 5): o bot aberto na tela Trabalhos (as frentes dele embaixo da linha). */
   botAbertoEmTrabalhos: string | null;
+  /** ADR-192 (emenda 5): as Tarefas arquivadas do chip "Arquivadas" (GET tarefas?estado=arquivada); null = não lidas. */
+  tarefasArquivadas: TarefaDto[] | null;
   /** ADR-085: quanto do Mac os bots podem usar (Seu espaço › Este Mac; `PUT preferencias`). */
   usoDoMac: UsoDoMac;
   /** ADR-111: as chaves de experimento do menu da conta (Calibração, Memória longa, ADR-112 Modo WhatsApp e, NOD-429, Quadro), lidas de `GET preferencias`. */
@@ -625,8 +634,12 @@ export type Estado = {
   tempoTaskAberto: string | null;
 };
 
+/** O clique num botão do cartão do desvio: a ação, o que a linha diz enquanto roda e depois, e se o pedido está no ar. */
+export type AcaoDoCartao = { acao: string; agora: string; feito: string; agindo: boolean };
+
 export type Acao =
   | AcaoAgenda
+  | { tipo: "desvio-agindo"; mensagemId: string; valor: AcaoDoCartao | null }
   | { tipo: "conexao-app"; slug: string; valor: ConexaoApp | null }
   | { tipo: "gaveta"; agenteId: string; nivel: NivelGaveta | null }
   | { tipo: "historico-perfil"; agenteId: string; mudanca: Partial<HistoricoDoBot> }
@@ -755,6 +768,7 @@ export type Acao =
   | { tipo: "faixa-trabalhos"; agenteId: string | null }
   /** ADR-099 (parte 5): abre (o id do bot) ou fecha (null) as frentes de um bot na tela Trabalhos. */
   | { tipo: "bot-trabalhos"; agenteId: string | null }
+  | { tipo: "tarefas-arquivadas"; tarefas: TarefaDto[] | null }
   | { tipo: "uso-do-mac"; uso: UsoDoMac }
   | { tipo: "experimentos"; experimentos: Experimentos; quadroLiberado?: boolean }
   | { tipo: "tempo-task"; id: string | null }
@@ -780,6 +794,7 @@ export const estadoInicial: Estado = {
   subagentesDoFim: {},
   turnosDesmentidos: {},
   cancelando: {},
+  desviosAgindo: {},
   salas: [],
   suaVez: null,
   naoLidos: null,
@@ -859,6 +874,7 @@ export const estadoInicial: Estado = {
   pressao: null,
   faixaTrabalhosAberta: null,
   botAbertoEmTrabalhos: null,
+  tarefasArquivadas: null,
   usoDoMac: "equilibrado",
   experimentos: { calibracao: false, memoriaLonga: false, whatsapp: false, quadro: false },
   tempoTaskAberto: null,
@@ -1623,6 +1639,13 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   // NOD-445: as páginas do bot moram fora do estado (web/lib/paginas-na-tela.ts relê por REST ao ver o frame).
   "paginas.mudaram": (e) => e,
   "canvas.mudou": (e) => e,
+  // ADR-192 (etapa 3, 2026-11-22): a Tarefa (objetivo) mudou — Resolver, Reabrir e Arquivar não mudam o trabalho, então a
+  // lista (que traz o `tarefa` de cada trabalho), a linha da conversa e a tela da tarefa relêem por aqui.
+  "tarefa.mudou": (e, f) => {
+    const id = texto(f.dados.trabalhoId);
+    const aberta = id && (e.trabalhoDetalhe[id] || (e.tela.tipo === "trabalho" && e.tela.id === id)) ? (`trabalho:${id}` as Invalidacao) : null;
+    return invalidar(e, "trabalhos", aberta);
+  },
   // ADR-083: um trabalho nasceu ou mudou — relê a lista (faixa, barra, gaveta), a conversa do bot (a linha "Abriu a
   // task", a pergunta e o resultado) e a tela da task, se ela já foi aberta.
   "trabalho.mudou": (e, f) => {
@@ -1671,7 +1694,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
         falhaLeitura: acao.escopo?.pessoaId === estado.sessao?.pessoaId && acao.escopo?.tenantId === estado.sessao?.tenantId ? estado.falhaLeitura : null,
         // NOD-326 (revisão 3): a Biblioteca também some na troca de tenant (não fica dado de um tenant no outro).
         ...(acao.escopo?.tenantId === estado.sessao?.tenantId ? {} : { bibliotecaDoBot: {} }),
-        ...(acao.escopo?.pessoaId === estado.sessao?.pessoaId ? {} : { onboarding: undefined, onboardingAberto: false, onboardingResolvido: false, agenda: AGENDA_INICIAL, trabalhos: null, trabalhoDetalhe: {}, pressao: null, atividadeDoBot: {}, atividadeHoje: {}, atividadeVista: null, historicoPerfil: {}, decisoesDoBot: {}, bibliotecaDoBot: {} }) };
+        ...(acao.escopo?.pessoaId === estado.sessao?.pessoaId ? {} : { onboarding: undefined, onboardingAberto: false, onboardingResolvido: false, agenda: AGENDA_INICIAL, trabalhos: null, trabalhoDetalhe: {}, tarefasArquivadas: null, pressao: null, atividadeDoBot: {}, atividadeHoje: {}, atividadeVista: null, historicoPerfil: {}, decisoesDoBot: {}, bibliotecaDoBot: {} }) };
     case "navegar": {
       // definido em 2026-10-08 (revisão W5): reabrir uma task já vista relê as mensagens dela (o detalhe guardado é de
       // quando ela foi aberta da última vez); W11: sair da tela da task de um bot cuja conversa não está carregada apaga o
@@ -1732,6 +1755,10 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       }));
     case "fala-pendente-sai":
       return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
+    case "desvio-agindo": {
+      const { [acao.mensagemId]: _antes, ...resto } = estado.desviosAgindo;
+      return { ...estado, desviosAgindo: acao.valor ? { ...resto, [acao.mensagemId]: acao.valor } : resto };
+    }
     case "cancelando-turno":
     case "turno-cancelado":
     case "cancelamento-recusado":
@@ -2235,6 +2262,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     }
     case "faixa-trabalhos":
       return estado.faixaTrabalhosAberta === acao.agenteId ? estado : { ...estado, faixaTrabalhosAberta: acao.agenteId };
+    case "tarefas-arquivadas":
+      return { ...estado, tarefasArquivadas: acao.tarefas };
     case "bot-trabalhos":
       return estado.botAbertoEmTrabalhos === acao.agenteId ? estado : { ...estado, botAbertoEmTrabalhos: acao.agenteId };
     case "uso-do-mac":

@@ -65,6 +65,10 @@ const COMO_RECOMECOU: Record<MotivoRecomeco, string> = {
   sessao_recusada: "a IA recusou a sessão anterior",
   // NOD-480: o histórico enchia de novo logo depois de cada resumo; o nod recomeçou numa sessão nova, uma vez.
   autocompactacao: "o histórico enchia de novo logo depois de resumido e o nod recomeçou numa sessão nova",
+  // Lote B das Jornadas da IA (2026-11-22): as repetições da conversa pela tabela de desvios (desvios-da-conversa.ts).
+  instavel: "o serviço da IA ficou instável e o nod tentou de novo",
+  erro_repetido: "a IA parou com um erro e o nod tentou de novo",
+  nod_atualizou: "o nod atualizou no meio da resposta e retomou",
 };
 
 /** O teto do resumo do trabalho no turno de conversa que recomeça (a passagem da task tem 9 mil; aqui as falas já vão no histórico). */

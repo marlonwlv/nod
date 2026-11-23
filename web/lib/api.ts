@@ -1,3 +1,4 @@
+import type { TarefaDto } from "../../src/contracts/tarefa.ts";
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
 import type { CofreDto } from "../../src/contracts/cofre.ts";
@@ -531,6 +532,12 @@ export function criarApi(escopo: Escopo) {
     pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),
     // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" parada.
     encerrarTrabalho: (id: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/encerrar`),
+    // ADR-192 (etapa 3, 2026-11-22): as ações da Tarefa como objetivo. Com turno vivo, Resolver e Arquivar levam a escolha
+    // explícita da pessoa (`turnoVivo`); a versão lida faz a corrida de dois cliques perder com 409.
+    acaoNaTarefa: (tarefaId: string, acao: "resolver" | "reabrir" | "arquivar" | "desarquivar", corpo: { versao?: number; turnoVivo?: "parar" | "manter" } = {}) =>
+      post<RespostaMutacao & { tarefa: TarefaDto; mudou: boolean }>(`tarefas/${encodeURIComponent(tarefaId)}/${acao}`, corpo),
+    // ADR-192 (emenda 5): as Tarefas arquivadas, para o chip "Arquivadas" da tela Tarefas.
+    tarefasArquivadas: () => get<{ tarefas: TarefaDto[] }>("tarefas?estado=arquivada&arquivadas=1"),
     // ADR-187 §6 (2026-11-18): o nome novo da tarefa, dado na aba.
     renomearTrabalho: (id: string, titulo: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/titulo`, { titulo }),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.
@@ -712,6 +719,12 @@ export function criarApi(escopo: Escopo) {
       post<{ turnos: number; motivo?: "ja_refeito" | null }>(`trabalhos/${encodeURIComponent(trabalhoId)}/rodar-desta-vez`, { maquinaId }),
     rodarDestaVez: (conversaId: string, maquinaId: string, turnoId?: string, contaId?: string) =>
       post<{ turnos: number; turnoId?: string | null; motivo?: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/rodar-desta-vez`, { maquinaId, ...(turnoId ? { turnoId } : {}), ...(contaId ? { contaId } : {}) }),
+    // Lote B (2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio — refaz o turno uma vez na outra IA.
+    // Lote B (desvio 9): "Reinstalar e tentar" — a máquina reinstala a cópia da IA e a fala sai quando ela abrir.
+    reinstalarETentar: (conversaId: string, turnoId: string, maquinaId: string, ia: string) =>
+      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/reinstalar-e-tentar`, { turnoId, maquinaId, ia }),
+    responderComOutraIa: (conversaId: string, turnoId: string, ia: string) =>
+      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId, ia }),
     // ADR-102: as contas de IA da pessoa em todas as máquinas, o login numa máquina pela tela e o convite da VM.
     contasIa: () => get<ContasIaDto>("contas-ia"),
     ordemContas: (ids: string[]) => pedir<null>("PUT", `${base}/contas-ia/ordem`, { ids }),

@@ -84,10 +84,10 @@ describe("o aviso do bot fixo (R6, canvas C3)", () => {
 
 describe("mesma IA (R7, canvas C4)", () => {
   it("a linha leve, sem cartão, com o texto do servidor", () => {
-    const m = { ...aviso(), texto: "marlonwlv (20x) acabou às 20:39 → seguindo no Claude · Marlon 20x · mesmo modelo", payload: { kind: "conta_seguiu", de: { id: "a", apelido: "marlonwlv (20x)", ia: "claude-cli" }, para: { id: "b", apelido: "Marlon 20x", ia: "claude-cli" }, voltaEm: null } } as Mensagem;
+    const m = { ...aviso(), texto: "pessoal (20x) acabou às 20:39 → seguindo no Claude · Trabalho 20x · mesmo modelo", payload: { kind: "conta_seguiu", de: { id: "a", apelido: "pessoal (20x)", ia: "claude-cli" }, para: { id: "b", apelido: "Trabalho 20x", ia: "claude-cli" }, voltaEm: null } } as Mensagem;
     const html = linhaContaSeguiu(m)!;
     expect(html).toContain("linha-centro");
-    expect(html).toContain("marlonwlv (20x) acabou às 20:39 → seguindo no Claude · Marlon 20x · mesmo modelo");
+    expect(html).toContain("pessoal (20x) acabou às 20:39 → seguindo no Claude · Trabalho 20x · mesmo modelo");
     expect(html).not.toContain("aviso-estado");
   });
 });
@@ -123,7 +123,7 @@ describe("revisão do PR 2: o aviso de troca de IA", () => {
 
   it("I6: sem a hora do fornecedor, recomenda levar e diz que o Claude não disse quando volta", () => {
     const html = cartaoTrocaDeIa(aviso({ recomendacao: "levar", voltaEm: null, aplicarEm: AGORA + 10 * MIN }), { nomeDoBot: "Eng 1", agora: AGORA })!;
-    expect(html).toContain("<b>O Claude chegou ao limite</b>");
+    expect(html).toContain('<b class="aviso-estado-tit">O Claude chegou ao limite</b>');
     expect(html).toContain("recomendo levar para o ChatGPT: o Claude não disse quando volta.");
   });
 
@@ -135,8 +135,8 @@ describe("revisão do PR 2: o aviso de troca de IA", () => {
   });
 
   it("NOD-401: com a conta que parou no aviso, o título diz o apelido dela; sem ela, só a IA", () => {
-    expect(cartaoTrocaDeIa(aviso({ contaQueParou: { id: "x", apelido: "marlonwlv (20x)" } }), { nomeDoBot: "Eng 1", agora: AGORA })).toContain("<b>A conta marlonwlv (20x) do Claude chegou ao limite");
-    expect(cartaoTrocaDeIa(aviso(), { nomeDoBot: "Eng 1", agora: AGORA })).toContain("<b>O Claude chegou ao limite");
+    expect(cartaoTrocaDeIa(aviso({ contaQueParou: { id: "x", apelido: "pessoal (20x)" } }), { nomeDoBot: "Eng 1", agora: AGORA })).toContain('<b class="aviso-estado-tit">A conta pessoal (20x) do Claude chegou ao limite');
+    expect(cartaoTrocaDeIa(aviso(), { nomeDoBot: "Eng 1", agora: AGORA })).toContain('<b class="aviso-estado-tit">O Claude chegou ao limite');
   });
 
   it("C5: a outra IA não está na máquina do bot — só esperar, e o cartão diz por quê", () => {

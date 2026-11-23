@@ -1,3 +1,4 @@
+import { HARNESSES, type IdHarness } from "../../../contracts/harness.ts";
 import type { ContasIaDto } from "../../../contracts/contas-ia.ts";
 import { ehIaComConta } from "../../../domain/contas-da-pessoa.ts";
 import { apelidoValido } from "../../../domain/contas-da-ia.ts";
@@ -7,7 +8,7 @@ import { cifradoValido, PRAZO_DESCONEXAO_MS, type LoginsNaMaquina } from "../../
 import type { PareamentoDispositivo } from "../../../services/pareamento-dispositivo.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import { assertUuid } from "../../../use-cases/apoio-l7.ts";
-import { contasDaPessoa, removerConta, reordenarContas, seguirComConta, tentarDeNovoComConta } from "../../../use-cases/contas-ia.ts";
+import { responderComOutraIa, reinstalarETentar, contasDaPessoa, removerConta, reordenarContas, seguirComConta, tentarDeNovoComConta } from "../../../use-cases/contas-ia.ts";
 import type { Deps } from "../../../use-cases/tipos.ts";
 import type { Rota } from "../roteador.ts";
 import { revogarChaveMaquina } from "../../../use-cases/chaves-maquina.ts";
@@ -34,6 +35,8 @@ export type DepsRotasContas = {
   plataformaDaMaquina?(escopo: Escopo, id: string): string | null;
   /** NOD-9 (2026-10-23): a máquina conectada anunciou que atende o "Atualizar agora" remoto (o motor da VM). */
   maquinaAtualizaIas?(escopo: Escopo, id: string): boolean;
+  /** Lote B (2026-11-22): as IAs prontas agora nas máquinas vivas da pessoa ("Responder com o <outra IA> desta vez"). */
+  prontosDaPessoa?(escopo: Escopo): IdHarness[];
   /** A conexão viva da máquina passa a usar o nome novo (o prompt e "Rodar no X"). */
   aoRenomear?(escopo: Escopo, id: string, nome: string): void;
   /** ADA-245 (revisão do PR #694): NOD_ONBOARDING_TEXTO=1. Desligada, a prévia e o remover dão 404 (a jornada D é da flag). */
@@ -160,6 +163,48 @@ export function rotasContasIa(deps: DepsRotasContas): Rota[] {
         const r = await deps.dentro(ctx.escopo, (d) => executar(d, (dd, i) => seguirComConta(dd, i), { contaId, conversaId, turnoId }));
         deps.avisar(ctx.escopo, "seguir");
         ctx.json(202, r);
+      },
+    },
+    {
+      // Lote B das Jornadas da IA (desvio 3 e 10, 2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio.
+      metodo: "POST", acao: "contas_ia.responder_com_outra_ia",
+      padrao: /^\/conversas\/(?<id>[^/]+)\/responder-com-outra-ia$/,
+      async handler(ctx) {
+        const conversaId = assertUuid(ctx.params.id, "conversa");
+        const corpo = (await ctx.corpo()) as { turnoId?: unknown; ia?: unknown };
+        const turnoId = assertUuid(corpo.turnoId, "turno");
+        const ia = HARNESSES.find((h) => h.id === corpo.ia)?.id;
+        if (!ia) throw new ErroDeDominio("entrada_invalida", { cause: "ia" });
+        const prontos = deps.prontosDaPessoa?.(ctx.escopo) ?? [];
+        const r = await deps.dentro(ctx.escopo, (d) => executar(d, (dd, i) => responderComOutraIa(dd, i), { conversaId, turnoId, ia, prontos }));
+        ctx.json(200, r);
+      },
+    },
+    {
+      // Lote B das Jornadas da IA (desvio 9, auditoria de 2026-11-22): "Reinstalar e tentar" no cartão "O <IA> não abriu".
+      // Pede à máquina que reinstale a cópia da IA (o mesmo pedido de `maquinas.atualizar_ia`) e refaz a fala à espera
+      // dela. Fora do ar ou sem a ponte de atualizar, 409 com a frase: a pessoa usa a outra saída do cartão.
+      metodo: "POST", acao: "contas_ia.reinstalar_e_tentar",
+      padrao: /^\/conversas\/(?<id>[^/]+)\/reinstalar-e-tentar$/,
+      async handler(ctx) {
+        const conversaId = assertUuid(ctx.params.id, "conversa");
+        const corpo = (await ctx.corpo()) as { turnoId?: unknown; maquinaId?: unknown; ia?: unknown };
+        const turnoId = assertUuid(corpo.turnoId, "turno");
+        const ia = corpo.ia;
+        if (typeof ia !== "string" || !ehIaComConta(ia)) throw new ErroDeDominio("entrada_invalida", { cause: "ia" });
+        const maquina = await deps.dentro(ctx.escopo, (d) => exigirMaquina(d, assertUuid(corpo.maquinaId, "maquina")));
+        if (!deps.maquinaViva(ctx.escopo, maquina.id)) {
+          ctx.json(409, { codigo: "maquina_sem_contato", mensagem: `${maquina.nome} não está conectada agora. Abra o nod nela e tente de novo.` });
+          return;
+        }
+        if (!deps.maquinaAtualizaIas?.(ctx.escopo, maquina.id)) {
+          ctx.json(409, { codigo: "maquina_sem_atualizacao", mensagem: `${maquina.nome} não reinstala a IA por aqui. Reinicie o nod nela e mande de novo.` });
+          return;
+        }
+        deps.logins.pedirAtualizacao(ctx.escopo, maquina.id, ia);
+        deps.avisar(ctx.escopo, "atualizar");
+        const r = await deps.dentro(ctx.escopo, (d) => executar(d, (dd, i) => reinstalarETentar(dd, i), { conversaId, turnoId, ia, maquina: maquina.nome }));
+        ctx.json(200, r);
       },
     },
     {

@@ -69,6 +69,60 @@ body { font-size: var(--fs-corpo); line-height: var(--lh-corpo); }
 /* ---- Pontos com significado: laranja = aguardando você; azul = não lido ---- */
 .ponto-aguardando { display: inline-block; width: 7px; height: 7px; border-radius: var(--raio-full); background: var(--aguardando-ponto); flex: none; }
 
+/* ---- Aviso de estado (web/lib/aviso-estado.ts) ----
+   O cartão do Paper (momento B das Jornadas da IA e página Design system; revisto em 2026-11-22 na auditoria do lote B):
+   caixa branca com a borda padrão, raio 14, coluna com respiro de 10. Cabeça: ponto de 6 px na cor do estado (o `info`
+   não tem) e o título 14/500; texto 13/18 a 68 %; botões em pílula de 28 px (o primário em --action, os outros só com a
+   borda; `.link` e o "Ver o erro" em texto). Todo tom é a mesma caixa branca: a cor fica só no ponto. */
+.aviso-estado {
+  display: flex; flex-direction: column; gap: 10px; width: fit-content; max-width: min(480px, 100%); margin: 12px 0 10px; padding: 12px 14px; box-sizing: border-box;
+  background: var(--surface-elevated); border: 1px solid var(--borda); border-radius: var(--raio-14); color: var(--ink);
+  font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2);
+}
+.aviso-estado-cab { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.aviso-estado-tit { font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: var(--peso-medio); color: var(--ink); overflow-wrap: anywhere; }
+.aviso-estado-txt { margin: 0; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+/* Sem título, o texto é a linha principal. */
+.aviso-estado-cab > .aviso-estado-txt { color: var(--ink); }
+.aviso-estado-ponto { flex: none; width: 6px; height: 6px; border-radius: var(--raio-full); background: var(--ink-3); }
+.tom-erro .aviso-estado-ponto { background: var(--danger); }
+.tom-alerta .aviso-estado-ponto { background: var(--aguardando); }
+.tom-ok .aviso-estado-ponto { background: var(--success); }
+.aviso-estado-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.aviso-estado-acoes .bt {
+  display: inline-flex; align-items: center; gap: 6px; height: var(--controle-md); margin: 0; padding: 0 12px; box-sizing: border-box;
+  background: none; border: 1px solid var(--borda); border-radius: var(--raio-full); color: var(--ink);
+  font-size: var(--fs-corpo-2); line-height: 16px; font-weight: var(--peso-medio); white-space: nowrap; box-shadow: none;
+}
+.aviso-estado-acoes .bt:hover { background: var(--hover); }
+.aviso-estado-acoes .bt.pri { background: var(--action); border-color: var(--action); color: var(--on-action); }
+.aviso-estado-acoes .bt.pri:hover { background: var(--action); opacity: .88; }
+.aviso-estado-acoes .bt.link { border-color: transparent; padding: 0 4px; color: var(--ink-2); text-decoration: none; }
+.aviso-estado-acoes .bt:disabled { opacity: .5; cursor: default; }
+/* "Ver o erro": o resumo fica na linha dos botões, em texto; aberto, o erro ocupa a linha de baixo. */
+.aviso-estado-detalhes { color: var(--ink-2); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.aviso-estado-detalhes > summary { cursor: pointer; width: fit-content; padding: 0 4px; font-weight: var(--peso-medio); list-style: none; }
+.aviso-estado-detalhes > summary::-webkit-details-marker { display: none; }
+.aviso-estado-detalhes[open] { flex-basis: 100%; }
+.aviso-estado-detalhes > p { margin: 6px 0 0; padding: 8px 10px; border-radius: var(--raio-8); background: var(--hover); font-family: var(--font-mono); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); overflow-wrap: anywhere; }
+/* Na conversa (medido no Grok Bot em 2026-11-22, auditoria do lote B): o cartão é um bloco do bot — do lado dele, à
+   esquerda como as falas, na largura do conteúdo até 480 px (a medida a partir da qual o Grok recua os blocos do bot),
+   12 px depois do balão e 10 px antes do próximo bloco. Antes ele ia centrado e quase na largura da coluna. */
+.timeline .msg-linha:has(> .aviso-estado) { max-width: none; margin-left: 0; margin-right: 0; }
+/* Agindo (auditoria de 2026-11-22): o botão clicado gira até o pedido voltar (ou a IA reinstalada abrir) e diz o que
+   está fazendo ("Reinstalando…"); os outros botões param. O mesmo anel serve ao link da linha discreta. */
+.bt-girando { flex: none; width: 12px; height: 12px; box-sizing: border-box; border-radius: var(--raio-full); border: 1.5px solid currentColor; border-right-color: transparent; animation: ds-gira 800ms linear infinite; }
+.aviso-estado-acoes .bt[aria-busy="true"]:disabled { opacity: 1; cursor: progress; }
+.linha-agindo { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-weight: var(--peso-medio); }
+.linha-feito { color: var(--ink-2); font-weight: var(--peso-medio); }
+@keyframes ds-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bt-girando { animation: none; border-right-color: currentColor; opacity: .6; } }
+/* Compacto (barra lateral, campo, ligação): uma linha, o botão em 24 px. */
+.aviso-compacto { flex-direction: row; align-items: center; gap: 8px; width: auto; max-width: none; margin: 0 12px 6px; padding: 7px 8px 7px 10px; border-radius: var(--raio-10); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.aviso-compacto .aviso-estado-cab { flex: 1; }
+.aviso-compacto .aviso-estado-tit { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.aviso-compacto .aviso-estado-acoes .bt { height: var(--controle-sm); padding: 0 10px; font-size: var(--fs-rotulo); }
+
 /* =====================================================================================
    Barra lateral (telas 02, 03 e 16)
    ===================================================================================== */

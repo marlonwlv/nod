@@ -156,7 +156,8 @@ export type PayloadMensagem =
   /** definido em 2026-10-12 (ADR-099, I2): a cópia, na conversa do dono, do recado que ele repassou a uma frente. */
   | { kind: "recado_a_frente"; trabalhoId: string; titulo: string }
   /** definido em 2026-10-12 (ADR-099, I3): a linha "3 frentes terminaram" (ou "A frente X terminou", com `avisar_a_cada_uma`) na conversa do dono. */
-  | { kind: "frentes_terminadas"; loteId: string; frentes: { trabalhoId: string; titulo: string; estado: EstadoTrabalho }[] }
+  /** ADR-192 (etapa 4): `tarefaId` = a Tarefa (objetivo) ligada à frente, quando houver; o retorno continua apontando para o trabalho. */
+  | { kind: "frentes_terminadas"; loteId: string; frentes: { trabalhoId: string; titulo: string; estado: EstadoTrabalho; tarefaId?: string }[] }
   /** ADR-099 (I3) e chat limpo (PR 3: `resposta`, `turnoRaizId`): troca-entre-bots.ts. */
   | PayloadPedidoRespondido
   /** Chat limpo, PR 4 (o cartão encolhido): cartao-encolhido.ts. */
@@ -166,6 +167,8 @@ export type PayloadMensagem =
   | import("./navegador-do-bot.ts").PayloadNavegadorPergunta // ADR-190 (M2/J1, M3/K1): os cartões do Mac desligado; respondido, a linha com Desfazer.
   /** ADR-191 (2026-11-20): o pedido que a pessoa deixou para trás ao seguir conversando (cartao-encolhido.ts). */
   | PayloadPedidoDispensado
+  /** Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (src/domain/desvios-da-conversa.ts). */
+  | import("./desvio.ts").PayloadDesvio
   | { kind: "turno_preso"; maquinaId: string; /** QA do NOD-314: a IA em que o turno está fixado (harnessFixado); null/ausente = Automático. */ ia?: string | null }; // NOD-314: pendente preso 24 h a uma máquina sem contato saiu da fila.
 
 export type { Mensagem } from "./mensagem-modelo.ts";

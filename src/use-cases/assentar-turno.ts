@@ -19,7 +19,7 @@ import { ehMotivoDaQueda, ultimoSinalDoTurno, type MotivoDaQueda } from "../doma
 import { NATIVA_MCP_DA_PESSOA, NATIVAS_DO_TERMINAL, NATIVAS_DO_TERMINAL_CODEX, pastaDoBot } from "../domain/nativas.ts";
 import { motivoDependeDaMaquina, motivoNaMaquina, redigir } from "../domain/redacao.ts";
 import { iasNoLimite, inteligenciaDoAgente, ordemEfetiva, podeReenviar, prazoDoLimite, prazoDoLimiteDaConta, proximaIaNoLimite } from "../domain/inteligencia.ts";
-import { usoDoPlanoValido } from "../domain/uso-do-plano.ts";
+import { usoDoPlanoValido, voltaPelaLeituraDaCota } from "../domain/uso-do-plano.ts";
 import { trabalhoAberto } from "../domain/trabalho.ts";
 import { cadeiaJaEsperou, contasPelaCota, cotaDasContas, ehVoltaDoFundo, ENTRADA_DA_VOLTA_DA_COTA, entradaDaNovaTentativa, entradaDoRecomecoPorAutocompactacao, entradaDaTrocaDeConta, entradaDaTrocaDeIa, entradaDaVoltaDaCota } from "../domain/cota-da-ia.ts";
 import { fraseDaDecisao } from "../domain/contas-da-ia.ts";
@@ -51,6 +51,10 @@ import { voltaMarcadaAoAssentar } from "./me-chame-as.ts";
 import { gravarSaidaDoTrabalho } from "./quadro-execucoes.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 import { acoesDoTurno } from "../domain/acoes-do-turno.ts";
+import { linhaDaRecuperacao, reconhecerDesvio } from "../domain/desvios-da-conversa.ts";
+import type { IdDesvio } from "../contracts/desvio.ts";
+import { aposDesvioNaConversa } from "./desvio-na-conversa.ts";
+import { nomeDaIa as nomeCurtoDaIa } from "../domain/espera-da-cota.ts";
 import { versaoDoAppValida as versaoAppValida } from "../domain/versao-app.ts";
 
 /** `harness`: o que rodou o turno (vem do plano puxado, nunca da máquina); grava o dono da sessão (0030). */
@@ -424,7 +428,11 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     && (desfecho.motivoFalha === "limite_do_plano" || (desfecho.motivoFalha !== null && classificarErroFornecedor(resultado.erroCru) === "limite_de_uso"));
   // Jornadas da IA (2026-11-19): a hora em que o limite volta — a do protocolo e, sem ela, a lida do texto do fornecedor
   // ("resets 6:50pm (America/Sao_Paulo)", "try again in 2 hours"); só sem nenhuma das duas fica o prazo sem hora.
-  const voltaDoLimite = ehLimite ? (desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null) ?? horaDeVoltaNoTexto(resultado.erroCru, agora) : null;
+  // Lote B (desvio 4, regra 4): e, sem nenhuma das duas, a da leitura de cota que o turno trouxe (o Codex a lê no fim do turno).
+  const voltaDoLimite = ehLimite ? (desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null) ?? horaDeVoltaNoTexto(resultado.erroCru, agora) ?? voltaPelaLeituraDaCota(resultado.usoDoPlano, agora) : null;
+  // Lote B das Jornadas da IA (2026-11-22): o desvio do momento B que este fim de turno é (tabela única). Só no assentamento
+  // da entrega na hora: a tardia já teve o desvio decidido por quem a interrompeu.
+  const desvio = tardia ? null : reconhecerDesvio({ estado: desfecho.estado, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru, causaSemIa: resultado.causaSemIa ?? null, queda: motivoDaQuedaNaEntrega, botFixo: harnessFixado(turno.harness, turno.modelo) !== null });
   // NOD-309: o erro transitório do provedor (sobrecarga, 5xx, rede) — o fundo tenta de novo em vez de falhar. Nunca o limite
   // (ehLimite vem antes) nem a conta sem acesso.
   const transitorio = desfecho.estado === "interrompido" && !quedaDaMaquina && !resultado.causaSemIa && !ehLimite && desfecho.motivoFalha !== null && ehErroTransitorio(resultado.erroCru);
@@ -483,6 +491,8 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     events.push(...q.events);
   } else if (resultado.causaSemIa && contaDoTurnoId && entrega.harness && (trocou = await aposContaDaListaSemAcesso(deps, { turno, assentado, executor, contaId: contaDoTurnoId, machineId: entrega.machineId, ia: entrega.harness, causa: resultado.causaSemIa, autoria, agora, custoUsd }))) {
     events.push(...trocou);
+  } else if (desvio === "login_vencido" && contaDoTurnoId && entrega.harness && (trocou = await aposContaDaListaSemAcesso(deps, { turno, assentado, executor, contaId: contaDoTurnoId, machineId: entrega.machineId, ia: entrega.harness, causa: "login_vencido", autoria, agora, custoUsd }))) {
+    events.push(...trocou);
   } else if (resultado.causaSemIa) {
     events.push(...(await aposContaSemAcesso(deps, { turno, executor, harness: entrega.harness ?? null, outraIa: entrega.outraIa ?? null, causa: resultado.causaSemIa, autoria, agora, custoUsd })));
   } else if (resultado.contaAusente && contaDoTurnoId && (trocou = await aposContaAusente(deps, { turno, assentado, executor, contaId: contaDoTurnoId, machineId: entrega.machineId, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, autoria, agora, custoUsd }))) {
@@ -498,6 +508,10 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   } else if (limite && (trocou = await aposLimite(deps, { turno, executor, ...limite, prontos: entrega.prontosDaPessoa ?? [], prontosPorMaquina: entrega.prontosPorMaquina ?? null, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, autoria, agora, custoUsd }))) {
     events.push(...trocou);
   } else if (limite && (trocou = await aposLimiteDaIaNoFundo(deps, { turno: assentado, executor, ...limite, machineId: entrega.machineId, prontos: entrega.prontosDaPessoa ?? [], prontosPorMaquina: entrega.prontosPorMaquina ?? null, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, autoria, agora, custoUsd }))) {
+    events.push(...trocou);
+  } else if (desvio && DESVIOS_DA_CONVERSA.has(desvio) && (trocou = await aposDesvioNaConversa(deps, { desvio, turno, executor, harness: entrega.harness ?? null, outraIa: entrega.outraIa ?? (entrega.prontosDaPessoa ?? []).find((ia) => ia !== entrega.harness) ?? null, prontosPorMaquina: entrega.prontosPorMaquina ?? null, machineId: entrega.machineId, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru ?? null, autoria, agora, custoUsd }))) {
+    // Lote B das Jornadas da IA (2026-11-22): a conversa segue a tabela de desvios — tenta de novo sozinha (sessão sumida,
+    // instável, erro desconhecido) com uma linha, ou para no cartão com o motivo e o botão (src/domain/desvios-da-conversa.ts).
     events.push(...trocou);
   } else if (desfecho.motivoInterrupcao === "sessao_rejeitada" && (trocou = await aposSessaoRejeitada(deps, { turno, executor, autoria, agora, custoUsd }))) {
     events.push(...trocou);
@@ -803,6 +817,15 @@ async function aposLimiteDaConta(
   }
   await deps.repos.mensagens.marcarParciaisDoTurno(turno.id);
   const events: RuntimeEvent[] = [interrompido];
+  // Lote B das Jornadas da IA (desvios 3 e 4, 2026-11-22): a conversa sem outra conta para seguir — o bot preso a uma IA, ou
+  // todas as contas no limite — não perde a mensagem: ela espera a hora real (ou volta sem hora, uma vez) com o cartão do
+  // desvio, que oferece a outra IA "desta vez" e o Cancelar. O bot não muda (regra 5).
+  // Com uma conta da mesma IA fora da fila (ADR-108, R6), vale o aviso com o "Continuar na conta <x>" — é a próxima conta.
+  if (!segue && turno.origem === "conversa" && !turno.trabalhoId && (p.iaFixa || decisao.tipo === "todas_no_limite") && !contaForaDaFila(p.daMaquina, p.conta.ia, agora)) {
+    const ia = HARNESSES.find((h) => h.id === p.conta.ia)?.id ?? null;
+    const doDesvio = await aposDesvioNaConversa(deps, { desvio: p.iaFixa ? "limite_bot_fixo" : "limite", turno, executor: p.executor, harness: ia, outraIa: p.prontos.find((x) => x !== ia) ?? null, prontosPorMaquina: p.prontosPorMaquina, machineId: p.machineId, motivoInterrupcao: p.motivoInterrupcao, motivoFalha: p.motivoFalha, autoria, agora, custoUsd: p.custoUsd, ate: p.semHora ? null : p.voltaEm, acordarEm: p.voltaEm, jaInterrompido: true });
+    if (doDesvio) return [...events, ...doDesvio];
+  }
   if (!segue || turno.origem !== "conversa") {
     // R6: o bot fixo sem conta da IA dele na fila — o aviso com os caminhos no lugar da nota (sem caminho, a nota de sempre).
     const a = p.iaFixa && turno.origem === "conversa" ? await alvo() : null;
@@ -914,10 +937,13 @@ async function aposContaAusente(
  */
 async function aposContaDaListaSemAcesso(
   deps: Deps,
-  p: { turno: Turno; assentado: Turno; executor: Executor; contaId: string; machineId: string; ia: IdHarness; causa: CausaSemIa; autoria: Autoria; agora: number; custoUsd: number | null },
+  p: { turno: Turno; assentado: Turno; executor: Executor; contaId: string; machineId: string; ia: IdHarness; causa: CausaSemIa | "login_vencido"; autoria: Autoria; agora: number; custoUsd: number | null },
 ): Promise<RuntimeEvent[] | null> {
   const { turno, agora } = p;
-  await deps.repos.contasIa.marcarSemAcesso(p.contaId, p.machineId, agora);
+  // Lote B (desvio 2, 2026-11-22): o login que venceu tira a conta da vez do mesmo jeito que a conta sem acesso, mas o
+  // vínculo vira `sem_login` (a tela mostra "Login venceu" com o "Entrar de novo").
+  if (p.causa === "login_vencido") await deps.repos.contasIa.marcarSemLogin(p.contaId, p.machineId, agora);
+  else await deps.repos.contasIa.marcarSemAcesso(p.contaId, p.machineId, agora);
   const c = await lerContasDaMaquina(deps, p.machineId);
   const conta = c.contas.find((x) => x.id === p.contaId);
   if (conta && c.escolhidas[conta.ia] === conta.id) await deps.repos.contasIa.definirEscolhida(conta.ia, null);
@@ -938,8 +964,28 @@ async function aposContaDaListaSemAcesso(
   }
   if (turno.origem !== "conversa" || !podeReenviar(turno)) return null;
   await deps.repos.mensagens.marcarParciaisDoTurno(turno.id);
-  log("info", "conta_sem_acesso_refeito", { turno_id: turno.id, de: p.contaId, para: outra.id });
-  return [interrompido, ...(await repetirNaConversa(deps, { turno, executor: p.executor, agora }))];
+  log("info", "conta_sem_acesso_refeito", { turno_id: turno.id, de: p.contaId, para: outra.id, causa: p.causa });
+  // Lote B (regra 3, Paper B-2): a conta saiu da vez e a conversa segue na próxima, com UMA linha discreta que diz qual
+  // venceu e com quem seguiu — e o "Entrar de novo" quando foi o login.
+  const linha = await linhaDaContaQueSaiu(deps, { turno, contaId: p.contaId, para: outra, ia: p.ia, machineId: p.machineId, desvio: p.causa === "login_vencido" ? "login_vencido" : "sem_acesso", autoria: p.autoria, agora });
+  return [interrompido, ...linha, ...(await repetirNaConversa(deps, { turno, executor: p.executor, agora }))];
+}
+
+/**
+ * Lote B das Jornadas da IA (2026-11-22): os desvios que a conversa trata pela tabela (desvio-na-conversa.ts) quando os
+ * caminhos de conta e de limite não resolveram antes. O 3 e o 4 (limite) e o 8 (sem acesso) seguem as regras das contas
+ * (ADR-101/102); o 11 e o 12 (queda) são da queda da máquina (interromper-por-maquina.ts).
+ */
+const DESVIOS_DA_CONVERSA: ReadonlySet<IdDesvio> = new Set(["sessao_sumiu", "login_vencido", "instavel", "ia_nao_abriu", "erro_desconhecido"]);
+
+/** A linha "O login da Claude · Pessoal venceu no MacBook. Respondendo com a Claude · Trabalho." (Paper B-2, depois). */
+async function linhaDaContaQueSaiu(deps: Deps, p: { turno: Turno; contaId: string; para: { id: string }; ia: IdHarness; machineId: string; desvio: "login_vencido" | "sem_acesso"; autoria: Autoria; agora: number }): Promise<RuntimeEvent[]> {
+  const [de, para, maquina] = await Promise.all([deps.repos.contasIa.buscar(p.contaId), deps.repos.contasIa.buscar(p.para.id), deps.repos.maquinaTokens.identificar(p.machineId).catch(() => null)]);
+  const ia = nomeCurtoDaIa(p.ia);
+  const payload = linhaDaRecuperacao(p.desvio, "proxima_conta", { bot: "", ia, conta: de ? `${ia} · ${de.apelido}` : null, contaQueSeguiu: para ? `${nomeCurtoDaIa(para.ia)} · ${para.apelido}` : null, maquina: maquina?.nome ?? null, organizacao: de?.organizacao ?? null }, { agora: p.agora });
+  const botoes = p.desvio === "login_vencido" ? [{ acao: "entrar_de_novo" as const, rotulo: "Entrar de novo", dados: { contaId: p.contaId, maquinaId: p.machineId } }] : [];
+  const m = await deps.repos.mensagens.criar({ conversaId: p.turno.conversaId, turnoId: p.turno.id, autoria: p.autoria, kind: "sistema", texto: payload.texto, payload: { ...payload, botoes }, confianca: "confiavel" });
+  return m ? [evento(deps.escopo, { kind: "mensagem_criada", autoria: p.autoria, agora: p.agora, conversaId: p.turno.conversaId, turnoId: p.turno.id, dados: { mensagem_id: m.id, kind: "sistema" } })] : [];
 }
 
 /**
@@ -1406,7 +1452,8 @@ async function aposContaSemAcesso(
     turnoId: turno.id,
     autoria: autoriaAgente({ agenteId: turno.agenteId, contaDeExecucao: turno.ownerId, executor: p.executor, localityReason: "motor_ausente" }),
     kind: "negacao",
-    texto: redigir("executor-indisponivel", agora, { motivo: `${p.harness ?? "ia"} ${inventario.estado}: ${inventario.motivo}`, desde: horaDaFrase(agora, agora) }),
+    // Lote B (desvio 8): a frase da causa ("a organização desativou o uso por assinatura"), nunca o id da IA nem o estado cru.
+    texto: redigir("executor-indisponivel", agora, { motivo: `a conta ${p.harness ? `do ${nomeDaIa(p.harness)}` : "da IA"} entrou, mas está sem acesso${inventario.motivo?.includes(":") ? `: ${inventario.motivo.split(":").slice(1).join(":").trim().replace(/\.$/, "")}` : ""}`, desde: horaDaFrase(agora, agora) }),
     payload: { kind: "negacao", classe: "plano_ausente", nome: p.harness ?? "ia", motivo: "plano_ausente", terminal: true, causa, ...(ia ? { ia } : {}) },
     confianca: "confiavel",
   });

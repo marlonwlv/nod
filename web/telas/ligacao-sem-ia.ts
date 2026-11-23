@@ -205,5 +205,5 @@ export function textoIaVoltou(v: EstadoIaVoltou, bot: { nome: string; genero: "f
  */
 export function htmlIaVoltou(v: EstadoIaVoltou, bot: { nome: string; genero: "feminina" | "masculina" }): string {
   const marca = v.ia ? logo(v.ia) : "";
-  return `<div class="aviso-estado tom-info aviso-compacto lig-ia-voltou" role="status">${marca}<div class="aviso-estado-txt">${esc(textoIaVoltou(v, bot))}</div></div>`;
+  return `<div class="aviso-estado tom-info aviso-compacto lig-ia-voltou" role="status"><div class="aviso-estado-cab">${marca}<p class="aviso-estado-txt">${esc(textoIaVoltou(v, bot))}</p></div></div>`;
 }

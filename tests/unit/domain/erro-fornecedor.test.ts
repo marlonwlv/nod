@@ -185,8 +185,9 @@ describe("erro do fornecedor em classe fechada (NOD-174)", () => {
     const agora = Date.UTC(2026, 9, 6, 15, 0); // 12:00 em SP
     expect(horaDaFrase(Date.UTC(2026, 9, 6, 13, 20, 54), agora)).toBe("10:20");
     expect(horaDaFrase(Date.UTC(2026, 9, 5, 14, 46), agora)).toBe("05/10 às 11:46");
-    const texto = redigir("executor-indisponivel", agora, { motivo: "claude-cli: conta sem acesso", desde: horaDaFrase(agora, agora) });
-    expect(texto).toBe("Nenhum trabalho começa: executor indisponível (claude-cli: conta sem acesso) desde 12:00.");
+    // Lote B (desvios 6 e 8, 2026-11-22): a frase não diz "executor" e avisa que a mensagem espera.
+    const texto = redigir("executor-indisponivel", agora, { motivo: "a conta do Claude entrou, mas está sem acesso", desde: horaDaFrase(agora, agora) });
+    expect(texto).toBe("Nenhum trabalho começou: a conta do Claude entrou, mas está sem acesso (desde 12:00). A mensagem fica guardada e sai sozinha quando uma IA ficar pronta.");
     expect(texto).not.toMatch(/\d{4}-\d{2}-\d{2}T|Z\./);
   });
 

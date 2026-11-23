@@ -165,6 +165,7 @@ import { criarRotasAgentes } from "./rotas/agentes.ts";
 import { criarRotasAjustesAprovacao } from "./rotas/ajustes-aprovacao.ts";
 import { rotasTimes } from "./rotas/times.ts";
 import { criarRotasTrabalhos } from "./rotas/trabalhos.ts";
+import { criarRotasTarefas } from "./rotas/tarefas.ts";
 import { criarRotasAtividade } from "./rotas/atividade.ts";
 import { criarRotasDecisoesDoBot } from "./rotas/decisoes-do-bot.ts";
 import { criarTrabalhosVivos } from "../fundo/trabalhos-vivos.ts";
@@ -440,6 +441,10 @@ export function comporApp(o: OpcoesCompor): App {
   const machineId = env.NOD_MACHINE_ID ?? "";
   const prazoDecisaoMs = numero(env.NOD_PRAZO_DECISAO_MS, 86_400_000);
   const modeloPadrao = env.NOD_MODELO ?? "auto";
+  // ADR-192 (etapa 2): a flag de escrita da Tarefa como objetivo, ligada por padrão; NOD_TAREFA_OBJETIVO=0 desliga.
+  const tarefaObjetivo = env.NOD_TAREFA_OBJETIVO !== "0";
+  // ADR-192 (etapa 5): a virada da leitura, desligada por padrão (sete dias de sombra antes de ligar).
+  const leituraNovaDasTarefas = env.NOD_TAREFAS_LEITURA_NOVA === "1";
   const chave = chaveDe(env.NOD_CREDENTIAL_KEY ?? "chave-de-desenvolvimento-sem-valor");
   let registryLigado: Registry | null = null;
   let inventarioInicial: Inventario | null = null;
@@ -509,7 +514,7 @@ export function comporApp(o: OpcoesCompor): App {
   configurarRotinasFora(lerRotinasFora(env));
   // ADA-28 (ADR-159): NOD_TAREFA_CASA=1 liga a jornada chat × quadro (desligada até o protótipo e as suposições).
   configurarTarefaCasa(lerTarefaCasa(env));
-  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
+  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }), ...(leituraNovaDasTarefas ? { leituraNovaDasTarefas: true } : {}), ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
   // NOD-443 (ADR-143): a porta para o quadro da dona, na mesma transação (o turno do bot de quem participa).
   const depsDe = (trx: Tx, escopo: Escopo): Deps => comPortas(trx, escopo, (e) => depsSemPorta(trx, e));
   const depsSobre = (trx: Tx): Deps => depsDe(trx, escopoDoContexto());
@@ -1130,6 +1135,11 @@ export function comporApp(o: OpcoesCompor): App {
       repetirBarrados: (escopo: Escopo, prontos: readonly IdHarness[]) => dentro(escopo, async (d) => {
         const r = await repetirBarradosPorIa(d, { executor: "local", prontos });
         if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+        // Lote B (desvio 9): a fala do "Reinstalar e tentar" sai quando a IA reinstalada volta pronta.
+        for (const ia of prontos) {
+          const acordadas = await d.repos.turnos.anteciparReinstaladas(ia);
+          if (acordadas.length > 0) log("info", "fala_reinstalada_antecipada", { ia, turnos: acordadas.length });
+        }
       }),
     } : {}),
     concluirItemLocal: (escopo, itemId, desfecho) => dentro(escopo, async (d) => {
@@ -1634,6 +1644,8 @@ export function comporApp(o: OpcoesCompor): App {
     useCases,
     agora: relogio,
     modeloPadrao,
+    ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }),
+    ...(leituraNovaDasTarefas ? { leituraNovaDasTarefas: true } : {}),
     prazoDecisaoMs,
     // Jornada C do onboarding: sem IA, a fala da pessoa fica guardada (flag NOD_ONBOARDING_TEXTO=1, desligada por padrão).
     ...(onboardingTexto ? { guardarSemIa: true } : {}),
@@ -1669,6 +1681,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...criarRotasConversas(depsRotas),
     ...criarRotasBusca(depsRotas, { poolMax: lerPoolMax(env) }),
     ...criarRotasTrabalhos(depsRotas),
+    ...criarRotasTarefas(depsRotas),
     ...criarRotasAtividade(depsRotas),
     ...criarRotasDecisoesDoBot(depsRotas),
     ...criarRotasArtefatos(depsRotas),
@@ -1738,7 +1751,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasAtualizacaoApp({ config: configAtualizacaoApp, versaoMinima: VERSAO_MINIMA_APP, teste: configTesteApp, canalDe: (escopo) => canalDasFlags(fonteFlags.avaliar(escopo)), publicadaEm: new Date(relogio()).toISOString().replace(/\.\d{3}Z$/, "Z"),
       assinar: configAtualizacaoApp ? cachearAssinador(o.assinadorAtualizacaoApp ?? criarAssinadorGcs({ bucket: configAtualizacaoApp.bucket, fonteToken: criarFonteDeToken({ env }) }), { agora: relogio }) : null }),
     ...rotasMotor({ pasta: env.NOD_MOTOR_DIR ?? resolve("dist/motor"), versao: versaoDoServidor(), ...(env.NOD_COMPUTADORES === "motor" ? { computador: true } : {}), ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
-    ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome) }),
+    ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome), prontosDaPessoa: (escopo) => Object.entries(ponteHttp.harnessesDaPessoa(escopo.pessoaId)).filter(([, inv]) => inv?.estado === "pronto").map(([ia]) => ia as IdHarness) }),
     ...(compartilhado ? rotasInstalacoesSsh({ dentro, instalacoes, dispositivo, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }) : []),
     ...rotasMcpTokens({ dentro, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada,

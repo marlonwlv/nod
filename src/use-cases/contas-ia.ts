@@ -1,3 +1,6 @@
+import { iaDoModelo } from "../domain/ia-do-modelo.ts";
+import type { IdHarness } from "../contracts/harness.ts";
+import { nomeDaIa as nomeDaIaCurto } from "../domain/espera-da-cota.ts";
 import type { ContaAnunciada, ContaIa, ContasIaDto, CotaDaContaDto, MotivoDaNota } from "../contracts/contas-ia.ts";
 import type { JanelaDoPlano, UsoDoPlano } from "../contracts/uso-do-plano.ts";
 import { cotaDasContas } from "../domain/cota-da-ia.ts";
@@ -14,6 +17,7 @@ import type { Assunto } from "../contracts/destino-no-chat.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { avaliarOrcamento } from "../domain/canal-orcamento.ts";
 import { harnessFixado } from "../domain/harness.ts";
+import { DESVIOS, noNa } from "../domain/desvios-da-conversa.ts";
 import { redigir } from "../domain/redacao.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
 import { CONTATO_RECENTE_MS, lerContasDaMaquina, notaDeLimite } from "./contas-do-turno.ts";
@@ -97,6 +101,12 @@ export async function anunciarContasDaMaquina(d: Deps, maquinaId: string, anunci
     const acordados = await d.repos.turnos.anteciparEsperasDaCota(ia);
     if (acordados.length > 0) log("info", "espera_da_cota_antecipada", { gatilho: "conta_nova", ia, maquina_id: maquinaId, turnos: acordados.length });
   }
+  // Lote B das Jornadas da IA (regra 1, 2026-11-22): a mensagem que esperava uma conta (login vencido, sem acesso, limite)
+  // sai assim que uma conta da IA fica pronta — "Entre de novo e a mensagem sai em seguida".
+  for (const ia of new Set(r.prontasAgora.map((c) => c.ia))) {
+    const acordadas = await d.repos.turnos.anteciparFalasEsperando(ia);
+    if (acordadas.length > 0) log("info", "fala_em_espera_antecipada", { gatilho: "conta_pronta", ia, maquina_id: maquinaId, turnos: acordadas.length });
+  }
   return r;
 }
 
@@ -154,6 +164,57 @@ const paradoPelaConta = (turno: Turno): boolean => (MOTIVOS_FALHA_DE_ESPERA as r
 export const presoSemContato = (turno: Turno): boolean =>
   turno.motivoInterrupcao === "maquina_sem_contato" && !turno.sinais.attempted && (turno.despachadoEm ?? null) === null;
 
+/**
+ * Lote B das Jornadas da IA (2026-11-22): o turno da conversa que parou num desvio da mensagem e deixou o cartão (sessão
+ * que não recomeçou, IA que não abriu, erro desconhecido repetido, instável…). Os botões do cartão ("Rodar no <máquina>
+ * desta vez", "Responder com o <IA> desta vez") refazem esse turno uma vez, como os da nota de limite.
+ */
+async function paradoNumDesvio(d: Deps, turno: Turno): Promise<boolean> {
+  if (turno.origem !== "conversa") return false;
+  const recentes = await d.repos.mensagens.listarDaConversa(turno.conversaId, 30);
+  return recentes.some((m) => m.turnoId === turno.id && m.payload?.kind === "desvio" && m.payload.forma === "cartao");
+}
+
+/**
+ * Lote B das Jornadas da IA (desvio 3 e 10, 2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio. Refaz
+ * o turno uma vez na outra IA pronta da pessoa; o bot segue com a IA dele (regra 5: o "desta vez" não muda o bot).
+ */
+export async function responderComOutraIa(d: Deps, p: { conversaId: string; turnoId: string; ia: IdHarness; prontos: readonly IdHarness[] }): Promise<SaidaDaNota> {
+  await d.repos.contasIa.travar();
+  const turno = await turnoDaNota(d, p);
+  // A IA do botão (a que o cartão ofereceu), só se ainda estiver pronta numa máquina viva.
+  const outra = p.prontos.includes(p.ia) ? p.ia : null;
+  if (!outra) return { data: { turnoId: null, motivo: "conta_fora_da_maquina" }, events: [] };
+  const r = await refazerTurnoDaNota(d, { turno, harnessDestaVez: outra, linha: { texto: `Respondendo com o ${nomeDaIaCurto(outra)} desta vez.` } });
+  log("info", "responder_com_outra_ia", { turno_id: turno.id, novo_turno_id: r.data.turnoId, para: outra, motivo: r.data.motivo });
+  return r;
+}
+
+/** Desvio 9: quanto a fala espera a IA reinstalada antes de sair de qualquer jeito (a máquina avisa antes, ao anunciar). */
+export const ESPERA_DA_REINSTALACAO_MS = 10 * 60_000;
+
+/**
+ * Lote B das Jornadas da IA (desvio 9, auditoria de 2026-11-22): "Reinstalar e tentar" no cartão "O <IA> não abriu no
+ * <máquina>". Quem chama (a rota) já pediu à máquina que reinstale a cópia da IA (`maquinas.atualizar_ia`); aqui a fala
+ * é refeita uma vez, à espera: ela sai assim que a máquina anuncia a IA pronta de novo (`anteciparFalasEsperando`) ou,
+ * no máximo, em 10 min. A conversa ganha a linha do que está acontecendo.
+ */
+export async function reinstalarETentar(d: Deps, p: { conversaId: string; turnoId: string; ia: IdHarness; maquina: string }): Promise<SaidaDaNota> {
+  await d.repos.contasIa.travar();
+  const turno = await turnoDaNota(d, p);
+  const r = await refazerTurnoDaNota(d, {
+    turno,
+    acordarEm: d.agora() + ESPERA_DA_REINSTALACAO_MS,
+    // A linha discreta do desvio (vai ao chat): a espera pode levar minutos e a pessoa precisa saber que a mensagem sai.
+    linha: (() => {
+      const texto = `Reinstalando o ${nomeDaIaCurto(p.ia)} ${noNa(p.maquina)}. A mensagem sai assim que ele abrir.`;
+      return { texto, assunto: "desvio.recuperado" as const, payload: { kind: "desvio" as const, desvio: "ia_nao_abriu" as const, forma: "linha" as const, titulo: DESVIOS.ia_nao_abriu.titulo, texto, botoes: [] } };
+    })(),
+  });
+  log("info", "reinstalar_e_tentar", { turno_id: turno.id, novo_turno_id: r.data.turnoId, ia: p.ia, motivo: r.data.motivo });
+  return r;
+}
+
 /** O turno da nota: pelo `turnoId` do botão (NOD-284), na conversa dele. Outro id, ou de outra conversa = não encontrado. */
 async function turnoDaNota(d: Deps, p: { conversaId: string; turnoId: string }): Promise<Turno> {
   const turno = await d.repos.turnos.buscar(p.turnoId);
@@ -179,12 +240,12 @@ function contaNaoServe(conta: Pick<ContaGuardadaNoServidor, "ia" | "noLimiteAte"
  */
 export async function refazerTurnoDaNota(
   d: Deps,
-  p: { turno: Turno; linha: { texto: string; payload?: PayloadMensagem; assunto?: Assunto }; maquinaDestaVez?: string | null },
+  p: { turno: Turno; linha: { texto: string; payload?: PayloadMensagem; assunto?: Assunto }; maquinaDestaVez?: string | null; harnessDestaVez?: IdHarness | null; acordarEm?: number },
 ): Promise<SaidaDaNota> {
   const { turno } = p;
   const agora = d.agora();
   const nada = (motivo: MotivoNaoRefez): SaidaDaNota => ({ data: { turnoId: null, motivo }, events: [] });
-  if (turno.estado !== "interrompido" || !(paradoPelaConta(turno) || presoSemContato(turno)) || !ORIGENS_REFAZIVEIS.includes(turno.origem)) return nada("turno_nao_interrompido");
+  if (turno.estado !== "interrompido" || !(paradoPelaConta(turno) || presoSemContato(turno) || (await paradoNumDesvio(d, turno))) || !ORIGENS_REFAZIVEIS.includes(turno.origem)) return nada("turno_nao_interrompido");
   const mesmaFala = (t: Turno) => t.id !== turno.id && t.agenteId === turno.agenteId && t.criadoEm >= turno.criadoEm
     && (turno.mensagemOrigemId ? t.mensagemOrigemId === turno.mensagemOrigemId : t.entradaTexto === turno.entradaTexto);
   const posteriores = (await d.repos.turnos.listarDaConversa(turno.conversaId, 50)).filter(mesmaFala);
@@ -209,14 +270,17 @@ export async function refazerTurnoDaNota(
     conversaId: turno.conversaId,
     agenteId: turno.agenteId,
     origem: turno.origem,
-    prazoEm: agora + Math.max(60_000, turno.prazoEm - turno.criadoEm),
+    prazoEm: Math.max(agora, p.acordarEm ?? agora) + Math.max(60_000, turno.prazoEm - turno.criadoEm),
     profundidade: turno.profundidade,
     entradaTexto: turno.entradaTexto,
     mensagemOrigemId: turno.mensagemOrigemId,
     entradaAnexos: turno.entradaAnexos,
     entradaConfianca: turno.entradaConfianca,
-    modelo: turno.modelo,
-    harness: turno.harness,
+    // Lote B (desvio 9): a fala espera a IA reinstalada; `anteciparFalasEsperando` a solta quando ela anuncia pronta.
+    ...(p.acordarEm !== undefined ? { acordarEm: p.acordarEm } : {}),
+    // Lote B (desvio 3 e 10): "Responder com o ChatGPT desta vez" — fixo na outra IA só neste turno; o bot não muda.
+    modelo: p.harnessDestaVez ? (iaDoModelo(turno.modelo) === p.harnessDestaVez ? turno.modelo : "auto") : turno.modelo,
+    harness: p.harnessDestaVez ?? turno.harness,
     reenvios: turno.reenvios + 1,
     executor: turno.executor,
     trabalhoId: turno.trabalhoId ?? null,

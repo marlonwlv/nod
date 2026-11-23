@@ -5,6 +5,7 @@ import type { ContasIaDto, ContasNoLimite, MotivoDaNota } from "../../src/contra
 import type { PayloadTrocaDeIa } from "../../src/contracts/troca-de-ia.ts";
 import type { Estado } from "../estado/reducer.ts";
 import { avisoDeEstado } from "../lib/aviso-estado.ts";
+import { cartaoSemAcesso, desvioNaConversa } from "./desvio.ts";
 import { atualizacaoEmCurso, comandoDoTerminal, fraseDaAtualizacao } from "../lib/atualizacao-ia.ts";
 import { formatoData } from "../lib/formato-data.ts";
 import { botao, esc, hora, paragrafos } from "../lib/render.ts";
@@ -93,8 +94,6 @@ const FRASE_DA_CAUSA:Record<CausaSemIa, (cli: string) => string> = {
  */
 export function avisoContaSemAcesso(m: Mensagem, estado: Pick<Estado, "executor">, p: { nomeDoBot: string; ia: IdIa; causa: CausaSemIa; aindaFora: boolean; noApp: boolean }): string {
   const { cli } = PROVEDOR_DA_IA[p.ia];
-  const outra = OUTRA[p.ia];
-  const invOutra = inventarioDaIa(estado, outra);
   const detalhes = `<details class="aviso-estado-detalhes" data-disclosure="negacao-${esc(m.id)}"><summary>Detalhes técnicos</summary>${paragrafos(m.texto)}</details>`;
   if (!p.aindaFora) {
     return avisoDeEstado({
@@ -104,20 +103,13 @@ export function avisoContaSemAcesso(m: Mensagem, estado: Pick<Estado, "executor"
       extra: detalhes,
     });
   }
-  const entrar = botao("ia-entrar", `${logo(p.ia)}Entrar com outra conta`, { classe: "pri sm com-logo", dados: { ia: p.ia } });
-  // NOD-171 (QA): a outra IA desatualizada pede "Atualizar"; "Conectar" abriria o login de um CLI que o nod não usa.
-  const conectarOutra = desatualizado(invOutra)
-    ? botao("ia-atualizar", `${logo(outra)}Atualizar o ${PROVEDOR_DA_IA[outra].cli}`, { classe: "sm com-logo", dados: { ia: outra } })
-    : botao("ia-conectar", `${logo(outra)}${pedeInstalar(invOutra) ? `Instalar o ${PROVEDOR_DA_IA[outra].cli}` : `Conectar o ${PROVEDOR_DA_IA[outra].nome}`}`, { classe: "sm com-logo", dados: { ia: outra } });
-  const acao = p.noApp ? `<span class="aviso-estado-acoes">${entrar}${conectarOutra}</span>` : botao("secao-espaco", "Conectar IA", { classe: "pri sm", dados: { secao: "conexao" } });
-  return avisoDeEstado({
-    tom: "alerta",
-    titulo: `${p.nomeDoBot} não conseguiu começar.`,
-    texto: `Nenhum trabalho começou: ${FRASE_DA_CAUSA[p.causa](cli)}. Sua mensagem fica guardada: quando uma IA estiver pronta, ${p.nomeDoBot} responde sozinho.`,
-    extra: detalhes,
-    acao,
-    classe: "aviso-ia-fora",
-  });
+  // Lote B (desvio 8, auditoria de 2026-11-22): o cartão da tabela única, como no Paper — "A conta do Claude está sem
+  // acesso · Era a única conta de <bot>. Conecte outra e a mensagem sai em seguida." com "Conectar outra conta" (abre
+  // Provedores de IA). O texto técnico da recusa fica em "Ver o erro".
+  // A organização que desligou o uso por assinatura não vem pelo nome: "a sua organização" (no Paper, o nome da empresa).
+  const cartao = cartaoSemAcesso({ bot: p.nomeDoBot, ia: PROVEDOR_DA_IA[p.ia].nome, organizacao: p.causa === "conta_sem_acesso" ? "sua organização" : null });
+  const verErro = `<details class="aviso-estado-detalhes desvio-erro" data-disclosure="negacao-${esc(m.id)}"><summary>Ver o erro</summary><p>${esc(m.texto)}</p></details>`;
+  return desvioNaConversa(m, cartao).replace(/(<div class="aviso-estado-acoes desvio-acoes">[\s\S]*?)(<\/div><\/div>)$/, `$1${verErro}$2`);
 }
 
 /**
@@ -464,7 +456,7 @@ export function cartaoTrocaDeIa(m: Mensagem, p: { nomeDoBot: string | null; agor
     ].join("");
     // QA do PR 2 (16/10): sem artigo nem gênero para o nome do bot ("Vera parou", não "O Vera está parado").
     const texto = `Este bot usa só o ${de}, e as contas do ${de} da sua fila acabaram. Se você não fizer nada, ${bot} volta sozinho${volta ? ` ${volta}` : ""}.${opcoes ? " Para continuar agora, escolha um caminho:" : ""}`;
-    return `<div class="aviso-estado tom-info aviso-troca" role="status"><div class="aviso-estado-txt"><b>${esc(bot)} parou${ate ? ` até ${esc(ate)}` : ""}</b><p>${esc(texto)}</p>${opcoes ? `<ul class="troca-opcoes">${opcoes}</ul>` : ""}</div></div>`;
+    return `<div class="aviso-estado tom-info aviso-troca" role="status"><div class="aviso-estado-cab"><b class="aviso-estado-tit">${esc(bot)} parou${ate ? ` até ${esc(ate)}` : ""}</b></div><p class="aviso-estado-txt">${esc(texto)}</p>${opcoes ? `<ul class="troca-opcoes">${opcoes}</ul>` : ""}</div>`;
   }
   const tasks = t.tasks === 1 ? "a tarefa" : `as ${t.tasks} tarefas`;
   // Revisão do PR 2 (I1): no ChatGPT, a conta da sessão parou e "levar" é para outra conta dele (a sessão fica na que parou).
@@ -485,7 +477,7 @@ export function cartaoTrocaDeIa(m: Mensagem, p: { nomeDoBot: string | null; agor
   const titulo = apelido ? `A conta ${apelido} do ${de} chegou ao limite` : `O ${de} chegou ao limite`;
   // NOD-390: com a conta da outra IA (a da fila na máquina do bot), o apelido junto, como no seletor de IA.
   const conversa = para && !mesmaIa ? `A conversa segue no ${para}${t.contaPara ? ` · conta ${t.contaPara.apelido}` : ""}. ` : "";
-  return `<div class="aviso-estado tom-info aviso-troca" role="status"><div class="aviso-estado-txt"><b>${esc(titulo)}${volta ? ` · volta ${esc(volta)}` : ""}</b><p>${esc(conversa)}${esc(fora)}${esc(frase)}</p><ul class="troca-opcoes">${levar ? levarOp + esperar : esperar + levarOp}</ul><small class="troca-rodape">${esc(rodape)}</small></div></div>`;
+  return `<div class="aviso-estado tom-info aviso-troca" role="status"><div class="aviso-estado-cab"><b class="aviso-estado-tit">${esc(titulo)}${volta ? ` · volta ${esc(volta)}` : ""}</b></div><p class="aviso-estado-txt">${esc(conversa)}${esc(fora)}${esc(frase)}</p><ul class="troca-opcoes">${levar ? levarOp + esperar : esperar + levarOp}</ul><small class="troca-rodape">${esc(rodape)}</small></div>`;
 }
 
 /**

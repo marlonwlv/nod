@@ -1,3 +1,5 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
+// Lote B (desvios 11 e 12, 2026-11-22): a conversa volta sozinha uma vez; o "Retomar" deste teste é o do teto da mensagem.
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
@@ -24,7 +26,7 @@ const T0 = Date.parse("2026-09-24T00:50:00-03:00");
 /** Um turno de conversa rodando numa máquina, com o lease até `ate` (a queda é notada depois). */
 async function turnoRodando(trx: Tx, agenteId: string, conversaId: string, maquina: string, desde: number): Promise<Turno> {
   const repos = criarRepos(trx, MARLON);
-  const t = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: desde + 86_400_000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "m" });
+  const t = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: desde + 86_400_000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "m", reenvios: TETO_TENTATIVAS_DA_MENSAGEM });
   const r = await repos.turnos.reivindicar({ machineId: maquina, agora: desde });
   if (!t || r?.id !== t.id) throw new Error("turno não reivindicado");
   return r;
@@ -119,12 +121,14 @@ describeIntegracao("incidentes (ADR-045): um aviso por queda do Mac, nunca um ca
     for (const plataforma of ["darwin", null, "sem chave"] as const) {
       await withRollback(MARLON, async (trx) => {
         const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Taga" });
-        const maquina = plataforma === "sem chave" ? randomUUID() : await chave(repos, "MacBook de Marlon", plataforma);
+        const maquina = plataforma === "sem chave" ? randomUUID() : await chave(repos, "MacBook do escritório", plataforma);
         const agora = T0 + 2 * H;
         await interromperPorMaquina({ repos, escopo: MARLON, agora: () => agora }, { turnos: [await turnoRodando(trx, agenteId, conversaId, maquina, T0)] });
         expect(await aviso(repos, conversaId), String(plataforma)).toContain("Turno interrompido: seu Mac parou de responder (repouso, sem rede ou nod fechado).");
         const { data } = await listarSuaVez({ repos, escopo: MARLON, agora: () => agora, tx: (fn) => fn(trx) }, { marcarVista: false });
-        expect(data.incidentes[0], String(plataforma)).not.toHaveProperty("maquina");
+        // Revisto em 2026-11-22 (lote B, desvio 12): a máquina com chave vai pelo nome; sem chave, o aviso diz "Seu Mac".
+        if (plataforma === "sem chave") expect(data.incidentes[0], String(plataforma)).not.toHaveProperty("maquina");
+        else expect(data.incidentes[0], String(plataforma)).toMatchObject({ maquina: "MacBook do escritório" });
       });
     }
   });

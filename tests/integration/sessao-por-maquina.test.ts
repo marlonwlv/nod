@@ -144,7 +144,8 @@ describeIntegracao("NOD-281: a sessão do CLI é da máquina, da IA e da conta (
 
       expect((await m.repos.conversas.buscar(m.conversaId))?.sessaoCli).toBeNull();
       const sistema = async () => (await m.repos.mensagens.listarDaConversa(m.conversaId)).filter((x) => x.kind === "sistema");
-      expect(await sistema()).toHaveLength(0);
+      // Lote B (desvio 1, Paper B3): sem aviso de falha — só a linha discreta de que o bot recomeçou pelo histórico.
+      expect((await sistema()).map((x) => x.payload)).toMatchObject([{ kind: "desvio", desvio: "sessao_sumiu", forma: "linha" }]);
       const turnos = await trx<{ id: string; reenvios: number; estado: string; entrada_texto: string }[]>`
         select id, reenvios, estado, entrada_texto from turnos where conversa_id = ${m.conversaId} order by criado_em, id`;
       const repetido = turnos.find((x) => x.id !== t1.id);
@@ -157,7 +158,8 @@ describeIntegracao("NOD-281: a sessão do CLI é da máquina, da IA e da conta (
 
       // Recusado de novo: não há sessão para largar nem segunda repetição — vale o aviso de sempre.
       await assentarTurno(m.deps, { turnoId: repetido!.id, machineId: a, seqLocal: 1, fala: { tipo: "texto", texto: "" }, resultado: rejeitada, executor: "local", harness: "claude-cli" });
-      expect(await sistema()).toHaveLength(1);
+      // Recusado de novo: o cartão do desvio (o motivo e as saídas), no lugar do aviso de sempre.
+      expect((await sistema()).map((x) => x.payload)).toMatchObject([{ forma: "linha" }, { kind: "desvio", desvio: "sessao_sumiu", forma: "cartao" }]);
       const depois = await trx<{ n: number }[]>`select count(*)::int as n from turnos where conversa_id = ${m.conversaId}`;
       expect(depois[0]!.n).toBe(2);
     });

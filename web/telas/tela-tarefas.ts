@@ -1,3 +1,4 @@
+import { ROTULO_DO_OBJETIVO, rotuloDoObjetivo } from "./tarefa-detalhada.ts";
 import type { DonoDto } from "../../src/contracts/dono.ts";
 import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { Estado, MostrarTarefas, Tela } from "../estado/reducer.ts";
@@ -69,7 +70,35 @@ function filtros(estado: Estado, tela: TelaTarefas, abertas: number): string {
   const chip = (id: MostrarTarefas, nome: string): string => `<button type="button" class="tf-chip" data-act="mostrar-tarefas" data-id="${id}" aria-pressed="${mostrar === id}">${nome}</button>`;
   const bot = tela.bot ? agente(estado, tela.bot) : undefined;
   const bots = `<button type="button" class="tf-chip tf-chip-bots" data-act="bots-tarefas" aria-haspopup="menu" aria-pressed="${!!bot}">${esc(bot?.nome ?? "Todos os bots")}${SETA_MENU}</button>`;
-  return `<div class="tf-filtros" role="group" aria-label="Filtrar tarefas">${chip("abertas", `Abertas <span class="tf-chip-n">${abertas}</span>`)}${chip("feitas", "Feitas")}${chip("todas", "Todas")}<span class="tf-traco" aria-hidden="true"></span>${bots}</div>`;
+  const arquivadas = comArquivadas(estado) ? chip("arquivadas", "Arquivadas") : "";
+  return `<div class="tf-filtros" role="group" aria-label="Filtrar tarefas">${chip("abertas", `Abertas <span class="tf-chip-n">${abertas}</span>`)}${chip("feitas", "Feitas")}${chip("todas", "Todas")}${arquivadas}<span class="tf-traco" aria-hidden="true"></span>${bots}</div>`;
+}
+
+/**
+ * ADR-192 (emenda 5, achado das jornadas de QA): o chip "Arquivadas" — com a leitura nova a arquivada sai da lista e só
+ * voltava pela aba aberta ou pela linha da conversa. Sem a leitura nova a lista de antes não esconde nada: sem chip.
+ */
+export function comArquivadas(estado: Pick<Estado, "trabalhos">): boolean {
+  return estado.trabalhos?.leituraNovaDasTarefas === true;
+}
+
+/** A lista do chip "Arquivadas" (GET tarefas?estado=arquivada): título, bot e quando arquivou; a linha abre a tarefa. */
+export function htmlDasArquivadas(estado: Estado, bot?: string): string {
+  if (estado.tarefasArquivadas === null) return '<p class="tf-vazio">carregando…</p>';
+  const lista = estado.tarefasArquivadas.filter((t) => !bot || t.agenteId === bot);
+  if (lista.length === 0) return '<p class="tf-vazio">Nenhuma tarefa arquivada.</p>';
+  const linha = (t: (typeof lista)[number]): string => {
+    const dono = agente(estado, t.agenteId);
+    const quando = t.arquivadaEm ? `Arquivada · ${diaEHora(t.arquivadaEm)}` : "Arquivada";
+    const abre = t.trabalhoId ? ` data-act="abrir-trabalho" data-id="${esc(t.trabalhoId)}"` : " disabled";
+    return `<button type="button" class="tf-tarefa" data-grupo="arquivada"${abre}><span class="tf-meio"><span class="tf-t-titulo">${esc(tituloCurto(t.titulo))}</span><span class="tf-t-passo">${esc(quando)}</span></span><span class="tf-quem">${dono ? iconeAgente(dono, "sm") : ""}<span>${esc(dono?.nome ?? "bot")}</span></span><span class="tf-origem"></span><span class="tf-tempo"></span></button>`;
+  };
+  return `<section class="tf-grupo" data-grupo="arquivada"><h2 class="tf-rotulo">Arquivadas · ${lista.length}</h2><div class="tf-tarefas">${lista.map(linha).join("")}</div></section>`;
+}
+
+function diaEHora(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${hora(ms)}`;
 }
 
 /** O menu de "Todos os bots ▾": todos e cada bot com tarefa (ou da frota), o escolhido marcado. */
@@ -98,10 +127,10 @@ function topo(estado: Estado, tela: TelaTarefas, porBot: boolean, abertas: numbe
 export function renderTelaTarefas(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
   if (!estado.trabalhos) return '<section class="tela-tarefas" aria-label="Tarefas"><p class="tf-vazio">carregando…</p></section>';
   const porBot = temDonos(estado) && !tela.filtro;
-  const todos = estado.trabalhos.trabalhos.filter((t) => !tela.bot || t.agenteId === tela.bot);
+  const todos = trabalhosDaTela(estado).filter((t) => !tela.bot || t.agenteId === tela.bot);
   const abertas = todos.filter(aberto).length;
   const cota = pilulaDaCota(estado.trabalhos.cota, estado.trabalhos.trabalhos, estado.agora, estado.trabalhos.pedidosNaFila);
-  const corpo = porBot ? renderTarefasPorBot(estado, tela) : renderTarefasPorEstado(estado, tela);
+  const corpo = tela.mostrar === "arquivadas" && comArquivadas(estado) ? htmlDasArquivadas(estado, tela.bot) : porBot ? renderTarefasPorBot(estado, tela) : renderTarefasPorEstado(estado, tela);
   return `<section class="tela-tarefas" aria-label="Tarefas" data-vista="${porBot ? "por-bot" : "por-estado"}">${topo(estado, tela, porBot, abertas)}${cota}<div class="tf-lista">${corpo}</div></section>`;
 }
 
@@ -160,8 +189,13 @@ export function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly Traba
 }
 
 export function prontas(doBot: readonly TrabalhoDto[], hoje: number): string {
-  const n = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje).length;
-  return n ? plural(n, "pronta", "prontas") : "";
+  const feitas = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje);
+  // ADR-192 (etapa 3): com a Tarefa ligada, o que terminou foi ENTREGUE; resolvida só depois da pessoa. As sem Tarefa
+  // (rotina, colega, as de antes) seguem "prontas".
+  const resolvidas = feitas.filter((t) => t.tarefa?.estado === "resolvida").length;
+  const entregues = feitas.filter((t) => t.tarefa && t.tarefa.estado !== "resolvida").length;
+  const semTarefa = feitas.length - resolvidas - entregues;
+  return [semTarefa ? plural(semTarefa, "pronta", "prontas") : "", entregues ? plural(entregues, "entregue", "entregues") : "", resolvidas ? plural(resolvidas, "resolvida", "resolvidas") : ""].filter(Boolean).join(" · ");
 }
 
 /** O tempo à direita: "há 9 min" (menos de uma hora) ou "desde 9:14"; a espera de colega vencida, "sem resposta há 26h". */
@@ -260,7 +294,7 @@ const rotuloDoGrupo = (titulo: string, n: number): string => `<h2 class="tf-rotu
 
 /** Por bot (Paper 5a): os três grupos em cartões, as feitas de hoje (com Feitas ou Todas) e "Livres: …" no fim. */
 export function renderTarefasPorBot(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
-  const todos = estado.trabalhos?.trabalhos ?? [];
+  const todos = trabalhosDaTela(estado);
   const mostrar = tela.mostrar ?? "abertas";
   const hoje = meiaNoiteDe(estado.agora);
   const { linhas: todasAsLinhas, livres: todosOsLivres } = linhasDosBots(estado);
@@ -304,9 +338,22 @@ export const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; m
 ];
 
 /** O passo da linha ("rodando os testes de unidade", "esperando a CI"); a terminada diz como acabou. */
+/**
+ * ADR-192 (etapa 5): as tarefas que a tela Tarefas mostra. Com a leitura nova (`leituraNovaDasTarefas`, a virada depois da
+ * sombra), quem decide é a Tarefa: a arquivada sai da lista padrão (ela segue aberta pela linha da conversa, com
+ * Desarquivar). Sem a leitura nova, a lista de trabalhos de antes.
+ */
+export function trabalhosDaTela(estado: Pick<Estado, "trabalhos">): TrabalhoDto[] {
+  const todos = estado.trabalhos?.trabalhos ?? [];
+  return estado.trabalhos?.leituraNovaDasTarefas ? todos.filter((t) => t.tarefa?.estado !== "arquivada") : [...todos];
+}
+
 export function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
-  if (!aberto(t)) return { passo: t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
-  const passo = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
+  // ADR-192 (etapa 3): com a Tarefa ligada, a linha diz o estado do objetivo ("Entregue · precisa de você", "Resolvida") —
+  // "Entregue" nunca aparece como resolvida; aberta, o estado do objetivo vem antes do passo de agora.
+  if (!aberto(t)) return { passo: t.tarefa ? rotuloDoObjetivo(t.tarefa) : t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
+  const situacao = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
+  const passo = t.tarefa && t.tarefa.estado !== "em_andamento" ? `${ROTULO_DO_OBJETIVO[t.tarefa.estado]} · ${situacao}` : situacao;
   // O passo corta: o title leva o texto inteiro e, sem contato com a máquina, o que fazer.
   return { passo, dica: passo.includes(" · sem contato") ? dicaSemContato(t, estado.agora) : "" };
 }
@@ -330,7 +377,7 @@ function linhaDaTarefa(estado: Estado, t: TrabalhoDto, todos: readonly TrabalhoD
 
 /** Por estado (Paper 5b): Precisa de você, Trabalhando, Esperando e Na fila (Abertas), Feitas hoje (Feitas), ou todos. */
 export function renderTarefasPorEstado(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
-  const todos = estado.trabalhos?.trabalhos ?? [];
+  const todos = trabalhosDaTela(estado);
   const mostrar = tela.mostrar ?? "abertas";
   const grupos = agrupar(filtrar(todos, tela.filtro).filter((t) => !tela.bot || t.agenteId === tela.bot), estado.agora);
   const secoes = GRUPOS_DO_ESTADO.filter((g) => (mostrar === "todas" || g.mostrar === mostrar) && grupos[g.chave].length > 0).map((g) =>

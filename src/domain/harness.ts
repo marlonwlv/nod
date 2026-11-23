@@ -139,7 +139,18 @@ export function estadoDaMaquina(inv: Inventario, ias: Partial<Record<IdHarness, 
  */
 export function motivoSemIaPronta(onde: "maquinas" | "maquina_do_bot", inventario: Inventario): string {
   const lugar = onde === "maquinas" ? "nenhuma IA pronta nas suas máquinas" : "nenhuma IA pronta na máquina deste bot";
-  return inventario.estado !== "pronto" && inventario.motivo ? `${lugar}: ${inventario.motivo}` : lugar;
+  const legivel = inventario.estado !== "pronto" ? motivoLegivel(inventario.motivo) : null;
+  return legivel ? `${lugar}: ${legivel}` : lugar;
+}
+
+/**
+ * Lote B das Jornadas da IA (regra 7, 2026-11-22): o motivo do inventário só entra na frase que a pessoa lê quando é frase
+ * de gente — o agregado das máquinas chega como "claude-cli nao_autenticado", que não diz nada a quem lê.
+ */
+const TERMO_INTERNO = /\b(?:claude-cli|codex-cli|catcher|nao_autenticado|executor|motor_ausente|sem_conta|erro_execucao)\b/i;
+export function motivoLegivel(motivo: string | null | undefined): string | null {
+  const m = motivo?.trim();
+  return m && !TERMO_INTERNO.test(m) ? m : null;
 }
 
 /**
@@ -160,7 +171,8 @@ export function motivoHarnessIndisponivel(harness: string, inventario: Inventari
     : inventario.causa === "sonda_lenta" ? "sem resposta"
     : inventario.causa === "atualizando" ? "atualizando"
     : "não instalado";
-  return `${nome} ${estado}: ${inventario.motivo}`;
+  const legivel = motivoLegivel(inventario.motivo);
+  return legivel ? `${nome} ${estado}: ${legivel}` : `${nome} ${estado}`;
 }
 
 const NOME_DO_TIPO: Readonly<Record<TipoAnexo, string>> = { pdf: "PDF", imagem: "imagem", texto: "arquivo de texto" };

@@ -41,6 +41,9 @@ export const ASSUNTOS = [
   "turno.interrompido",
   "turno.queda_da_maquina",
   "turno.retomado",
+  // Lote B das Jornadas da IA (2026-11-22): a linha de quando o nod resolveu um desvio sozinho e o cartão de quando parou.
+  "desvio.recuperado",
+  "desvio.parou",
   "lote.retorno_caiu",
   "passe",
   "parada",

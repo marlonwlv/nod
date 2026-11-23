@@ -13,6 +13,7 @@ import { origemDasFrentes } from "./pedido-de-colega.ts";
 import { autoriaAgente, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { conversaDoBot, enfileirarNoTrabalho } from "./coordenar-trabalhos.ts";
 import type { Deps } from "./tipos.ts";
+import { ligarObjetivoDoTrabalhoNovo } from "./tarefas.ts";
 import { criarTrabalho } from "./trabalhos.ts";
 import { repoDoGithub } from "../domain/clone-da-maquina.ts";
 import { codigoDaTarefa } from "../domain/codigo-tarefa.ts";
@@ -110,6 +111,8 @@ async function abrirLote(deps: Deps, ctx: ContextoFerramenta, frentes: readonly 
       tarefaId: tarefaId ?? daTarefa?.id ?? null,
     });
     events.push(...criados);
+    // ADR-192 (emenda 5): a frente que o bot abre ganha a Tarefa como a do "+ Nova tarefa" — antes do turno, que nasce na Thread.
+    events.push(...(await ligarObjetivoDoTrabalhoNovo(deps, trabalho, { tipo: "agente", id: turno.agenteId })));
     const novo = await deps.repos.turnos.enfileirar({
       conversaId,
       agenteId: turno.agenteId,

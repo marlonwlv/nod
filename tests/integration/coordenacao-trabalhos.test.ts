@@ -47,7 +47,7 @@ describeIntegracao("a conversa coordena (#193, ADR-083 §7)", () => {
       expect(daTask?.entradaTexto).toContain("Monte o dashboard de churn com os dados de setembro.");
       const linha = (await m.repos.mensagens.listarDaConversa(m.conversaId)).find((x) => x.payload?.kind === "frentes_abertas");
       expect(linha).toMatchObject({ kind: "sistema", texto: "Começou a tarefa Dashboard de churn", payload: { loteId: t!.loteId, origem: "pessoa", frentes: [{ trabalhoId: t!.id, titulo: "Dashboard de churn" }] } });
-      expect((r.events ?? []).map((e) => e.kind)).toEqual(["trabalho_mudou", "turno_criado", "mensagem_criada"]);
+      expect((r.events ?? []).map((e) => e.kind)).toEqual(["trabalho_mudou", "tarefa_mudou", "turno_criado", "mensagem_criada"]); // ADR-192 (emenda 5): a frente do bot nasce com a Tarefa.
 
       // O próximo turno da conversa vê a task e tem as duas ferramentas; o turno da task não tem nenhuma das duas.
       const pConversa = await m.plano((await m.turno())!.id);
@@ -229,7 +229,7 @@ describeIntegracao("a conversa coordena (#193, ADR-083 §7)", () => {
       // Revisão do épico (S13): a task da rede ganha pasta própria (os turnos seguintes rodam nela).
       expect(r.data.trabalho).toMatchObject({ origem: "rede", forma: "frente", estado: "rodando", sessaoCli: s, pasta: expect.stringMatching(/^~\/nod\/Ada\//) });
       expect((await m.repos.turnos.buscar(vivo!.id))?.trabalhoId).toBe(r.data.trabalho?.id);
-      expect((r.events ?? []).map((e) => e.kind)).toEqual(["trabalho_mudou", "mensagem_criada"]);
+      expect((r.events ?? []).map((e) => e.kind)).toEqual(["trabalho_mudou", "tarefa_mudou", "mensagem_criada"]); // ADR-192 (emenda 5): a conversa promovida ganha a Tarefa.
 
       // A conversa ficou livre: a próxima mensagem é despachada já, e numa cópia da sessão.
       const proxima = await m.turno();

@@ -1620,6 +1620,15 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const t = doTenant(b.trabalhos).filter((x) => x.conversaId === conversaId && x.origem === "rede" && x.sessaoCli === sessaoCli).sort((x, y) => y.criadoEm - x.criadoEm)[0];
         return t ? semDonoTrabalho(t) : null;
       },
+      // ADR-192 (etapa 3): a versão em lote dos fatos é a mesma regra, um por id.
+      async fatosDeVarios(ids) {
+        const m = new Map<string, NonNullable<Awaited<ReturnType<Repos["trabalhos"]["fatos"]>>>>();
+        for (const id of ids) {
+          const f = await this.fatos(id);
+          if (f) m.set(id, f);
+        }
+        return m;
+      },
       async fatos(id) {
         const dele = doTenant(b.turnos).filter((t) => t.trabalhoId === id);
         const ids = new Set(dele.map((t) => t.id));
@@ -1765,6 +1774,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         }
         return alvo.length;
       },
+      async anteciparFalasEsperando(ia: string) {
+        const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && t.origem === "conversa" && (t.acordarEm ?? null) !== null && t.mensagemOrigemId
+          && (harnessFixado(t.harness, t.modelo) === null || harnessFixado(t.harness, t.modelo) === ia));
+        for (const t of alvo) t.acordarEm = null;
+        return alvo.map((t) => t.id);
+      },
       async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}) {
         const iaDe = (t: Turno): string | null => harnessFixado(t.harness, t.modelo);
         const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && (t.acordarEm ?? null) !== null && t.entradaTexto.startsWith(ENTRADA_DA_VOLTA_DA_COTA)
@@ -1893,6 +1908,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       // NOD-312: sem sessão do CLI em memória (acima), nunca há o que perder.
       async ultimaSessaoDaConversa() {
         return null;
+      },
+      async anteciparReinstaladas(ia) {
+        const doTurno = (x: Turno) => x.harness === "auto" || x.harness === ia;
+        const acordadas = doTenant(b.turnos).filter((x) => x.estado === "pendente" && x.origem === "conversa" && (x.acordarEm ?? null) !== null && x.mensagemOrigemId && doTurno(x)
+          && doTenant(b.turnos).some((o) => o.id !== x.id && o.mensagemOrigemId === x.mensagemOrigemId && o.estado === "interrompido" && o.motivoInterrupcao === "lancamento_falhou"));
+        for (const x of acordadas) x.acordarEm = null;
+        return acordadas.map((x) => x.id);
+      },
+      async repeticoesDaMensagem(mensagemOrigemId, motivo) {
+        return mensagemOrigemId ? doTenant(b.turnos).filter((x) => x.mensagemOrigemId === mensagemOrigemId && x.motivoRecomeco === motivo).length : 0;
       },
       async registrarMotivoRecomeco(id, motivo) {
         const t = doTenant(b.turnos).find((x) => x.id === id);
@@ -4447,6 +4472,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       foto: async () => null,
       definirFoto: soNoPostgres,
     },
+    // ADR-192 (0180): Tarefa e Thread só existem no Postgres (tests/integration/tarefas-*.test.ts). Em memória nenhum trabalho
+    // tem Tarefa ligada (as leituras voltam vazias, como num banco de antes da etapa 2); escrever é erro do teste.
+    tarefas: new Proxy<object>({
+      doTrabalho: async () => null,
+      buscar: async () => null,
+      primariasDe: async () => new Map(),
+      vinculosDe: async () => new Map(),
+      deTrabalhos: async () => new Map(),
+      listar: async () => [],
+    }, { get: (alvo, m) => (m in alvo ? Reflect.get(alvo, m) : () => { throw new Error(`tarefas.${String(m)} só existe no Postgres`); }) }) as Repos["tarefas"],
     // ADR-165 (0170): os passos do run só existem no Postgres (tests/integration/turno-passos.test.ts); aqui nada grava.
     turnoPassos: {
       gravar: async () => [],

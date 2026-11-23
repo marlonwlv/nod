@@ -271,6 +271,30 @@ describe("sem âncora, sem bloco", () => {
   });
 });
 
+describe("ADR-192, emenda 5: a tarefa do \"+ Nova tarefa\" na conversa principal e o objetivo no cartão", () => {
+  const aberturaPelaTela = (): Mensagem[] => [
+    anexo("tp", t0 + MIN, { kind: "trabalho_aberto", trabalhoId: "wt", titulo: "Três nomes", origem: "pessoa" }, { turnoId: "tt", origemTurno: "conversa", trabalhoId: "wt" }),
+  ];
+  const objetivo = (estado: "em_andamento" | "entregue" | "resolvida") => ({ id: "o1", estado, atividade: null, versao: 2, entregueEm: null, resolvidaEm: null });
+
+  it("a abertura pela tela vira uma linha com o cartão vivo, como a da rede (antes ficava escondida)", () => {
+    const { e, c } = cenario(aberturaPelaTela(), lista([trabalho("wt", { titulo: "Três nomes", ultimoPasso: "pensando", tarefa: objetivo("em_andamento") })]));
+    const linha = doBloco(c, e, "linha:tp");
+    expect(linha).toContain("Você abriu uma tarefa");
+    expect(linha).toContain('<section class="progresso progresso-uma" data-frentes="wt"');
+  });
+
+  it("com Tarefa, o fim diz o objetivo: 'Entregue às HH:MM' e 'Resolvida', nunca 'pronta'", () => {
+    const entregue = cenario(aberturaPelaTela(), lista([trabalho("wt", { titulo: "Três nomes", estado: "terminado", terminadoEm: t0 + 19 * MIN, tarefa: objetivo("entregue") })]));
+    expect(doBloco(entregue.c, entregue.e, "linha:tp")).toContain('<span class="tv-estado">Entregue às 01:09</span>');
+    const resolvida = cenario(aberturaPelaTela(), lista([trabalho("wt", { titulo: "Três nomes", estado: "terminado", terminadoEm: t0 + 19 * MIN, tarefa: objetivo("resolvida") })]));
+    expect(doBloco(resolvida.c, resolvida.e, "linha:tp")).toContain('<span class="tv-estado">Resolvida</span>');
+    // Sem Tarefa (rotina, colega, as de antes) segue "pronta".
+    const semTarefa = cenario(aberturaPelaTela(), lista([trabalho("wt", { titulo: "Três nomes", estado: "terminado", terminadoEm: t0 + 19 * MIN })]));
+    expect(doBloco(semTarefa.c, semTarefa.e, "linha:tp")).toContain('<span class="tv-estado">pronta às 01:09</span>');
+  });
+});
+
 describe("a frente da rede e a frente única", () => {
   it("ADR-187: a rede tem a linha dela do lado do bot, com o bloco embaixo, numa linha só; o balão da pessoa fica sem bloco", () => {
     const ms = [

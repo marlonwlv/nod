@@ -42,6 +42,8 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "bot.criado": "Criou bots",
   "turno.orfao": "Pedido tirado da fila",
   "turno.falhou": "Turno interrompido",
+  "desvio.recuperado": "O nod resolveu sozinho",
+  "desvio.parou": "A mensagem parou",
   "turno.interrompido": "Turno interrompido",
   "turno.queda_da_maquina": "A máquina parou de responder",
   "turno.retomado": "Turno retomado",
