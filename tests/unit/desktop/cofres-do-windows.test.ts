@@ -69,6 +69,14 @@ describe("a assinatura do op e a confirmação", () => {
     expect(vistos[0]!.bin).toBe(powershellDoWindows(ENV));
     expect(vistos[0]!.args.join(" ")).not.toContain("op.exe");
     expect(vistos[0]!.env?.NOD_ARQUIVO).toBe("C:\\Tools\\op.exe'; rm -r C:\\");
+    // O PowerShell leva o ambiente do Windows, mas nada do nod nem com cara de segredo.
+    expect(vistos[0]!.env).toMatchObject({ SystemRoot: "C:\\Windows", APPDATA: ENV.APPDATA });
+    expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("NOD_CREDENTIAL_KEY");
+    expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("DATABASE_URL");
+    // O PowerShell leva o ambiente do Windows, mas nada do nod nem com cara de segredo.
+    expect(vistos[0]!.env).toMatchObject({ SystemRoot: "C:\\Windows", APPDATA: ENV.APPDATA });
+    expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("NOD_CREDENTIAL_KEY");
+    expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("DATABASE_URL");
   });
 
   it("Windows Hello: só Verified ou OK confirmam; o motivo vai por variável, e o script cai na caixa do Windows sem o Hello", async () => {

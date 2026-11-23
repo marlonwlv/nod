@@ -30,6 +30,20 @@ export function powershellDoWindows(env: Env): string {
   return win32.join(raiz, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 }
 
+/**
+ * O env do PowerShell do sistema: o do processo (o PowerShell 5.1 precisa de várias variáveis do Windows para carregar os
+ * módulos, e com o mínimo o `Get-AuthenticodeSignature` não sobe — medido no runner), menos as do nod e tudo que tenha
+ * cara de segredo. O que vem de fora (o caminho, o motivo) vai em `extra`.
+ */
+export function ambienteDoPowerShell(env: Env, extra: Readonly<Record<string, string>> = {}): Record<string, string> {
+  const saida: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (v === undefined || /^NOD_/iu.test(k) || /(KEY|TOKEN|SECRET|PASSWORD|SENHA|SESSION|DATABASE)/iu.test(k)) continue;
+    saida[k] = v;
+  }
+  return { ...saida, ...extra };
+}
+
 /** O env que o `op`, o `bw` e o PowerShell precisam no Windows: as pastas do sistema e do usuário e o PATH; nada do nod. */
 export function ambienteDoWindows(env: Env, extra: Readonly<Record<string, string>> = {}): Record<string, string> {
   return { ...ambienteDoSistema(env, "win32"), PATH: env.PATH ?? env.Path ?? "", ...extra };
@@ -80,7 +94,7 @@ export function candidatosDoBw(env: Env): string[] {
  */
 export async function opDaAgileBitsNoWindows(caminho: string, env: Env, executar: ExecutarDoCofre = executarDoCofre): Promise<boolean> {
   const script = "$s = Get-AuthenticodeSignature -LiteralPath $env:NOD_ARQUIVO; [Console]::Out.Write($s.Status.ToString() + '|' + $s.SignerCertificate.Subject)";
-  const r = await executar(powershellDoWindows(env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { prazoMs: 30_000, env: ambienteDoWindows(env, { NOD_ARQUIVO: caminho }) });
+  const r = await executar(powershellDoWindows(env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { prazoMs: 30_000, env: ambienteDoPowerShell(env, { NOD_ARQUIVO: caminho }) });
   return r.codigo === 0 && assinaturaDaAgileBits(r.saida);
 }
 
@@ -125,7 +139,7 @@ export function confirmouNoWindows(saida: string): boolean {
 const PRAZO_CONFIRMAR_MS = 90_000;
 
 export async function confirmarNoWindows(motivo: string, env: Env, executar: ExecutarDoCofre = executarDoCofre): Promise<boolean> {
-  const r = await executar(powershellDoWindows(env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT_DO_WINDOWS_HELLO], { prazoMs: PRAZO_CONFIRMAR_MS, env: ambienteDoWindows(env, { NOD_MOTIVO: motivo.slice(0, 200) }) });
+  const r = await executar(powershellDoWindows(env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT_DO_WINDOWS_HELLO], { prazoMs: PRAZO_CONFIRMAR_MS, env: ambienteDoPowerShell(env, { NOD_MOTIVO: motivo.slice(0, 200) }) });
   return r.codigo === 0 && !r.estourou && confirmouNoWindows(r.saida);
 }
 

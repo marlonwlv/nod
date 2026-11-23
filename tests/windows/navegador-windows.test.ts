@@ -9,7 +9,7 @@ import { agentBrowserNoWindows, chromeDoWindows } from "../../src/adapters/execu
 import { binarioAgentBrowser, criarMotorAgentBrowser } from "../../src/adapters/navegador/motor-agent-browser.ts";
 import { relayPadrao } from "../../src/adapters/navegador/stream-local.ts";
 import { executarDoCofre } from "../../desktop/cofres-do-mac.ts";
-import { opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../desktop/cofres-do-windows.ts";
+import { ambienteDoPowerShell, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../desktop/cofres-do-windows.ts";
 import { cookiesDoChromeNoWindows, googleChromeDoWindows } from "../../desktop/cookies-do-chrome-windows.ts";
 
 /**
@@ -126,7 +126,7 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
   });
 
   it("Windows Hello: o script carrega o WinRT no PowerShell 5.1 e responde a disponibilidade", async () => {
-    const r = await executarDoCofre(powershellDoWindows(process.env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT_DO_WINDOWS_HELLO], { prazoMs: 60_000, env: { ...Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined)), NOD_SO_CHECAR: "1", NOD_MOTIVO: "teste" } });
+    const r = await executarDoCofre(powershellDoWindows(process.env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT_DO_WINDOWS_HELLO], { prazoMs: 60_000, env: ambienteDoPowerShell(process.env, { NOD_SO_CHECAR: "1", NOD_MOTIVO: "teste" }) });
     expect(r.erro).toBe("");
     expect(r.saida).toMatch(/^disponivel:(Available|DeviceNotPresent|NotConfiguredForUser|DisabledByPolicy|DeviceBusy|Erro)$/u);
   });
@@ -135,9 +135,9 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     // O chrome.exe traz a assinatura embutida, como o op.exe da AgileBits (o powershell.exe é assinado por catálogo, e a
     // consulta ao catálogo leva mais que o prazo no runner).
     const chrome = googleChromeDoWindows(process.env);
-    let saida = "";
-    const espiao: typeof executarDoCofre = async (bin, args, o) => { const r = await executarDoCofre(bin, args, o); saida = r.saida; return r; };
+    let saida = "", erro = "";
+    const espiao: typeof executarDoCofre = async (bin, args, o) => { const r = await executarDoCofre(bin, args, o); saida = r.saida; erro = r.erro; return r; };
     expect(await opDaAgileBitsNoWindows(chrome!, process.env, espiao)).toBe(false);
-    expect(saida).toMatch(/^Valid\|.*Google/u);
+    expect(saida, erro).toMatch(/^Valid\|.*Google/u);
   });
 });
