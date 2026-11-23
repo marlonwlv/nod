@@ -4282,9 +4282,10 @@ async function carregarArquivadas(): Promise<void> {
 function campoDaTela(id: string): CampoDaTarefa {
   const d = estado.trabalhoDetalhe[id];
   const tr = d?.trabalho ?? trabalhoPorId(estado, id);
-  const bot = tr ? (botGerido(tr.agenteId)?.nome ?? "o bot") : "o bot";
+  const excluido = tr && !botGerido(tr.agenteId) ? [...(estado.frota?.agentes ?? []), ...(estado.gestao?.agentes ?? [])].find((a) => a.id === tr.agenteId && a.excluidoEm) : undefined;
+  const bot = tr ? (botGerido(tr.agenteId)?.nome ?? excluido?.nome ?? "o bot") : "o bot";
   const guardadas = (d?.falasNaFila ?? []).filter((f) => f.situacao === "guardada").length;
-  return campoDaTarefa(tr, bot, guardadas);
+  return campoDaTarefa(tr, bot, guardadas, !!excluido);
 }
 
 /**
@@ -6350,6 +6351,8 @@ async function enviarParaTrabalho(id: string): Promise<void> {
   if (fila.some((i) => i.estado === "enviando")) return;
   const ids = fila.flatMap((i) => (i.estado === "pronto" && i.meta ? [i.meta.id] : []));
   if (!ta || !api || (!texto && ids.length === 0)) return;
+  // QA-201: o bot da tarefa foi excluído — o servidor recusa; o campo já diz o caminho (restaurar o bot).
+  if (campoDaTela(id).semEnvio) return;
   const a = api;
   rolagem.colar();
   // Paper 4n: com a tarefa esperando a pessoa, a resposta livre do campo responde a pergunta dela (como o campo da conversa).
