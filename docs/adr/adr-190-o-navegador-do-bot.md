@@ -214,13 +214,15 @@ Pedido do dono: o navegador do bot funciona no Windows com as mesmas coisas do M
 - **Cofres:** a mesma lógica do Mac. O `op` do 1Password vem do PATH, do WinGet ou de Arquivos de Programas e só roda
   com a assinatura Authenticode válida e emitida para a AgileBits (o par do Team ID no Mac). O `bw` é o `.exe` ou o atalho
   do npm, que vira `node <script>` sem o cmd.exe.
-- **Trazer do meu Chrome — não existe no PC por enquanto (medido no runner, 2026-11-22):** no perfil do dia a dia o
-  Chrome do Windows cifra os cookies com a criptografia presa a ele (`v20`, app-bound, Chrome 127+). Nenhum programa de
-  fora a abre — nem o próprio `chrome.exe` da pessoa abrindo uma cópia do perfil (a chave vale só para o perfil
-  original), e o Chrome 136+ recusa a depuração no perfil padrão. A leitura pela cópia (`cookies-do-chrome-windows.ts`)
-  só serve para cookies `v10` (perfis fora da pasta padrão); havendo `v20` do site, a pessoa ouve o porquê. O cartão de
-  login do PC não oferece a opção. O caminho legítimo é uma extensão do nod no Chrome da pessoa (como a do 1Password),
-  com o `chrome.cookies` e o native messaging até o motor — decisão de produto pendente. Gatilho: a extensão aprovada.
+- **Trazer do meu Chrome no PC, pela extensão do nod (2026-11-23):** no perfil do dia a dia o Chrome do Windows
+  prende os cookies a ele (`v20`, app-bound, Chrome 127+): nenhum programa de fora os abre, nem o próprio `chrome.exe`
+  numa cópia do perfil, e o Chrome 136+ recusa a depuração no perfil padrão (medido no runner). O caminho é o do
+  1Password: a extensão do nod (`extensao-chrome/`, MV3, só `cookies`, `nativeMessaging` e `alarms`) pergunta ao Chrome
+  (`chrome.cookies.getAll`) e fala com o host do native messaging `app.nod.navegador`, que o motor registra em HKCU ao
+  subir (sem admin; a atualização automática também leva) e que repassa, por um pipe do usuário com senha, ao motor.
+  Só os cookies do site pedido saem, só quando a pessoa toca "Trazer do meu Chrome". Sem a extensão, a leitura pela
+  cópia do perfil serve aos cookies `v10`; esbarrando nos `v20`, a pessoa ouve para instalar a extensão. Publicar a
+  extensão na Chrome Web Store (a mesma chave do `key`, que fixa o id que o host aceita) é com o dono.
 - **Confirmação de pagar:** o Windows Hello (rosto, digital ou PIN) pelo WinRT no PowerShell 5.1; sem ele configurado, a
   caixa do Windows com o motivo e OK/Cancelar (como o diálogo do Mac sem Touch ID).
 - **Textos:** a vista diz o aparelho (`aparelho: "mac" | "pc"`), e o servidor e a web falam "seu PC" e "Windows Hello"

@@ -737,10 +737,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     } else {
       doMac = (opcoesDoMacVistas.get(chave) ?? []).map((x) => ({ fonte: x.fonte, ref: x.ref, rotulo: x.rotulo, disponivel: false, motivoIndisponivel: textos(escopo).semAparelho }));
     }
-    // 2026-11-22 (medido no runner Windows): no PC o Chrome cifra os cookies do perfil do dia a dia com a criptografia
-    // presa a ele mesmo ("v20", app-bound), que nenhum programa de fora abre — nem o próprio Chrome numa cópia do perfil.
-    // Sem a extensão do nod no Chrome da pessoa, "Trazer do meu Chrome" só existe no Mac.
-    return { opcoes: ordenarOpcoes([...doMac, ...doNod]).slice(0, OPCOES_MAX), podeTrazerDoChrome: macLigado !== null && aparelhoDe(escopo) === "mac" };
+    // No PC (2026-11-23) a opção vem pela extensão do nod no Chrome da pessoa (o perfil do dia a dia prende os cookies ao
+    // Chrome, "v20"); sem a extensão, o motor responde com o que fazer (instalar a extensão).
+    return { opcoes: ordenarOpcoes([...doMac, ...doNod]).slice(0, OPCOES_MAX), podeTrazerDoChrome: macLigado !== null };
   }
 
   /** O pedido aberto com esta decisão (e ainda aberto no banco), de um dos tipos, ou o erro de estado para a rota. */

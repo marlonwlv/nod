@@ -12,6 +12,8 @@ import { relayPadrao } from "../../src/adapters/navegador/stream-local.ts";
 import { executarDoCofre } from "../../desktop/cofres-do-mac.ts";
 import { ambienteDoPowerShell, criarCofresDoWindows, executarNoWindows, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../desktop/cofres-do-windows.ts";
 import { cookiesDoChromeNoWindows, googleChromeDoWindows, PRESOS_AO_CHROME } from "../../desktop/cookies-do-chrome-windows.ts";
+import { cookiesDoChromeDoPc } from "../../desktop/cofres-do-windows.ts";
+import { criarPonteDoChrome, NOME_DO_HOST, pipeDoChrome, registrarHostNoWindows, senhaDoChrome } from "../../src/adapters/executor/chrome-da-pessoa.ts";
 
 /**
  * 2026-11-22 (o navegador no PC, com tudo o que o Mac tem): a prova no Windows de verdade (job `windows` da CI,
@@ -225,4 +227,40 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     // Fechado o Chrome, sem dizer a pasta (o padrão do usuário, como o motor faz): a recusa vem com o motivo.
     await expect(cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env })).rejects.toMatchObject({ motivo: "indisponivel", detalhe: PRESOS_AO_CHROME });
   }, 240_000);
+  it("Trazer do meu Chrome pela extensão do nod: o Chrome inicia o host, a extensão lê os cookies e o motor os recebe pelo pipe", async () => {
+    // O Chrome for Testing (o Chrome estável 137+ não carrega extensão fora da loja; a pessoa a instala pela loja).
+    const raiz = mkdtempSync(join(tmpdir(), "nod-ext-"));
+    const npx = join(process.execPath, "..", "node_modules", "npm", "bin", "npx-cli.js");
+    const saidaInstalar = execFileSync(process.execPath, [npx, "--yes", "@puppeteer/browsers@3.2.6", "install", "chrome@stable", "--path", join(raiz, "cft")], { encoding: "utf8", timeout: 600_000 });
+    const cft = saidaInstalar.trim().split(/\r?\n/u).at(-1)!.replace(/^\S+\s+/u, "").trim();
+    expect(cft).toMatch(/chrome\.exe$/u);
+    // O motor da prova: a pasta (NOD_MOTOR_HOME), a senha, o host registrado em HKCU e o pipe aberto.
+    const pastaMotor = join(raiz, "motor");
+    process.env.NOD_MOTOR_HOME = pastaMotor;
+    const senha = await senhaDoChrome(pastaMotor, true);
+    await registrarHostNoWindows({ pasta: pastaMotor, nodeExe: process.execPath, motorMjs: join(process.cwd(), "tests", "windows", "host-do-chrome.ts"), systemRoot: process.env.SystemRoot ?? "C:\\Windows" });
+    // O Chrome for Testing lê o host na chave dele também.
+    const manifesto = join(pastaMotor, `${NOME_DO_HOST}.json`);
+    execFileSync("reg", ["add", `HKCU\\Software\\Google\\Chrome for Testing\\NativeMessagingHosts\\${NOME_DO_HOST}`, "/ve", "/t", "REG_SZ", "/d", manifesto, "/f"], { stdio: "ignore" });
+    const ponte = await criarPonteDoChrome({ pipe: pipeDoChrome(pastaMotor), senha: senha! });
+    const perfil = join(raiz, "perfil");
+    const filho = spawn(cft, ["--headless=new", `--user-data-dir=${perfil}`, `--load-extension=${join(process.cwd(), "extensao-chrome")}`, "--no-first-run", "--no-default-browser-check", `${base}/cookie`], { stdio: "ignore", env: { ...process.env, NOD_MOTOR_HOME: pastaMotor } });
+    try {
+      for (let i = 0; i < 120 && !ponte.conectada(); i++) await new Promise((r) => setTimeout(r, 500));
+      expect(ponte.conectada(), "a extensão ligou no motor pelo host").toBe(true);
+      let cookies: Awaited<ReturnType<typeof ponte.cookies>> = [];
+      for (let i = 0; i < 20 && !cookies.length; i++) { cookies = await ponte.cookies("127.0.0.1"); if (!cookies.length) await new Promise((r) => setTimeout(r, 500)); }
+      expect(cookies).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome", httpOnly: true })]);
+      // O caminho que o cofre do PC usa: com a extensão ligada, vem por ela.
+      expect(await cookiesDoChromeDoPc("127.0.0.1", process.env, ponte)).toEqual([expect.objectContaining({ name: "nod_teste" })]);
+      // Outro site: nada.
+      expect(await ponte.cookies("exemplo.com")).toEqual([]);
+    } finally {
+      try { execFileSync("taskkill", ["/F", "/T", "/PID", String(filho.pid)], { stdio: "ignore" }); } catch { /* já saiu */ }
+      await ponte.fechar();
+      for (const chave of ["Google\\Chrome", "Google\\Chrome for Testing"]) { try { execFileSync("reg", ["delete", `HKCU\\Software\\${chave}\\NativeMessagingHosts\\${NOME_DO_HOST}`, "/f"], { stdio: "ignore" }); } catch { /* não havia */ } }
+      delete process.env.NOD_MOTOR_HOME;
+      rmSync(raiz, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+    }
+  }, 900_000);
 });

@@ -5,7 +5,25 @@ import { comoRodar } from "../src/adapters/executor/plataforma.ts";
 import { ambienteDoSistema } from "../src/adapters/navegador/motor-agent-browser.ts";
 import { textosDoAparelho } from "../src/domain/navegador-cofre.ts";
 import { criarCofresDoMac, executarDoCofre, type ExecutarDoCofre } from "./cofres-do-mac.ts";
-import { cookiesDoChromeNoWindows } from "./cookies-do-chrome-windows.ts";
+import { cookiesDoChromeNoWindows, PRESOS_AO_CHROME } from "./cookies-do-chrome-windows.ts";
+import { SEM_EXTENSAO, type PonteDoChrome } from "../src/adapters/executor/chrome-da-pessoa.ts";
+import { FalhaNavegador } from "../src/adapters/navegador/motor-agent-browser.ts";
+import type { CookieNavegador } from "../src/contracts/navegador-maquina.ts";
+
+/**
+ * "Trazer do meu Chrome" no PC (2026-11-23): pela extensão do nod no Chrome da pessoa quando ela está ligada (o caminho
+ * que vale para o perfil do dia a dia, cifrado com a criptografia presa ao Chrome); sem ela, a leitura pela cópia do
+ * perfil, que só serve aos cookies `v10` — e, esbarrando nos `v20`, o recado diz para instalar a extensão.
+ */
+export async function cookiesDoChromeDoPc(host: string, env: Readonly<Record<string, string | undefined>>, ponte: PonteDoChrome | null): Promise<CookieNavegador[]> {
+  if (ponte?.conectada()) return ponte.cookies(host);
+  try {
+    return await cookiesDoChromeNoWindows({ host, env });
+  } catch (e) {
+    if ((e as { detalhe?: string }).detalhe === PRESOS_AO_CHROME) throw new FalhaNavegador("indisponivel", SEM_EXTENSAO);
+    throw e;
+  }
+}
 
 /**
  * Os cofres da pessoa no PC para o navegador do bot (2026-11-22: o navegador no Windows com tudo o que o Mac tem). A

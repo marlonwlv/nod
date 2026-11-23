@@ -463,13 +463,13 @@ describe("o navegador no PC (2026-11-22): os textos dizem o PC e o Windows Hello
   });
 });
 
-describe("o PC não oferece 'Trazer do meu Chrome' (2026-11-22, a criptografia presa ao Chrome no Windows)", () => {
-  it("com o Mac, a opção vem; com o PC, não vem (os cofres do PC seguem)", async () => {
+describe("o PC oferece 'Trazer do meu Chrome' pela extensão do nod (2026-11-23)", () => {
+  it("com o PC ligado, a opção vem junto dos cofres", async () => {
     const pc: MacDaPessoa = { ...macFalso, aparelho: () => "pc" };
     const n = criar({ mac: pc });
     await chamar(n, "navegador_abrir", { url: "https://www.itau.com.br/login" });
     await chamar(n, "navegador_entrar", { site: "itau.com.br", motivo: "ver a fatura" });
-    expect(n.vista(MARLON, A)!.pedido).toMatchObject({ tipo: "login", podeTrazerDoChrome: false, opcoes: expect.arrayContaining([expect.objectContaining({ fonte: "1password" })]) });
+    expect(n.vista(MARLON, A)!.pedido).toMatchObject({ tipo: "login", podeTrazerDoChrome: true, opcoes: expect.arrayContaining([expect.objectContaining({ fonte: "1password" })]) });
   });
 });
 

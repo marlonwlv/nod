@@ -128,6 +128,8 @@ export type ComandoMotor =
   | { tipo: "estado" }
   | { tipo: "atualizar-ia"; ia: "claude" | "codex" }
   | { tipo: "versao" }
+  /** 2026-11-23: o host do native messaging que o Chrome da pessoa inicia (a extensão do nod; chrome-da-pessoa.ts). */
+  | { tipo: "navegador-host" }
   | { tipo: "desinstalar"; manterConexao: boolean; manterIas: boolean; json: boolean }
   | { tipo: "ajuda"; erro: string | null };
 
@@ -139,6 +141,8 @@ export function lerComando(args: readonly string[]): ComandoMotor {
   if (cmd === "rodar") return { tipo: "rodar" };
   if (cmd === "estado") return { tipo: "estado" };
   if (cmd === "versao" || cmd === "--version") return { tipo: "versao" };
+  // O Chrome chama o host com a origem da extensão e `--parent-window=N` depois: os argumentos dele não contam.
+  if (cmd === "navegador-host") return { tipo: "navegador-host" };
   if (cmd === "desinstalar") {
     // ADA-245: só as três opções; qualquer outra recusa (um erro de digitação não pode virar "apagar tudo").
     const conhecidas = new Set(["--manter-conexao", "--manter-ias", "--json"]);

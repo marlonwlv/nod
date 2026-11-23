@@ -25,7 +25,8 @@ import { iniciarDesfazeres, type Desfazeres } from "../src/adapters/executor/des
 import { iniciarEsperas, type Esperas } from "../src/adapters/executor/esperas.ts";
 import { iniciarComputador, type LacoComputador } from "../src/adapters/executor/computador.ts";
 import { agentBrowserDoLinux, agentBrowserNoWindows, chromeDoLinux, chromeDoWindows, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
-import { criarCofresDoWindows } from "../desktop/cofres-do-windows.ts";
+import { cookiesDoChromeDoPc, criarCofresDoWindows } from "../desktop/cofres-do-windows.ts";
+import { criarPonteDoChrome, pipeDoChrome, registrarHostNoWindows, rodarHostDoChrome, senhaDoChrome, type PonteDoChrome } from "../src/adapters/executor/chrome-da-pessoa.ts";
 import type { PlanoTurno } from "../src/contracts/plano-turno.ts";
 import { PAPEIS_MAQUINA } from "../src/contracts/ponte.ts";
 import { iniciarInstaladora, type Instaladora } from "../src/shared/instaladora.ts";
@@ -314,12 +315,15 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   // 2026-11-22 (o navegador no PC): no Windows o motor é o executor do PC da pessoa (o app só abre a janela), então o
   // navegador do bot roda aqui, com o agent-browser que a instalação pôs em <pasta do nod>\navegador, o Chrome (ou o
   // Edge) do sistema e o que o Mac tem no app: o 1Password, o Bitwarden, o Chrome da pessoa e a confirmação (Windows Hello).
+  // 2026-11-23: o Chrome da pessoa pela extensão do nod (o "Trazer do meu Chrome" do PC). O motor registra o host do
+  // native messaging (HKCU, sem admin) e abre o pipe do usuário; falhar aqui só deixa a opção sem a extensão.
+  if (NO_WINDOWS && !ponteDoChrome) void ligarChromeDaPessoa();
   navegador = iniciarNavegadorDaMaquina({
     canal: ponteHttp.navegador,
     motor: motorDaMaquina(NO_WINDOWS
       ? { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserNoWindows({ env: process.env, pastaDoMotor: dir }), chrome: () => chromeDoWindows(process.env), plataforma: "win32" }
       : { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserDoLinux(process.env, process.arch), chrome: () => chromeDoLinux(process.env) }),
-    ...(NO_WINDOWS ? { mac: criarCofresDoWindows({ env: process.env }) } : {}),
+    ...(NO_WINDOWS ? { mac: criarCofresDoWindows({ env: process.env, cookies: (host) => cookiesDoChromeDoPc(host, process.env, ponteDoChrome) }) } : {}),
   });
 
   const subirLaco = (reg: Registry) => {
@@ -734,6 +738,19 @@ function protegerAsIas(): void {
   });
 }
 
+/** A ponte com o Chrome da pessoa (a extensão do nod), uma por processo do motor no Windows. */
+let ponteDoChrome: PonteDoChrome | null = null;
+async function ligarChromeDaPessoa(): Promise<void> {
+  try {
+    const pasta = pastaDoMotor(process.env);
+    const senha = await senhaDoChrome(pasta, true);
+    await registrarHostNoWindows({ pasta, nodeExe: process.execPath, motorMjs: fileURLToPath(import.meta.url), systemRoot: process.env.SystemRoot ?? "C:\\Windows" });
+    ponteDoChrome = await criarPonteDoChrome({ pipe: pipeDoChrome(pasta), senha: senha! });
+  } catch (e) {
+    log("aviso", "navegador_chrome_da_pessoa_falhou", { erro: e instanceof Error ? e.message : "desconhecido" });
+  }
+}
+
 protegerAsIas();
 const comando = lerComando(process.argv.slice(2));
 const saida =
@@ -744,5 +761,6 @@ const saida =
   : comando.tipo === "atualizar-ia" ? atualizarIa(comando.ia)
   : comando.tipo === "desinstalar" ? desinstalarDaqui(comando)
   : comando.tipo === "versao" ? versaoDoMotor().then((v) => { process.stdout.write(`${v}\n`); return 0; })
+  : comando.tipo === "navegador-host" ? (async () => rodarHostDoChrome({ pipe: pipeDoChrome(pastaDoMotor(process.env)), senha: await senhaDoChrome(pastaDoMotor(process.env), false), entrada: process.stdin, saida: process.stdout }))()
   : Promise.resolve((process.stdout.write(`${comando.erro ? `${comando.erro}\n\n` : ""}${AJUDA}`), comando.erro ? 1 : 0));
 saida.then((codigo) => process.exit(codigo), (e: unknown) => { process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`); process.exit(1); });
