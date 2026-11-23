@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -9,7 +10,7 @@ import { agentBrowserNoWindows, chromeDoWindows } from "../../src/adapters/execu
 import { binarioAgentBrowser, criarMotorAgentBrowser } from "../../src/adapters/navegador/motor-agent-browser.ts";
 import { relayPadrao } from "../../src/adapters/navegador/stream-local.ts";
 import { executarDoCofre } from "../../desktop/cofres-do-mac.ts";
-import { ambienteDoPowerShell, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../desktop/cofres-do-windows.ts";
+import { ambienteDoPowerShell, criarCofresDoWindows, executarNoWindows, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../desktop/cofres-do-windows.ts";
 import { cookiesDoChromeNoWindows, googleChromeDoWindows } from "../../desktop/cookies-do-chrome-windows.ts";
 
 /**
@@ -140,4 +141,68 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     expect(await opDaAgileBitsNoWindows(chrome!, process.env, espiao)).toBe(false);
     expect(saida, erro).toMatch(/^Valid\|.*Google/u);
   });
+  it("o 1Password de verdade: o op.exe oficial passa na conferência da AgileBits, roda e, sem conta, a lista fica vazia", async () => {
+    const pasta = mkdtempSync(join(tmpdir(), "nod-op-"));
+    try {
+      const r = await fetch("https://cache.agilebits.com/dist/1P/op2/pkg/v2.30.3/op_windows_amd64_v2.30.3.zip");
+      expect(r.ok).toBe(true);
+      writeFileSync(join(pasta, "op.zip"), Buffer.from(await r.arrayBuffer()));
+      execFileSync("tar", ["-xf", join(pasta, "op.zip"), "-C", pasta]);
+      const op = join(pasta, "op.exe");
+      expect(existsSync(op)).toBe(true);
+      expect(await opDaAgileBitsNoWindows(op, process.env)).toBe(true);
+      const versao = await executarNoWindows(process.env)(op, ["--version"], { env: ambienteDoPowerShell(process.env) });
+      expect(versao.saida.trim()).toBe("2.30.3");
+      // Sem conta no runner: o cofre acha o op (pelo PATH), confere e não cai — lista vazia ou, se o op demorar mais que o
+      // prazo do cartão, a opção genérica do 1Password (o caso do op que espera o desbloqueio).
+      const cofres = criarCofresDoWindows({ env: { ...process.env, PATH: `${pasta};${process.env.PATH}` }, cookies: async () => [], confirmar: async () => false });
+      const opcoes = await cofres.listar("exemplo.com");
+      expect(opcoes.every((o) => o.fonte === "1password" && o.ref === "")).toBe(true);
+    } finally {
+      rmSync(pasta, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+    }
+  });
+
+  it("o Bitwarden de verdade: o bw do npm roda pelo atalho .cmd (node + script, sem cmd.exe) e, sem login, não quebra a lista", async () => {
+    const prefixo = mkdtempSync(join(tmpdir(), "nod-bw-"));
+    try {
+      execFileSync(process.execPath, [join(process.execPath, "..", "node_modules", "npm", "bin", "npm-cli.js"), "install", "-g", "--prefix", prefixo, "--no-fund", "--no-audit", "--loglevel=error", "@bitwarden/cli@2026.9.1"], { stdio: "ignore", timeout: 300_000 });
+      const bwCmd = join(prefixo, "bw.cmd");
+      expect(existsSync(bwCmd)).toBe(true);
+      const env = { ...process.env, PATH: `${prefixo};${process.env.PATH}`, BITWARDENCLI_APPDATA_DIR: join(prefixo, "dados") };
+      const versao = await executarNoWindows(env)(bwCmd, ["--version"], { prazoMs: 60_000, env: ambienteDoPowerShell(env) });
+      expect(versao.saida.trim()).toBe("2026.9.1");
+      // Travado (sem a sessão): o cofre mostra a opção cinza "destravar no seu PC"; com uma sessão que não vale, não cai.
+      const travado = criarCofresDoWindows({ env, sessaoBitwarden: () => null, cookies: async () => [], confirmar: async () => false });
+      expect(await travado.listar("exemplo.com")).toEqual([expect.objectContaining({ fonte: "bitwarden", disponivel: false, motivoIndisponivel: "destravar no seu PC" })]);
+      const semLogin = criarCofresDoWindows({ env, sessaoBitwarden: () => "sessao-que-nao-vale", cookies: async () => [], confirmar: async () => false });
+      expect(Array.isArray(await semLogin.listar("exemplo.com"))).toBe(true);
+    } finally {
+      rmSync(prefixo, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+    }
+  });
+
+  it("Trazer do meu Chrome no perfil de uso diário: o Default da pasta padrão do Chrome do usuário", async () => {
+    const chrome = googleChromeDoWindows(process.env);
+    const padrao = join(process.env.LOCALAPPDATA!, "Google", "Chrome", "User Data");
+    // O Chrome da pessoa no dia a dia: a pasta padrão, com o site gravando o cookie como qualquer site grava.
+    const filho = spawn(chrome!, ["--headless=new", `--user-data-dir=${padrao}`, "--no-first-run", "--no-default-browser-check", `${base}/cookie`], { stdio: "ignore" });
+    try {
+      // O Chrome grava os cookies no disco em até 30 s; com ele aberto, o Windows trava o banco e a pessoa ouve o recado.
+      await new Promise((r) => setTimeout(r, 40_000));
+      try {
+        const aberto = await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env, chrome });
+        expect(aberto).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome" })]);
+      } catch (e) {
+        expect((e as { detalhe?: string }).detalhe).toBe("feche o Google Chrome e tente de novo: com ele aberto, o Windows não deixa ler os cookies");
+      }
+    } finally {
+      execFileSync("taskkill", ["/F", "/T", "/PID", String(filho.pid)], { stdio: "ignore" });
+      await new Promise<void>((r) => { if (filho.exitCode !== null) r(); else filho.once("exit", () => r()); });
+    }
+    await new Promise((r) => setTimeout(r, 2_000));
+    // Fechado o Chrome, sem dizer a pasta: o padrão do usuário, como o motor faz.
+    const cookies = await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env });
+    expect(cookies).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome", httpOnly: true })]);
+  }, 180_000);
 });
