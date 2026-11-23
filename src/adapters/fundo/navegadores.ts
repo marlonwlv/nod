@@ -8,7 +8,7 @@ import { ErroDeDominio } from "../../domain/erro.ts";
 import { modoNoTurno } from "../../domain/modo-aprovacao.ts";
 import { motorLe, tipoDoAnexo } from "../../domain/anexo.ts";
 import { classificarAcao, decidirNoNavegador, juntarLiberacoes, perguntaDaAcao, SEM_LIBERACOES, siteLegivel, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
-import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, hostDoSite, itemCasaComHost, MOTIVO_SEM_MAC, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
+import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, hostDoSite, itemCasaComHost, textosDoAparelho, type AparelhoDaPessoa, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, mensagemDoEnsinado, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
@@ -322,9 +322,9 @@ export const FALA_DA_AJUDA = (motivo: string) => `Preciso de você no meu navega
 /** A citação do envio (A3): o último texto que o bot preencheu na mesma página, até este tamanho. */
 export const CITACAO_MAX = 280;
 /** O aviso da pílula quando pagar pede Touch ID e o Mac está desligado (ADR-177; definido em 2026-11-20). */
-export const AVISO_SEM_TOUCH_ID = "Seu Mac está desligado: a confirmação vai só pelo botão, sem o Touch ID.";
+export const AVISO_SEM_TOUCH_ID = textosDoAparelho("mac").avisoSemConfirmacao;
 /** L2: a resposta ao celular quando o Mac pede a confirmação. */
-export const CONFIRME_NO_MAC = "Confirme no seu Mac";
+export const CONFIRME_NO_MAC = textosDoAparelho("mac").confirmeNoAparelho;
 /** Os erros do cartão de login (frases fixas, sem dado da pessoa). */
 const ERRO_LOGIN: Readonly<Record<string, string>> = {
   recusado: "Você não confirmou no Mac. Escolha de novo.",
@@ -411,7 +411,22 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     return novo;
   }
 
+  /**
+   * 2026-11-22 (o navegador no PC): o aparelho da pessoa (o Mac ou o PC). O ligado agora; desligado, o último visto
+   * (a frase "precisa do seu PC ligado" não vira "Mac" quando ele desliga); nunca visto, o Mac.
+   */
+  const aparelhosVistos = new Map<string, AparelhoDaPessoa>();
+  function aparelhoDe(escopo: Escopo): AparelhoDaPessoa {
+    const agoraLigado = o.mac?.aparelho?.(escopo) ?? null;
+    if (agoraLigado) aparelhosVistos.set(chavePessoa(escopo), agoraLigado);
+    return agoraLigado ?? aparelhosVistos.get(chavePessoa(escopo)) ?? "mac";
+  }
+  const textos = (escopo: Escopo) => textosDoAparelho(aparelhoDe(escopo));
+
   function mudar(est: Estado, parcial: Partial<VistaNavegador>): void {
+    // A vista diz o aparelho da pessoa (os textos da confirmação na web); só quando muda.
+    const aparelho = aparelhoDe(est.escopo);
+    if ((est.vista.aparelho ?? "mac") !== aparelho) parcial = { ...parcial, aparelho };
     // O aviso de Desfazer some sozinho na próxima mudança depois do prazo.
     const descarte = est.descartada && est.descartada.ate < agora() ? { descarte: null } : {};
     if ("descarte" in descarte) est.descartada = null;
@@ -720,7 +735,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         fontesVistas.set(chavePessoa(escopo), vistas);
       } else doMac = opcoesDoMacVistas.get(chave) ?? [];
     } else {
-      doMac = (opcoesDoMacVistas.get(chave) ?? []).map((x) => ({ fonte: x.fonte, ref: x.ref, rotulo: x.rotulo, disponivel: false, motivoIndisponivel: MOTIVO_SEM_MAC }));
+      doMac = (opcoesDoMacVistas.get(chave) ?? []).map((x) => ({ fonte: x.fonte, ref: x.ref, rotulo: x.rotulo, disponivel: false, motivoIndisponivel: textos(escopo).semAparelho }));
     }
     return { opcoes: ordenarOpcoes([...doMac, ...doNod]).slice(0, OPCOES_MAX), podeTrazerDoChrome: macLigado !== null };
   }
@@ -758,7 +773,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   function erroNoLogin(est: Estado, decisaoId: string, causa: string): void {
     const p = est.vista.pedido;
     if (p?.tipo !== "login" || p.decisaoId !== decisaoId) return;
-    mudar(est, { pedido: { ...p, etapa: "escolher", erro: ERRO_LOGIN[causa] ?? ERRO_LOGIN.acao_falhou! } });
+    mudar(est, { pedido: { ...p, etapa: "escolher", erro: causa === "indisponivel" ? textos(est.escopo).aparelhoDesligado : ERRO_LOGIN[causa] ?? ERRO_LOGIN.acao_falhou! } });
   }
 
   /** Depois de preencher: a trava do segredo (L3) e o pedido fechado com a frase para o bot (sem valor nenhum). */
@@ -1048,7 +1063,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if (r.estado !== "pendente") throw new ErroDeDominio("estado_invalido");
       mudar(c.est, { controle: "precisa_de_voce", pedido: {
         tipo: "aprovacao", decisaoId: r.decisao_id, pergunta, botao: (alvo?.nome ?? "").slice(0, 80), classe: d.classe,
-        touchId: comMac, avisoTouchId: d.touchId && !comMac ? AVISO_SEM_TOUCH_ID : null, caixa,
+        touchId: comMac, avisoTouchId: d.touchId && !comMac ? textos(c.escopo).avisoSemConfirmacao : null, caixa,
         lembrar: lembrar ? { padrao: true, texto: textoDoLembrar(lembrar.destino) } : null,
         citacao: citacaoDoEnvio(c.est, d.classe),
       } });
@@ -1632,7 +1647,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           est.loginEmCurso = null;
         }
       })();
-      return { vista: est.vista, aviso: CONFIRME_NO_MAC };
+      return { vista: est.vista, aviso: textos(escopo).confirmeNoAparelho };
     },
     /** Só testes: espera o preenchimento em segundo plano (L2) terminar. */
     esperarLogin: async (agenteId: string): Promise<void> => { await estados.get(agenteId)?.loginEmCurso; },

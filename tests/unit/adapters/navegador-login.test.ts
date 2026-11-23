@@ -448,6 +448,21 @@ describe("A1: a aprovação no ponto sem volta, na vista e no Touch ID", () => {
   });
 });
 
+describe("o navegador no PC (2026-11-22): os textos dizem o PC e o Windows Hello", () => {
+  it("com o PC ligado a vista diz pc; desligado, o aviso e a opção cinza falam do PC, não do Mac", async () => {
+    let ligado = true;
+    const pc: MacDaPessoa = { ...macFalso, maquina: () => (ligado ? MAC : null), aparelho: () => (ligado ? "pc" : null) };
+    const n = criar({ mac: pc });
+    await chamar(n, "navegador_abrir", { url: "https://www.flytap.com/pagar" });
+    expect(n.vista(MARLON, A)).toMatchObject({ aparelho: "pc" });
+    ligado = false;
+    await chamar(n, "navegador_ler", {});
+    await chamar(n, "navegador_clicar", { alvo: "@e2" });
+    expect(n.vista(MARLON, A)!.pedido).toMatchObject({ touchId: false, avisoTouchId: "Seu PC está desligado: a confirmação vai só pelo botão, sem o Windows Hello." });
+    expect(n.vista(MARLON, A)).toMatchObject({ aparelho: "pc" });
+  });
+});
+
 describe("A3: não perguntar de novo para o destino visto na página", () => {
   it("o destino que aparece na página leva o lembrar marcado; aprovado com 'sempre', o próximo envio para ele passa", async () => {
     const n = criar();

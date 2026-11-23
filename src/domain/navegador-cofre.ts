@@ -5,9 +5,40 @@ import type { EntradaNavegador, FonteCofre, OpcaoLogin } from "../contracts/nave
  * (A2, A3). Puro: nada de segredo passa por aqui; só sites, rótulos, referências e regras.
  */
 
+/** O aparelho da pessoa com o app do nod: o Mac (macOS) ou o PC (Windows). */
+export type AparelhoDaPessoa = "mac" | "pc";
+
+/**
+ * 2026-11-22 (o navegador no PC): os textos que dizem o aparelho e a confirmação dele. No Mac, o Touch ID (ou a senha,
+ * sem sensor) e o Keychain; no PC, o Windows Hello (rosto, digital ou PIN) e a senha do Windows. Um lugar só, para o
+ * servidor e a web dizerem a mesma coisa.
+ */
+export function textosDoAparelho(a: AparelhoDaPessoa) {
+  const pc = a === "pc";
+  const nome = pc ? "PC" : "Mac";
+  const confirmacao = pc ? "Windows Hello" : "Touch ID";
+  return {
+    nome,
+    confirmacao,
+    semAparelho: `precisa do seu ${nome} ligado`,
+    bitwardenTravado: `destravar no seu ${nome}`,
+    avisoSemConfirmacao: `Seu ${nome} está desligado: a confirmação vai só pelo botão, sem o ${confirmacao}.`,
+    confirmeNoAparelho: `Confirme no seu ${nome}`,
+    aparelhoDesligado: `O seu ${nome} não está ligado agora.`,
+    pedeNaHoraDePagar: `O seu ${nome} pede o ${confirmacao} na hora de pagar.`,
+    pedeParaGuardarLimite: `O seu ${nome} pede o ${confirmacao} para guardar o limite.`,
+    pedeNoLogin: pc ? "O Windows pede o Windows Hello (ou a senha do Windows). A senha vai direto para a página." : "O seu Mac pede o Touch ID ou a senha do Keychain. A senha vai direto para a página.",
+    pagarCom: `Pagar com ${confirmacao}`,
+    pagarSem: `Pagar sem ${confirmacao}`,
+  };
+}
+
+/** O aparelho pela plataforma da máquina (win32 = PC; o resto que não é Linux, o Mac). */
+export const aparelhoDaPlataforma = (plataforma: string | null | undefined): AparelhoDaPessoa => (plataforma === "win32" ? "pc" : "mac");
+
 /** As frases da opção que não roda agora (L1, M4). */
-export const MOTIVO_SEM_MAC = "precisa do seu Mac ligado";
-export const MOTIVO_BITWARDEN_TRAVADO = "destravar no seu Mac";
+export const MOTIVO_SEM_MAC = textosDoAparelho("mac").semAparelho;
+export const MOTIVO_BITWARDEN_TRAVADO = textosDoAparelho("mac").bitwardenTravado;
 
 /**
  * Sufixos públicos de dois níveis que os sites das pessoas do nod usam (Brasil, Portugal, Reino Unido, Austrália, Japão).

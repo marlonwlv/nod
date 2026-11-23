@@ -450,3 +450,32 @@ describe("D5 (máximo): a conversa estreita", () => {
     expect(conversaEstreita(1100, 0)).toBe(false);
   });
 });
+
+describe("o navegador no PC (2026-11-22): os textos do aparelho", () => {
+  it("a cópia da web bate com a do domínio, nos dois aparelhos", async () => {
+    const { textosDoAparelho } = await import("../../../src/domain/navegador-cofre.ts");
+    const { textosDoAparelhoNaWeb } = await import("../../../web/lib/navegador-vista.ts");
+    for (const a of ["mac", "pc"] as const) {
+      const web = textosDoAparelhoNaWeb(a);
+      const dom = textosDoAparelho(a);
+      for (const k of Object.keys(web) as (keyof typeof web)[]) expect(web[k], `${a}.${k}`).toBe(dom[k]);
+    }
+    expect(textosDoAparelhoNaWeb(undefined).nome).toBe("Mac");
+  });
+
+  it("no PC: Windows Hello no botão de pagar, 'no seu PC' no lugar e 'Confirme no seu PC' no login", async () => {
+    const { rotuloDaAprovacao, textoDoLugar } = await import("../../../web/lib/navegador-vista.ts");
+    const { htmlCartaoLogin, htmlCartaoAprovacao } = await import("../../../web/lib/navegador-cartoes.ts");
+    const ap = { tipo: "aprovacao" as const, decisaoId: "d1", pergunta: "Pagar R$ 3.780 na TAP?", botao: "pagar", classe: "pagar" as const, touchId: true, avisoTouchId: null, caixa: null, lembrar: null };
+    expect(rotuloDaAprovacao(ap, "pc")).toBe("Pagar com Windows Hello");
+    expect(rotuloDaAprovacao({ ...ap, touchId: false }, "pc")).toBe("Pagar sem Windows Hello");
+    expect(rotuloDaAprovacao(ap)).toBe("Pagar com Touch ID");
+    expect(htmlCartaoAprovacao(ap, { agenteId: "a1", nome: "Ada", dono: false, aparelho: "pc" })).toContain("O seu PC pede o Windows Hello na hora de pagar.");
+    expect(textoDoLugar({ tipo: "mac", nome: "DESKTOP-4F2K" }, "pc")).toBe("no seu PC");
+    expect(textoDoLugar({ tipo: "mac", nome: "MacBook de Marlon" })).toBe("no seu Mac");
+    const login = htmlCartaoLogin({ tipo: "login", decisaoId: "d2", site: "itau.com.br", motivo: "ver a fatura", opcoes: [], podeTrazerDoChrome: false, etapa: "confirme_no_mac", erro: null }, { nome: "Ada", agenteId: "a1", fonte: "1password", aparelho: "pc" });
+    expect(login).toContain("Confirme no seu PC");
+    expect(login).toContain("Windows Hello");
+    expect(login).not.toContain("Touch ID");
+  });
+});

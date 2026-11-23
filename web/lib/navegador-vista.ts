@@ -95,9 +95,30 @@ const CURSOR_NA_JANELA = svg12('<path d="M12.03 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2
 const GIRO = '<span class="nv-giro" aria-hidden="true"></span>';
 
 /** O rótulo do botão de uma aprovação (A1): pagar com Touch ID, ou o nome do botão do site ("Apagar", "Enviar"). */
-export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "aprovacao" }>): string {
-  // Achado do crítico (2026-11-20): sem o app do Mac o botão diz que não vai pedir o Touch ID.
-  if (p.classe === "pagar") return p.touchId ? "Pagar com Touch ID" : "Pagar sem Touch ID";
+/**
+ * 2026-11-22 (o navegador no PC): os textos do aparelho da pessoa — cópia de `textosDoAparelho` (src/domain/navegador-cofre.ts;
+ * a web só importa tipos de src/, e tests/unit/web/navegador-vista.test.ts confere as duas).
+ */
+export function textosDoAparelhoNaWeb(a: "mac" | "pc" | undefined) {
+  const pc = a === "pc";
+  const nome = pc ? "PC" : "Mac";
+  const confirmacao = pc ? "Windows Hello" : "Touch ID";
+  return {
+    nome,
+    confirmacao,
+    semAparelho: `precisa do seu ${nome} ligado`,
+    confirmeNoAparelho: `Confirme no seu ${nome}`,
+    pedeNaHoraDePagar: `O seu ${nome} pede o ${confirmacao} na hora de pagar.`,
+    pedeParaGuardarLimite: `O seu ${nome} pede o ${confirmacao} para guardar o limite.`,
+    pedeNoLogin: pc ? "O Windows pede o Windows Hello (ou a senha do Windows). A senha vai direto para a página." : "O seu Mac pede o Touch ID ou a senha do Keychain. A senha vai direto para a página.",
+    pagarCom: `Pagar com ${confirmacao}`,
+    pagarSem: `Pagar sem ${confirmacao}`,
+  };
+}
+
+export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "aprovacao" }>, aparelho?: "mac" | "pc"): string {
+  // Achado do crítico (2026-11-20): sem o app do Mac o botão diz que não vai pedir o Touch ID (no PC, o Windows Hello).
+  if (p.classe === "pagar") return p.touchId ? textosDoAparelhoNaWeb(aparelho).pagarCom : textosDoAparelhoNaWeb(aparelho).pagarSem;
   const b = p.botao.trim();
   return b ? b.charAt(0).toUpperCase() + b.slice(1, 40) : p.classe === "apagar" ? "Apagar" : "Enviar";
 }
@@ -110,7 +131,7 @@ const PERGUNTA_CURTA: Readonly<Record<"pagar" | "apagar" | "enviar", string>> = 
  * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito). Na
  * aprovação (A1) o "sim" é preto como o botão do cartão e, sem o app do Mac, o aviso curto do cartão vai embaixo.
  */
-export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null, devolveEm: number | null = null): string {
+export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null, devolveEm: number | null = null, aparelho?: "mac" | "pc"): string {
   const nomeE = esc(nome);
   // D4 (Paper): "A Ada espera você entrar", "A Ada está terminando um clique…", "A Ada espera · ⌘⇧A devolve".
   const quem = esc(fraseMaiuscula(comArtigo(nome)));
@@ -136,7 +157,7 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       // Ponto 14 dos cenários (2026-11-22): a pergunta inteira cortava ("Checkout no saucedemo.c…"); na pílula vai a curta,
       // pelo tipo da ação, e a inteira fica no title, no leitor de tela e no cartão.
       const curta = p ? PERGUNTA_CURTA[p.classe] : "Posso seguir?";
-      const sim = p ? esc(rotuloDaAprovacao(p)) : "Sim";
+      const sim = p ? esc(rotuloDaAprovacao(p, aparelho)) : "Sim";
       corpo = `<span class="ctc-estado nv-precisa-txt nv-pergunta" title="${pergunta}"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span aria-hidden="true">${curta}</span><span class="sr-only">${pergunta}</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="recusar">Não</button><button type="button" class="ctc-bt nv-aprovar" data-nv="aprovar">${sim}</button></span>`;
       break;
     }
@@ -185,9 +206,10 @@ export function dominioDe(url: string): string {
 }
 
 /** N4: o lugar baixinho no fim da barra ("no nod", "na vm-sp", "no seu Mac"). Nunca "servidor", "VM" ou "nuvem". */
-export function textoDoLugar(l: LugarNavegador): string {
+export function textoDoLugar(l: LugarNavegador, aparelho?: "mac" | "pc"): string {
   if (l.tipo === "nod") return "no nod";
-  if (l.tipo === "mac") return /mac/i.test(l.nome) ? "no seu Mac" : `no ${l.nome}`;
+  // 2026-11-22: no PC, "no seu PC" (o nome da máquina do Windows, "DESKTOP-4F2K", não diz nada à pessoa).
+  if (l.tipo === "mac") return aparelho === "pc" ? "no seu PC" : /mac/i.test(l.nome) ? "no seu Mac" : `no ${l.nome}`;
   return `na ${l.nome}`;
 }
 
@@ -216,7 +238,7 @@ function htmlFavicon(a: AbaNavegador): string {
  * escuro, resto cinza, cadeado ou "Não seguro" em vermelho); no controle vira campo de verdade com voltar e recarregar. O
  * lugar fica baixinho no fim (N4). `precisa` (D2, A): o ponto azul na aba que precisa da pessoa (a ativa, com pedido).
  */
-export function htmlBarraDoNavegador(v: Pick<VistaNavegador, "abas" | "controle" | "lugar" | "pedido">, o: { nome: string; editando?: string | null } = { nome: "o bot" }): string {
+export function htmlBarraDoNavegador(v: Pick<VistaNavegador, "abas" | "controle" | "lugar" | "pedido" | "aparelho">, o: { nome: string; editando?: string | null } = { nome: "o bot" }): string {
   const { aVista, mais } = abasVisiveis(v.abas);
   const noControle = v.controle === "pessoa";
   const precisa = v.controle === "precisa_de_voce" || v.pedido !== null;
@@ -232,7 +254,7 @@ export function htmlBarraDoNavegador(v: Pick<VistaNavegador, "abas" | "controle"
   const maisAbas = mais > 0 ? `<span class="nv-aba-mais" title="${mais} ${mais === 1 ? "outra aba" : "outras abas"}">+${mais}</span>` : "";
   const ativa = v.abas.find((a) => a.ativa) ?? v.abas[0];
   const url = ativa?.url ?? "";
-  const lugar = `<span class="nv-lugar" title="Onde o navegador ${esc(deNome(o.nome))} roda">${esc(textoDoLugar(v.lugar))}</span>`;
+  const lugar = `<span class="nv-lugar" title="Onde o navegador ${esc(deNome(o.nome))} roda">${esc(textoDoLugar(v.lugar, v.aparelho))}</span>`;
   let endereco: string;
   if (noControle) {
     const valor = o.editando ?? url;
@@ -345,10 +367,10 @@ const ICONE_CADEADO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="non
  * erro com causa, hora e lugar, e o segredo na página (L3). "" = ao vivo, rede fraca (a imagem fica sozinha).
  * "terminou" não desenha nada por cima: o último quadro fica esmaecido pelo CSS e a hora vai na pílula.
  */
-export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar" | "abas" | "atividadeEm" | "erro" | "pedido"> | null, nome: string): string {
+export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar" | "abas" | "atividadeEm" | "erro" | "pedido" | "aparelho"> | null, nome: string): string {
   const n = esc(nome);
   const dn = esc(deNome(nome));
-  const lugar = v ? textoDoLugar(v.lugar) : "";
+  const lugar = v ? textoDoLugar(v.lugar, v.aparelho) : "";
   switch (e) {
     case "conectando":
       return `<div class="nv-estado nv-estado-conectando" role="status"><span class="nv-esq" aria-hidden="true"><i></i><i></i><i></i></span><span class="nv-estado-sub">Conectando à tela ${dn}…</span></div>`;
@@ -365,7 +387,7 @@ export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar
     case "desligado":
       return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>Navegador ${dn} desligado</b><button type="button" class="nv-estado-bt" data-nv="ligar">Ligar</button></div>`;
     case "indisponivel":
-      return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>O navegador ${dn} não está ligado aqui</b><span class="nv-estado-sub">${n} usa o navegador no seu Mac.</span><button type="button" class="nv-estado-bt" data-nv="reler">Tentar de novo</button></div>`;
+      return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>O navegador ${dn} não está ligado aqui</b><span class="nv-estado-sub">${n} usa o navegador no seu ${textosDoAparelhoNaWeb(v?.aparelho).nome}.</span><button type="button" class="nv-estado-bt" data-nv="reler">Tentar de novo</button></div>`;
     case "erro": {
       const causa = v?.erro?.causa ?? "A conexão caiu";
       const quando = v?.erro ? ` às ${horaCurta(v.erro.em)}` : "";
@@ -698,10 +720,10 @@ export function horaDaLinha(instante: number): string {
  * no fim ("Google Voos · lendo os voos · no nod"); terminado, o ✓ com o último passo, a hora e o lugar. "Ver" abre o painel;
  * no modo abas, "Abrir" (abre a aba de lugar).
  */
-export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "passo" | "abas" | "atividadeEm"> & { lugar?: LugarNavegador }, o: { modoAbas: boolean }): string {
+export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "passo" | "abas" | "atividadeEm" | "aparelho"> & { lugar?: LugarNavegador }, o: { modoAbas: boolean }): string {
   const ponto = pontoDoLugar(v);
   const site = tituloDaAbaAtiva(v);
-  const lugar = v.lugar ? textoDoLugar(v.lugar) : "";
+  const lugar = v.lugar ? textoDoLugar(v.lugar, v.aparelho) : "";
   const rotulo = o.modoAbas ? "Abrir" : "Ver";
   const ver = `<button type="button" class="nv-linha-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}" aria-label="${rotulo} o navegador ${esc(deNome(nome))}">${rotulo}</button>`;
   if (v.estado === "terminou" && !v.pedido && v.controle === "bot") {

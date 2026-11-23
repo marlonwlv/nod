@@ -232,7 +232,27 @@ const PACOTE_POR_PLATAFORMA: Readonly<Record<string, string>> = {
   "darwin-x64": "@agent-browser/cli-darwin-x64",
   "linux-x64": "@agent-browser/cli-linux-x64-gnu",
   "linux-arm64": "@agent-browser/cli-linux-arm64-gnu",
+  // 2026-11-22 (o navegador no PC): o pacote do Windows serve x64 e arm64 (o lock diz as duas cpus).
+  "win32-x64": "@agent-browser/cli-win32-x64-msvc",
+  "win32-arm64": "@agent-browser/cli-win32-x64-msvc",
 };
+
+/** O nome do executável do agent-browser na plataforma (no Windows, `agent-browser.exe`). */
+export const nomeDoBinario = (plataforma: string = process.platform): string => (plataforma.startsWith("win32") ? "agent-browser.exe" : "agent-browser");
+
+/**
+ * As variáveis do sistema que o agent-browser e o Chrome precisam além do PATH e do HOME. No Windows, sem SystemRoot,
+ * LOCALAPPDATA, USERPROFILE e TEMP o Chrome não sobe (e o agent-browser não acha a pasta dele). Nenhuma variável do nod
+ * (chaves, banco) passa: só estes nomes.
+ */
+export function ambienteDoSistema(env: Readonly<Record<string, string | undefined>> = process.env, plataforma: string = process.platform): Record<string, string> {
+  const nomes = plataforma === "win32"
+    ? ["SystemRoot", "SYSTEMROOT", "windir", "SystemDrive", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData", "COMSPEC", "PATHEXT", "HOMEDRIVE", "HOMEPATH", "USERNAME", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE"]
+    : ["TMPDIR"];
+  const saida: Record<string, string> = {};
+  for (const n of nomes) { const v = env[n]; if (v) saida[n] = v; }
+  return saida;
+}
 
 /** O binário nativo do agent-browser desta plataforma, pelo pacote da plataforma ou pelo bin/ do pacote principal. */
 export function binarioAgentBrowser(plataforma = `${process.platform}-${process.arch}`): string | null {
@@ -240,7 +260,7 @@ export function binarioAgentBrowser(plataforma = `${process.platform}-${process.
   const pacote = PACOTE_POR_PLATAFORMA[plataforma];
   const candidatos: string[] = [];
   if (pacote) {
-    try { candidatos.push(join(dirname(req.resolve(`${pacote}/package.json`)), "bin", "agent-browser")); } catch { /* tenta o principal */ }
+    try { candidatos.push(join(dirname(req.resolve(`${pacote}/package.json`)), "bin", nomeDoBinario(plataforma))); } catch { /* tenta o principal */ }
   }
   try { candidatos.push(join(dirname(req.resolve("agent-browser/package.json")), "bin", `agent-browser-${plataforma}`)); } catch { /* sem o pacote */ }
   return candidatos.find((c) => existsSync(c)) ?? null;
@@ -399,9 +419,9 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   function ambiente(s: SessaoNavegador, agente: string | null): Record<string, string> {
     const base = pasta(s);
     return {
-      PATH: process.env.PATH ?? "/usr/bin:/bin",
-      HOME: process.env.HOME ?? base,
-      ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}),
+      ...ambienteDoSistema(),
+      PATH: process.env.PATH ?? process.env.Path ?? "/usr/bin:/bin",
+      HOME: process.env.HOME ?? process.env.USERPROFILE ?? base,
       AGENT_BROWSER_SESSION: nomeDaSessao(s.agenteId),
       AGENT_BROWSER_NAMESPACE: "nod",
       AGENT_BROWSER_PROFILE: join(base, "perfil"),

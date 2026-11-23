@@ -200,6 +200,33 @@ trocada; o OpenMausBot as repõe por CDP em cada página e worker. Sites que bar
 no servidor, a vm-sp) ou com detecção mais forte (bancos, companhias aéreas) continuam pedindo a pessoa: é o pedido de
 ajuda (CAPTCHA), não falha do navegador.
 
+## Revisão de 2026-11-22: o navegador no PC (Windows), com tudo o que o Mac tem
+
+Pedido do dono: o navegador do bot funciona no Windows com as mesmas coisas do Mac. No PC quem roda o trabalho é o motor
+(ADR-151), não o app (que só abre a janela e pareia), então o navegador mora no motor do Windows:
+
+- **Motor do navegador:** o agent-browser do Windows (`@agent-browser/cli-win32-x64-msvc`, `agent-browser.exe`, a mesma
+  versão fixa) instalado pelo `irm …/windows | iex` em `%LOCALAPPDATA%\nod\navegador`. O PC que já tinha o motor e só
+  recebe a atualização automática instala sozinho, na primeira vez que o bot usa o navegador, com o npm do Node do nod.
+  O Chrome é o Google Chrome do sistema; sem ele, o Microsoft Edge (todo Windows 10/11 tem, e é Chromium); sem os dois,
+  o `agent-browser install`. O ambiente do Chrome leva as pastas do sistema (SystemRoot, LOCALAPPDATA, USERPROFILE,
+  TEMP), nunca variável do nod.
+- **Cofres:** a mesma lógica do Mac. O `op` do 1Password vem do PATH, do WinGet ou de Arquivos de Programas e só roda
+  com a assinatura Authenticode válida e emitida para a AgileBits (o par do Team ID no Mac). O `bw` é o `.exe` ou o atalho
+  do npm, que vira `node <script>` sem o cmd.exe.
+- **Trazer do meu Chrome:** no Windows o Chrome cifra os cookies com a chave do usuário (DPAPI) e, desde o 127, com a
+  "app-bound encryption", que só o próprio Chrome instalado abre. Ler o banco de fora, como no Mac, não funciona. Quem
+  lê é o Chrome da pessoa: o `Local State` e o banco de cookies vão para uma pasta temporária, o `chrome.exe` dela abre a
+  cópia sem janela e devolve pelo CDP os cookies já decifrados; só os do site saem. Com o Chrome dela aberto o Windows
+  trava o banco, e a pessoa ouve para fechar o Chrome e tentar de novo.
+- **Confirmação de pagar:** o Windows Hello (rosto, digital ou PIN) pelo WinRT no PowerShell 5.1; sem ele configurado, a
+  caixa do Windows com o motivo e OK/Cancelar (como o diálogo do Mac sem Touch ID).
+- **Textos:** a vista diz o aparelho (`aparelho: "mac" | "pc"`), e o servidor e a web falam "seu PC" e "Windows Hello"
+  no lugar de "seu Mac" e "Touch ID" (`textosDoAparelho`).
+- **Prova:** o job `windows` da CI roda o agent-browser.exe com o Chrome do runner (abrir, ler, clicar, preencher, o
+  stream e o relay do cofre), o "Trazer do meu Chrome" contra um perfil de verdade cifrado pelo Chrome, o npm instalando
+  o agent-browser como o motor faria, o WinRT do Windows Hello carregando e a conferência do Authenticode.
+
 ## Gatilhos de reversão
 
 - O agent-browser não aguenta (quadro ao vivo pior que 5 por segundo no Mac, ou queda de sessão mais de uma vez por

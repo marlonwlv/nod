@@ -131,6 +131,11 @@ export type VistaNavegador = {
    * "Volta para a Ada em 1 min". null/ausente = não está para voltar.
    */
   devolveEm?: number | null;
+  /**
+   * 2026-11-22: o aparelho da pessoa com o app do nod (o Mac ou o PC), para os textos da confirmação e do "ligado"
+   * (textosDoAparelho). Ausente = o Mac (a vista de antes).
+   */
+  aparelho?: "mac" | "pc";
 };
 
 /**

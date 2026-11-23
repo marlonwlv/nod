@@ -1,6 +1,6 @@
 import type { FonteCofre, OpcaoLogin } from "../../contracts/navegador-do-bot.ts";
 import { FONTES_DO_MAC, type CookieNavegador, type FonteDoMac } from "../../contracts/navegador-maquina.ts";
-import { MOTIVO_BITWARDEN_TRAVADO, OPCOES_MAX } from "../../domain/navegador-cofre.ts";
+import { aparelhoDaPlataforma, MOTIVO_BITWARDEN_TRAVADO, OPCOES_MAX, type AparelhoDaPessoa } from "../../domain/navegador-cofre.ts";
 import type { Escopo } from "../../shared/types.ts";
 import type { CanalNavegador, PedidoNavegadorMaquina } from "./canal-maquina.ts";
 import { FalhaNavegador } from "./motor-agent-browser.ts";
@@ -15,8 +15,10 @@ import { lerCookies } from "./operacoes-remotas.ts";
  * esquece); `guardar` leva a senha que a pessoa digitou ao Mac uma vez.
  */
 export type MacDaPessoa = {
-  /** O Mac da pessoa com o app conectado e o navegador ligado agora, ou null. */
+  /** O Mac ou o PC da pessoa com o app conectado e o navegador ligado agora, ou null. */
   maquina(escopo: Escopo): string | null;
+  /** 2026-11-22: qual aparelho está ligado agora (o Mac ou o PC); null = nenhum. */
+  aparelho?(escopo: Escopo): AparelhoDaPessoa | null;
   /** Os itens que casam com o host (sem segredo). null = o Mac não respondeu a tempo. */
   listar(escopo: Escopo, agenteId: string, host: string): Promise<OpcaoLogin[] | null>;
   /** Lê e preenche no navegador do bot QUE RODA NESTE Mac (o segredo não sai dele). */
@@ -57,11 +59,15 @@ export function lerOpcoesDoMac(v: unknown): OpcaoLogin[] {
 }
 
 export function criarMacDaPessoa(o: { canal: CanalNavegador }): MacDaPessoa {
-  const maquina = (escopo: Escopo) => o.canal.ligadas(escopo).find((m) => m.plataforma === "darwin")?.maquinaId ?? null;
+  // 2026-11-22 (o navegador no PC): o aparelho é o app do Mac ou o motor do Windows (o PC da pessoa); a máquina Linux
+  // sempre ligada não tem cofre, Chrome da pessoa nem confirmação.
+  const doAparelho = (escopo: Escopo) => o.canal.ligadas(escopo).find((m) => m.plataforma === "darwin" || m.plataforma === "win32") ?? null;
+  const maquina = (escopo: Escopo) => doAparelho(escopo)?.maquinaId ?? null;
+  const aparelho = (escopo: Escopo): AparelhoDaPessoa | null => { const m = doAparelho(escopo); return m ? aparelhoDaPlataforma(m.plataforma) : null; };
 
   async function enviar(escopo: Escopo, pedido: PedidoNavegadorMaquina, prazoMs: number): Promise<unknown> {
     const id = maquina(escopo);
-    if (!id) throw new FalhaNavegador("indisponivel", "o seu Mac não está ligado");
+    if (!id) throw new FalhaNavegador("indisponivel", "o seu Mac ou PC não está ligado");
     const r = await o.canal.enviar(escopo, id, pedido, prazoMs);
     if (!r.ok) throw new FalhaNavegador(r.motivo, r.detalhe);
     return r.valor;
@@ -69,6 +75,7 @@ export function criarMacDaPessoa(o: { canal: CanalNavegador }): MacDaPessoa {
 
   return {
     maquina,
+    aparelho,
     async listar(escopo, agenteId, host) {
       if (!maquina(escopo)) return null;
       // O canal só corta no prazo + a folga da rede; a lista do cartão não espera tanto.

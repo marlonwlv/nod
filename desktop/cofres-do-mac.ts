@@ -58,6 +58,17 @@ export type OpcoesCofresDoMac = {
   touchId: (motivo: string) => Promise<boolean>;
   /** O `security` (Keychain) para os cookies do Chrome; o teste passa um falso. */
   security?: string;
+  /**
+   * 2026-11-22 (o navegador no PC): o que muda no Windows (desktop/cofres-do-windows.ts). Ausente = o Mac: o env mínimo do
+   * macOS, a pasta do Bitwarden em ~/Library, os cookies pelo Keychain e "neste Mac" nas frases.
+   */
+  plataforma?: {
+    ambiente: (extra?: Readonly<Record<string, string>>) => Record<string, string>;
+    pastaDoBitwarden: string;
+    cookies: (host: string) => Promise<CookieNavegador[]>;
+    onde: string;
+    bitwardenTravado: string;
+  };
 };
 
 const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
@@ -80,11 +91,13 @@ export function criarCofresDoMac(o: OpcoesCofresDoMac): RecursosDoMac {
   });
   const acharBw = o.acharBw ?? (async () => CAMINHOS_BW.find((c) => existsSync(c)) ?? null);
   const sessao = o.sessaoBitwarden ?? (() => process.env.BW_SESSION ?? null);
-  const envBw = (s: string) => envMinimo({ BW_SESSION: s, BITWARDENCLI_APPDATA_DIR: `${o.home}/Library/Application Support/Bitwarden CLI` });
+  const env = o.plataforma?.ambiente ?? envMinimo;
+  const onde = o.plataforma?.onde ?? "neste Mac";
+  const envBw = (s: string) => env({ BW_SESSION: s, BITWARDENCLI_APPDATA_DIR: o.plataforma?.pastaDoBitwarden ?? `${o.home}/Library/Application Support/Bitwarden CLI` });
 
   /** Os logins do 1Password do site: `op item list --categories Login`, filtrado pela URL do item. */
   async function itens1Password(op: string, host: string, prazoMs = PRAZO_LISTAR_MS): Promise<{ ref: string; titulo: string; usuario: string }[] | "travado"> {
-    const r = await executar(op, ["item", "list", "--categories", "Login", "--format", "json"], { prazoMs, env: envMinimo() });
+    const r = await executar(op, ["item", "list", "--categories", "Login", "--format", "json"], { prazoMs, env: env() });
     if (r.estourou) return "travado";
     if (r.codigo !== 0) return [];
     return lista(json(r.saida)).flatMap((i) => {
@@ -111,7 +124,7 @@ export function criarCofresDoMac(o: OpcoesCofresDoMac): RecursosDoMac {
 
   async function ler1Password(ref: string, host: string): Promise<{ usuario: string; senha: string }> {
     const op = await acharOp();
-    if (!op) throw new FalhaNavegador("indisponivel", "o 1Password (op) não está instalado neste Mac");
+    if (!op) throw new FalhaNavegador("indisponivel", "o 1Password (op) não está instalado " + onde);
     let alvo = ref;
     if (!alvo) {
       // A opção genérica (a lista não veio a tempo no cartão): agora a lista espera o Touch ID com o prazo de ler.
@@ -120,21 +133,21 @@ export function criarCofresDoMac(o: OpcoesCofresDoMac): RecursosDoMac {
       if (!alvo) throw new FalhaNavegador("alvo_invalido", "o 1Password não tem um login deste site");
     }
     if (!referenciaValida(alvo)) throw new FalhaNavegador("alvo_invalido", "referência do 1Password inválida");
-    const senha = await executar(op, ["read", "--no-newline", alvo], { prazoMs: PRAZO_LER_MS, env: envMinimo() });
+    const senha = await executar(op, ["read", "--no-newline", alvo], { prazoMs: PRAZO_LER_MS, env: env() });
     if (senha.codigo !== 0 || !senha.saida) throw new FalhaNavegador(/dismiss|cancel|denied|authoriz/i.test(senha.erro) ? "recusado" : "acao_falhou", "o 1Password não liberou o login");
-    const usuario = await executar(op, ["read", "--no-newline", refDoUsuario(alvo)], { prazoMs: PRAZO_LER_MS, env: envMinimo() });
+    const usuario = await executar(op, ["read", "--no-newline", refDoUsuario(alvo)], { prazoMs: PRAZO_LER_MS, env: env() });
     return { usuario: usuario.codigo === 0 ? usuario.saida : "", senha: senha.saida };
   }
 
   async function lerBitwarden(ref: string, host: string): Promise<{ usuario: string; senha: string }> {
     const bw = await acharBw();
     const s = sessao();
-    if (!bw) throw new FalhaNavegador("indisponivel", "o Bitwarden (bw) não está instalado neste Mac");
-    if (!s) throw new FalhaNavegador("recusado", "o Bitwarden está travado neste Mac");
+    if (!bw) throw new FalhaNavegador("indisponivel", "o Bitwarden (bw) não está instalado " + onde);
+    if (!s) throw new FalhaNavegador("recusado", "o Bitwarden está travado " + onde);
     let id = ref;
     if (!id) {
       const itens = await itensBitwarden(bw, s, host);
-      if (itens === "travado") throw new FalhaNavegador("recusado", "o Bitwarden está travado neste Mac");
+      if (itens === "travado") throw new FalhaNavegador("recusado", "o Bitwarden está travado " + onde);
       id = itens[0]?.ref ?? "";
     }
     if (!ID_ITEM.test(id)) throw new FalhaNavegador("alvo_invalido", "o Bitwarden não tem um login deste site");
@@ -152,7 +165,7 @@ export function criarCofresDoMac(o: OpcoesCofresDoMac): RecursosDoMac {
       const opcoes: OpcaoLogin[] = [];
       if (doOp === "travado") opcoes.push({ fonte: "1password", ref: "", rotulo: "Usar o 1Password", disponivel: true });
       else for (const i of doOp ?? []) opcoes.push({ fonte: "1password", ref: i.ref, rotulo: rotuloDoItem(i.titulo, i.usuario), disponivel: true });
-      if (bw && (!s || doBw === "travado")) opcoes.push({ fonte: "bitwarden", ref: "", rotulo: "Bitwarden", disponivel: false, motivoIndisponivel: MOTIVO_BITWARDEN_TRAVADO });
+      if (bw && (!s || doBw === "travado")) opcoes.push({ fonte: "bitwarden", ref: "", rotulo: "Bitwarden", disponivel: false, motivoIndisponivel: o.plataforma?.bitwardenTravado ?? MOTIVO_BITWARDEN_TRAVADO });
       else for (const i of doBw === "travado" ? [] : doBw ?? []) opcoes.push({ fonte: "bitwarden", ref: i.ref, rotulo: rotuloDoItem(i.titulo, i.usuario), disponivel: true });
       return opcoes.slice(0, OPCOES_MAX);
     },
@@ -160,23 +173,23 @@ export function criarCofresDoMac(o: OpcoesCofresDoMac): RecursosDoMac {
     async guardar(fonte, site, usuario, senha) {
       if (fonte === "1password") {
         const op = await acharOp();
-        if (!op) throw new FalhaNavegador("indisponivel", "o 1Password (op) não está instalado neste Mac");
+        if (!op) throw new FalhaNavegador("indisponivel", "o 1Password (op) não está instalado " + onde);
         // O modelo do item vai pelo stdin (`-`): a senha nunca entra no argv. TODO(2026-11-20): medir com o op 2.x real.
         const modelo = JSON.stringify({ title: site, category: "LOGIN", urls: [{ href: `https://${site}`, primary: true }], fields: [{ id: "username", type: "STRING", purpose: "USERNAME", label: "username", value: usuario }, { id: "password", type: "CONCEALED", purpose: "PASSWORD", label: "password", value: senha }] });
-        const r = await executar(op, ["item", "create", "--format", "json", "-"], { prazoMs: PRAZO_LER_MS, entrada: modelo, env: envMinimo() });
+        const r = await executar(op, ["item", "create", "--format", "json", "-"], { prazoMs: PRAZO_LER_MS, entrada: modelo, env: env() });
         if (r.codigo !== 0) throw new FalhaNavegador(/dismiss|cancel|denied|authoriz/i.test(r.erro) ? "recusado" : "acao_falhou", "o 1Password não guardou o login");
         return;
       }
       const bw = await acharBw();
       const s = sessao();
-      if (!bw) throw new FalhaNavegador("indisponivel", "o Bitwarden (bw) não está instalado neste Mac");
-      if (!s) throw new FalhaNavegador("recusado", "o Bitwarden está travado neste Mac");
+      if (!bw) throw new FalhaNavegador("indisponivel", "o Bitwarden (bw) não está instalado " + onde);
+      if (!s) throw new FalhaNavegador("recusado", "o Bitwarden está travado " + onde);
       // `bw create item` lê o item codificado do stdin (o que `bw encode` faria: base64 do JSON); nada no argv.
       const item = { type: 1, name: site, login: { username: usuario, password: senha, uris: [{ uri: `https://${site}`, match: null }] } };
       const r = await executar(bw, ["create", "item"], { prazoMs: PRAZO_CURTO_MS, entrada: Buffer.from(JSON.stringify(item), "utf8").toString("base64"), env: envBw(s) });
       if (r.codigo !== 0) throw new FalhaNavegador(/locked/i.test(r.erro) ? "recusado" : "acao_falhou", "o Bitwarden não guardou o login");
     },
-    cookiesDoChrome: (host: string): Promise<CookieNavegador[]> => cookiesDoChrome({ host, home: o.home, executar, ...(o.security ? { security: o.security } : {}) }),
+    cookiesDoChrome: (host: string): Promise<CookieNavegador[]> => (o.plataforma ? o.plataforma.cookies(host) : cookiesDoChrome({ host, home: o.home, executar, ...(o.security ? { security: o.security } : {}) })),
     touchId: (motivo: string) => o.touchId(motivo),
   };
 }

@@ -921,7 +921,7 @@ function htmlDoPedidoAberto(p: PedidoNaFala, decisaoId: string, agente: { id: st
   if (pedido?.tipo === "login") {
     if (pedido.etapa === "eu_mesmo") return htmlLinhaEntrandoEuMesmo(pedido, o);
     const url = vista?.abas.find((a) => a.ativa)?.url;
-    return htmlCartaoLogin(pedido, { nome: agente.nome, agenteId: agente.id, fonte: fonteDoLogin(agente.id), ...(url ? { url } : {}) });
+    return htmlCartaoLogin(pedido, { nome: agente.nome, agenteId: agente.id, fonte: fonteDoLogin(agente.id), ...(url ? { url } : {}), ...(vista?.aparelho ? { aparelho: vista.aparelho } : {}) });
   }
   if (pedido?.tipo === "ajuda") return pedido.codigo ? htmlCartaoCodigo({ ...o, motivo: pedido.motivo }) : htmlCartaoAjudaNavegador({ ...o, motivo: pedido.motivo });
   // O pedido de código não depende da vista: o campo manda direto pela rota (o servidor confere a decisão).
@@ -946,7 +946,8 @@ export function renderCartaoNavegador(item: Item, estado: Pick<Estado, "frota" |
   if (!i) return "";
   const dono = estado.frota?.agentes.some((a) => a.id === d.agenteId && a.ownerId === estado.sessao?.pessoaId) === true;
   const pedido = estado.navegadores[d.agenteId]?.vista.pedido;
-  const o = { agenteId: d.agenteId, nome: item.agenteNome, dono };
+  const aparelho = estado.navegadores[d.agenteId]?.vista.aparelho;
+  const o = { agenteId: d.agenteId, nome: item.agenteNome, dono, ...(aparelho ? { aparelho } : {}) };
   const cartao = pedido?.decisaoId === d.id && pedido.tipo === "aprovacao" ? htmlCartaoAprovacao(pedido, o)
     : pedido?.decisaoId === d.id && pedido.tipo === "combinar" ? htmlCartaoCombinar(pedido, o)
     : htmlCartaoAprovacaoSemVista({ ...o, decisaoId: d.id, pergunta: i.textoFinal });

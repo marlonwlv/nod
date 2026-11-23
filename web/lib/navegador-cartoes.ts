@@ -1,6 +1,6 @@
 import type { FonteCofre, GravacaoNavegador, OfertaGuardarLogin, OpcaoLogin, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { esc } from "./escape.ts";
-import { aoNome, aspasCurvas, comArtigo, deNome, dominioDe, fraseMaiuscula, motivoDaAjuda, nomeDoSite, noOuNa, rotuloDaAprovacao, semWww } from "./navegador-vista.ts";
+import { aoNome, aspasCurvas, comArtigo, deNome, dominioDe, fraseMaiuscula, motivoDaAjuda, nomeDoSite, noOuNa, rotuloDaAprovacao, semWww, textosDoAparelhoNaWeb } from "./navegador-vista.ts";
 
 export { motivoDaAjuda, semWww };
 
@@ -74,6 +74,7 @@ export function linhaDaRespostaDoNavegador(texto: string): string | null {
  */
 export function htmlDoMotivo(motivo: string): string {
   if (motivo === "precisa do seu Mac ligado") return 'precisa do <span class="nvc-so-largo">seu </span>Mac ligado';
+  if (motivo === "precisa do seu PC ligado") return 'precisa do <span class="nvc-so-largo">seu </span>PC ligado';
   return esc(motivo);
 }
 
@@ -115,7 +116,7 @@ const ICONE_GIRO = '<span class="nvc-giro" aria-hidden="true"></span>';
  * `confirme_no_mac`, "Confirme no seu Mac" no lugar das opções (L2, também no celular). `eu_mesmo` não chega aqui: a
  * conversa desenha a linha e a pílula assume o pedido (D4, D).
  */
-export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: string; url?: string; fonte?: FonteCofre | null }): string {
+export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: string; url?: string; fonte?: FonteCofre | null; aparelho?: "mac" | "pc" }): string {
   const site = nomeDoSite(p.site);
   const host = (o.url ? dominioDe(o.url) : "") || (/\./u.test(p.site) ? p.site.replace(/^www\./u, "") : "");
   // D7 (DS): o título fala com a pessoa, "Entre no Itaú"; o motivo e o domínio vêm no texto.
@@ -128,7 +129,7 @@ export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: str
   const erro = p.erro ? `<p class="nvc-erro" role="alert">${esc(p.erro)}</p>` : "";
   if (p.etapa === "confirme_no_mac") {
     const com = o.fonte ? ` · entrando com ${NOME_DA_FONTE[o.fonte]}` : "";
-    return `<div class="cc-cartao cc-molde nvc nvc-login" role="group" aria-label="${esc(rotulo)}" ${dados} data-etapa="confirme_no_mac">${cab}<p class="nvc-mac" role="status">${ICONE_GIRO}<span><b>Confirme no seu Mac</b>${esc(com)}</span></p><p class="nvc-nota">O seu Mac pede o Touch ID ou a senha do Keychain. A senha vai direto para a página.</p></div>`;
+    return `<div class="cc-cartao cc-molde nvc nvc-login" role="group" aria-label="${esc(rotulo)}" ${dados} data-etapa="confirme_no_mac">${cab}<p class="nvc-mac" role="status">${ICONE_GIRO}<span><b>${esc(textosDoAparelhoNaWeb(o.aparelho).confirmeNoAparelho)}</b>${esc(com)}</span></p><p class="nvc-nota">${esc(textosDoAparelhoNaWeb(o.aparelho).pedeNoLogin)}</p></div>`;
   }
   const bts = botoesDoLogin(p);
   // As pílulas à direita, a preta por último (DS): fora da ordem do servidor só na tela; a ordem de leitura segue a mesma.
@@ -270,21 +271,21 @@ const xNegar = (dados: string): string => `<button type="button" class="cc-x" da
  * A1 e A3 na conversa (o mesmo pedido da pílula), no molde do D5: "Pagar R$ 3.780 na TAP?", a citação na caixa cinza,
  * "☑ Não perguntar de novo para o Pedro" já marcado (o `sempre` da decisão) e [Ver a tela] [Não] [Pagar com Touch ID].
  */
-export function htmlCartaoAprovacao(p: PedidoAprovacao, o: { agenteId: string; nome: string; dono: boolean }): string {
+export function htmlCartaoAprovacao(p: PedidoAprovacao, o: { agenteId: string; nome: string; dono: boolean; aparelho?: "mac" | "pc" }): string {
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(p.decisaoId)}"`;
   const citacao = p.citacao ? `<blockquote class="cc-acao nvc-citacao">“${esc(p.citacao)}”</blockquote>` : "";
   const lembrar = p.lembrar ? `<label class="nvc-lembrar"><input type="checkbox" class="nvc-lembrar-caixa" name="sempre"${p.lembrar.padrao ? " checked" : ""}><span>${esc(p.lembrar.texto)}</span></label>` : "";
-  const aviso = p.avisoTouchId ? `<p class="cc-texto">${esc(p.avisoTouchId)}</p>` : p.touchId ? '<p class="cc-texto">O seu Mac pede o Touch ID na hora de pagar.</p>' : "";
-  const sim = rotuloDaAprovacao(p);
+  const aviso = p.avisoTouchId ? `<p class="cc-texto">${esc(p.avisoTouchId)}</p>` : p.touchId ? `<p class="cc-texto">${esc(textosDoAparelhoNaWeb(o.aparelho).pedeNaHoraDePagar)}</p>` : "";
+  const sim = rotuloDaAprovacao(p, o.aparelho);
   return `<div class="cc-cartao cc-molde nvc nvc-aprovacao" role="group" aria-label="${esc(`Pedido de ${o.nome} no navegador`)}" ${dados} data-classe="${esc(p.classe)}">`
     + `${cabecalho(xNegar(dados))}<p class="cc-titulo">${esc(p.pergunta)}</p>${citacao}${lembrar}${aviso}`
     + `<div class="cc-botoes">${verATela(o.agenteId, o.dono)}<button type="button" class="cc-bt cc-resto" data-act="nv-decidir" ${dados} data-aprovar="0">Não</button><button type="button" class="cc-bt cc-uma pri" data-act="nv-decidir" ${dados} data-aprovar="1">${esc(sim)}</button></div></div>`;
 }
 
 /** A2: o combinado de antemão. "Vou comprar na TAP: 1 passagem, até R$ 4.000" [Me pergunte antes de pagar] [Pode, até R$ 4.000]. */
-export function htmlCartaoCombinar(p: PedidoCombinar, o: { agenteId: string; nome: string; dono: boolean }): string {
+export function htmlCartaoCombinar(p: PedidoCombinar, o: { agenteId: string; nome: string; dono: boolean; aparelho?: "mac" | "pc" }): string {
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(p.decisaoId)}"`;
-  const nota = p.touchId ? '<p class="cc-texto">O seu Mac pede o Touch ID para guardar o limite.</p>' : "";
+  const nota = p.touchId ? `<p class="cc-texto">${esc(textosDoAparelhoNaWeb(o.aparelho).pedeParaGuardarLimite)}</p>` : "";
   return `<div class="cc-cartao cc-molde nvc nvc-combinar" role="group" aria-label="${esc(`Combinado com ${o.nome} no navegador`)}" ${dados}>`
     + `${cabecalho()}<p class="cc-titulo">${esc(p.titulo)}</p><p class="cc-texto">${esc(p.texto)}</p>${nota}`
     + `<div class="cc-botoes">${verATela(o.agenteId, o.dono)}<button type="button" class="cc-bt cc-resto" data-act="nv-decidir" ${dados} data-aprovar="0">${esc(p.nao)}</button><button type="button" class="cc-bt cc-uma pri" data-act="nv-decidir" ${dados} data-aprovar="1">${esc(p.sim)}</button></div></div>`;

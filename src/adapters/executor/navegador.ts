@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { delimiter, join, win32 } from "node:path";
 import { FONTES_DO_MAC, MOTIVOS_FALHA_NAVEGADOR, type ComandoNavegadorMaquina, type CookieNavegador, type FonteDoMac, type PedidoCofreDoMac, type ResultadoComandoNavegador } from "../../contracts/navegador-maquina.ts";
 import type { OpcaoLogin } from "../../contracts/navegador-do-bot.ts";
 import { preencherLogin } from "../navegador/preencher-login.ts";
 import { log } from "../../obs/log.ts";
-import { criarMotorAgentBrowser, ehFalhaNavegador, executorPadrao, FalhaNavegador, type ExecutorProcesso, type MotorNavegador } from "../navegador/motor-agent-browser.ts";
+import { ambienteDoSistema, criarMotorAgentBrowser, ehFalhaNavegador, executorPadrao, FalhaNavegador, type ExecutorProcesso, type MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import { ehOperacao, executarOperacao } from "../navegador/operacoes-remotas.ts";
 import { conectarStreamGlobal, lerJson, relayPadrao, relayPermitido, tipoDaMensagem, TIPOS_DE_ENTRADA_DO_STREAM, TIPOS_DO_STREAM_QUE_SAEM, type StreamDoNavegador } from "../navegador/stream-local.ts";
 
@@ -334,6 +334,71 @@ export function agentBrowserDoLinux(env: Readonly<Record<string, string | undefi
   return null;
 }
 
+/**
+ * 2026-11-22 (o navegador no PC): o Chrome do bot no Windows é o Google Chrome do sistema (por máquina ou só do usuário);
+ * sem ele, o Microsoft Edge, que todo Windows 10/11 tem e é Chromium (o agent-browser o dirige igual); sem os dois, null
+ * (o `agent-browser install` baixa o Chrome for Testing). Sempre com o perfil próprio de cada bot, nunca o da pessoa.
+ */
+export function chromeDoWindows(env: Readonly<Record<string, string | undefined>>, existe: (p: string) => boolean = existsSync): string | null {
+  const w = win32.join;
+  const chrome = ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "LOCALAPPDATA"].flatMap((v) => (env[v] ? [w(env[v]!, "Google", "Chrome", "Application", "chrome.exe")] : []));
+  const edge = ["ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"].flatMap((v) => (env[v] ? [w(env[v]!, "Microsoft", "Edge", "Application", "msedge.exe")] : []));
+  return [...chrome, ...edge].find(existe) ?? null;
+}
+
+/**
+ * O agent-browser do motor no Windows: `NOD_AGENT_BROWSER`, senão o que a instalação pôs em `<pasta do nod>\navegador`
+ * (`irm …/windows | iex`, InstalarNavegador; a pasta vem de NOD_INSTALADO_EM ou, sem ela, das duas acima do motor), senão
+ * um `agent-browser.exe` do PATH.
+ */
+export function agentBrowserDoWindows(env: Readonly<Record<string, string | undefined>>, pastaDoMotor: string | null, existe: (p: string) => boolean = existsSync): string | null {
+  const w = win32.join;
+  if (env.NOD_AGENT_BROWSER && existe(env.NOD_AGENT_BROWSER)) return env.NOD_AGENT_BROWSER;
+  const raizes = [env.NOD_INSTALADO_EM, env.NOD_PASTA, pastaDoMotor ? w(pastaDoMotor, "..", "..") : null, env.LOCALAPPDATA ? w(env.LOCALAPPDATA, "nod") : null].filter((r): r is string => !!r);
+  for (const r of raizes) {
+    const c = w(r, "navegador", "node_modules", "@agent-browser", "cli-win32-x64-msvc", "bin", "agent-browser.exe");
+    if (existe(c)) return c;
+  }
+  for (const dir of (env.PATH ?? env.Path ?? "").split(";").filter(Boolean)) {
+    const c = w(dir, "agent-browser.exe");
+    if (existe(c)) return c;
+  }
+  return null;
+}
+
+/** A versão fixa do agent-browser (a mesma de AGENT_BROWSER_DO_MOTOR em motor-instalacao.ts; um teste confere). */
+export const AGENT_BROWSER_DA_MAQUINA = "0.43.0";
+/** definido em 2026-11-22: o npm baixa o agent-browser (~10 MB) em até 5 min numa rede lenta. */
+const PRAZO_NPM_MS = 5 * 60_000;
+
+/**
+ * 2026-11-22 (o navegador no PC): o PC que já tinha o motor recebe o motor novo pela atualização automática, mas não roda
+ * o instalador de novo — o agent-browser não estaria lá. O motor o instala sozinho na primeira vez que o bot usa o
+ * navegador, com o npm do Node portátil do nod (o node.exe que roda o motor), na mesma pasta do instalador
+ * (`<pasta do nod>\navegador`), sem os scripts do npm. Uma tentativa por processo; falhou, o bot ouve "indisponível".
+ */
+export function agentBrowserNoWindows(o: { env: Readonly<Record<string, string | undefined>>; pastaDoMotor: string; nodeExe?: string; executor?: ExecutorProcesso; existe?: (p: string) => boolean }): () => Promise<string | null> {
+  let tentativa: Promise<string | null> | null = null;
+  const existe = o.existe ?? existsSync;
+  return () => {
+    const achado = agentBrowserDoWindows(o.env, o.pastaDoMotor, existe);
+    if (achado) return Promise.resolve(achado);
+    tentativa ??= (async () => {
+      const node = o.nodeExe ?? process.execPath;
+      const npm = win32.join(win32.dirname(node), "node_modules", "npm", "bin", "npm-cli.js");
+      const raiz = o.env.NOD_INSTALADO_EM ?? o.env.NOD_PASTA ?? win32.join(o.pastaDoMotor, "..", "..");
+      const pasta = win32.join(raiz, "navegador");
+      if (!existe(npm)) { log("aviso", "navegador_sem_npm", {}); return null; }
+      await mkdir(pasta, { recursive: true });
+      if (!existe(win32.join(pasta, "package.json"))) await writeFile(win32.join(pasta, "package.json"), '{"name":"nod-navegador","private":true}\n');
+      const r = await (o.executor ?? executorPadrao)({ bin: node, args: [npm, "install", "--prefix", pasta, "--no-fund", "--no-audit", "--ignore-scripts", "--loglevel=error", `agent-browser@${AGENT_BROWSER_DA_MAQUINA}`], env: { ...ambienteDoSistema(o.env, "win32"), PATH: o.env.PATH ?? o.env.Path ?? "" }, prazoMs: PRAZO_NPM_MS, limiteSaida: 1024 * 1024 });
+      if (r.codigo !== 0 || r.estourou) log("aviso", "navegador_agent_browser_nao_instalou", { codigo: r.codigo, estourou: r.estourou });
+      return agentBrowserDoWindows(o.env, o.pastaDoMotor, existe);
+    })();
+    return tentativa;
+  };
+}
+
 /** definido em 2026-11-20: o `agent-browser install` baixa o Chrome for Testing (~150 MB); 10 min cobre uma rede lenta. */
 const PRAZO_INSTALAR_MS = 10 * 60_000;
 
@@ -342,7 +407,7 @@ const PRAZO_INSTALAR_MS = 10 * 60_000;
  * `agent-browser install` em segundo plano e responde `indisponivel` com a frase para o bot ("tente em 2 min") até
  * terminar; a marca `chrome-instalado` na pasta evita repetir nas próximas aberturas.
  */
-export function motorDaMaquina(o: { dados: string; binario: string | null; chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>> }): () => Promise<MotorNavegador> {
+export function motorDaMaquina(o: { dados: string; binario: string | null | (() => Promise<string | null>); chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>>; plataforma?: string }): () => Promise<MotorNavegador> {
   let motor: MotorNavegador | null = null;
   let instalando: Promise<boolean> | null = null;
   let falhouAInstalar = false;
@@ -350,6 +415,8 @@ export function motorDaMaquina(o: { dados: string; binario: string | null; chrom
   const marca = join(o.dados, "chrome-instalado");
   return async () => {
     if (motor) return motor;
+    // O binário pode vir de uma função (o motor do Windows instala o agent-browser sozinho na primeira vez).
+    if (typeof o.binario === "function") o.binario = await o.binario();
     if (!o.binario) throw new FalhaNavegador("indisponivel", "o agent-browser não está instalado nesta máquina (atualize o app do nod)");
     const chrome = o.chrome();
     if (!chrome && !existsSync(marca)) {
@@ -357,7 +424,7 @@ export function motorDaMaquina(o: { dados: string; binario: string | null; chrom
       instalando ??= (async () => {
         await mkdir(o.dados, { recursive: true, mode: 0o700 });
         const env = o.env ?? process.env;
-        const r = await executor({ bin: o.binario!, args: ["install"], env: { PATH: env.PATH ?? "/usr/bin:/bin", HOME: env.HOME ?? o.dados, ...(env.TMPDIR ? { TMPDIR: env.TMPDIR } : {}), AGENT_BROWSER_NO_VERSION_CHECK: "1" }, prazoMs: PRAZO_INSTALAR_MS, limiteSaida: 1024 * 1024 });
+        const r = await executor({ bin: o.binario as string, args: ["install"], env: { ...ambienteDoSistema(env, o.plataforma ?? process.platform), PATH: env.PATH ?? "/usr/bin:/bin", HOME: env.HOME ?? env.USERPROFILE ?? o.dados, AGENT_BROWSER_NO_VERSION_CHECK: "1" }, prazoMs: PRAZO_INSTALAR_MS, limiteSaida: 1024 * 1024 });
         const ok = r.codigo === 0 && !r.estourou;
         if (ok) await writeFile(marca, "agent-browser install\n");
         else { falhouAInstalar = true; log("aviso", "navegador_chrome_nao_instalou", { codigo: r.codigo, estourou: r.estourou }); }
@@ -365,7 +432,7 @@ export function motorDaMaquina(o: { dados: string; binario: string | null; chrom
       })().finally(() => { instalando = null; });
       throw new FalhaNavegador("indisponivel", "estou preparando o Chrome nesta máquina pela primeira vez (alguns minutos); tente de novo em 2 minutos");
     }
-    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario, chrome, ...(o.executor ? { executor: o.executor } : {}) });
+    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}) });
     return motor;
   };
 }

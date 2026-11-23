@@ -24,7 +24,8 @@ import { criarExecutarComando, iniciarLimpezaDasTasks, modoDaLimpeza, type Limpe
 import { iniciarDesfazeres, type Desfazeres } from "../src/adapters/executor/desfazeres.ts";
 import { iniciarEsperas, type Esperas } from "../src/adapters/executor/esperas.ts";
 import { iniciarComputador, type LacoComputador } from "../src/adapters/executor/computador.ts";
-import { agentBrowserDoLinux, chromeDoLinux, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
+import { agentBrowserDoLinux, agentBrowserNoWindows, chromeDoLinux, chromeDoWindows, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
+import { criarCofresDoWindows } from "../desktop/cofres-do-windows.ts";
 import type { PlanoTurno } from "../src/contracts/plano-turno.ts";
 import { PAPEIS_MAQUINA } from "../src/contracts/ponte.ts";
 import { iniciarInstaladora, type Instaladora } from "../src/shared/instaladora.ts";
@@ -310,7 +311,16 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   computador = NO_WINDOWS ? null : iniciarComputador({ canal: ponteHttp.computador });
   // ADR-190 (decisão 5): o navegador do bot nesta máquina sempre ligada. Puxa os comandos; o Chrome só abre no primeiro
   // (servidor sem NOD_NAVEGADOR_NA_MAQUINA: 404, o laço espera 10 min). Chrome e binário: chromeDoLinux/agentBrowserDoLinux.
-  navegador = NO_WINDOWS ? null : iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDaMaquina({ dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserDoLinux(process.env, process.arch), chrome: () => chromeDoLinux(process.env) }) });
+  // 2026-11-22 (o navegador no PC): no Windows o motor é o executor do PC da pessoa (o app só abre a janela), então o
+  // navegador do bot roda aqui, com o agent-browser que a instalação pôs em <pasta do nod>\navegador, o Chrome (ou o
+  // Edge) do sistema e o que o Mac tem no app: o 1Password, o Bitwarden, o Chrome da pessoa e a confirmação (Windows Hello).
+  navegador = iniciarNavegadorDaMaquina({
+    canal: ponteHttp.navegador,
+    motor: motorDaMaquina(NO_WINDOWS
+      ? { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserNoWindows({ env: process.env, pastaDoMotor: dir }), chrome: () => chromeDoWindows(process.env), plataforma: "win32" }
+      : { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserDoLinux(process.env, process.arch), chrome: () => chromeDoLinux(process.env) }),
+    ...(NO_WINDOWS ? { mac: criarCofresDoWindows({ env: process.env }) } : {}),
+  });
 
   const subirLaco = (reg: Registry) => {
     if (papel === "computador") { log("info", "motor_so_computador", { machine_id: dados.machineId }); return; }
