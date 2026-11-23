@@ -44,3 +44,8 @@ export function segredoAindaNaPagina(urlDoSegredo: string | null, urlAgora: stri
   const tirar = (u: string) => u.split("#")[0];
   return tirar(urlDoSegredo) === tirar(urlAgora);
 }
+
+/** Alguma aba aberta ainda está na página do segredo (QA-204: a trava não sai só porque a aba ativa mudou). */
+export function segredoEmAlgumaAba(urlDoSegredo: string | null, abas: readonly { url: string }[]): boolean {
+  return abas.some((a) => segredoAindaNaPagina(urlDoSegredo, a.url));
+}

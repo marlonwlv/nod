@@ -12,7 +12,7 @@ import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, domi
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, mensagemDoEnsinado, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
-import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
+import { campoEhSecreto, redigirArvore, segredoAindaNaPagina, segredoEmAlgumaAba } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, viewportDeQuemAssiste, viewportMudouMuito, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
@@ -624,12 +624,18 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     return { papel: PAPEIS_DE_ACAO_NO_CSS, nome: nome.slice(0, 200), host };
   }
 
-  /** Confere o segredo na página contra a URL de agora; a URL mudou, a trava sai. */
+  /**
+   * Confere o segredo na página contra a URL de agora: trava na aba que está nela. Revisto em 2026-11-23 (QA-204): abrir
+   * outra aba e voltar soltava a trava e o `navegador_avaliar` lia a senha que o cofre preencheu; agora ela só sai quando
+   * nenhuma aba está mais na página do segredo (sem a lista das abas, fica).
+   */
   async function segredoTrava(c: Contexto): Promise<boolean> {
     if (!c.est.urlDoSegredo) return false;
     const url = await c.motor.url(sessao(c.plano.agenteId)).catch(() => c.est.url);
     c.est.url = url;
     if (segredoAindaNaPagina(c.est.urlDoSegredo, url)) return true;
+    const abas = await c.motor.abas(sessao(c.plano.agenteId)).catch(() => null);
+    if (!abas || segredoEmAlgumaAba(c.est.urlDoSegredo, abas)) return false;
     c.est.urlDoSegredo = null;
     mudar(c.est, { segredoNaPagina: false });
     return false;
@@ -652,7 +658,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       notarUrl(est, ativa.url);
       est.refs = null; est.refsPorTamanho = false;
       est.campo = null;
-      if (est.urlDoSegredo && !segredoAindaNaPagina(est.urlDoSegredo, ativa.url)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
+      if (est.urlDoSegredo && !segredoEmAlgumaAba(est.urlDoSegredo, abas)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
       if (/^https?:/i.test(ativa.url)) registrar(est, { tipo: "abriu", url: ativa.url });
       oferecerGuardar(est, ativa.url);
     }
