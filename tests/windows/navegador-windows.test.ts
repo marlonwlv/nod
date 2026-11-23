@@ -11,7 +11,7 @@ import { binarioAgentBrowser, criarMotorAgentBrowser } from "../../src/adapters/
 import { relayPadrao } from "../../src/adapters/navegador/stream-local.ts";
 import { executarDoCofre } from "../../desktop/cofres-do-mac.ts";
 import { ambienteDoPowerShell, criarCofresDoWindows, executarNoWindows, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../desktop/cofres-do-windows.ts";
-import { cookiesDoChromeNoWindows, googleChromeDoWindows } from "../../desktop/cookies-do-chrome-windows.ts";
+import { cookiesDoChromeNoWindows, googleChromeDoWindows, PRESOS_AO_CHROME } from "../../desktop/cookies-do-chrome-windows.ts";
 
 /**
  * 2026-11-22 (o navegador no PC, com tudo o que o Mac tem): a prova no Windows de verdade (job `windows` da CI,
@@ -184,7 +184,7 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     }
   });
 
-  it("Trazer do meu Chrome no perfil de uso diário: o Default da pasta padrão do Chrome do usuário", async () => {
+  it("Trazer do meu Chrome no perfil de uso diário: o Chrome prende os cookies a ele (v20) e a pessoa ouve o porquê, sem lista vazia calada", async () => {
     const chrome = googleChromeDoWindows(process.env);
     const padrao = join(process.env.LOCALAPPDATA!, "Google", "Chrome", "User Data");
     // O Chrome da pessoa no dia a dia: o Chrome com janela, na pasta padrão, o site gravando o cookie como qualquer site.
@@ -220,8 +220,9 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
         return `${linhas.length} cookies: ${linhas.map((l) => `${String(l.host_key)}/${String(l.name)}/${Buffer.from(l.pre as Uint8Array).toString("latin1")}`).join(", ")}`;
       } finally { db.close(); }
     })().catch((e: unknown) => `diagnóstico falhou: ${String(e)}`);
-    // Fechado o Chrome, sem dizer a pasta: o padrão do usuário, como o motor faz.
-    const cookies = await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env });
-    expect(cookies, diagnostico).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome", httpOnly: true })]);
+    // Medido em 2026-11-22: o perfil padrão cifra com a criptografia presa ao Chrome (v20), que nem o Chrome numa cópia abre.
+    expect(diagnostico).toMatch(/127\.0\.0\.1\/nod_teste\/v20/u);
+    // Fechado o Chrome, sem dizer a pasta (o padrão do usuário, como o motor faz): a recusa vem com o motivo.
+    await expect(cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env })).rejects.toMatchObject({ motivo: "indisponivel", detalhe: PRESOS_AO_CHROME });
   }, 240_000);
 });

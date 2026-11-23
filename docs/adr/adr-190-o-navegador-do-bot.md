@@ -214,17 +214,19 @@ Pedido do dono: o navegador do bot funciona no Windows com as mesmas coisas do M
 - **Cofres:** a mesma lógica do Mac. O `op` do 1Password vem do PATH, do WinGet ou de Arquivos de Programas e só roda
   com a assinatura Authenticode válida e emitida para a AgileBits (o par do Team ID no Mac). O `bw` é o `.exe` ou o atalho
   do npm, que vira `node <script>` sem o cmd.exe.
-- **Trazer do meu Chrome:** no Windows o Chrome cifra os cookies com a chave do usuário (DPAPI) e, desde o 127, com a
-  "app-bound encryption", que só o próprio Chrome instalado abre. Ler o banco de fora, como no Mac, não funciona. Quem
-  lê é o Chrome da pessoa: o `Local State` e o banco de cookies vão para uma pasta temporária, o `chrome.exe` dela abre a
-  cópia sem janela e devolve pelo CDP os cookies já decifrados; só os do site saem. Com o Chrome dela aberto o Windows
-  trava o banco, e a pessoa ouve para fechar o Chrome e tentar de novo.
+- **Trazer do meu Chrome — não existe no PC por enquanto (medido no runner, 2026-11-22):** no perfil do dia a dia o
+  Chrome do Windows cifra os cookies com a criptografia presa a ele (`v20`, app-bound, Chrome 127+). Nenhum programa de
+  fora a abre — nem o próprio `chrome.exe` da pessoa abrindo uma cópia do perfil (a chave vale só para o perfil
+  original), e o Chrome 136+ recusa a depuração no perfil padrão. A leitura pela cópia (`cookies-do-chrome-windows.ts`)
+  só serve para cookies `v10` (perfis fora da pasta padrão); havendo `v20` do site, a pessoa ouve o porquê. O cartão de
+  login do PC não oferece a opção. O caminho legítimo é uma extensão do nod no Chrome da pessoa (como a do 1Password),
+  com o `chrome.cookies` e o native messaging até o motor — decisão de produto pendente. Gatilho: a extensão aprovada.
 - **Confirmação de pagar:** o Windows Hello (rosto, digital ou PIN) pelo WinRT no PowerShell 5.1; sem ele configurado, a
   caixa do Windows com o motivo e OK/Cancelar (como o diálogo do Mac sem Touch ID).
 - **Textos:** a vista diz o aparelho (`aparelho: "mac" | "pc"`), e o servidor e a web falam "seu PC" e "Windows Hello"
   no lugar de "seu Mac" e "Touch ID" (`textosDoAparelho`).
 - **Prova:** o job `windows` da CI roda o agent-browser.exe com o Chrome do runner (abrir, ler, clicar, preencher, o
-  stream e o relay do cofre), o "Trazer do meu Chrome" contra um perfil de verdade cifrado pelo Chrome, o npm instalando
+  stream e o relay do cofre), o "Trazer do meu Chrome" (a cópia lê o v10; no perfil padrão, o v20 vira a recusa com o motivo), o op.exe oficial e o bw reais, o npm instalando
   o agent-browser como o motor faria, o WinRT do Windows Hello carregando e a conferência do Authenticode.
 
 ## Gatilhos de reversão

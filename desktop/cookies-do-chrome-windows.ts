@@ -60,6 +60,21 @@ export function cookiesDoCdpParaOHost(lista: readonly CookieCdp[], host: string,
   return saida;
 }
 
+/** A frase quando o Chrome do Windows não deixa os cookies saírem (a criptografia presa a ele, Chrome 127+). */
+export const PRESOS_AO_CHROME = "o Chrome do Windows protege os cookies deste site e não deixa outro programa lê-los: entre pelo cofre ou faça o login no navegador do bot";
+
+/** Quantos cookies do site estão cifrados com a criptografia presa ao Chrome (`v20`) no banco copiado. */
+async function cookiesPresosAoChrome(banco: string, host: string): Promise<number> {
+  try {
+    const sqlite = (await import("node:sqlite")) as unknown as { DatabaseSync: new (c: string, o: { readOnly: boolean }) => { prepare(q: string): { all(...p: unknown[]): Record<string, unknown>[] }; close(): void } };
+    const db = new sqlite.DatabaseSync(banco, { readOnly: true });
+    try {
+      return db.prepare("select host_key, substr(encrypted_value, 1, 3) as pre from cookies").all()
+        .filter((l) => typeof l.host_key === "string" && cookieServeAoHost(l.host_key, host) && l.pre instanceof Uint8Array && Buffer.from(l.pre).toString("latin1") === "v20").length;
+    } finally { db.close(); }
+  } catch { return 0; }
+}
+
 const espera = (ms: number) => new Promise<void>((r) => { const t = setTimeout(r, ms); t.unref?.(); });
 
 /** Copia um arquivo do perfil; o banco travado pelo Chrome aberto vira a frase para a pessoa. */
@@ -127,7 +142,11 @@ export async function cookiesDoChromeNoWindows(o: OpcoesCookiesNoWindows): Promi
     const { porta, caminho } = await portaDoChrome(pasta, filho, Date.now() + prazoMs);
     const r = await pedirCdp(`ws://127.0.0.1:${porta}${caminho}`, "Storage.getCookies", prazoMs);
     const lista = Array.isArray(r.cookies) ? (r.cookies as CookieCdp[]) : [];
-    return cookiesDoCdpParaOHost(lista, o.host, (o.agoraSeg ?? (() => Math.floor(Date.now() / 1000)))());
+    const cookies = cookiesDoCdpParaOHost(lista, o.host, (o.agoraSeg ?? (() => Math.floor(Date.now() / 1000)))());
+    // O perfil do dia a dia cifra com a criptografia presa ao Chrome ("v20"): a cópia não a abre e o Chrome descarta esses
+    // cookies em silêncio. Havendo `v20` do site e nada lido, a pessoa ouve o porquê (e não um "sem cookies" calado).
+    if (cookies.length === 0 && (await cookiesPresosAoChrome(join(pasta, "Default", "Network", "Cookies"), o.host)) > 0) throw new FalhaNavegador("indisponivel", PRESOS_AO_CHROME);
+    return cookies;
   } finally {
     if (filho && filho.exitCode === null) {
       filho.kill();
