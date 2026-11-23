@@ -131,11 +131,13 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     expect(r.saida).toMatch(/^disponivel:(Available|DeviceNotPresent|NotConfiguredForUser|DisabledByPolicy|DeviceBusy|Erro)$/u);
   });
 
-  it("a assinatura: o Authenticode do Windows roda, e um binário da Microsoft não passa como o op da AgileBits", async () => {
-    const ps = powershellDoWindows(process.env);
+  it("a assinatura: o Authenticode do Windows roda, e um binário assinado por outra empresa não passa como o op da AgileBits", async () => {
+    // O chrome.exe traz a assinatura embutida, como o op.exe da AgileBits (o powershell.exe é assinado por catálogo, e a
+    // consulta ao catálogo leva mais que o prazo no runner).
+    const chrome = googleChromeDoWindows(process.env);
     let saida = "";
     const espiao: typeof executarDoCofre = async (bin, args, o) => { const r = await executarDoCofre(bin, args, o); saida = r.saida; return r; };
-    expect(await opDaAgileBitsNoWindows(ps, process.env, espiao)).toBe(false);
-    expect(saida).toMatch(/^Valid\|.*Microsoft/u);
+    expect(await opDaAgileBitsNoWindows(chrome!, process.env, espiao)).toBe(false);
+    expect(saida).toMatch(/^Valid\|.*Google/u);
   });
 });

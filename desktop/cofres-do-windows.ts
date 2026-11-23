@@ -80,7 +80,7 @@ export function candidatosDoBw(env: Env): string[] {
  */
 export async function opDaAgileBitsNoWindows(caminho: string, env: Env, executar: ExecutarDoCofre = executarDoCofre): Promise<boolean> {
   const script = "$s = Get-AuthenticodeSignature -LiteralPath $env:NOD_ARQUIVO; [Console]::Out.Write($s.Status.ToString() + '|' + $s.SignerCertificate.Subject)";
-  const r = await executar(powershellDoWindows(env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { prazoMs: 15_000, env: ambienteDoWindows(env, { NOD_ARQUIVO: caminho }) });
+  const r = await executar(powershellDoWindows(env), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { prazoMs: 30_000, env: ambienteDoWindows(env, { NOD_ARQUIVO: caminho }) });
   return r.codigo === 0 && assinaturaDaAgileBits(r.saida);
 }
 
