@@ -1,3 +1,4 @@
+/* global chrome */
 // "Trazer do meu Chrome" no PC (2026-11-23; src/adapters/executor/chrome-da-pessoa.ts). A extensão liga no host do nod
 // (o native messaging app.nod.navegador, que o motor registra) e responde só ao pedido "cookies de UM site": o host
 // pergunta, a extensão lê pelo próprio Chrome (`chrome.cookies.getAll`) e devolve. Nada sai sem o pedido do motor, e só
