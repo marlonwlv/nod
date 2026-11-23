@@ -137,6 +137,8 @@ export async function cookiesDoChromeNoWindows(o: OpcoesCookiesNoWindows): Promi
     await mkdir(join(pasta, "Default", "Network"), { recursive: true });
     await copiar(banco, join(pasta, "Default", "Network", "Cookies"));
     if (existsSync(`${banco}-journal`)) await copiar(`${banco}-journal`, join(pasta, "Default", "Network", "Cookies-journal"));
+    // Contados antes de o Chrome abrir a cópia: aberto, ele trava o arquivo e descarta o que não consegue decifrar.
+    const presos = await cookiesPresosAoChrome(join(pasta, "Default", "Network", "Cookies"), o.host);
     // Sem janela, sem extensões, sem sincronizar e sem rede além do necessário: só abrir o perfil e ler.
     filho = spawn(chrome, ["--headless=new", `--user-data-dir=${pasta}`, "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-sync", "--disable-background-networking", "--disable-component-update", "about:blank"], { stdio: "ignore", windowsHide: true });
     const { porta, caminho } = await portaDoChrome(pasta, filho, Date.now() + prazoMs);
@@ -145,7 +147,7 @@ export async function cookiesDoChromeNoWindows(o: OpcoesCookiesNoWindows): Promi
     const cookies = cookiesDoCdpParaOHost(lista, o.host, (o.agoraSeg ?? (() => Math.floor(Date.now() / 1000)))());
     // O perfil do dia a dia cifra com a criptografia presa ao Chrome ("v20"): a cópia não a abre e o Chrome descarta esses
     // cookies em silêncio. Havendo `v20` do site e nada lido, a pessoa ouve o porquê (e não um "sem cookies" calado).
-    if (cookies.length === 0 && (await cookiesPresosAoChrome(join(pasta, "Default", "Network", "Cookies"), o.host)) > 0) throw new FalhaNavegador("indisponivel", PRESOS_AO_CHROME);
+    if (cookies.length === 0 && presos > 0) throw new FalhaNavegador("indisponivel", PRESOS_AO_CHROME);
     return cookies;
   } finally {
     if (filho && filho.exitCode === null) {
