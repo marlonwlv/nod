@@ -150,7 +150,9 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
       execFileSync("tar", ["-xf", join(pasta, "op.zip"), "-C", pasta]);
       const op = join(pasta, "op.exe");
       expect(existsSync(op)).toBe(true);
-      expect(await opDaAgileBitsNoWindows(op, process.env)).toBe(true);
+      let assinatura = "";
+      const espiao: typeof executarDoCofre = async (bin, args, o) => { const x = await executarDoCofre(bin, args, o); assinatura = `${x.saida} ${x.erro}`; return x; };
+      expect(await opDaAgileBitsNoWindows(op, process.env, espiao), assinatura).toBe(true);
       const versao = await executarNoWindows(process.env)(op, ["--version"], { env: ambienteDoPowerShell(process.env) });
       expect(versao.saida.trim()).toBe("2.30.3");
       // Sem conta no runner: o cofre acha o op (pelo PATH), confere e não cai — lista vazia ou, se o op demorar mais que o
@@ -186,23 +188,42 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     const chrome = googleChromeDoWindows(process.env);
     const padrao = join(process.env.LOCALAPPDATA!, "Google", "Chrome", "User Data");
     // O Chrome da pessoa no dia a dia: a pasta padrão, com o site gravando o cookie como qualquer site grava.
-    const filho = spawn(chrome!, ["--headless=new", `--user-data-dir=${padrao}`, "--no-first-run", "--no-default-browser-check", `${base}/cookie`], { stdio: "ignore" });
+    const filho = spawn(chrome!, ["--headless=new", `--user-data-dir=${padrao}`, "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", `${base}/cookie`], { stdio: "ignore" });
     try {
-      // O Chrome grava os cookies no disco em até 30 s; com ele aberto, o Windows trava o banco e a pessoa ouve o recado.
-      await new Promise((r) => setTimeout(r, 40_000));
+      // Com o Chrome aberto, o Windows pode travar o banco: a pessoa ouve o recado (ou a leitura já funciona).
+      await new Promise((r) => setTimeout(r, 5_000));
       try {
-        const aberto = await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env, chrome });
-        expect(aberto).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome" })]);
+        await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env, chrome });
       } catch (e) {
         expect((e as { detalhe?: string }).detalhe).toBe("feche o Google Chrome e tente de novo: com ele aberto, o Windows não deixa ler os cookies");
       }
+      // Fechar com calma grava os cookies no disco. Na pasta padrão o Chrome 136+ pode recusar a porta de depuração; aí
+      // espera o intervalo de gravação dele (30 s) antes de fechar à força.
+      let caminho = "", porta = "";
+      for (let i = 0; i < 30 && !caminho; i++) {
+        try { [porta = "", caminho = ""] = readFileSync(join(padrao, "DevToolsActivePort"), "utf8").split(/\r?\n/u); } catch { /* sem a porta */ }
+        if (!caminho) await new Promise((r) => setTimeout(r, 300));
+      }
+      if (caminho) {
+        await new Promise<void>((resolve) => {
+          const ws = new WebSocket(`ws://127.0.0.1:${porta}${caminho}`);
+          ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: "Browser.close" }));
+          ws.onclose = () => resolve();
+          ws.onerror = () => resolve();
+        });
+        await new Promise<void>((r) => { const t = setTimeout(r, 15_000); if (filho.exitCode !== null) { clearTimeout(t); r(); } else filho.once("exit", () => { clearTimeout(t); r(); }); });
+      } else {
+        await new Promise((r) => setTimeout(r, 60_000));
+      }
     } finally {
-      execFileSync("taskkill", ["/F", "/T", "/PID", String(filho.pid)], { stdio: "ignore" });
-      await new Promise<void>((r) => { if (filho.exitCode !== null) r(); else filho.once("exit", () => r()); });
+      if (filho.exitCode === null) {
+        try { execFileSync("taskkill", ["/F", "/T", "/PID", String(filho.pid)], { stdio: "ignore" }); } catch { /* já saiu */ }
+        await new Promise<void>((r) => { if (filho.exitCode !== null) r(); else filho.once("exit", () => r()); });
+      }
     }
     await new Promise((r) => setTimeout(r, 2_000));
     // Fechado o Chrome, sem dizer a pasta: o padrão do usuário, como o motor faz.
     const cookies = await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env });
     expect(cookies).toEqual([expect.objectContaining({ name: "nod_teste", value: "ok-do-chrome", httpOnly: true })]);
-  }, 180_000);
+  }, 240_000);
 });
