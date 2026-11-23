@@ -60,7 +60,10 @@ describe("onde estão as coisas no PC", () => {
 describe("a assinatura do op e a confirmação", () => {
   it("só a assinatura válida emitida para a AgileBits passa; o caminho vai por variável, não no comando", async () => {
     expect(assinaturaDaAgileBits("Valid|CN=AgileBits Inc., O=AgileBits Inc., L=Toronto, S=Ontario, C=CA")).toBe(true);
+    expect(assinaturaDaAgileBits("Valid|CN=Agilebits, O=Agilebits, S=Ontario, C=CA")).toBe(true);
     expect(assinaturaDaAgileBits("NotSigned|")).toBe(false);
+    expect(assinaturaDaAgileBits("HashMismatch|CN=Agilebits, O=Agilebits, S=Ontario, C=CA")).toBe(false);
+    expect(assinaturaDaAgileBits("Valid|CN=Agilebits, O=Agilebits Falsa, C=CA")).toBe(false);
     expect(assinaturaDaAgileBits("Valid|CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond")).toBe(false);
     expect(assinaturaDaAgileBits("Valid|CN=Falso, O=AgileBits Inc. Falsa")).toBe(false);
     const vistos: { bin: string; args: readonly string[]; env?: Readonly<Record<string, string>> }[] = [];

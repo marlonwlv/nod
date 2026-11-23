@@ -187,34 +187,19 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
   it("Trazer do meu Chrome no perfil de uso diário: o Default da pasta padrão do Chrome do usuário", async () => {
     const chrome = googleChromeDoWindows(process.env);
     const padrao = join(process.env.LOCALAPPDATA!, "Google", "Chrome", "User Data");
-    // O Chrome da pessoa no dia a dia: a pasta padrão, com o site gravando o cookie como qualquer site grava.
-    const filho = spawn(chrome!, ["--headless=new", `--user-data-dir=${padrao}`, "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", `${base}/cookie`], { stdio: "ignore" });
+    // O Chrome da pessoa no dia a dia: o Chrome com janela, na pasta padrão, o site gravando o cookie como qualquer site.
+    const filho = spawn(chrome!, [`--user-data-dir=${padrao}`, "--no-first-run", "--no-default-browser-check", `${base}/cookie`], { stdio: "ignore" });
     try {
+      await new Promise((r) => setTimeout(r, 8_000));
       // Com o Chrome aberto, o Windows pode travar o banco: a pessoa ouve o recado (ou a leitura já funciona).
-      await new Promise((r) => setTimeout(r, 5_000));
       try {
         await cookiesDoChromeNoWindows({ host: "127.0.0.1", env: process.env, chrome });
       } catch (e) {
         expect((e as { detalhe?: string }).detalhe).toBe("feche o Google Chrome e tente de novo: com ele aberto, o Windows não deixa ler os cookies");
       }
-      // Fechar com calma grava os cookies no disco. Na pasta padrão o Chrome 136+ pode recusar a porta de depuração; aí
-      // espera o intervalo de gravação dele (30 s) antes de fechar à força.
-      let caminho = "", porta = "";
-      for (let i = 0; i < 30 && !caminho; i++) {
-        try { [porta = "", caminho = ""] = readFileSync(join(padrao, "DevToolsActivePort"), "utf8").split(/\r?\n/u); } catch { /* sem a porta */ }
-        if (!caminho) await new Promise((r) => setTimeout(r, 300));
-      }
-      if (caminho) {
-        await new Promise<void>((resolve) => {
-          const ws = new WebSocket(`ws://127.0.0.1:${porta}${caminho}`);
-          ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: "Browser.close" }));
-          ws.onclose = () => resolve();
-          ws.onerror = () => resolve();
-        });
-        await new Promise<void>((r) => { const t = setTimeout(r, 15_000); if (filho.exitCode !== null) { clearTimeout(t); r(); } else filho.once("exit", () => { clearTimeout(t); r(); }); });
-      } else {
-        await new Promise((r) => setTimeout(r, 60_000));
-      }
+      // A pessoa fecha o Chrome (o pedido de fechar da janela, sem /F): é quando ele grava os cookies no disco.
+      try { execFileSync("taskkill", ["/T", "/PID", String(filho.pid)], { stdio: "ignore" }); } catch { /* já saindo */ }
+      await new Promise<void>((r) => { const t = setTimeout(r, 30_000); if (filho.exitCode !== null) { clearTimeout(t); r(); } else filho.once("exit", () => { clearTimeout(t); r(); }); });
     } finally {
       if (filho.exitCode === null) {
         try { execFileSync("taskkill", ["/F", "/T", "/PID", String(filho.pid)], { stdio: "ignore" }); } catch { /* já saiu */ }

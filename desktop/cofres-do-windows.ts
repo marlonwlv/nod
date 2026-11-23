@@ -100,10 +100,13 @@ export async function opDaAgileBitsNoWindows(caminho: string, env: Env, executar
   return r.codigo === 0 && assinaturaDaAgileBits(r.saida);
 }
 
-/** "Valid|CN=AgileBits Inc., O=AgileBits Inc., …": válida e emitida para a AgileBits. */
+/**
+ * "Valid|CN=Agilebits, O=Agilebits, S=Ontario, C=CA" (o op.exe oficial, medido no runner em 2026-11-22: sem "Inc." e
+ * com o "b" minúsculo): válida (cadeia confiável do Windows) e emitida para a organização AgileBits, com ou sem "Inc.".
+ */
 export function assinaturaDaAgileBits(saida: string): boolean {
   const [status, sujeito] = saida.trim().split("|");
-  return status === "Valid" && /(?:^|,\s*)O=AgileBits Inc\.?(?:,|$)/u.test(sujeito ?? "");
+  return status === "Valid" && /(?:^|,\s*)O=AgileBits(?: Inc\.?)?(?:,|$)/iu.test(sujeito ?? "");
 }
 
 /**
