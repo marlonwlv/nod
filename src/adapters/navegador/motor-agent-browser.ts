@@ -247,7 +247,7 @@ export const nomeDoBinario = (plataforma: string = process.platform): string => 
  */
 export function ambienteDoSistema(env: Readonly<Record<string, string | undefined>> = process.env, plataforma: string = process.platform): Record<string, string> {
   const nomes = plataforma === "win32"
-    ? ["SystemRoot", "SYSTEMROOT", "windir", "SystemDrive", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData", "COMSPEC", "PATHEXT", "HOMEDRIVE", "HOMEPATH", "USERNAME", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "PSModulePath"]
+    ? ["SystemRoot", "SYSTEMROOT", "windir", "SystemDrive", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData", "COMSPEC", "PATHEXT", "HOMEDRIVE", "HOMEPATH", "USERNAME", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE"]
     : ["TMPDIR"];
   const saida: Record<string, string> = {};
   for (const n of nomes) { const v = env[n]; if (v) saida[n] = v; }

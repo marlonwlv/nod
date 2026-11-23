@@ -3,7 +3,7 @@ import { AGENT_BROWSER_DA_MAQUINA, agentBrowserDoWindows, chromeDoWindows } from
 import { ambienteDoSistema, nomeDoBinario } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { scriptDeInstalacaoWindows } from "../../../src/adapters/http/motor-instalacao-windows.ts";
 import { AGENT_BROWSER_DO_MOTOR } from "../../../src/adapters/http/motor-instalacao.ts";
-import { assinaturaDaAgileBits, candidatosDoBw, candidatosDoOp, confirmarNoWindows, confirmouNoWindows, criarCofresDoWindows, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../../desktop/cofres-do-windows.ts";
+import { ambienteDoPowerShell, assinaturaDaAgileBits, candidatosDoBw, candidatosDoOp, confirmarNoWindows, confirmouNoWindows, criarCofresDoWindows, opDaAgileBitsNoWindows, powershellDoWindows, SCRIPT_DO_WINDOWS_HELLO } from "../../../desktop/cofres-do-windows.ts";
 import { cookiesDoCdpParaOHost, googleChromeDoWindows } from "../../../desktop/cookies-do-chrome-windows.ts";
 import type { ExecutarDoCofre } from "../../../desktop/cofres-do-mac.ts";
 
@@ -73,10 +73,12 @@ describe("a assinatura do op e a confirmação", () => {
     expect(vistos[0]!.env).toMatchObject({ SystemRoot: "C:\\Windows", APPDATA: ENV.APPDATA });
     expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("NOD_CREDENTIAL_KEY");
     expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("DATABASE_URL");
+    expect(Object.keys(ambienteDoPowerShell({ ...ENV, PSModulePath: "C:\\Program Files\\PowerShell\\7\\Modules" }))).not.toContain("PSModulePath");
     // O PowerShell leva o ambiente do Windows, mas nada do nod nem com cara de segredo.
     expect(vistos[0]!.env).toMatchObject({ SystemRoot: "C:\\Windows", APPDATA: ENV.APPDATA });
     expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("NOD_CREDENTIAL_KEY");
     expect(Object.keys(vistos[0]!.env ?? {})).not.toContain("DATABASE_URL");
+    expect(Object.keys(ambienteDoPowerShell({ ...ENV, PSModulePath: "C:\\Program Files\\PowerShell\\7\\Modules" }))).not.toContain("PSModulePath");
   });
 
   it("Windows Hello: só Verified ou OK confirmam; o motivo vai por variável, e o script cai na caixa do Windows sem o Hello", async () => {

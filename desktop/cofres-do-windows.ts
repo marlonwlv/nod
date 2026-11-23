@@ -38,7 +38,9 @@ export function powershellDoWindows(env: Env): string {
 export function ambienteDoPowerShell(env: Env, extra: Readonly<Record<string, string>> = {}): Record<string, string> {
   const saida: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) {
-    if (v === undefined || /^NOD_/iu.test(k) || /(KEY|TOKEN|SECRET|PASSWORD|SENHA|SESSION|DATABASE)/iu.test(k)) continue;
+    // O PSModulePath fica de fora: herdado de um PowerShell 7 (pwsh), ele aponta para os módulos da versão 7, que o 5.1
+    // não carrega ("Get-AuthenticodeSignature … the module could not be loaded", medido no runner). Sem ele, o 5.1 usa o seu.
+    if (v === undefined || /^PSModulePath$/iu.test(k) || /^NOD_/iu.test(k) || /(KEY|TOKEN|SECRET|PASSWORD|SENHA|SESSION|DATABASE)/iu.test(k)) continue;
     saida[k] = v;
   }
   return { ...saida, ...extra };
