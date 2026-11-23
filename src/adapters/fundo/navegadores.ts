@@ -341,6 +341,7 @@ const ERRO_LOGIN: Readonly<Record<string, string>> = {
   acao_falhou: "Não deu para preencher agora. Tente de novo.",
   site_mudou: "A página mudou de site. Peça o login de novo.",
   sem_cookies: "O seu Chrome não tem uma sessão deste site.",
+  login_saiu: "Esse login saiu do cofre. Escolha outro ou entre você mesmo.",
 };
 const PESSOA_FAZ = { erro: "a_pessoa_faz", instrucao: "Trocar senha, e-mail ou a segurança da conta é sempre a pessoa que faz. Nada foi executado. Chame navegador_pedir_ajuda com o motivo e encerre o turno." };
 
@@ -1637,6 +1638,13 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const s = sessao(agenteId);
       if (escolha !== "chrome" && escolha.fonte === "nod") {
         const item = await o.dentro(escopo, (d) => d.repos.cofreLogins.paraPreencher(escolha.ref));
+        const noCartao = (x: OpcaoLogin) => x.fonte === "nod" && x.ref === escolha.ref;
+        if (!item && pedido.opcoes.some(noCartao)) {
+          // QA-203: o login saiu do cofre (apagado na tela Cofre, noutra aba) depois que o cartão montou as opções. O cartão
+          // perde a opção que sumiu e diz por quê, em vez de um "não encontrado" solto que se repete a cada clique.
+          mudar(est, { pedido: { ...pedido, opcoes: pedido.opcoes.filter((x) => !noCartao(x)), etapa: "escolher", erro: ERRO_LOGIN.login_saiu! } });
+          throw new ErroDeDominio("estado_invalido", { cause: "login_saiu" });
+        }
         if (!item || !itemCasaComHost(item.site, host)) throw new ErroDeDominio("nao_encontrado", { cause: "login" });
         let r: { usuario: boolean; senha: boolean };
         try {
