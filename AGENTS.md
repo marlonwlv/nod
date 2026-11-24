@@ -275,6 +275,9 @@ vários bots rodam `npm run check` ao mesmo tempo sem um contaminar o tenant pad
   (`NOD_NAVEGADOR_NO_SERVIDOR=1`) e as rotas `navegador/*` da máquina dão 404 (o app e o motor tentam de novo em 10 min).
   Só no desenvolvimento, `NOD_NAVEGADOR_CHROME_DESTE_MAC=1` (login stub, fora do compartilhado, no macOS) faz o "Trazer do
   meu Chrome" ler o Chrome do próprio Mac do servidor, sem o app (`src/adapters/navegador/chrome-deste-mac.ts`).
+- **Painel admin de uso** (ADR-193): `/admin.html`, só leitura; as rotas `GET /api/t/:id/admin/{eu,uso,uso/pessoas/:id/:pid}`
+  conferem `NOD_ADMINS` (id ou e-mail) no servidor e dão 404 para quem não está na lista (vazia = ninguém). Só metadados
+  e contagens: nada de texto de mensagem, erro cru ou segredo sai dessas rotas.
 - **PRs do GitHub no quadro atrás de env** (NOD-421): `NOD_QUADRO_GITHUB_REPOS="dono/repo,…"` (até 5) liga o laço
   `src/adapters/fundo/prs-do-quadro.ts`. A cada 30 s ele lê os PRs de cada repo, com `NOD_QUADRO_GITHUB_TOKEN` por uma
   chamada GraphQL (produção: a imagem não tem `gh`; o token vem do segredo `nod-github-quadro-token`; a base é

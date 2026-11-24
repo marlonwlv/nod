@@ -61,7 +61,7 @@ export default defineConfig({
     // nome; no-cache em estatico.ts). O mermaid e os chunks dele ficam em /assets, com hash, e só baixam no 1º diagrama.
     rollupOptions: {
       // ADR-167 (tela 01 do Paper): a vitrine do design system é uma página interna, /design-system.html.
-      input: { index: path.resolve("web/index.html"), diagrama: path.resolve("web/sandbox/diagrama.ts"), "design-system": path.resolve("web/design-system.html") },
+      input: { index: path.resolve("web/index.html"), diagrama: path.resolve("web/sandbox/diagrama.ts"), "design-system": path.resolve("web/design-system.html"), admin: path.resolve("web/admin.html") },
       output: { entryFileNames: (chunk) => (chunk.name === "diagrama" ? "diagrama/sandbox.js" : "assets/[name]-[hash].js") },
     },
   },

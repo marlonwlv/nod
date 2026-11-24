@@ -201,6 +201,7 @@ import { criarRotasBusca } from "./rotas/busca.ts";
 import { lerPoolMax } from "../../db/client.ts";
 import { criarRotasConversas } from "./rotas/conversas.ts";
 import { criarRotasRelatos } from "./rotas/relatos.ts";
+import { criarRotasAdminUso } from "./rotas/admin-uso.ts";
 import { criarRotasDecisoes } from "./rotas/decisoes.ts";
 import { executar, type DentroDeTx } from "./rotas/dentro-de-tx.ts";
 import { type RodarNaTx, trazerImportacao } from "../../use-cases/importar-linear.ts";
@@ -1693,6 +1694,8 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasApps(depsRotas),
     ...rotasCanvas(depsRotas),
     ...criarRotasRelatos(depsRotas),
+    // ADR-193: o painel admin de uso (só leitura). Admin = NOD_ADMINS, conferido no servidor; quem não é recebe 404.
+    ...criarRotasAdminUso({ admins: adminsVoz, listarPessoas: () => listarTodas(db), abrirTx: (escopo) => abrirTxEscopada(db, escopo), agora: relogio }),
     ...criarRotasPropostas(depsRotas),
     ...criarRotasTurnos(depsRotas),
     ...criarRotasRaioX(depsRotas),

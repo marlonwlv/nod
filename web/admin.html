@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>nod · Uso</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ADR-193: o painel admin de uso (só leitura). A página é pública como qualquer estático; os dados não: as rotas
+         /admin/* conferem NOD_ADMINS no servidor e devolvem 404 para quem não é admin. -->
+    <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/estilos.css" />
+    <link rel="stylesheet" href="/ds.css" />
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body class="adm-pagina">
+    <div id="admin"></div>
+    <script type="module" src="/admin.tsx"></script>
+  </body>
+</html>
