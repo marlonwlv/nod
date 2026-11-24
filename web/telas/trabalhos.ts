@@ -176,7 +176,10 @@ export function renderGavetaTrabalhos(estado: Estado, agenteId: string): string 
 // ---- a tela da task (#195, K2/K7) ---------------------------------------------------------------------------------------
 
 function pedidaPor(t: TrabalhoDto, estado: Estado): string {
-  if (t.origem === "colega") return `pedida pelo ${t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome ?? "colega"}`;
+  if (t.origem === "colega") {
+    const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome;
+    return quem ? `pedida por ${quem}` : "pedida pelo colega";
+  }
   if (t.origem === "rotina") return `da rotina ${t.rotinaNome ?? ""}`.trim();
   return "pedida por você";
 }
@@ -225,11 +228,11 @@ export function renderTopoTrabalho(estado: Estado, id: string, fileira?: (fim: s
 const ICONE_VOLTAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5L2.5 8 7 12.5"/><path d="M2.5 8H13.5"/></svg>';
 const ICONE_PARAR = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/></svg>';
 
-/** "task do Dev 1, pedida pelo Chico · com os acessos do Dev 1 · pasta …"; na frente (Paper 15b), "Frente do Dante, …" e a pasta sem rótulo. */
+/** "Tarefa de Dev 1, pedida por Chico · com os acessos de Dev 1 · pasta …"; na frente (Paper 15b), "Frente do Dante, …" e a pasta sem rótulo. */
 function linhaDeQuemPediu(t: TrabalhoDto, estado: Estado): string {
   const nome = agente(estado, t.agenteId)?.nome ?? "bot";
   const frente = t.forma === "frente";
-  return [`Tarefa do ${nome}, ${pedidaPor(t, estado)}`, `com os acessos do ${nome}`, t.pasta ? (frente ? t.pasta : `pasta ${t.pasta}`) : "", custoDaFrente(t) !== null ? `${custoDaFrente(t)} até agora` : ""].filter(Boolean).join(" · ");
+  return [`Tarefa de ${nome}, ${pedidaPor(t, estado)}`, `com os acessos de ${nome}`, t.pasta ? (frente ? t.pasta : `pasta ${t.pasta}`) : "", custoDaFrente(t) !== null ? `${custoDaFrente(t)} até agora` : ""].filter(Boolean).join(" · ");
 }
 
 /**

@@ -285,12 +285,12 @@ function itemDaEspera(v: EsperaNaTela, agenteId: string): string {
   return `<li class="pf-item${acoes ? " p377-item" : ""}">${ponto("espera")}<span class="pf-item-corpo">${titulo}${linhas}${acoes}</span>${fim}</li>`;
 }
 
-/** Paper 15c: "As frentes do Dante usam 1,2 GB do seu Mac", quando a memória não está apertada (apertada, vale o aviso). */
+/** Paper 15c: "As frentes de Dante usam 1,2 GB do seu Mac", quando a memória não está apertada (apertada, vale o aviso). */
 function linhaDaMemoria(p: Pilula): string {
   const mb = p.abertas.reduce((s, t) => s + (t.memoriaMb ?? 0), 0);
   if (p.memoria || mb <= 0) return "";
   const qto = mb >= 1024 ? `${(mb / 1024).toFixed(1).replace(".", ",")} GB` : `${Math.round(mb)} MB`;
-  return `<p class="pf-memoria-info">${CHIP}As tarefas do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
+  return `<p class="pf-memoria-info">${CHIP}As tarefas de ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
 }
 const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
 

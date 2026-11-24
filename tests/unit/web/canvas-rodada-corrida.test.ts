@@ -118,7 +118,7 @@ describe("canvas-na-tela: Enviar N › com a pessoa trocando de canvas no meio",
     await tique();
     c.comentarios[0]!.resolver({ comentario: { id: "k1" } });
     await tique();
-    expect(c.topo.innerHTML).toContain("Rodada 1 enviada ao Gil · 1 comentário");
+    expect(c.topo.innerHTML).toContain("Rodada 1 enviada a Gil · 1 comentário");
   });
 });
 

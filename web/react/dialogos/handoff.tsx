@@ -31,8 +31,8 @@ function DialogoDeHandoff({ d, agora, responder, sair }: { d: DadosDoHandoff; ag
             <Dialog.Description className="qd-ho-linha" id="qd-ho-linha">{linhaDoResponsavel(d)}</Dialog.Description>
             {a && (
               <div className="qd-ho-run">
-                <p className="qd-ho-run-tit">{a.estado === "rodando" ? `${a.agenteNome} ainda está trabalhando (${haQuanto(a.desde, agora)})` : `O run do ${a.agenteNome} está na fila`}</p>
-                <label className="qd-ho-op"><input type="checkbox" name="parar" checked={parar} onChange={(e) => setParar(e.currentTarget.checked)} />{` ${a.estado === "rodando" ? `Parar o run do ${a.agenteNome}` : `Cancelar o run na fila do ${a.agenteNome}`}`}</label>
+                <p className="qd-ho-run-tit">{a.estado === "rodando" ? `${a.agenteNome} ainda está trabalhando (${haQuanto(a.desde, agora)})` : `O run de ${a.agenteNome} está na fila`}</p>
+                <label className="qd-ho-op"><input type="checkbox" name="parar" checked={parar} onChange={(e) => setParar(e.currentTarget.checked)} />{` ${a.estado === "rodando" ? `Parar o run de ${a.agenteNome}` : `Cancelar o run na fila de ${a.agenteNome}`}`}</label>
                 <p className="qd-ho-dica">{a.estado === "rodando" ? "O que ele já fez fica; se não parar, os dois trabalham no card ao mesmo tempo." : "Se não cancelar, ele ainda começa depois."}</p>
               </div>
             )}

@@ -826,7 +826,7 @@ describe("a conversa com outros bots numa linha (chat limpo, PR 3)", () => {
     const troca = blocos[0]!.html;
     expect(troca).toContain("Conversou com <b>Ze 1</b> · 2 mensagens · 1 não terminou");
     expect(troca).toContain("Não conseguiu terminar o pedido: você pediu para parar");
-    expect(troca).toContain('data-act="abrir-trabalho" data-id="w-ze">Ver a tarefa do Ze 1</button>');
+    expect(troca).toContain('data-act="abrir-trabalho" data-id="w-ze">Ver a tarefa de Ze 1</button>');
     expect(troca).not.toContain("msg-peer-falhou");
   });
 

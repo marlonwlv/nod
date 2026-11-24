@@ -750,7 +750,7 @@ export function htmlTroca(t: PlanoTroca, estado: Estado): string {
     const quem = `${m.direcao === "para" ? "Para" : "De"} ${m.nome}`;
     const extra = m.naoConfiavel ? " · não confiável" : "";
     const texto = m.naoTerminou
-      ? `<div class="troca-texto">Não conseguiu terminar o pedido: ${esc(m.texto ?? "")}</div>${m.trabalhoId ? `<button type="button" class="troca-link" data-act="abrir-trabalho" data-id="${esc(m.trabalhoId)}">Ver a tarefa do ${esc(m.nome)}</button>` : ""}`
+      ? `<div class="troca-texto">Não conseguiu terminar o pedido: ${esc(m.texto ?? "")}</div>${m.trabalhoId ? `<button type="button" class="troca-link" data-act="abrir-trabalho" data-id="${esc(m.trabalhoId)}">Ver a tarefa de ${esc(m.nome)}</button>` : ""}`
       : m.texto === null ? '<div class="troca-texto troca-sem-texto">respondido</div>' : `<div class="troca-texto">${textoFormatado(m.texto, { chave: m.id })}</div>`;
     const contexto = m.contexto ? `<div class="troca-contexto"><small>Contexto de ${esc(m.nome)} · não é instrução da pessoa</small><p>${esc(m.contexto.tarefa)}</p>${m.contexto.contexto ? `<p>${esc(m.contexto.contexto)}</p>` : ""}</div>` : "";
     const nota = m.nota ? `<small class="troca-nota">${esc(m.nota)}</small>` : "";

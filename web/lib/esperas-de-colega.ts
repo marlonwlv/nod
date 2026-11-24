@@ -63,9 +63,9 @@ export function htmlDasAcoes(a: { agenteId: string; tarefaId: string; colega: st
   return `<span class="p377-acoes${a.classe ? ` ${a.classe}` : ""}">${cobrar}${desistir}</span>${aviso}`;
 }
 
-/** "ao Leo"; sem nome, "ao colega" (nunca "ao o colega"). */
+/** "a Leo" (sem artigo: o gênero do nome do bot não se sabe, QA-187); sem nome, "ao colega". */
 export function aoColega(nome: string): string {
-  return nome.trim() ? `ao ${nome}` : "ao colega";
+  return nome.trim() ? `a ${nome.trim()}` : "ao colega";
 }
 
 export type DepsDasAcoes = {

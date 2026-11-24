@@ -17,10 +17,10 @@ describe("diálogo de handoff (2026-11-10, o confirm do Multica)", () => {
   it("o run de quem estava: rodando oferece Parar; na fila, Cancelar; sem run, nada", () => {
     const rodando = htmlDoHandoff({ ...base, anterior: { agenteNome: "Dev 1", estado: "rodando", desde: AGORA - 3 * 60_000 } }, AGORA);
     expect(rodando).toContain("Dev 1 ainda está trabalhando (há 3 min)");
-    expect(rodando).toContain("Parar o run do Dev 1");
+    expect(rodando).toContain("Parar o run de Dev 1");
     expect(rodando).toContain("se não parar, os dois trabalham no card ao mesmo tempo");
     const fila = htmlDoHandoff({ ...base, anterior: { agenteNome: "Dev 1", estado: "fila", desde: AGORA } }, AGORA);
-    expect(fila).toContain("Cancelar o run na fila do Dev 1");
+    expect(fila).toContain("Cancelar o run na fila de Dev 1");
     expect(fila).toContain("Se não cancelar, ele ainda começa depois.");
     expect(htmlDoHandoff(base, AGORA)).not.toContain('name="parar"');
   });

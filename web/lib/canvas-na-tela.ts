@@ -779,7 +779,7 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
         try { await api.enviar(conversa, reciboDaRodada({ canvas: nomeCurto(d.canvas), rodada, itens: foram.map((r) => ({ endereco: r.endereco, texto: r.texto })) })); recibo = true; } catch { /* os comentários já estão no canvas */ }
       }
       d.proximaRodada = rodada + 1;
-      aviso({ chave: "rodada", tipo: "ok", texto: `Rodada ${rodada} enviada ao ${doBot} · ${foram.length} comentário${foram.length > 1 ? "s" : ""}${recibo ? " · ele já está ajustando" : ""}`, ...(recibo && o.irParaConversa ? { acao: { cv: "ver-conversa", rotulo: "ver na conversa" } } : {}) }, 9000);
+      aviso({ chave: "rodada", tipo: "ok", texto: `Rodada ${rodada} enviada a ${doBot} · ${foram.length} comentário${foram.length > 1 ? "s" : ""}${recibo ? " · ele já está ajustando" : ""}`, ...(recibo && o.irParaConversa ? { acao: { cv: "ver-conversa", rotulo: "ver na conversa" } } : {}) }, 9000);
     }
     // O que ficou é o da chave deste canvas: se a pessoa abriu outro no meio, `rascunhos` já é o do outro.
     const ficaram = lerRascunhos(ler(win, chaveRodada(id))).length;

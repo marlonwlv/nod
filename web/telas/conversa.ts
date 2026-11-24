@@ -339,7 +339,7 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // o motivo e o atalho para a task dele ficam atrás de "detalhes".
   if (p?.kind === "peer_ask" && p.falhou) {
     const motivo = m.texto.replace(/^[\s\S]*?não concluiu:\s*/, "");
-    const link = p.trabalhoId ? `<button type="button" class="pf-link" data-act="abrir-trabalho" data-id="${esc(p.trabalhoId)}">Ver a tarefa do ${esc(p.nome)}</button>` : "";
+    const link = p.trabalhoId ? `<button type="button" class="pf-link" data-act="abrir-trabalho" data-id="${esc(p.trabalhoId)}">Ver a tarefa de ${esc(p.nome)}</button>` : "";
     return `<div class="msg-peer-falhou"><details data-disclosure="peer-falhou-${esc(m.id)}"><summary><span>${esc(p.nome)} não conseguiu terminar o pedido</span><span class="pf-detalhes">detalhes</span></summary><div class="pf-corpo"><span>${esc(motivo)}</span>${link}</div></details></div>`;
   }
   if (p?.kind === "peer_ask") return `<div class="msg-peer"><div class="handoff-titulo">↙ <b>${p.falhou ? "Não concluído por" : "Resposta de"} ${esc(p.nome)}</b></div><div>${textoFormatado(m.texto, { chave: m.id })}</div><small class="mudo">Contribuição de outro bot · confira as fontes</small></div>`;

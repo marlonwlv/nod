@@ -127,7 +127,7 @@ describe("NOD-97: a pílula, o cartão e a frase do pedido", () => {
     expect(controle).toContain(">Você está no controle<");
     expect(controle).toContain('data-c="devolver"');
     expect(controle).toContain(">Parar</button>");
-    expect(htmlDialogoComputador("Nina")).toContain("Fechar devolve ao Nina");
+    expect(htmlDialogoComputador("Nina")).toContain("Fechar devolve a Nina");
   });
 
   it("a frase nova do pedido de tela não manda usar Assumir controle, e a antiga continua virando o cartão", () => {
@@ -168,7 +168,7 @@ describe("NOD-97: fechar a tela no controle", () => {
   });
 
   it("o ✕ só promete devolver quando fechar devolve (protótipo v1.1)", () => {
-    expect(rotuloDoFechar("Nina", true, null)).toEqual({ rotulo: "Fechar e devolver ao Nina (Esc)", dica: "Fechar devolve ao Nina" });
+    expect(rotuloDoFechar("Nina", true, null)).toEqual({ rotulo: "Fechar e devolver a Nina (Esc)", dica: "Fechar devolve a Nina" });
     expect(rotuloDoFechar("Nina", true, "d1")).toEqual({ rotulo: "Fechar (o pedido continua aberto)", dica: "Esc fecha; o pedido continua aberto" });
     expect(rotuloDoFechar("Nina", false, null)).toEqual({ rotulo: "Fechar computador", dica: null });
   });
