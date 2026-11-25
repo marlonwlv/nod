@@ -132,6 +132,21 @@ describeIntegracao("NOD-281: a sessão do CLI é da máquina, da IA e da conta (
     });
   });
 
+  it("PR #327 (achado 4): a 1ª mensagem, sem sessão, que fecha antes de começar é a IA que não abriu, não a sessão que sumiu", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const a = randomUUID();
+      const t1 = (await m.enfileirar("codex-cli"))!;
+      expect((await m.repos.turnos.reivindicar({ machineId: a, agora: Date.now() }))?.id).toBe(t1.id);
+      expect((await m.plano(t1.id, { machineId: a, ias: ["codex-cli"], ponte: true })).entrada.sessaoCli).toBeNull();
+      await assentarTurno(m.deps, { turnoId: t1.id, machineId: a, seqLocal: 1, fala: { tipo: "texto", texto: "" }, resultado: rejeitada, executor: "local", harness: "codex-cli" });
+
+      const sistema = (await m.repos.mensagens.listarDaConversa(m.conversaId)).filter((x) => x.kind === "sistema");
+      expect(sistema.map((x) => x.payload)).toMatchObject([{ kind: "desvio", desvio: "ia_nao_abriu", forma: "cartao" }]);
+      expect(sistema.some((x) => /não estava mais|recomeçou pelo histórico/.test(x.texto))).toBe(false);
+    });
+  });
+
   it("sessão recusada pelo CLI: a fala é repetida uma vez sem resume, sem aviso de falha; na segunda, o aviso de sempre", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
