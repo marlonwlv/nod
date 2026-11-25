@@ -6,6 +6,7 @@ import { TIPOS_ACAO_LOTE, type AcaoLote } from "../../../src/contracts/ferrament
 import { acaoDoTipoDoLote, buscarAcao, REGISTRO_DE_ACOES, tiposDoLoteNoRegistro, validarRegistro } from "../../../src/domain/acoes/index.ts";
 import { riscoDaAcao } from "../../../src/domain/lote-bots.ts";
 import { FERRAMENTAS_DO_NOD, FERRAMENTAS_NOD_POR_MODO } from "../../../src/domain/plano-turno.ts";
+import { FERRAMENTAS_NAVEGADOR } from "../../../src/contracts/ferramentas-navegador.ts";
 
 /** NOD-391 (ADR-135): o registro único de ações — formato, ids únicos, estados completos e o lote derivado dele. */
 
@@ -19,8 +20,9 @@ describe("registro de ações", () => {
   // QA-190: a via do chat de trabalhos.abrir apontava para abrir_task, sinônimo que não entra no catálogo de modo nenhum
   // (o gateway nega fora_do_catalogo); a paridade dizia "parcial" por um caminho que o bot não tem.
   it("a via do chat de cada ação é uma ferramenta que entra no catálogo de algum modo", () => {
-    // As do kit do Nod (FERRAMENTAS_DO_NOD) e as dos experimentos (quadro, apps, canvas) entram pelo montarPlano.
-    const noCatalogo = new Set<string>([...Object.values(FERRAMENTAS_NOD_POR_MODO).flat(), ...FERRAMENTAS_DO_NOD, "gerir_quadro", "gerir_apps", "gerir_canvas"]);
+    // As do kit do Nod (FERRAMENTAS_DO_NOD) e as dos experimentos (quadro, apps, canvas) entram pelo montarPlano; as do
+    // navegador (ADR-190) também, quando o navegador está no plano (as diretas, e as do catálogo pelo navegador_usar).
+    const noCatalogo = new Set<string>([...Object.values(FERRAMENTAS_NOD_POR_MODO).flat(), ...FERRAMENTAS_DO_NOD, ...Object.keys(FERRAMENTAS_NAVEGADOR), "gerir_quadro", "gerir_apps", "gerir_canvas"]);
     const fora = REGISTRO_DE_ACOES.flatMap((a) => ("via" in a.chat && !noCatalogo.has(a.chat.via.ferramenta) ? [`${a.id}: ${a.chat.via.ferramenta}`] : []));
     expect(fora).toEqual([]);
   });
