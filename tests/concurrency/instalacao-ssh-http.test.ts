@@ -291,6 +291,35 @@ describeIntegracao("instalação por SSH pela tela e pela ponte (NOD-94, HTTP re
     }
   });
 
+  it("QA r212: a sucessão leva o computador da pessoa (máquina, hospedeira e saída pendente) para a chave nova", async () => {
+    const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "linux-do-computador" });
+    const nova = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "linux-do-computador" });
+    const outra = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "outra-maquina" });
+    const pc = await srv.db.begin(async (tx) => {
+      await vincularEscopo(tx, srv.pessoa);
+      await tx`update computadores set arquivado_em = now() where owner_id = ${srv.pessoa.pessoaId} and modelo = 'por_pessoa' and arquivado_em is null`;
+      const c = await criarRepos(tx, srv.pessoa).computadores.obterDaPessoa(velha.dados.id);
+      await tx`update computadores set hospedeira_id = ${velha.dados.id}, saidas_pendentes_de = ${[outra.dados.id, velha.dados.id]}::uuid[] where id = ${c.id}`;
+      return c;
+    });
+    try {
+      const r = await maquina("aposentar", { sucessora: nova.chave }, velha.chave);
+      expect(await r.json()).toEqual({ ok: true, revogou: true });
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, srv.pessoa);
+        const depois = await criarRepos(tx, srv.pessoa).computadores.daPessoa();
+        // Na main ficava na chave revogada: escolherMaquina devolve a gravada e o computador dava "sem contato" para sempre.
+        expect(depois).toMatchObject({ id: pc.id, maquinaId: nova.dados.id, hospedeiraId: nova.dados.id, saidasPendentesDe: [outra.dados.id, nova.dados.id] });
+      });
+    } finally {
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, srv.pessoa);
+        await tx`delete from computadores where id = ${pc.id}`;
+        await tx`update maquina_tokens set revogado_em = now() where id = ${outra.dados.id}`;
+      });
+    }
+  });
+
   it("sucessão de chave: a nova de OUTRA pessoa (trocar de conta) é recusada e a antiga fica viva", async () => {
     const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-de-dois" });
     const ana = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_ANA };
