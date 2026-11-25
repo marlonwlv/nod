@@ -321,6 +321,18 @@ describe("baixar: o download direto quando o do agent-browser falha (QA do naveg
     expect(cookieVale({ domain: "app.exemplo.com.br", path: "/c" }, u)).toBe(false);
     expect(cookieVale({ domain: "app.exemplo.com.br", path: "/", secure: true }, new URL("http://app.exemplo.com.br/"))).toBe(false);
   });
+
+  it("cookieVale: cookie só do site não vai ao subdomínio e caminho casa por segmento, como no Chrome (QA r217)", () => {
+    // Formato real do `cookies` no Chromium: "lvh.me" (sem Domain=) e ".lvh.me" (Domain=lvh.me).
+    const sub = new URL("http://a.lvh.me/arquivo.pdf");
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, sub)).toBe(false);
+    expect(cookieVale({ domain: ".lvh.me", path: "/" }, sub)).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, new URL("http://lvh.me/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/contas-falsas"))).toBe(false);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta/" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+  });
 });
 
 describe("abas: o stream acompanha a aba nova (QA do navegador no Windows, 2026-11-25)", () => {

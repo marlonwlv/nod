@@ -236,12 +236,21 @@ export const SESSAO_IDENTIDADE = "identidade";
 const SALTOS_DO_DOWNLOAD = 5;
 const LIMITE_DOWNLOAD_BYTES = 200 * 1024 * 1024;
 
-/** O cookie do perfil vale para o endereço: domínio (com ou sem ponto), caminho e, se seguro, só em https. */
+/**
+ * O cookie do perfil vale para o endereço, como o Chrome decide (RFC 6265 §5.1.3 e §5.1.4).
+ * O `cookies` do agent-browser segue o CDP: `.exemplo.com` é cookie de domínio (vale nos subdomínios);
+ * `exemplo.com`, sem ponto, é só do site (QA r217: no Chromium real o Chrome não o manda a `a.exemplo.com`).
+ * Caminho casa por segmento: `/conta` vale em `/conta` e `/conta/x`, não em `/contas`.
+ */
 export function cookieVale(c: Record<string, unknown>, u: URL): boolean {
-  const dominio = str(c.domain).replace(/^\./, "").toLowerCase();
+  const bruto = str(c.domain).toLowerCase();
+  const soDoSite = !bruto.startsWith(".");
+  const dominio = bruto.replace(/^\./, "");
   const host = u.hostname.toLowerCase();
-  if (!dominio || (host !== dominio && !host.endsWith(`.${dominio}`))) return false;
-  if (!u.pathname.startsWith(str(c.path) || "/")) return false;
+  if (!dominio || (host !== dominio && (soDoSite || !host.endsWith(`.${dominio}`)))) return false;
+  const caminho = str(c.path) || "/";
+  const p = u.pathname || "/";
+  if (p !== caminho && !(p.startsWith(caminho) && (caminho.endsWith("/") || p[caminho.length] === "/"))) return false;
   return c.secure !== true || u.protocol === "https:";
 }
 
