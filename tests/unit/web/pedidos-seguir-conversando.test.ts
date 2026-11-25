@@ -13,8 +13,8 @@ import { aparenciaDoComposer } from "../../../web/telas/pergunta.ts";
 
 /**
  * ADR-191 (definido em 2026-11-20, pedido do dono): o cartão que a pessoa deixou para trás ao seguir conversando vira a
- * linha cinza no lugar dele; a proposta aberta fica onde nasceu; a pílula "A Ada espera você" leva ao cartão fora da
- * janela; o campo diz "Responda à Ada ou fale de outra coisa"; e o cartão ganha respiro em volta.
+ * linha cinza no lugar dele; a proposta aberta fica onde nasceu; a pílula "Ada espera você" leva ao cartão fora da
+ * janela; o campo diz "Responda a Ada ou fale de outra coisa"; e o cartão ganha respiro em volta.
  */
 const C = "c1";
 const AGORA = Date.parse("2026-11-20T11:20:00Z");
@@ -159,9 +159,9 @@ describe("a proposta aberta fica onde nasceu (item D)", () => {
 });
 
 describe("a pílula 'o que espera você' (item E)", () => {
-  it("um fora da janela: 'A Ada espera você: entrar no Drive' com 'Ver ↓', e leva ao cartão", () => {
+  it("um fora da janela: 'Ada espera você: entrar no Drive' com 'Ver ↓', e leva ao cartão", () => {
     const html = pilulaDosPedidos({ decisaoId: "d1", nome: "Ada", frase: "entrar no Drive", total: 1, posicao: "abaixo" });
-    expect(html).toContain("A Ada espera você: <b>entrar no Drive</b>");
+    expect(html).toContain("Ada espera você: <b>entrar no Drive</b>");
     expect(html).toContain('<span class="pp-ver">Ver <svg');
     expect(html).toContain('data-act="ver-decisao"');
     expect(html).toContain('data-id="d1"');
@@ -173,10 +173,10 @@ describe("a pílula 'o que espera você' (item E)", () => {
     expect(html).toContain("· </span>Ver");
   });
 
-  it("some com um cartão à vista, sem cartão, ou sem frase fica só 'A Ada espera você'", () => {
+  it("some com um cartão à vista, sem cartão, ou sem frase fica só 'Ada espera você'", () => {
     expect(pilulaDosPedidos({ decisaoId: "", nome: "", total: 1, posicao: "visivel" })).toBe("");
     expect(pilulaDosPedidos(null)).toBe("");
-    expect(pilulaDosPedidos({ decisaoId: "d1", nome: "Ada", frase: "", total: 1, posicao: "abaixo" })).toContain("A Ada espera você</span>");
+    expect(pilulaDosPedidos({ decisaoId: "d1", nome: "Ada", frase: "", total: 1, posicao: "abaixo" })).toContain("Ada espera você</span>");
   });
 });
 
@@ -190,11 +190,11 @@ describe("o campo com um pedido aberto (item F)", () => {
     expect(lista.map((p) => [p.id, p.frase])).toEqual([["d1", "Ada quer ler seu Gmail"], ["d-aj", "entrar no Drive"], ["pr1", "Conectar o Google Drive"]]);
   });
 
-  it("'Responda à Ada ou fale de outra coisa' com o campo no modo comum; com pergunta de texto aberta, o de sempre", () => {
+  it("'Responda a Ada ou fale de outra coisa' com o campo no modo comum; com pergunta de texto aberta, o de sempre", () => {
     const { e } = cenario([]);
     const padrao = { placeholder: "Mensagem para Ada", nota: "" };
     expect(aparenciaDoComposer(modoDoComposer(e, C), e, padrao, C, "Ada").placeholder).toBe(placeholderComPedido("Ada"));
-    expect(placeholderComPedido("Ada")).toBe("Responda à Ada ou fale de outra coisa");
+    expect(placeholderComPedido("Ada")).toBe("Responda a Ada ou fale de outra coisa");
     expect(aparenciaDoComposer(modoDoComposer(e, C), e, padrao, C, null).placeholder).toBe("Mensagem para Ada");
     expect(aparenciaDoComposer({ tipo: "resposta", perguntas: [], alvo: ajuda as never, indice: 0 }, e, padrao, C, "Ada").placeholder).toBe("Mensagem para Ada");
   });
@@ -212,5 +212,16 @@ describe("o respiro em volta do cartão (item G)", () => {
     expect(css).toContain(".timeline .message { padding: 2px 0; margin: 0;");
     const casca = readFileSync(new URL("../../../web/casca.css", import.meta.url), "utf8");
     expect(casca).toContain(".timeline .decisoes-ancoradas { margin: 16px 0 0; padding: 2px 0; width: min(560px, 100%); }");
+  });
+});
+
+// Regression: QA r176 — "A Chico espera você" e "Responda à Chico": o gênero do nome do bot não se sabe (QA do PR #607,
+// `paraBot`), então o nome entra sem artigo nem crase.
+describe("o nome do bot sem artigo (QA r176)", () => {
+  it("a pílula e o campo não supõem o gênero do bot", () => {
+    const html = pilulaDosPedidos({ decisaoId: "d1", nome: "Chico", frase: "entrar no Drive", total: 1, posicao: "abaixo" });
+    expect(html).toContain("Chico espera você: <b>entrar no Drive</b>");
+    expect(html).not.toMatch(/\bA Chico\b/);
+    expect(placeholderComPedido("Chico")).toBe("Responda a Chico ou fale de outra coisa");
   });
 });

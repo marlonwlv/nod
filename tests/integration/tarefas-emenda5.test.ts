@@ -5,7 +5,7 @@ import { REDE_MS } from "../../src/domain/trabalho.ts";
 import { criarTokenTurno } from "../../src/services/token-turno.ts";
 import { abrirTarefaDaPessoa, mensagemParaTrabalho, promoverNaRede } from "../../src/use-cases/coordenar-trabalhos.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
-import { abrirFrentes } from "../../src/use-cases/frentes.ts";
+import { abrirFrentes, mandarParaFrente } from "../../src/use-cases/frentes.ts";
 import { arquivarTarefa, listarTarefas, resolverTarefa } from "../../src/use-cases/tarefas-acoes.ts";
 import { pararTrabalho, sincronizarTrabalho, trabalhosParaDto } from "../../src/use-cases/trabalhos.ts";
 import { agenteComConversa } from "../helpers/fabricas.ts";
@@ -159,6 +159,39 @@ describeIntegracao("Tarefa com Thread: emenda 5 do ADR-192 (achados das jornadas
       const d = (await m.repos.decisoes.criar({ tipo: "aprovacao", agenteId: m.agenteId, conversaId: m.conversaId, turnoId: r.data.turnoId, prazoDecisaoEm: Date.now() + 600_000, frase: "Posso seguir?" }))!;
       await arquivarTarefa(m.deps, { tarefaId: r.data.tarefaId!, turnoVivo: "manter" });
       expect((await m.repos.decisoes.buscar(d.id))?.estado).toBe("pendente");
+    });
+  });
+  it("o recado do bot (mandar_para_frente) não entra na Tarefa arquivada com 'deixar terminar', como a fala da pessoa", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const dono = await m.turno();
+      const r = await abrirFrentes(m.deps, { ...m.ctx(dono.id), frentes: [{ titulo: "Haicai sobre café", pedido: "Escreva um haicai." }] });
+      if (!r.data.ok) throw new Error(`deveria abrir: ${r.data.instrucao}`);
+      const trabalhoId = r.data.frentes[0]!.trabalho_id;
+      const tarefa = (await m.repos.tarefas.doTrabalho(trabalhoId))!;
+      await arquivarTarefa(m.deps, { tarefaId: tarefa.id, turnoVivo: "manter" });
+      const antes = (await m.repos.turnos.doTrabalho(trabalhoId)).length;
+      const recado = await mandarParaFrente(m.deps, { ...m.ctx(dono.id), trabalho_id: trabalhoId, texto: "acrescente um segundo haicai" });
+      expect(recado.data).toMatchObject({ ok: false, erro: "task_fechada" });
+      expect(await m.repos.turnos.doTrabalho(trabalhoId)).toHaveLength(antes);
+      expect((await m.repos.tarefas.buscar(tarefa.id))?.estado).toBe("arquivada");
+    });
+  });
+
+  it("o recado do bot não entra na Tarefa resolvida com 'deixar terminar' (só a pessoa reabre)", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const dono = await m.turno();
+      const r = await abrirFrentes(m.deps, { ...m.ctx(dono.id), frentes: [{ titulo: "Haicai sobre café", pedido: "Escreva um haicai." }] });
+      if (!r.data.ok) throw new Error(`deveria abrir: ${r.data.instrucao}`);
+      const trabalhoId = r.data.frentes[0]!.trabalho_id;
+      const tarefa = (await m.repos.tarefas.doTrabalho(trabalhoId))!;
+      await resolverTarefa(m.deps, { tarefaId: tarefa.id, turnoVivo: "manter" });
+      const antes = (await m.repos.turnos.doTrabalho(trabalhoId)).length;
+      const recado = await mandarParaFrente(m.deps, { ...m.ctx(dono.id), trabalho_id: trabalhoId, texto: "acrescente um segundo haicai" });
+      expect(recado.data).toMatchObject({ ok: false, erro: "task_fechada" });
+      expect(await m.repos.turnos.doTrabalho(trabalhoId)).toHaveLength(antes);
+      expect((await m.repos.tarefas.buscar(tarefa.id))?.estado).toBe("resolvida");
     });
   });
 });

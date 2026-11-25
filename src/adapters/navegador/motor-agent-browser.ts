@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, hkdfSync, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, readFile, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -236,12 +236,21 @@ export const SESSAO_IDENTIDADE = "identidade";
 const SALTOS_DO_DOWNLOAD = 5;
 const LIMITE_DOWNLOAD_BYTES = 200 * 1024 * 1024;
 
-/** O cookie do perfil vale para o endereço: domínio (com ou sem ponto), caminho e, se seguro, só em https. */
+/**
+ * O cookie do perfil vale para o endereço, como o Chrome decide (RFC 6265 §5.1.3 e §5.1.4).
+ * O `cookies` do agent-browser segue o CDP: `.exemplo.com` é cookie de domínio (vale nos subdomínios);
+ * `exemplo.com`, sem ponto, é só do site (QA r217: no Chromium real o Chrome não o manda a `a.exemplo.com`).
+ * Caminho casa por segmento: `/conta` vale em `/conta` e `/conta/x`, não em `/contas`.
+ */
 export function cookieVale(c: Record<string, unknown>, u: URL): boolean {
-  const dominio = str(c.domain).replace(/^\./, "").toLowerCase();
+  const bruto = str(c.domain).toLowerCase();
+  const soDoSite = !bruto.startsWith(".");
+  const dominio = bruto.replace(/^\./, "");
   const host = u.hostname.toLowerCase();
-  if (!dominio || (host !== dominio && !host.endsWith(`.${dominio}`))) return false;
-  if (!u.pathname.startsWith(str(c.path) || "/")) return false;
+  if (!dominio || (host !== dominio && (soDoSite || !host.endsWith(`.${dominio}`)))) return false;
+  const caminho = str(c.path) || "/";
+  const p = u.pathname || "/";
+  if (p !== caminho && !(p.startsWith(caminho) && (caminho.endsWith("/") || p[caminho.length] === "/"))) return false;
   return c.secure !== true || u.protocol === "https:";
 }
 
@@ -364,6 +373,12 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
  * A resposta de um comando: `data` no sucesso; senão a falha tipada. Saída que não é JSON é falha do motor (o CLI
  * mudou ou caiu antes de responder).
  */
+/** QA-209: a resposta veio de um daemon que acabou de subir (o stream dele nasce ligado). */
+export function daemonNovo(data: Record<string, unknown>): boolean {
+  const l = obj(data.lifecycle);
+  return l.launched === true || l.restartedBackground === true;
+}
+
 export function lerResposta(saida: string, codigo: number | null): Record<string, unknown> {
   const linha = saida.trim().split("\n").filter(Boolean).at(-1) ?? "";
   let r: unknown;
@@ -461,8 +476,12 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, pastaDoBot(s.agenteId));
   const pedidoDirSocket = o.dirSocket === undefined ? dirSocketPadrao() : o.dirSocket;
-  let dirSocket: Promise<string | null> | null = null;
-  const socketPronto = () => (dirSocket ??= pedidoDirSocket ? prepararDirSocket(pedidoDirSocket) : Promise.resolve(null));
+  /**
+   * Conferida a cada comando, não uma vez por processo (QA-208, 2026-11-25): a limpeza do /tmp pode apagar a pasta com o
+   * motor vivo, e aí quem a refaz é o agent-browser (0755, medido no Chromium real) ou outro usuário (link ou pasta dele),
+   * por onde passariam os comandos do bot, inclusive o `fill` com a senha do cofre. Custa um mkdir e um lstat.
+   */
+  const socketPronto = (): Promise<string | null> => (pedidoDirSocket ? prepararDirSocket(pedidoDirSocket) : Promise.resolve(null));
 
   /**
    * A identificação com janela, perguntada ao próprio Chrome uma vez por processo (revisto em 2026-11-22: ler a versão do
@@ -520,7 +539,13 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     await mkdir(join(pasta(s), "arquivos"), { recursive: true });
     const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome(), await socketPronto()), prazoMs, limiteSaida: LIMITE_SAIDA });
     if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
-    return lerResposta(r.saida, r.codigo);
+    const d = lerResposta(r.saida, r.codigo);
+    // revisto em 2026-11-25 (QA-209): o daemon nasce com o stream ligado num WebSocket de 127.0.0.1 sem token (agent-browser
+    // 0.43.0: aceita qualquer Origin de loopback e o relay só confere o cabeçalho Origin, que um processo forja). Por ele
+    // passam os quadros, o JS e os resultados do bot e o `insertText` do cofre com a senha. Daemon novo → desliga; só a
+    // vista ao vivo e o relay (por um instante) o religam.
+    if (args[0] !== "stream" && args[0] !== "close" && daemonNovo(d)) await rodar(s, ["stream", "disable"]).catch(() => undefined);
+    return d;
   }
   const alvoOuFalha = (alvo: string) => {
     const a = alvoDoMotor(alvo);
@@ -560,12 +585,36 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       if (!r.ok) throw new FalhaNavegador("acao_falhou", `o site respondeu ${r.status} ao download`);
       const tamanho = Number(r.headers.get("content-length") ?? "0");
       if (tamanho > LIMITE_DOWNLOAD_BYTES) throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB");
-      const dados = Buffer.from(await r.arrayBuffer());
-      if (dados.length > LIMITE_DOWNLOAD_BYTES) throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB");
-      await writeFile(caminho, dados);
-      return dados.length;
+      return await gravarComTeto(r, caminho);
     }
     throw new FalhaNavegador("acao_falhou", "o download redirecionou vezes demais");
+  }
+  /**
+   * medido em 2026-11-25 (QA Nod, r216): com `arrayBuffer()` o corpo inteiro ia para a memória antes do teto — um
+   * servidor sem `content-length` (chunked) pôs 1,2 GB no processo em 6,5 s antes do "passa de 200 MB", e em 60 s
+   * de prazo chegaria a vários GB no motor que serve todos os bots. Agora grava em pedaços e corta no teto.
+   */
+  async function gravarComTeto(r: Response, caminho: string): Promise<number> {
+    const arq = await open(caminho, "w");
+    let bytes = 0;
+    try {
+      if (r.body) {
+        const leitor = r.body.getReader();
+        for (;;) {
+          const { done, value } = await leitor.read();
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > LIMITE_DOWNLOAD_BYTES) { await leitor.cancel().catch(() => {}); throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB"); }
+          await arq.write(value);
+        }
+      }
+      await arq.close();
+      return bytes;
+    } catch (e) {
+      await arq.close().catch(() => {});
+      await rm(caminho, { force: true }).catch(() => {});
+      throw e;
+    }
   }
   async function portaDoStream(s: SessaoNavegador): Promise<number | null> {
     let d = await rodar(s, ["stream", "status"]);
@@ -574,6 +623,21 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       d = await rodar(s, ["stream", "status"]);
     }
     return typeof d.port === "number" ? d.port : null;
+  }
+  /**
+   * QA-209: o relay precisa do stream ligado; ligado só para este comando, ele volta a desligar no fim — a não ser que já
+   * estivesse ligado (a vista ao vivo aberta), que aí fica como estava.
+   */
+  async function comRelay<T>(s: SessaoNavegador, fn: (porta: number) => Promise<T>): Promise<T> {
+    const antes = await rodar(s, ["stream", "status"]);
+    if (antes.enabled === true && typeof antes.port === "number") return fn(antes.port);
+    const porta = await portaDoStream(s);
+    try {
+      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
+      return await fn(porta);
+    } finally {
+      await rodar(s, ["stream", "disable"]).catch(() => undefined);
+    }
   }
   async function arquivoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
     const n = nomeDeArquivo(nome);
@@ -667,7 +731,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async enviarArquivo(s, alvo, nomes) {
       const caminhos = await Promise.all(nomes.map(async (n) => {
         const a = await arquivoNaPasta(s, n);
-        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está nos arquivos do navegador`); });
+        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está na pasta do navegador do bot: só dá para enviar o que navegador_baixar ou navegador_pdf guardaram`); });
         return a.caminho;
       }));
       await rodar(s, ["upload", alvoOuFalha(alvo), ...caminhos]);
@@ -700,18 +764,19 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     // (ref `@e1` ou CSS) e `{action:"keyboard", subaction:"insertText", text}`; o texto entra inteiro no campo focado,
     // inclusive num type=password. O comando sai pelo corpo do POST local, nunca pelo argv.
     async inserirTexto(s, alvo, texto) {
-      const porta = await portaDoStream(s);
-      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
-      if (alvo !== null && !(await relay(porta, { action: "focus", selector: alvoOuFalha(alvo) }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
-      if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+      const seletor = alvo === null ? null : alvoOuFalha(alvo);
+      await comRelay(s, async (porta) => {
+        if (seletor !== null && !(await relay(porta, { action: "focus", selector: seletor }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
+        if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+      });
     },
     // medido em 2026-11-20 (mesma bancada): `{action:"cookies_set", cookies:[{name,value,domain,path,secure,httpOnly,
     // sameSite,expires}]}` grava com os atributos (o Chrome corta a validade em ~400 dias).
     async definirCookies(s, cookies) {
       if (!cookies.length) return;
-      const porta = await portaDoStream(s);
-      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
-      if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+      await comRelay(s, async (porta) => {
+        if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+      });
     },
     portaDoStream,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },

@@ -1,3 +1,4 @@
+import { TEXTO_MEMORIA_MAX } from "./memoria.ts";
 import { FERRAMENTAS_ROTINA, PARA_BOT } from "./ferramentas-rotina.ts";
 import { FERRAMENTAS_ROTINA_LOTE } from "./ferramentas-rotina-lote.ts";
 import { FERRAMENTAS_PERFIL } from "./ferramentas-perfil.ts";
@@ -57,7 +58,7 @@ export const FERRAMENTAS_NOD = {
     description: "Guarda uma memória deste agente (preferência, fato ou resumo). A memória não substitui fonte autoritativa.",
     properties: {
       tipo: { type: "string", enum: ["preferencia", "fato", "resumo"], description: "Tipo da memória." },
-      texto: { type: "string", description: "O que lembrar, em uma frase.", minLength: 1 },
+      texto: { type: "string", description: "O que lembrar, em uma frase.", minLength: 1, maxLength: TEXTO_MEMORIA_MAX },
     },
     required: ["tipo", "texto"],
     additionalProperties: false,

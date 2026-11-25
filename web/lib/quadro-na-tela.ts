@@ -3376,7 +3376,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (el.getAttribute("aria-disabled") === "true") { const porque = el.getAttribute("title"); if (porque) mudarFaixa({ tipo: "erro", texto: porque }); return; }
     const c = colunaDe(el.dataset["coluna"]);
     if (!c) return;
-    pessoaSolta(tarefa, c);
+    pessoaSolta(tarefa, c, true);
   }
 
   /**
@@ -3402,7 +3402,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
    * A pessoa solta a tarefa numa coluna (o arrasto ou o "Mover para…"). A trava recusa no próprio card, com o "Mandar
    * para…"; o resto move direto (2026-11-10: entrar na coluna com responsável já aciona; o Desfazer é a rede).
    */
-  function pessoaSolta(tarefa: string, c: NonNullable<ReturnType<typeof colunaDe>>): void {
+  function pessoaSolta(tarefa: string, c: NonNullable<ReturnType<typeof colunaDe>>, peloMenu = false): void {
     const t = q?.tarefas.find((x) => x.id === tarefa);
     const r = decidirSoltura(q?.colunas ?? [], t, c);
     if (r.tipo === "recusa") {
@@ -3416,9 +3416,17 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       return;
     }
     tirarRecusa();
-    if (!t) { moverTarefa(tarefa, c.id); return; }
+    // QA-146: pelo "Mover para…" (teclado), o foco segue o card até a coluna nova (ou volta a ele, se o handoff
+    // foi cancelado): sem isto o botão some com o card, o foco cai no <body> e o Tab recomeça do topo da página.
+    // Feito e Cancelado começam recolhidos (#253): lá o card não aparece, e o foco vai para a tira da coluna, que o abre.
+    const focar = (): void => {
+      if (!peloMenu) return;
+      const raiz = vista() ?? doc;
+      (visivel(raiz, `li[data-tarefa="${CSS.escape(tarefa)}"] .qd-card-mover`) ?? visivel(raiz, `.qd-col-tira[data-act="abrir-coluna"][data-status="${CSS.escape(c.id)}"]`))?.focus();
+    };
+    if (!t) { moverTarefa(tarefa, c.id); focar(); return; }
     // 2026-11-10: a coluna com responsável pergunta antes (o diálogo de handoff); sem responsável, move direto.
-    void confirmarHandoff(t, c).then((ok) => { if (ok) moverTarefa(tarefa, c.id, ok.parar); else desenharVista(); });
+    void confirmarHandoff(t, c).then((ok) => { if (ok) moverTarefa(tarefa, c.id, ok.parar); else desenharVista(); focar(); });
   }
 
   /**
@@ -3977,7 +3985,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     soltarCardEm(tarefa, sec.dataset["coluna"]);
   });
   /** O card solto numa coluna (o arrasto por string, o da grade em React e o "Mover para…" dela). */
-  function soltarCardEm(tarefa: string, coluna: string | undefined): void {
+  function soltarCardEm(tarefa: string, coluna: string | undefined, peloMenu = false): void {
     const c = colunaDe(coluna);
     if (!c || q?.tarefas.find((x) => x.id === tarefa)?.status === c.id) {
       desenharVista();
@@ -3986,7 +3994,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       if (c && ordem !== "manual") mudarFaixa({ tipo: "resposta", texto: dicaDaOrdem(ordem), loteId: null, mensagemId: "" });
       return;
     }
-    pessoaSolta(tarefa, c);
+    pessoaSolta(tarefa, c, peloMenu);
   }
   /** ADR-180: o "Mover para…" da grade em React (a mesma regra e o mesmo texto do menu por string e da dica ao arrastar). */
   const destinosDoCard = (tarefa: string): DestinoDoMover[] => {
@@ -4000,7 +4008,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   // módulo chega depois; até lá, a grade por string.
   if (dd && o.gradeReact) {
     void import("../react/quadro/grade-na-tela.tsx").then((m) => {
-      gradeRx = m.criarGradeNaTela(doc, { soltar: soltarCardEm, dica: (t, c) => dicaAoSoltar(t, c), destinos: destinosDoCard, arrastando: () => {} });
+      gradeRx = m.criarGradeNaTela(doc, { soltar: (t, c) => soltarCardEm(t, c), mover: (t, c) => soltarCardEm(t, c, true), dica: (t, c) => dicaAoSoltar(t, c), destinos: destinosDoCard, arrastando: () => {} });
       desenharVista();
     });
   }

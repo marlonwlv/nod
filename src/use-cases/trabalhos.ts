@@ -459,7 +459,10 @@ export const detalharTrabalho: CasoDeUso<{ trabalhoId: string }, TrabalhoDetalhe
   const passos = await deps.repos.turnoPassos.doTrabalho(turnos.map((x) => x.id), PASSOS_DA_TAREFA);
   const primeiro = turnos[0];
   const pedidoDoBot = primeiro && !primeiro.mensagemOrigemId ? pedidoDoDono(primeiro.entradaTexto) : null;
-  return { data: { trabalho: dto!, mensagens, ...(falasNaFila.length ? { falasNaFila } : {}), passos, pedidoDoBot } };
+  // QA-201: continuar a tarefa de um bot excluído é recusado; a tela precisa saber para não oferecer o campo.
+  const bot = await deps.repos.agentes.buscar(t.agenteId, true);
+  const botExcluido = bot?.excluidoEm ? { nome: bot.nome } : undefined;
+  return { data: { trabalho: dto!, mensagens, ...(falasNaFila.length ? { falasNaFila } : {}), passos, pedidoDoBot, ...(botExcluido ? { botExcluido } : {}) } };
 };
 
 /**

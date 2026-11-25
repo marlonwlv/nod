@@ -748,3 +748,11 @@
 .pilula-pedidos .pp-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pilula-pedidos .pp-texto b { font-weight: 600; }
 .pilula-pedidos .pp-ver { display: inline-flex; align-items: center; gap: 2px; color: var(--chat-aba-precisa); font-weight: 500; }
+
+/* PR 333 (achado 10, QA do rc.10 no Windows): na janela mínima do desktop (900 px) o palco fica com ~540 px e os 70 px
+   de cada lado deixavam a conversa estreita demais: o que tinha largura fixa vazava e aparecia uma barra de rolagem
+   horizontal embaixo das falas. Entre 700 e 1000 px a margem cai para 24 px e a conversa não rola de lado (tabela e
+   código têm a rolagem própria). */
+@media (min-width: 700px) and (max-width: 1000px) {
+  .stage > .timeline-wrap { padding-left: 24px; padding-right: 24px; overflow-x: hidden; }
+}

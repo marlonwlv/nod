@@ -7,7 +7,7 @@ import {
   type CondicaoDoFiltro, type ContextoDoFiltro,
 } from "../../../web/lib/opcoes-do-quadro.ts";
 import { chipsDosFiltrosHtml, iconeDaPrioridade, modalDaNovaTarefa, pilulaDosAtivos, popoverDasOpcoes, popoverDosFiltros, type UiDaBarra } from "../../../web/telas/opcoes-quadro.ts";
-import { ajustarCard, campoDePrioridade, modalDoQuadro, valoresDoFiltro } from "../../../web/telas/quadro-minimo.ts";
+import { ajustarCard, barraDoQuadroMinimo, campoDePrioridade, modalDoQuadro, valoresDoFiltro } from "../../../web/telas/quadro-minimo.ts";
 import { cardDaTarefa, quadroDaMeta, tarefaAberta } from "../../../web/telas/quadro-real.ts";
 import { card, confiar } from "../../../web/telas/quadro.ts";
 
@@ -318,5 +318,23 @@ describe("2026-11-10: a prioridade editável no próprio card (a edição inline
     expect(h).toContain('aria-label="Prioridade de &lt;b&gt;x&lt;/b&gt;"');
     expect(h.match(/data-act="tarefa-prioridade-para"/g)).toHaveLength(5);
     expect(h).toContain('data-valor="media" aria-current="true"');
+  });
+});
+
+describe("QA-174: o chip do filtro guardado cujo valor saiu do quadro", () => {
+  const ID = "8f3a2c1e-0000-4000-8000-000000000001";
+  const chipsDe = (qq: QuadroDto, filtros: CondicaoDoFiltro[], filtro: Parameters<typeof barraDoQuadroMinimo>[0]["filtro"] = "todos") =>
+    [...String(barraDoQuadroMinimo({ q: qq, cs: qq.colunas, agente, filtro, busca: "", ui: ui({ filtros }), op: opcoesEfetivas(null), recolhidas: true, compacto: false, podeCriar: false })).matchAll(/class="qm-chip">([^<]*)/g)].map((m) => m[1]);
+
+  it("o bot sem tarefa aqui ainda tem nome; o excluído, a pessoa, a coluna e a label que saíram nunca mostram o id cru", () => {
+    expect(chipsDe(q([t("1"), t("2", { agenteId: "g", agenteNome: "Gil" })]), [{ campo: "responsavel", valor: "g" }])).toEqual(["Responsável: Gil"]);
+    expect(chipsDe(q([t("1")]), [{ campo: "responsavel", valor: "g" }])).toEqual(["Responsável: Gil"]);
+    expect(chipsDe(q([t("1")]), [{ campo: "responsavel", valor: ID }])).toEqual(["Responsável: Bot que saiu"]);
+    expect(chipsDe(q([t("1")]), [{ campo: "criador", valor: ID }])).toEqual(["Criado por: Pessoa que saiu"]);
+    expect(chipsDe(q([t("1")]), [{ campo: "status", valor: "col-apagada" }])).toEqual(["Status: Coluna que saiu"]);
+    expect(chipsDe(q([t("1")], { labels: [{ id: "l1", nome: "Bug", cor: "red" } as never] }), [{ campo: "label", valor: "l1" }])).toEqual(["Label: Bug"]);
+    expect(chipsDe(q([t("1")]), [{ campo: "label", valor: ID }])).toEqual(["Label: Label que saiu"]);
+    expect(chipsDe(q([t("1")]), [], `agente:${ID}`)).toEqual(["Responsável: Bot que saiu"]);
+    expect(chipsDe(q([t("1")]), [{ campo: "prioridade", valor: "urgente" }])).toEqual(["Prioridade: Urgente"]);
   });
 });

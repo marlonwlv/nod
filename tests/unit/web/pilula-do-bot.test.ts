@@ -180,7 +180,7 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     expect(corpo.indexOf('<h3 class="pf-secao">Esperando</h3>')).toBeGreaterThan(corpo.indexOf("Hero w4"));
     expect(corpo).toContain('<code class="pf-comando">gh pr checks 845 --watch</code><span class="pf-sub mono">última linha: checks · pending</span><span class="pf-sub">volta quando a CI do #845 terminar · tentativa 2 de 3 · da tarefa Hero w5 · Boot do time</span></span><span class="pf-item-fim">38 min</span>');
     expect(corpo.indexOf('<h3 class="pf-secao">Na fila</h3>')).toBeGreaterThan(corpo.indexOf("Esperando</h3>"));
-    expect(corpo).toContain('<span class="pf-item-titulo">Pedido do Leonardo</span></span><span class="pf-item-fim">01:02</span>');
+    expect(corpo).toContain('<span class="pf-item-titulo">Pedido de Leonardo</span></span><span class="pf-item-fim">01:02</span>');
   });
 
   it("o painel é uma região com nome; fechado ele é `hidden`, aberto não", () => {

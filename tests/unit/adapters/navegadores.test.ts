@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoMalformado, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
-import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
+import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
 import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import type { TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts";
 import { SEM_LIBERACOES, type LiberacoesNavegador } from "../../../src/domain/navegador-aprovacao.ts";
@@ -63,6 +63,8 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
+        case "baixar": return { nome: String(args[2]), bytes: 10 };
+        case "pdf": return { nome: `${String(args[1])}.pdf`, bytes: 20 };
         case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : String(args[1]).includes("document.title") ? tituloDepois : undefined;
         default: return undefined;
       }
@@ -543,6 +545,20 @@ describe("controle e pedidos à pessoa", () => {
   });
 });
 
+describe("arquivos do navegador (QA-205)", () => {
+  it("baixar e PDF não prometem os Arquivos do bot: o retorno diz onde o arquivo ficou", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    const b = corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_baixar", argumentos: { alvo: "@e5", nome: "fatura.pdf" } }));
+    expect(b).toMatchObject({ ok: true, arquivo: "fatura.pdf", instrucao: expect.stringContaining("pasta do navegador") });
+    const p = corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_pdf", argumentos: { nome: "pagina" } }));
+    expect(p).toMatchObject({ ok: true, instrucao: expect.stringContaining("ainda não aparece nos Arquivos") });
+    for (const f of ["navegador_baixar", "navegador_pdf", "navegador_enviar_arquivo"] as const) {
+      expect(String(FERRAMENTAS_NAVEGADOR[f].description)).not.toMatch(/(nos|dos) Arquivos do bot\b(?! nem)/);
+    }
+  });
+});
+
 describe("segredo na página (L3)", () => {
   it("leitura, print e eval travam até a URL mudar", async () => {
     const n = criar();
@@ -695,6 +711,22 @@ describe("liberações e tarefas guardadas (0180)", () => {
     expect(r).toMatchObject({ confianca: "nao_confiavel" });
     expect(tarefasParaOBot(tarefas, "outra")).toMatchObject({ erro: "tarefa_inexistente" });
     expect(chamadas).toEqual([]);
+  });
+
+  it("pedaço de nome que bate em duas tarefas diferentes não escolhe calado: devolve as candidatas (QA-238)", () => {
+    const lista = [
+      { id: "t2", nome: "Baixar nota", passos: ["Abriu b.com"], criadaEm: T0 + 1 },
+      { id: "t1", nome: "Emitir nota", passos: ["Abriu e.com", "Clicou"], criadaEm: T0 },
+    ];
+    const r = tarefasParaOBot(lista, "nota");
+    expect(r).toMatchObject({ erro: "nome_ambiguo", tarefas: [{ nome: "Baixar nota", passos: 1 }, { nome: "Emitir nota", passos: 2 }] });
+    expect(r).not.toHaveProperty("passos", expect.any(Array));
+    // nome inteiro ainda acha a certa, e um pedaço único também
+    expect(tarefasParaOBot(lista, "emitir nota")).toMatchObject({ nome: "Emitir nota", passos: ["Abriu e.com", "Clicou"] });
+    expect(tarefasParaOBot(lista, "emitir")).toMatchObject({ nome: "Emitir nota" });
+    // a mesma tarefa ensinada de novo com o mesmo nome: vale a mais nova, sem ambiguidade
+    const repetida = [{ id: "t3", nome: "Emitir nota", passos: ["novo"], criadaEm: T0 + 2 }, ...lista];
+    expect(tarefasParaOBot(repetida, "emitir")).toMatchObject({ nome: "Emitir nota", passos: ["novo"] });
   });
 });
 

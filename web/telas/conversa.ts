@@ -655,6 +655,10 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
     return { ...naFila(cartao.titulo), cartao: desvioNaConversa(m, cartao) };
   }
   if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
+  // PR #333 (achado 13, QA do rc.10 no Windows): o bot em "qualquer máquina" com nenhuma máquina conectada (o motor
+  // parado) ficava só em "Na fila", sem dizer por quê. Diz que espera uma máquina ligar; o turno sai quando ela voltar.
+  const motores = (estado.maquinas?.maquinas ?? []).filter((x) => x.papel !== "computador");
+  if (!doBot && motores.length > 0 && !motores.some((x) => x.conectada)) return naFila(`${nome} lê quando uma máquina sua ligar`);
   return naFila("Na fila");
 }
 

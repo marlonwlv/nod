@@ -25,6 +25,9 @@ const CAMINHOS_FORA = [/^\/mcp(\/|$)/, /^\/eventos$/, /^\/rotinas\/[^/]+\/endere
  */
 export const ACOES_FORA_DO_MCP: ReadonlySet<IdAcao> = new Set<IdAcao>([
   "apps.credenciais", "apps.configurar_marketplace", "apps.github_token", "apps.github_app",
+  // Conectar um app do Marketplace com a chave de API que a pessoa colou: a chave do app passaria pela conversa do
+  // cliente MCP e, com o token vazado, alguém ligaria à conta dela um app numa conta de fora (QA-179).
+  "apps.conectar_com_chave",
   // Registrar um app leva segredo (o `env` sai cifrado, como apps.credenciais) e, em stdio, um comando que o servidor roda
   // na sondagem: com o token vazado, isso vira código rodando na máquina que sobrevive à revogação (revisão de QA do PR #22).
   "apps.criar",
