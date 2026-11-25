@@ -694,6 +694,7 @@ const telaCofre = criarTelaCofre({
   render: () => render(),
   avisar: (texto, desfazer) => { mostrarAvisoDesfazer(desfazer ? { texto, aoDesfazer: desfazer } : { texto }); },
   aoErro: (e) => mostrarErro(e),
+  focar: (seletor) => focoPendente.lembrar(seletor),
 });
 /** ADR-190 (T3): Ajustes do bot › Habilidades — as tarefas ensinadas no navegador (web/lib/habilidades.ts). */
 const habilidades = registrarHabilidades({
@@ -9642,7 +9643,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADR-190 (decisão 6): Configurações › Cofre › Logins de sites.
   "cofre-adicionar-login": () => { telaCofre.adicionando(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.cofre-form input[name="site"]')?.focus()); },
   "cofre-cancelar-login": () => { for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-form input')) c.value = ""; telaCofre.adicionando(false); document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus(); },
-  "cofre-ver-todos": () => telaCofre.filtrar(""),
+  "cofre-ver-todos": () => telaCofre.verTodos(),
   "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
   // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
   "cofre-mostrar-senha": (el) => {
