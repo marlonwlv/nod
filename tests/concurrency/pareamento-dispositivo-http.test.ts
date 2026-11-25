@@ -126,7 +126,7 @@ describeIntegracao("pareamento por código (HTTP real, commita)", () => {
       const solto = await srv.chamar(sessao(dona), "PUT", `agentes/${bot.agenteId}/maquina`, { maquinaId: null });
       expect(((await solto.json()) as { agente: { maquinaId: string | null } }).agente.maquinaId).toBeNull();
     } finally {
-      await abrirTxEscopada(db, dona)(async (trx) => { await trx`delete from trabalhos where conversa_id = ${bot.conversaId}`; await trx`delete from conversas where id = ${bot.conversaId}`; await trx`delete from agentes where id = ${bot.agenteId}`; }).catch(() => undefined);
+      await abrirTxEscopada(db, dona)(async (trx) => { await trx`delete from trabalhos where conversa_id = ${bot.conversaId}`; await trx`delete from tarefa_eventos where tarefa_id in (select tarefa_id from threads where conversa_id = ${bot.conversaId})`; await trx`with t as (delete from threads where conversa_id = ${bot.conversaId} returning tarefa_id) delete from tarefas where id in (select tarefa_id from t)`; await trx`delete from conversas where id = ${bot.conversaId}`; await trx`delete from agentes where id = ${bot.agenteId}`; }).catch(() => undefined);
       await abrirTxEscopada(db, outra)((trx) => trx`delete from maquina_tokens where id = ${chaveDaOutra}`);
     }
   });

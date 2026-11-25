@@ -6,6 +6,15 @@ import { PREFIXO_PEDIDO_DE_TELA, SUFIXO_PEDIDO_DE_TELA } from "./computador.ts";
  * não depende de banco: a frase curta do pedido e a linha fixa que o bot lê no turno seguinte.
  */
 
+/**
+ * As falas que abrem os pedidos do navegador do bot (login, código, ajuda; FALA_DO_LOGIN, FALA_DO_CODIGO e FALA_DA_AJUDA
+ * de src/adapters/fundo/navegadores.ts). Como a ajuda do computador, não se respondem com texto: a mensagem nova da pessoa
+ * as dispensa (ponto 02 dos cenários de 2026-11-22: "deixa pra lá" deixava o CAPTCHA aberto).
+ */
+export function ehPedidoDoNavegador(texto: string): boolean {
+  return /^Preciso entrar em .+ no meu navegador para continuar: /u.test(texto) || texto.startsWith("Preciso do código que chegou para você: ") || texto.startsWith("Preciso de você no meu navegador: ");
+}
+
 /** definido em 2026-11-20: a frase curta cabe numa linha da conversa e no histórico; o resto do pedido já está na fala do bot. */
 export const FRASE_CURTA_MAX = 160;
 
@@ -19,6 +28,10 @@ export function fraseCurtaDoPedido(frase: string): string {
   if (t.startsWith(PREFIXO_PEDIDO_DE_TELA.trim())) t = t.slice(PREFIXO_PEDIDO_DE_TELA.trim().length).trim();
   const sufixo = SUFIXO_PEDIDO_DE_TELA.trim();
   if (t.endsWith(sufixo)) t = t.slice(0, -sufixo.length).trim();
+  // Os pedidos do navegador: fica o motivo ("google.com pede para provar que é gente (CAPTCHA)"), sem a moldura da fala.
+  t = t.replace(/^Preciso de você no meu navegador: /u, "").replace(/^Preciso do código que chegou para você: (.*?)\. Digite no cartão.*$/u, "$1")
+    .replace(/^Preciso entrar em (.+?) no meu navegador para continuar: (.*?)\. A senha vai do cofre.*$/u, "entrar em $1: $2")
+    .replace(/[.;]?\s*Resolva na tela e devolva para mim\.?$/u, "");
   t = t.replace(/[.\s]+$/u, "");
   if ([...t].length <= FRASE_CURTA_MAX) return t;
   return `${[...t].slice(0, FRASE_CURTA_MAX - 1).join("").trimEnd()}…`;

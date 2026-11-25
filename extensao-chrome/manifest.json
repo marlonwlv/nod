@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "nod: trazer o login do seu Chrome",
+  "short_name": "nod",
+  "version": "1.0.0",
+  "description": "Deixa o navegador do bot do nod entrar já logado num site, com o login que você já tem neste Chrome. Só o site que você pede, só quando você toca em Trazer do meu Chrome.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA69HZ1B6ye68wGhKYAhDR1YyTFH/cNqXs2++f1QgTRw9qPnP5+lHSG7CbEB6RNGjS+H17KUmQ+a+rrqQV+dqjMirkLOslifoR98hwx+2Z5nHJdBNKVwECGBPgpjEX7+vDCljioO/rABMnPZ/z7Lf5TaS8AyZuwe5JBxICPdXk7NE2cw8KlUFNtZOUtczCyAdg5hxOif35QUcvVPPLRBFkyMjZ9w7TMNLQIUhohEyeRcSETjtqwk7JAML2wRifcMxDH0GsXS1Uu+2q02+vKJWQQHEvdvBASxBbGCqMBXGKcycL4EKamWn0G3jVPIyqeAyDvRhiLH7n9sJiQ5KHd/oEUQIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "cookies",
+    "nativeMessaging",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "servico.js",
+    "type": "module"
+  }
+}

@@ -97,6 +97,8 @@ const FRASE_DA_REGRA: Readonly<Record<string, string>> = {
   [REGRA_LIBERADO_NA_TAREFA]: "Você liberou o resto da tarefa",
   "regra:parada_alcada": "Fora do que o bot pode fazer",
   "regra:trabalho_parado": "Rodou depois de você parar o trabalho",
+  "regra:tarefa_resolvida": "Você marcou a tarefa como resolvida",
+  "regra:tarefa_arquivada": "Você arquivou a tarefa",
   "regra:trabalho_do_quadro_substituido": "Você repetiu ou cancelou o trabalho do card no quadro",
   "regra:trabalho_do_quadro_tratado": "O quadro tentou de novo sozinho ou bloqueou o card",
   [REGRA_CARTAO_DISPENSADO]: "Rodou depois de você dispensar o cartão",

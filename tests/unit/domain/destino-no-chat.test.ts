@@ -96,7 +96,9 @@ describe("destino no chat: a tabela", () => {
 
   it("o que sai do chat vai para a Atividade, com a categoria do filtro", () => {
     expect(DESTINO["negacao.ferramenta"]).toEqual({ destino: "atividade", categoria: "bloqueios" });
-    expect(DESTINO["ia.trocada"]).toEqual({ destino: "atividade", categoria: "maquina_ia" });
+    // revisto em 2026-11-22 (lote B, regra 3): a troca que o nod fez sozinho é a linha discreta do chat.
+    expect(DESTINO["ia.trocada"]).toEqual({ destino: "chat", categoria: "maquina_ia" });
+    expect(DESTINO["conta.seguiu"]).toEqual({ destino: "chat", categoria: "maquina_ia" });
     expect(DESTINO["turno.interrompido"].destino).toBe("atividade");
     expect(DESTINO["memoria.anotada"]).toEqual({ destino: "atividade", categoria: null });
     expect(DESTINO["sistema.generico"].destino).toBe("atividade");

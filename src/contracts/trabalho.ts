@@ -54,6 +54,7 @@ export type Trabalho = CamposDeFrente & {
 
 /** O que a web recebe: o trabalho mais o que a faixa e as listas mostram sem outra ida ao servidor. */
 export type TrabalhoDto = Omit<Trabalho, "tenantId" | "sessaoCli" | "sessaoHarness" | "sessaoExecutor"> & {
+  tarefa?: import("./tarefa.ts").TarefaNoTrabalho; // ADR-192 (etapa 3): a Tarefa (objetivo) ligada, com estado e atividade; ausente = sem Tarefa
   /** Nome do bot que pediu (origem = colega), para a etiqueta "pedido do Chico". */
   pedidoPorNome: string | null;
   /** Nome da rotina (origem = rotina), para a etiqueta "rotina". */
@@ -109,7 +110,7 @@ export type NivelPressao = "verde" | "amarela" | "vermelha";
  * Mac aliviar, pelo "uso do Mac" que a pessoa escolheu.
  */
 export type TrabalhosDto = {
-  trabalhos: TrabalhoDto[];
+  trabalhos: TrabalhoDto[]; leituraNovaDasTarefas?: true; // ADR-192 (etapa 5): NOD_TAREFAS_LEITURA_NOVA=1, a tela Tarefas lê pela Tarefa
   pressao: NivelPressao | null;
   memoriaTotalMb: number | null;
   processador?: NivelPressao | null;
@@ -151,7 +152,7 @@ export type TrabalhoDetalheDto = {
   mensagens: Mensagem[];
   falasNaFila?: { mensagemId: string; situacao: "na_fila" | "entregue" | "lendo" | "guardada" }[];
   passos?: (PassoDoRun & { turnoId: string })[];
-  pedidoDoBot?: string | null;
+  pedidoDoBot?: string | null; botExcluido?: { nome: string }; // QA-201: o bot saiu (a frota não o traz); o campo não envia
 };
 
 /** Linhas do chat (#191); `atividade`: ADR-114; `troca`: bots numa linha; `frentes`: "ver as N"; `revisor`: "Revisor liberou … · ver" (modos, PR 4). */

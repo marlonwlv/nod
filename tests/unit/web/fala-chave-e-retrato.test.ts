@@ -83,3 +83,14 @@ describe("C2: o retrato só sai quando a gravada está na conversa", () => {
     expect(reduzir(fim, { tipo: "tick", agora: AGORA + FALA_ORFA_MS + 200 }).falasSaindo?.[C]).toBeUndefined();
   });
 });
+
+// 2026-11-22 (teste do dono): o turno que virou tarefa no meio (a rede) sai do ao vivo do chat; o da pessoa fica.
+describe("o turno que a rede tirou do chat", () => {
+  it("depois de \"Virou a tarefa …\", o ao vivo dele some do chat", () => {
+    const e = comTurno();
+    expect(chaves(e).length).toBeGreaterThan(0);
+    const virou: Mensagem = { ...gravada("Virou a tarefa Descobre o filme"), id: "m-virou", kind: "sistema", payload: { kind: "trabalho_aberto", origem: "rede", titulo: "Descobre o filme", trabalhoId: "tb1" } as never };
+    const depois = relida(e, [virou], AGORA + 10);
+    expect(blocosAoVivo(depois.conversas[C]!, { ...depois, turnosVivos: e.turnosVivos, atividades: e.atividades })).toEqual([]);
+  });
+});

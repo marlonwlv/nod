@@ -6,12 +6,12 @@ import { ICONE } from "../lib/icones.ts";
 import { botao, esc, hora, iconeAgente } from "../lib/render.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
-import { aberto, abertosDoBot, acoesDeFazer, agrupar, emEspera, esperaDaContaDe, esperandoColega, esperandoMaquina, etiquetaOrigem, quandoVolta, textoDaEsperaDaConta, voltaMarcada, pontoTrabalho, resumoDaPilula, situacaoDe, tempoDe, temposDaTask, tituloCurto, trabalhoPorId, trabalhosConhecidos, type GruposTrabalhos } from "../lib/trabalhos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, agrupar, emEspera, esperaDaContaDe, esperandoColega, esperandoMaquina, etiquetaOrigem, quandoVolta, textoDaEsperaDaConta, voltaMarcada, pontoTrabalho, resumoDaPilula, situacaoDe, tempoDe, temposDaTask, tituloCurto, trabalhoPorId, trabalhosConhecidos, trabalhosDaTela, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { chipDaFalaNaFrente, renderMensagem, type BlocoDaTimeline } from "./conversa.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { horariosDaRotina } from "./linhas-do-chat.ts";
 import { custoDaFrente } from "./modo-dev.ts";
-import { cartaoPrecisaDeVoce, conversaDaTarefa, falaDoPedido, htmlEntrega, htmlNarracao, htmlPassos, htmlPedido, itensDaVolta, itensDosPassos, linhaDoAgora, linhaDoFim, perguntaAberta } from "./tarefa-detalhada.ts";
+import { cartaoPrecisaDeVoce, conversaDaTarefa, falaDoPedido, htmlEntrega, htmlNarracao, htmlObjetivoDaTarefa, htmlPassos, htmlPedido, itensDaVolta, itensDosPassos, linhaDoAgora, linhaDoFim, perguntaAberta } from "./tarefa-detalhada.ts";
 
 /**
  * As telas dos trabalhos (ADR-083, épico #188; protótipo "Chat limpo", pranchas K1–K9 e M1–M3): a faixa de Trabalhos em
@@ -132,7 +132,7 @@ const ICONE_TRABALHOS = '<svg width="17" height="17" viewBox="0 0 20 20" fill="n
 
 /** O ícone "Trabalhos" do topo da barra (ao lado de Não lidos): só com trabalho aberto (ou com a tela aberta), com o número. */
 export function renderIconeTrabalhos(estado: Estado): string {
-  const n = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
+  const n = trabalhosDaTela(estado).filter(aberto).length;
   const naTela = estado.tela.tipo === "trabalhos";
   if (n === 0 && !naTela) return "";
   return `<button class="icone-topo trabalhos-bt" data-act="navegar" data-tela="trabalhos" aria-current="${naTela ? "page" : "false"}" aria-label="Tarefas: ${n} ${n === 1 ? "aberta" : "abertas"}" title="Tarefas">${ICONE_TRABALHOS}${n ? `<span class="contagem-topo" aria-hidden="true">${n}</span>` : ""}</button>`;
@@ -306,8 +306,8 @@ export function cartaoDoTempoDaFrente(t: TrabalhoDto, agora: number, cor?: strin
 }
 
 function aberturaDaTask(t: TrabalhoDto, estado: Estado): string {
-  const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome ?? "colega";
-  const texto = t.origem === "colega" ? `pedido do ${quem} · a resposta volta para o ${quem}` : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
+  const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome;
+  const texto = t.origem === "colega" ? quem ? `pedido de ${quem} · a resposta volta para ${quem}` : "pedido do colega · a resposta volta para o colega" : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
   return `<div class="time-sep">${esc(hora(t.criadoEm))} · ${esc(texto)}</div>`;
 }
 
@@ -457,7 +457,9 @@ export function blocosAoVivoDaTask(estado: Estado, id: string): BlocoDaTimeline[
   const ultimaFala = [...(d?.mensagens ?? [])].filter((m) => m.autoria.autor_tipo !== "pessoa" && m.kind === "texto").sort((x, y) => x.criadoEm - y.criadoEm).at(-1)?.texto ?? null;
   const fim = !aberto(t) ? `${htmlEntrega(t, ultimaFala)}${linhaDoFim(t, nome)}` : "";
   const subagentes = subs ? blocoDosSubagentes(subs, a, bot?.cor ?? "", estado.agora, mascote) : "";
-  return [{ chave: "passos", html: feitos }, { chave: "subagentes", html: subagentes }, { chave: "agora", html: agora }, { chave: "fim", html: fim }].filter((b) => b.html !== "");
+  // ADR-192 (etapa 3): o objetivo e as ações da pessoa (Resolver, Reabrir, Arquivar), sempre por último.
+  const objetivo = htmlObjetivoDaTarefa(t);
+  return [{ chave: "passos", html: feitos }, { chave: "subagentes", html: subagentes }, { chave: "agora", html: agora }, { chave: "fim", html: fim }, { chave: "objetivo", html: objetivo }].filter((b) => b.html !== "");
 }
 
 /** Os botões embaixo do campo da task: Parar task (só com ela aberta; main.ts esconde ao terminar) e Fechar. */

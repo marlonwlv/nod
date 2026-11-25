@@ -838,6 +838,9 @@ html.pg-menu-aberto .cabecalho-pilula .pg-tip { opacity: 0 !important; }
 .pg-pt.pg-pt-pede { background: var(--aguardando); }
 /* Paper 07 (rodada 3): o × dos Ajustes na altura do título (centro a 50 do topo do modal na janela), 4 px mais para a borda. */
 .cfg-modal .cfg-fechar { margin-top: -4px; position: relative; left: 4px; }
+/* PR 333 (achado 5, QA do rc.10 no Windows): o × é sticky por cima do conteúdo; o cabeçalho que tem botão à direita
+   ("Nova rotina" em Rotinas, "Enviar feedback" em Feedback) reserva a faixa dele, senão o × corta o botão. */
+.cfg-modal .ag-cab, .cfg-modal .cfg-fb-cab { padding-right: 36px; }
 
 /* =====================================================================================
    ADR-179: a anatomia da barra redimensionável (340 px no padrão; 240–400 arrastando; 88 compacta). Vem por último para
