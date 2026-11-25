@@ -18,6 +18,8 @@
     "test:integration": "vitest run --project integration",
     "test:conformidade": "vitest run --project conformidade",
     "test:concurrency": "vitest run --project concurrency",
+    "test:mudou": "vitest run --changed origin/main --passWithNoTests",
+    "check:mudou": "npm run lint && npm run typecheck && npm run fence:domain && npm run fence:migrations && npm run test:mudou",
     "prompt:referencia": "vitest run --project unit tests/unit/domain/prompt-referencia.test.ts -u",
     "e2e:fumaca": "NOD_EXECUTOR=catcher vitest run --project concurrency tests/concurrency/e2e-catcher.test.ts",
     "e2e:aceite": "bash scripts/e2e-aceite.sh",

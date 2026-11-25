@@ -16,6 +16,7 @@ npm run dev:setup           # sobe o Postgres (127.0.0.1:5434, container nod-pos
 npm run dev                 # api 8888 + web 5274 (5173 e 5432 são de OUTROS projetos: nunca use); executor catcher por default
 npm run test:unit           # projetos unit (node) e componentes (React em happy-dom, tests/unit/**/*.test.tsx; ADR-179: região inteira, sem data-act, CSS só com tokens)
 npm run check               # lint → typecheck → fence:domain → fence:migrations → unit → integration → conformidade → concurrency → db:test:limpar
+npm run check:mudou         # o portão do dia a dia: lint → typecheck → cercas → só os testes que dependem do que mudou em relação à origin/main (`test:mudou`)
 npm run diario:prod         # Nod diário sem modo dev (#218): build da web + só a API, que serve a página em 127.0.0.1:8888 (docs/ambiente-local-persistente.md)
 npm run e2e:fumaca          # doze jornadas sobre o servidor completo com catcher (tests/concurrency/e2e-catcher.test.ts), custo zero
 npm run e2e:aceite          # scripts/e2e-aceite.sh com o CLI real (sonnet, ou NOD_MODELO); imprime o custo somado — rode UMA vez, custa assinatura
@@ -40,7 +41,20 @@ prompt de sistema de cada cenário fixo com `__prompts__/<cenario>.txt` e falha 
 entraram, saíram ou mudaram de parte (estável × volátil) e o tamanho novo; atualizar a referência sem olhar é o que este
 teste existe para impedir.
 
-O pre-commit roda só `lint-staged` (eslint --fix nos .ts). O gate pesado é `npm run check`, antes do push.
+O pre-commit roda só `lint-staged` (eslint --fix nos .ts). Antes do push o portão é
+`npm run check:mudou` (abaixo); a suíte inteira é da CI.
+
+**Na máquina, só o que mudou; a suíte inteira é da CI** (2026-11-25). `npm run check:mudou` roda lint, typecheck,
+as cercas e `vitest run --changed origin/main`: o vitest compara a branch com a `origin/main` (rode `git fetch origin
+main` antes, senão compara com uma main velha), segue os imports e roda só os testes que dependem dos arquivos
+alterados, nos quatro projetos; sem teste afetado sai com 0. Motivo: máquina que roda vários turnos de bot ao mesmo
+tempo não aguenta várias suítes inteiras juntas (medida em `tests/setup/teto-de-workers.ts`), e a CI já roda tudo em
+jobs paralelos quando o PR sai de rascunho. O que o `--changed` NÃO enxerga é dependência sem import: migration,
+SQL, fixture lida do disco, texto de prompt, workflow. Mexeu nisso, rode também o projeto que cobre
+(`npm run test:integration`, `test:conformidade`, `test:concurrency` ou o arquivo de teste direto). Mexeu em
+`vitest.config.ts` ou `package.json`, o vitest roda tudo de propósito. `npm run check` inteiro na máquina fica para
+quando você precisa dele (antes de uma release, investigando falha da CI), não para todo push. O merge continua
+exigindo a CI verde: o `check:mudou` não substitui nenhum check obrigatório.
 O hook é instalado pelo `prepare` do `npm ci`/`npm install`; confira com `ls .git/hooks/pre-commit`
 (observado em 2026-09-16: o primeiro commit da fundação saiu SEM o hook porque ninguém tinha rodado
 `npm run prepare` — um `git commit` que não imprime a linha do lint-staged é sinal de hook ausente).
@@ -55,7 +69,7 @@ exemplo); commits com `-s` (DCO, CONTRIBUTING.md). Uma varredura agendada fora d
 abertos contra a lista de nomes internos e avisa o Marlon.
 
 **PR rascunho não roda CI** (2026-10-28; a fila do runner próprio tinha 63% de runs cancelados por push novo nas
-frentes). Enquanto o PR é rascunho, confira local com `npm run check` (ou os testes do que mudou) e faça quantos
+frentes). Enquanto o PR é rascunho, confira local com `npm run check:mudou` e faça quantos
 pushes quiser. Quando quiser a CI, uma vez, com o trabalho pronto: `gh pr ready <n>` e espere com
 `gh pr checks <n> --watch`. Num rascunho esse comando volta na hora sem checks: não é falha nem CI verde. Falhou e
 precisa mexer de novo: `gh pr ready <n> --undo`, corrija e repita. PR só de documentação também roda a CI (NOD-485: a `main` exige os checks).
@@ -213,7 +227,9 @@ o `testTimeout` dos projetos não muda. O `vitest.config.ts` limita `maxWorkers`
 núcleos − 1 (medido em 2026-10-08, nota no arquivo; +18% sem carga; um 8 fixo subia o paralelismo no CI de poucos
 núcleos): no vitest 3.2.7 o limite só existe na raiz, então vale para os quatro projetos; com núcleos − 1 workers o
 processo principal do `test:unit` sob carga não respondia ao RPC a tempo e a suíte saía com exit 1 por
-`Timeout calling "onTaskUpdate"`, sem teste falho.
+`Timeout calling "onTaskUpdate"`, sem teste falho. `TESTE_NOD_WORKERS=<n>` no ambiente abaixa esse teto (nunca
+sobe) em máquina que roda vários turnos ao mesmo tempo; o nome não começa com `NOD_` porque o ambiente do executor
+remove `NOD_*` do filho (`tests/setup/teto-de-workers.ts`, 2026-11-25).
 
 ## Composição (L9)
 

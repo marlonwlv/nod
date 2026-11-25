@@ -38,7 +38,7 @@ Escreva o teste junto do código. São quatro modos:
 | `tests/conformidade` | Regras lidas do catálogo do Postgres (RLS, gatilhos, papéis) |
 | `tests/concurrency` | Duas conexões e commit de verdade, com limpeza própria por id |
 
-Enquanto trabalha, rode só o que mexeu (`npx vitest run caminho/do/teste`) e o `npm run typecheck`. Antes de pedir revisão, rode o `npm run check` uma vez.
+Enquanto trabalha, rode só o que mexeu (`npx vitest run caminho/do/teste`) e o `npm run typecheck`. Antes de pedir revisão, rode o `npm run check:mudou` (lint, tipos, cercas e os testes que dependem do que você mudou); a suíte inteira roda na CI do PR.
 
 ## Pull requests
 
