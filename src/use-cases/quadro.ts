@@ -920,6 +920,13 @@ async function aplicarLoteDaDona(deps: Deps, p: PedidoLote): Promise<{ data: Res
   }
   if (!q && p.porProcuracao) return falha("nao_encontrado", "quadro não encontrado");
   if (!q) return falha("sem_quadro", "não há quadro: crie com criar_quadro (meta e prazo são opcionais)");
+  // QA-229: o nome não repete entre os quadros de um bot, e a conferência do renomeDoLote só vale com a trava dos bots do
+  // quadro: sem ela, dois renomes de quadros diferentes para o mesmo nome passavam juntos. Os bots antes do quadro, a
+  // mesma ordem do criar_quadro e do vincular_bot (sem deadlock entre eles).
+  if (!criando && p.ops.some((o) => o.tipo === "editar_quadro" && o.nome !== undefined)) {
+    const bots = (await repo.vinculos(q.id)).map((v) => v.agenteId);
+    for (const id of [...new Set(bots.length ? bots : [q.agenteId])].sort()) await repo.travarBot(id);
+  }
   const travado = (await travarQuadros(deps, [q])).get(q.id) ?? null;
   if (!travado) return falha("sem_quadro", "o quadro sumiu");
   // NOD-443 (revisão 1, achado 4): a porta conferiu a participação antes da trava. Tirar alguém também trava o quadro;
