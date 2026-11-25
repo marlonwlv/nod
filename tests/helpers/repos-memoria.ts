@@ -4524,6 +4524,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // o cofre do nod só existe no Postgres.
     ...navegadorEmMemoria(b, escopo),
     cofreLogins: reposSoNoPostgres("cofreLogins"),
+    // 0184 (ADR-194): o cofre em envelope só existe no Postgres (tests/integration/cofre-envelope.test.ts).
+    cofre: reposSoNoPostgres("cofre"),
     vmsDoNod: reposSoNoPostgres("vmsDoNod"),
     vezNaSala: reposSoNoPostgres("vezNaSala"),
     memoriaDeTime: reposSoNoPostgres("memoriaDeTime"),
@@ -4563,7 +4565,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
 /** ADR-166: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */
 const AJUSTES_EM_MEMORIA = new WeakMap<object, { regras: RegraRevisor[]; niveis: (NivelDeFerramenta & { ownerId: string })[]; tetos: { ownerId: string; teto: TetoModo }[] }>();
 /** Repo que só existe no Postgres: qualquer chamada em memória é erro do teste, nunca um vazio silencioso. */
-function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys" | "cofreLogins">(nome: K): Repos[K] {
+function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys" | "cofreLogins" | "cofre">(nome: K): Repos[K] {
   return new Proxy({}, { get: (_, m) => () => { throw new Error(`${nome}.${String(m)} só existe no Postgres`); } }) as Repos[K];
 }
 

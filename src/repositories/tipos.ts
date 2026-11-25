@@ -78,6 +78,7 @@ import type { liberacoesDispensadasRepo } from "./liberacoes-dispensadas.repo.ts
 import type { nativasIdempotenciaRepo } from "./nativas-idempotencia.repo.ts";
 import type { navegadorPreferenciasRepo, navegadorTarefasRepo } from "./navegador.repo.ts";
 import type { cofreLoginsRepo } from "./cofre-logins.repo.ts";
+import type { cofreRepo } from "./cofre.repo.ts";
 
 /**
  * Regras de repositório (Práticas §1, ADR-018 refinado): factory `xRepo(conn: Conn, escopo: Escopo)`
@@ -193,4 +194,6 @@ export interface Repos {
   navegadorTarefas: ReturnType<typeof navegadorTarefasRepo>;
   /** ADR-190 (0180): o cofre do nod (L); a senha só cifrada. */
   cofreLogins: ReturnType<typeof cofreLoginsRepo>;
+  /** ADR-194 (0184): o cofre em envelope (chave do tenant, itens, concessões, eventos); só cifra entra e sai. */
+  cofre: ReturnType<typeof cofreRepo>;
 }

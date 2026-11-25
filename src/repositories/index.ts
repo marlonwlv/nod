@@ -80,6 +80,7 @@ import { nativasIdempotenciaRepo } from "./nativas-idempotencia.repo.ts";
 import { projetosRepo } from "./projetos.repo.ts";
 import { navegadorPreferenciasRepo, navegadorTarefasRepo } from "./navegador.repo.ts";
 import { cofreLoginsRepo } from "./cofre-logins.repo.ts";
+import { cofreRepo } from "./cofre.repo.ts";
 
 /** Os 24 repositórios sobre a MESMA conexão/transação e o MESMO escopo (Práticas §1). */
 export function criarRepos(conn: Conn, escopo: Escopo): Repos {
@@ -89,6 +90,7 @@ export function criarRepos(conn: Conn, escopo: Escopo): Repos {
     navegadorPreferencias: navegadorPreferenciasRepo(conn, escopo),
     navegadorTarefas: navegadorTarefasRepo(conn, escopo),
     cofreLogins: cofreLoginsRepo(conn, escopo),
+    cofre: cofreRepo(conn, escopo),
     pessoas: pessoasRepo(conn, escopo),
     events: eventsRepo(conn, escopo),
     outbox: outboxRepo(conn, escopo),
