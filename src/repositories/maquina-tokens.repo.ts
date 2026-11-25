@@ -159,7 +159,7 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
      * A sessão segue retomável: é o mesmo computador, as pastas das contas são as mesmas. Só da dona (filtro por owner).
      * Devolve os bots que mudaram (o chamador avisa a tela).
      */
-    async transferirReferencias(de: string, para: string): Promise<{ bots: string[]; padrao: boolean; sessoes: number; turnos: number; navegador: number }> {
+    async transferirReferencias(de: string, para: string): Promise<{ bots: string[]; padrao: boolean; sessoes: number; turnos: number; navegador: number; checkpoints: number; esperas: number }> {
       const dono = conn`tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}`;
       const bots = await conn<{ id: string }[]>`update agentes set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning id`;
       const padrao = await conn`update preferencias set maquina_padrao_id = ${para} where ${dono} and maquina_padrao_id = ${de} returning 1`;
@@ -170,7 +170,14 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
       const turnos = await conn`update turnos set maquina_desta_vez = ${para} where ${dono} and maquina_desta_vez = ${de} and estado = 'pendente' returning 1`;
       // ADR-190: o navegador escolhido nesta máquina segue nela (senão o revogar o devolveria ao nod com aviso).
       const navegador = await conn`update navegador_preferencias set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning 1`;
-      return { bots: bots.map((b) => b.id), padrao: padrao.length > 0, sessoes: trabalhos.length + conversas.length, turnos: turnos.length, navegador: navegador.length };
+      // QA (r211): o "Desfazer N arquivos" das falas de antes do repareamento. O git sombra mora na pasta do bot, no mesmo
+      // computador: sem isto o pedido ia para a chave revogada, ninguém o puxava e a fala ficava "desfazendo" 15 min, depois
+      // "falhou" com um "Tentar de novo" que nunca dava certo (e prendia o desfazer do bot nesse meio-tempo).
+      const checkpoints = await conn`update checkpoints set maquina_id = ${para} where ${dono} and maquina_id = ${de} and estado <> 'vencido' returning 1`;
+      // O `esperar_comando` em curso: o motor relança pelo puxar (`iniciada` conta a queda); com a chave velha a nova não o
+      // via, o varredor o dava como "sem notícia" e o turno voltava com falha.
+      const esperas = await conn`update esperas set maquina_id = ${para} where ${dono} and maquina_id = ${de} and estado = 'rodando' returning 1`;
+      return { bots: bots.map((b) => b.id), padrao: padrao.length > 0, sessoes: trabalhos.length + conversas.length, turnos: turnos.length, navegador: navegador.length, checkpoints: checkpoints.length, esperas: esperas.length };
     },
   };
 }

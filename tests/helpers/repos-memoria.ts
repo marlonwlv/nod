@@ -3565,7 +3565,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           if (t.ownerId !== escopo.pessoaId || t.estado !== "pendente" || b.maquinaDestaVez.get(t.id) !== de) continue;
           b.maquinaDestaVez.set(t.id, para); t.maquinaDestaVez = para; turnos++;
         }
-        return { bots: bots.map((a) => a.id), padrao, sessoes: 0, turnos, navegador: 0 };
+        return { bots: bots.map((a) => a.id), padrao, sessoes: 0, turnos, navegador: 0, checkpoints: 0, esperas: 0 };
       },
       async criar(e) {
         const papel = e.papel ?? "motor";
