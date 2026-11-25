@@ -38,6 +38,11 @@ type Opcoes = { executor(): "local" | "catcher"; dentro: Dentro; driver: DriverC
   porPessoa?: boolean;
   /** NOD-365: escolhido uma vez, no INSERT do computador da pessoa; mudanças posteriores no inventário não o movem. */
   lugarPadraoNaCriacao?: (escopo: Escopo) => string | null;
+  /**
+   * definido em 2026-11-25: o computador só roda numa máquina Linux da pessoa (o motor; COMPUTADOR_NO_MAC). Sem nenhuma,
+   * GET /computador responde 404 e a web fica sem o computador da pessoa (src/use-cases/computador-tem-lugar.ts).
+   */
+  soNoLinux?: boolean;
   /** NOD-95 (ADR-138): as sessões da tela ao vivo, para acabarem quando o controle sai da pessoa. */
   vivo?: { fecharDaTela(escopo: Escopo, agenteId: string): void; liberarDaTela?(escopo: Escopo, agenteId: string): void };
   dormir?: (ms: number) => Promise<void> };
@@ -162,7 +167,7 @@ async function reservarCom(lugar: Lugar, d: Deps, c: Vaga, acao: AcaoComputador,
   return { computador: c, operacao, acao, autor, registroId: registro, turnoId, aprovado: Boolean(registroId), ...(c.telaId && autor === "bot" ? { esperaAte: d.agora() + JANELA_ESPERA_TELA_MS } : {}) };
 }
 /** revisto em 2026-10-01 (ADR-067): sem o `prazoEm` — o turno vivo usa o computador enquanto não acabou, sem relógio. */
-async function turnoPermitido(d: Deps, turnoId: string, agenteId: string, aprovado = false): Promise<boolean> {
+export async function turnoPermitido(d: Deps, turnoId: string, agenteId: string, aprovado = false): Promise<boolean> {
   const t = await d.repos.turnos.buscar(turnoId);
   return Boolean(t && (aprovado || (t.estado !== "concluido" && t.estado !== "interrompido")) && t.agenteId === agenteId && t.ownerId === d.escopo.pessoaId && !t.pararSolicitadoEm &&
     t.motivoInterrupcao !== "parado_pela_pessoa" && !(await d.repos.agentes.execucaoBloqueada(turnoId)) &&
@@ -790,6 +795,8 @@ export function criarComputadores(o: Opcoes) {
   return {
     /** NOD-96: o modelo em uso (motor = computador da pessoa; senão, docker por bot). O plano e a frota leem o vínculo por ele. */
     porPessoa,
+    /** 2026-11-25: o plano, a frota e GET /computador só contam o computador de quem tem máquina Linux. */
+    soNoLinux: o.soNoLinux === true,
     /** NOD-170: os computadores ligados neste host, lidos UMA vez por volta do varredor e fora de transação. */
     ligados: (): Promise<Set<string>> => o.driver.ligados(),
     /**
@@ -1239,6 +1246,8 @@ export function criarComputadores(o: Opcoes) {
     async consultarDaPessoa(escopo: Escopo): Promise<ComputadorDaPessoaDto> {
       if (!porPessoa) throw new ErroDeDominio("nao_encontrado");
       const lido = await o.dentro(escopo, async (d) => {
+        // 2026-11-25: sem máquina Linux, a pessoa não tem computador (só o navegador, ADR-190).
+        if (o.soNoLinux && !(await d.repos.maquinaTokens.temLinuxViva())) throw new ErroDeDominio("nao_encontrado");
         const p = await d.repos.computadores.daPessoa();
         if (!p) return null;
         return {

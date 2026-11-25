@@ -23,7 +23,9 @@ describeIntegracao("renomear a tarefa pela aba (ADR-187 §6)", () => {
       const r = await renomearTrabalho(deps, { trabalhoId: t.id, titulo: "  Revisão da landing\nsegunda linha some" });
       expect(r.data.trabalho).toMatchObject({ id: t.id, titulo: "Revisão da landing", pasta: t.pasta });
       expect((await repos.trabalhos.buscar(t.id))?.titulo).toBe("Revisão da landing");
-      expect(r.events?.map((e) => e.kind)).toEqual(["trabalho_mudou"]);
+      // ADR-192 (etapa 3): a Tarefa ligada acompanha o título (o frame `tarefa_mudou` vem junto).
+      expect(r.events?.map((e) => e.kind)).toEqual(["trabalho_mudou", "tarefa_mudou"]);
+      expect((await repos.tarefas.doTrabalho(t.id))?.titulo).toBe("Revisão da landing");
     });
   });
 

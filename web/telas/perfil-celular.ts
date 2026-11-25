@@ -200,7 +200,8 @@ function grupos(estado: Estado, a: Bot, dona: boolean): string {
   const rotinas = linhaDoGrupo(a, "rotinas", ICONE.relogio, "Rotinas", valorRotinas(estado, a.id));
   const biblioteca = linhaDoGrupo(a, "biblioteca", ICONE.livro, "Biblioteca", valorBiblioteca(estado, a));
   // O span escondido mantém a leitura do estado (só o status, sem captura de tela; como a gaveta do desktop): sem ele o valor fica em "carregando".
-  const computador = dona ? linhaDoGrupo(a, "computador", ICONE.monitor, "Computador", valorComputador(estado, a)) + `<span hidden data-comp-bot="${esc(a.id)}"></span>` : "";
+  // 2026-11-25: sem máquina Linux, sem a linha Computador (o bot fica só com o navegador).
+  const computador = dona && !a.semComputador ? linhaDoGrupo(a, "computador", ICONE.monitor, "Computador", valorComputador(estado, a)) + `<span hidden data-comp-bot="${esc(a.id)}"></span>` : "";
   const ajustes = linhaDoGrupo(a, "ajustes", ICONE.ajustes, "Ajustes", null);
   const g1 = [codigo, rotinas, biblioteca, computador].filter(Boolean).join("");
   const excluir = dona && a.papel !== "nod" ? `<div class="pfc-grupo"><button type="button" class="pfc-linha pfc-excluir" data-act="perfil-excluir" data-id="${esc(a.id)}" aria-haspopup="dialog">Excluir bot</button></div>` : "";

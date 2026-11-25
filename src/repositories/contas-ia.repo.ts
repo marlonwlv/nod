@@ -185,17 +185,19 @@ export function contasIaRepo(conn: Conn, escopo: Escopo) {
           }
         }
         const [antes] = await conn<{ estado: string; sem_acesso_em: Date | null }[]>`select estado, sem_acesso_em from contas_ia_maquinas where ${doDono()} and conta_id = ${id} and maquina_id = ${maquinaId}`;
-        // NOD-283 (CA 10): a conta que voltou "sem acesso" num turno segue assim até um login mais novo que a marca.
-        const estado = vinculoSegueSemAcesso(antes?.sem_acesso_em ? antes.sem_acesso_em.getTime() : null, a.estado, a.logadaEm) ? "sem_acesso" : a.estado;
+        // NOD-283 (CA 10): a conta que voltou "sem acesso" num turno segue assim até um login mais novo que a marca. Lote B
+        // (desvio 2): o login vencido marcado pelo servidor também (`sem_login`, a mesma marca).
+        const marcada = antes?.estado === "sem_login" ? "sem_login" : "sem_acesso";
+        const estado = vinculoSegueSemAcesso(antes?.sem_acesso_em ? antes.sem_acesso_em.getTime() : null, a.estado, a.logadaEm) ? marcada : a.estado;
         if (antes?.estado !== estado) mudou = true;
         if (estado === "pronta" && antes?.estado !== "pronta") {
           prontasAgora.push({ contaId: id, ia: a.ia, corporativa: corporativaDe(a), entraNaTrocaAutomatica: naFilaAgora });
         }
         await conn`
           insert into contas_ia_maquinas (tenant_id, owner_id, conta_id, maquina_id, estado, visto_em, sem_acesso_em)
-          values (${escopo.tenantId}, ${escopo.pessoaId}, ${id}, ${maquinaId}, ${estado}, ${data(agora)}, ${estado === "sem_acesso" ? data(agora) : null})
+          values (${escopo.tenantId}, ${escopo.pessoaId}, ${id}, ${maquinaId}, ${estado}, ${data(agora)}, ${estado === "sem_acesso" || (estado === "sem_login" && antes?.sem_acesso_em) ? data(agora) : null})
           on conflict (tenant_id, conta_id, maquina_id) do update set estado = excluded.estado, visto_em = excluded.visto_em,
-            sem_acesso_em = case when excluded.estado = 'sem_acesso' then coalesce(contas_ia_maquinas.sem_acesso_em, excluded.sem_acesso_em) else null end`;
+            sem_acesso_em = case when excluded.estado = 'sem_acesso' or (excluded.estado = 'sem_login' and excluded.sem_acesso_em is not null) then coalesce(contas_ia_maquinas.sem_acesso_em, excluded.sem_acesso_em) else null end`;
         vistas.push(id);
       }
       const apagados = await conn`
@@ -282,6 +284,17 @@ export function contasIaRepo(conn: Conn, escopo: Escopo) {
      */
     async marcarSemAcesso(id: string, maquinaId: string, agora: number): Promise<boolean> {
       const r = await conn`update contas_ia_maquinas set estado = 'sem_acesso', sem_acesso_em = coalesce(sem_acesso_em, ${data(agora)})
+        where ${doDono()} and conta_id = ${id} and maquina_id = ${maquinaId}`;
+      return r.count > 0;
+    },
+
+    /**
+     * Lote B das Jornadas da IA (desvio 2, 2026-11-22): o turno nesta conta voltou com o login vencido ("OAuth session
+     * expired") enquanto a máquina ainda a anuncia logada. O vínculo vira `sem_login` com a MESMA marca da conta sem acesso
+     * (`sem_acesso_em`, "o servidor marcou em"): o anúncio seguinte não a devolve à vez até um login mais novo que a marca.
+     */
+    async marcarSemLogin(id: string, maquinaId: string, agora: number): Promise<boolean> {
+      const r = await conn`update contas_ia_maquinas set estado = 'sem_login', sem_acesso_em = coalesce(sem_acesso_em, ${data(agora)})
         where ${doDono()} and conta_id = ${id} and maquina_id = ${maquinaId}`;
       return r.count > 0;
     },

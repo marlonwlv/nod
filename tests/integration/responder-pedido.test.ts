@@ -5,6 +5,7 @@ import { chamarFerramenta } from "../../src/use-cases/chamar-ferramenta.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
 import { entregarRespostaPeer } from "../../src/use-cases/entregar-resposta-peer.ts";
 import { pedirABot } from "../../src/use-cases/pedir-a-bot.ts";
+import { desistirDaEspera } from "../../src/use-cases/esperas-de-colega.ts";
 import { cuidarDosPedidosParados } from "../../src/use-cases/pedidos-parados.ts";
 import { responderPedido } from "../../src/use-cases/responder-pedido.ts";
 import { contexto, depsSobre } from "../helpers/deps-l7.ts";
@@ -126,6 +127,31 @@ describeIntegracao("responder_pedido (NOD-262): o bot fecha da conversa o pedido
       expect([...r.data.retomados, ...r.data.avisados, ...r.data.entregues]).not.toContain(m.tarefaId);
       expect((await m.repos.mensagens.listarDaConversa(m.vera.conversaId)).filter((x) => x.kind === "peer_ask")).toHaveLength(1);
       expect((await m.repos.turnos.buscar(m.tarefaId))?.estado).toBe("interrompido");
+    });
+  });
+
+  it("QA r181: pedido que a pessoa fechou (Desistir) ou que venceu não é 'já em andamento' — o bot não diz que o turno ainda responde", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      // A Vera espera há 26 h; a pessoa clica Desistir no painel enquanto fala com o Tuca.
+      await trx`update mensagens set criado_em = now() - interval '26 hours' where conversa_id = ${m.vera.conversaId} and kind = 'handoff'`;
+      await trx`update turnos set criado_em = now() - interval '26 hours' where id = ${m.tarefaId}`;
+      const { deps: agoraReal } = depsSobre(trx, MARLON);
+      await desistirDaEspera(agoraReal, { agenteId: m.vera.agenteId, tarefaId: m.tarefaId });
+      expect(await m.repos.turnos.buscar(m.tarefaId)).toMatchObject({ estado: "interrompido", motivoInterrupcao: "parado_pela_pessoa" });
+      const asksAntes = (await m.repos.mensagens.listarDaConversa(m.vera.conversaId)).filter((x) => x.kind === "peer_ask").length;
+
+      const r = await responderPedido(m.deps, { ...contexto(m.tuca.agenteId, m.tuca.conversaId, m.turnoTuca.id), tarefa_id: m.tarefaId, texto: "PR 42 aprovado." });
+      expect(r.data).toMatchObject({ ok: false, erro: "pedido_fechado" });
+      expect(r.data.instrucao).not.toContain("responde sozinho");
+      expect(r.data.instrucao).toContain("pedir_a_bot");
+      expect((await m.repos.mensagens.listarDaConversa(m.vera.conversaId)).filter((x) => x.kind === "peer_ask")).toHaveLength(asksAntes);
+
+      // Vencido pelo prazo: mesma recusa. Queda de máquina continua "já em andamento" (o varredor ainda retoma).
+      await trx`update turnos set motivo_interrupcao = 'vencido' where id = ${m.tarefaId}`;
+      expect((await responderPedido(m.deps, { ...contexto(m.tuca.agenteId, m.tuca.conversaId, m.turnoTuca.id), tarefa_id: m.tarefaId, texto: "x" })).data).toMatchObject({ ok: false, erro: "pedido_fechado" });
+      await trx`update turnos set motivo_interrupcao = 'maquina_sem_contato' where id = ${m.tarefaId}`;
+      expect((await responderPedido(m.deps, { ...contexto(m.tuca.agenteId, m.tuca.conversaId, m.turnoTuca.id), tarefa_id: m.tarefaId, texto: "x" })).data).toMatchObject({ ok: false, erro: "ja_em_andamento" });
     });
   });
 

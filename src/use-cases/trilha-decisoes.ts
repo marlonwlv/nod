@@ -10,7 +10,7 @@ export const ferramentaDoItem = (destino: Pick<DestinoItem, "conector" | "ferram
 
 /** O id do app do item (terminal e computador não são conectores: null). Um slug que sumiu também dá null. */
 async function conectorDoItem(deps: Deps, destino: Pick<DestinoItem, "conector">, cache: Map<string, string | null>): Promise<string | null> {
-  if (destino.conector === "terminal" || destino.conector === "computador") return null;
+  if (destino.conector === "terminal" || destino.conector === "computador" || destino.conector === "navegador") return null;
   if (!cache.has(destino.conector)) cache.set(destino.conector, (await deps.repos.conectores.buscarPorSlug(destino.conector))?.id ?? null);
   return cache.get(destino.conector) ?? null;
 }

@@ -291,3 +291,18 @@ describe("nome repetido no lote (QA-118)", () => {
     expect(motivos([{ tipo: "criar", nome: "Nova", descricao: "x", ref: "n" }, { tipo: "editar", bot: "@n", nome: "Nova 2" }, { tipo: "criar", nome: "Nova", descricao: "y" }])).toEqual([]);
   });
 });
+
+describe("bot excluído antes no mesmo lote (QA r137)", () => {
+  const motivos = (acoes: AcaoLote[]) => { const r = valida(acoes); return r.ok ? [] : r.problemas.map((p) => p.motivo); };
+  it("criar_rotina, editar ou dar acesso num bot que o próprio lote já excluiu é recusado antes de rodar", () => {
+    expect(motivos([{ tipo: "excluir", bot: "Dev 1" }, { tipo: "criar_rotina", bot: "Dev 1", cron: "0 8 * * *", fuso_iana: "UTC", instrucao: "x" }])).toEqual([expect.stringContaining("excluído antes neste pedido")]);
+    expect(motivos([{ tipo: "excluir", bot: "b2" }, { tipo: "editar", bot: "Dev 2", titulo: "x" }])).toHaveLength(1);
+    expect(motivos([{ tipo: "duplicar", bot: "Dev 1", ref: "c" }, { tipo: "excluir", bot: "@c" }, { tipo: "dar_acesso", bot: "@c", app: "github", nivel: "leitura" }])).toHaveLength(1);
+    expect(motivos([{ tipo: "excluir", bot: "Dev 1" }, { tipo: "excluir", bot: "Dev 1" }])).toHaveLength(1);
+  });
+  it("o nome reaproveitado aponta para o @ref; restaurar libera de novo", () => {
+    expect(motivos([{ tipo: "excluir", bot: "Dev 1" }, { tipo: "criar", nome: "Dev 1", descricao: "x" }, { tipo: "fixar", bot: "Dev 1", fixado: true }])).toEqual([expect.stringContaining("use o @ref")]);
+    expect(motivos([{ tipo: "excluir", bot: "Dev 1" }, { tipo: "criar", nome: "Dev 1", descricao: "x", ref: "n" }, { tipo: "fixar", bot: "@n", fixado: true }])).toEqual([]);
+    expect(motivos([{ tipo: "excluir", bot: "Dev 1" }, { tipo: "restaurar", bot: "Dev 1" }, { tipo: "mover", bot: "Dev 1", secao: "" }])).toEqual([]);
+  });
+});

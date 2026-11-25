@@ -177,7 +177,7 @@ describe("a aba Decisões na tela", () => {
 
   it("primeira vez (hoje, nada no dia e nada antes): texto próprio, sem filtros nem CSV", () => {
     const h = html(comPagina(dto([], { contagem: { permitida: 0, negada: 0, cartao: 0 }, haAntes: false })));
-    expect(h).toContain("Nenhuma decisão ainda. Quando o Ada usar um app");
+    expect(h).toContain("Nenhuma decisão ainda. Quando Ada usar um app");
     expect(h).not.toContain('data-act="decisoes-filtro"');
     expect(h).not.toContain("Exportar CSV");
   });
