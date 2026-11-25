@@ -55,7 +55,36 @@ export function ouvirSinaisDeEncerramento(encerrar: (sinal: string) => void, sai
   };
 }
 
+/** Os códigos do driver do Postgres (e do pool) para "não deu para falar com o banco agora". */
+const CODIGOS_DE_CONEXAO: ReadonlySet<string> = new Set(["CONNECT_TIMEOUT", "CONNECTION_CLOSED", "CONNECTION_ENDED", "CONNECTION_DESTROYED", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "57P01", "57P03", "53300", "banco_ocupado"]);
+
+/** O erro é a conexão com o banco que caiu ou demorou (passageiro), não um defeito do código. */
+export function ehFalhaDeConexaoComOBanco(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const x = e as { code?: unknown; codigo?: unknown; name?: unknown };
+  return (typeof x.code === "string" && CODIGOS_DE_CONEXAO.has(x.code)) || (typeof x.codigo === "string" && CODIGOS_DE_CONEXAO.has(x.codigo)) || x.name === "ErroBancoOcupado";
+}
+
+/**
+ * Ponto 04 dos cenários (2026-11-22): com o Mac em carga 52–64, uma consulta solta (`listarTodas`, por um caminho sem
+ * catch) estourou CONNECT_TIMEOUT e o unhandledRejection derrubou o servidor inteiro, duas vezes. A falha de CONEXÃO com o
+ * banco que escapar vira aviso no log e o processo segue: cada laço tenta de novo no próximo tick e cada rota responde
+ * pelo seu caminho. Qualquer outro erro sem dono continua derrubando o processo (é defeito, e o supervisor sobe de novo).
+ */
+export function ouvirRejeicoesSemDono(sair: (erro: unknown) => void = (erro) => { throw erro; }): () => void {
+  const ouvinte = (erro: unknown) => {
+    if (ehFalhaDeConexaoComOBanco(erro)) {
+      log("aviso", "banco_sem_conexao_sem_tratamento", { codigo: String((erro as { code?: unknown; codigo?: unknown }).code ?? (erro as { codigo?: unknown }).codigo ?? (erro as Error).name) });
+      return;
+    }
+    sair(erro);
+  };
+  process.on("unhandledRejection", ouvinte);
+  return () => process.removeListener("unhandledRejection", ouvinte);
+}
+
 if (ehPontoDeEntrada(import.meta.url)) {
+  ouvirRejeicoesSemDono();
   try {
     process.loadEnvFile(".env");
   } catch {

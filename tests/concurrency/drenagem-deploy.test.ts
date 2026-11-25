@@ -1,3 +1,4 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
 import { VERSAO_CONSENTIMENTO_VOZ } from "../../src/contracts/ligacao.ts";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
@@ -542,7 +543,9 @@ describeIntegracao("NOD-245/NOD-252: a entrega adotada depois do deploy assenta 
     expect(await linhaDoTurno(parado.turnoId)).toEqual({ estado: "interrompido", motivo_interrupcao: "parado_pela_pessoa" });
     expect(await decisoes(parado.turnoId)).toEqual([]);
 
-    // NOD-245 (CA3): a entrega adotada, cortada sem motivo e sem Parar, é o reinício que derrubou o turno.
+    // NOD-245 (CA3): a entrega adotada, cortada sem motivo e sem Parar, é o reinício que derrubou o turno. Lote B
+    // (ADR-192, desvio 11): o reinício volta sozinho uma vez; com a mensagem no teto de tentativas, sobra o Retomar.
+    await escopado((trx) => trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${cortado.turnoId}`);
     expect((await pedirN("entregar", cortada(cortado), cortado.tokenDeTurno)).status).toBe(200);
     expect(await linhaDoTurno(cortado.turnoId)).toEqual({ estado: "interrompido", motivo_interrupcao: "reinicio_servidor" });
     expect(await decisoes(cortado.turnoId)).toEqual([{ tipo: "retomar_turno", estado: "pendente" }]);

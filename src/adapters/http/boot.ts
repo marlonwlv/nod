@@ -1,3 +1,4 @@
+import { iniciarBackfillTarefas } from "../fundo/backfill-tarefas.ts";
 import type { DriverComputador } from "../../contracts/computador.ts";
 import type { ProvedoresVoz } from "../voz/spi.ts";
 import { criarCodexCliDriver } from "../executor/drivers/codex-cli.ts";
@@ -23,6 +24,7 @@ import { garantirParticoes } from "../fundo/particoes.ts";
 import { sincronizarDominiosAdmitidos } from "../fundo/dominios-admitidos.ts";
 import { INTERVALO_SCHEDULER_MS, iniciarScheduler } from "../fundo/scheduler-rotina.ts";
 import { iniciarVarredorOciosidade } from "../fundo/varredor-ociosidade.ts";
+import { iniciarVarredorNavegadores } from "../fundo/varredor-navegadores.ts";
 import { iniciarLacoMinhaConta } from "../fundo/laco-minha-conta.ts";
 import { iniciarLacoPrsDoQuadro, planoPrsDoQuadro } from "../fundo/prs-do-quadro.ts";
 import { sincronizarPrsDoQuadro } from "../../use-cases/prs-do-quadro.ts";
@@ -60,7 +62,7 @@ export type OpcoesBoot = {
   porta?: number;
   host?: string;
   /** Intervalos dos laços (testes encurtam). */
-  intervalos?: { orquestradorMs?: number; schedulerMs?: number; leaseMs?: number; expiracaoMs?: number; outboxMs?: number; ociosidadeMs?: number; disjuntorMs?: number; prsDoQuadroMs?: number };
+  intervalos?: { orquestradorMs?: number; schedulerMs?: number; leaseMs?: number; expiracaoMs?: number; outboxMs?: number; ociosidadeMs?: number; navegadoresMs?: number; disjuntorMs?: number; prsDoQuadroMs?: number };
   listarPessoas?: () => Promise<{ tenantId: string; id: string }[]>;
   /** Drivers do registry; default: catcher (+ claude-cli/codex-cli quando NOD_EXECUTOR os pede ou é auto). */
   drivers?: (p: { urlNod: string; app: App }) => Driver[];
@@ -234,6 +236,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     ...(app.contas ? { contas: { guarda: app.contas.guarda, google: app.contas.google !== null, bootstrap: app.contas.bootstrap, minhaConta: !!app.contas.minhaConta, onboardingTexto: app.contas.onboardingTexto, rotas: app.contas.rotas } } : {}),
     verificarSaude,
     estadoSaude,
+    // ADR-194: a guarda do backoffice interno (equipe_backoffice; vazia, NOD_ADMINS), para a API e para a tela.
+    backoffice: app.backoffice,
     // ADR-071: os canais WebSocket da ligação (mídia e cérebro) no mesmo servidor.
     upgrade: (server, resolverEscopo) => {
       canaisVoz = app.anexarVoz(server, resolverEscopo);
@@ -315,10 +319,12 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
   let varredorLease: Laco = nada;
   let varredorExpiracao: Laco = nada;
   let varredorOciosidade: Laco = nada;
+  let varredorNavegadores: Laco = nada;
   let varredorMaquinas: Laco = nada;
   let lacoMinhaConta: Laco = nada;
   let lacoDisjuntor: Laco = nada;
   let lacoPrsDoQuadro: Laco = nada;
+  let lacoBackfillTarefas: Laco = nada;
   let despachante: DespachanteOutbox | null = null;
   let lacosLigados = false;
   let ligando: Promise<void> | null = null;
@@ -388,6 +394,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     varredorExpiracao = iniciarVarredorExpiracao(db, { services: app.services, useCases: app.useCases, agora, intervaloMs: iv.expiracaoMs, executor: () => app.executor }, { listarPessoas: o.listarPessoas });
     // NOD-170: só com computadores ligados; NOD_COMPUTADOR_OCIOSO_MIN=0 não sobe o laço.
     if (app.computadores) varredorOciosidade = iniciarVarredorOciosidade({ db, computadores: app.computadores, ociosoMin: limiteDoAmbiente(env).ociosoMin, intervaloMs: iv.ociosidadeMs, opcoes: { listarPessoas: o.listarPessoas }, presente: (pessoaId) => app.barramento.inscritos(pessoaId) > 0 });
+    // ADR-190 (D0): os Chromes parados há 10 min pausam guardando as abas; só a cor ativa varre (o estado é do processo).
+    varredorNavegadores = iniciarVarredorNavegadores({ navegadores: app.navegadores, intervaloMs: iv.navegadoresMs });
     despachante = iniciarDespachanteOutbox(db, app.barramento, { intervaloMs: iv.outboxMs, listarPessoas: o.listarPessoas, presenca: app.services.maquinas });
     varredorMaquinas = app.iniciarVarredorMaquinas(o.varredorMaquinasMs);
     // NOD-346: só com NOD_MINHA_CONTA (a exportação e, com NOD_PURGA_CONTA, a purga).
@@ -411,6 +419,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
         opcoes: { listarPessoas: o.listarPessoas },
       });
     }
+    // ADR-192 (etapa 4): o backfill das Tarefas antigas, uma passada por boot (idempotente); NOD_TAREFAS_BACKFILL=0 desliga.
+    if (env.NOD_TAREFAS_BACKFILL !== "0") lacoBackfillTarefas = iniciarBackfillTarefas(db, { listarPessoas: o.listarPessoas });
   };
   // Idempotente: a drenagem para e o fechar() chama de novo (que só repete o parar do despachante, para o modo "só
   // ligações" que a drenagem pode ter ligado depois). O orquestrador (só existe no modo local) para só no fechar(): no
@@ -423,7 +433,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     (parandoLacos ??= (async () => {
       await ligando?.catch(() => undefined);
       const pararDespachante = o.soLigacoes ? despachante?.soLigacoes(() => app.voz.pessoasComLigacao()) : despachante?.parar();
-      await Promise.all([scheduler.parar(), varredorLease.parar(), varredorExpiracao.parar(), varredorOciosidade.parar(), varredorMaquinas.parar(), lacoMinhaConta.parar(), lacoDisjuntor.parar(), lacoPrsDoQuadro.parar(), pararDespachante]);
+      await Promise.all([scheduler.parar(), varredorLease.parar(), varredorExpiracao.parar(), varredorOciosidade.parar(), varredorNavegadores.parar(), varredorMaquinas.parar(), lacoMinhaConta.parar(), lacoDisjuntor.parar(), lacoPrsDoQuadro.parar(), lacoBackfillTarefas.parar(), pararDespachante]);
       // Não religa: ligarLacos() já recusa com drenando/fechado; o estado() passa a dizer a verdade.
       lacosLigados = false;
     })());

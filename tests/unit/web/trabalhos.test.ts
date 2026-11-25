@@ -69,7 +69,7 @@ describe("faixa de Trabalhos e pílula (#195, K1/K6)", () => {
     // A etiqueta saiu da linha (revisto em 2026-10-09): a origem vai no detalhe do hover, antes do status, junto do tempo.
     expect(html).not.toContain("etiqueta-origem");
     expect(html).toContain('<span class="ft-titulo">Migrar relatórios</span><span class="ft-tempo">de você · trabalhou menos de 1 min · aberta há 15 min</span><span class="ft-passo">18 de 42</span>');
-    expect(html).toContain('<span class="ft-tempo">pedido do Chico · trabalhou');
+    expect(html).toContain('<span class="ft-tempo">pedido de Chico · trabalhou');
     // Na fila ainda não há tempo a contar: o detalhe é só a origem.
     expect(html).toContain('<span class="ft-tempo">de você</span><span class="ft-passo">começa depois da Migrar relatórios</span>');
     expect(html).toContain('data-act="faixa-trabalhos" data-recolher="1" aria-expanded="true"');
@@ -185,7 +185,7 @@ describe("a tela da tarefa (#195, K2/K7)", () => {
     atividade = comFerramenta(atividade, "Bash");
     const e = reduzir(estadoCom([login], { tela: { tipo: "trabalho", id: "login", voltar: { tipo: "inicio" } } }), { tipo: "hidratar-trabalho", detalhe: { trabalho: login, mensagens: mensagens as never }, agora: AGORA });
     const html = renderTelaTrabalho({ ...e, atividades: { "c-dev1": { tv: { ...atividade, atual: "" } } } }, "login");
-    expect(html).toContain("· pedido do Chico · a resposta volta para o Chico");
+    expect(html).toContain("· pedido de Chico · a resposta volta para Chico");
     expect(html).toContain("Dev 1, pega o login");
     expect(html).toContain("Pego. Reproduzi o bug.");
     // ADR-187 §6 (lote B, passo 4, Paper 4k): a narração do meio da volta é o balão cinza; a ferramenta feita, a linha com ✓;

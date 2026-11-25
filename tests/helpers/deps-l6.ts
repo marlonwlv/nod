@@ -34,6 +34,7 @@ import { gerirTimes } from "../../src/use-cases/gerir-times.ts";
 import { gerirMaquinas } from "../../src/use-cases/gerir-maquinas.ts";
 import { gerirCanvas } from "../../src/use-cases/gerir-canvas.ts";
 import { removerComputadorPeloChat } from "../../src/use-cases/remover-computador.ts";
+import { ajustarNavegador } from "../../src/use-cases/ajustar-navegador.ts";
 import { gerirAcessos } from "../../src/use-cases/gerir-acessos.ts";
 import { naoLidosNoChat } from "../../src/use-cases/nao-lidos-no-chat.ts";
 import { decisoesNoChat } from "../../src/use-cases/decisoes-no-chat.ts";
@@ -187,6 +188,7 @@ export function useCasesDeTeste(): UseCasesNod {
     gerirMaquinas,
     gerirCanvas,
     removerComputador: removerComputadorPeloChat,
+    ajustarNavegador,
     gerirAcessos,
     buscarConversas,
     lerConversa,

@@ -57,4 +57,5 @@ export const USE_CASE_POR_FERRAMENTA = {
   gerir_canvas: "gerirCanvas",
   gerir_maquinas: "gerirMaquinas",
   remover_computador: "removerComputador",
+  ajustar_navegador: "ajustarNavegador",
 } as const satisfies Record<NomeFerramentaNod, keyof UseCasesNod<unknown>>;

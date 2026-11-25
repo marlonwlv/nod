@@ -34,6 +34,12 @@ extraResources:
     to: vm-local
     filter:
       - '**/*'
+  # ADR-190: o binário nativo do agent-browser (o navegador do bot no Mac), fora do asar porque o app o roda como
+  # processo; montado por scripts/desktop/agent-browser-binario.mjs (no build do Mac).
+  - from: dist/agent-browser/${arch}
+    to: agent-browser
+    filter:
+      - '**/*'
 npmRebuild: false
 artifactName: nod-${version}-${os}-${arch}.${ext}
 mac:

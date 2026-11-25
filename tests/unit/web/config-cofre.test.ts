@@ -24,9 +24,9 @@ describe("Configurações › Cofre (Paper 07, rodada 2)", () => {
   });
 
   it("a seção: carregando, vazio, erro com Tentar de novo, e a lista com o nome, o app e quando", () => {
-    expect(renderCofre(TELA_COFRE_INICIAL, AGORA)).toContain("Abrindo o cofre…");
-    expect(renderCofre({ credenciais: [], carregando: false, erro: false }, AGORA)).toContain("Nenhuma chave guardada ainda");
-    expect(renderCofre({ credenciais: null, carregando: false, erro: true }, AGORA)).toContain('data-act="recarregar-cofre"');
+    expect(renderCofre(TELA_COFRE_INICIAL, AGORA, "UTC")).toContain("Abrindo o cofre…");
+    expect(renderCofre({ credenciais: [], carregando: false, erro: false }, AGORA, "UTC")).toContain("Nenhuma chave guardada ainda");
+    expect(renderCofre({ credenciais: null, carregando: false, erro: true }, AGORA, "UTC")).toContain('data-act="recarregar-cofre"');
     const html = renderCofre({ credenciais: [{ nome: "<b>X</b>", app: "Exemplo", guardadaEm: AGORA - 60_000 }], carregando: false, erro: false }, AGORA, "America/Sao_Paulo");
     expect(html).toContain("<h2>Cofre</h2>");
     expect(html).toContain("&lt;b&gt;X&lt;/b&gt;");

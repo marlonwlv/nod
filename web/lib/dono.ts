@@ -189,11 +189,11 @@ export function estadoDoColega(c: NonNullable<EsperaDoDonoDto["colega"]>, nome: 
   return [c.trabalhando ? `${nome} está trabalhando` : c.fila > 0 ? `${nome} ainda não começou` : `${nome} está livre`, fila].filter(Boolean).join(" · ");
 }
 
-/** Quem pediu o que está na fila: "seu pedido", "pedido do Leonardo", "rotina Triagem do Slack". */
+/** Quem pediu o que está na fila: "seu pedido", "pedido de Leonardo", "rotina Triagem do Slack". */
 export function quemPediu(p: Pick<PedidoNaFilaDto, "de" | "nome">): string {
   if (p.de === "pessoa") return "seu pedido";
   if (p.de === "rotina") return p.nome ? `rotina ${p.nome}` : "uma rotina";
-  return `pedido do ${p.nome ?? "colega"}`;
+  return p.nome ? `pedido de ${p.nome}` : "pedido do colega";
 }
 
 /** As frentes da linha aberta e de Trabalhos: as abertas do bot, as que trabalham primeiro; depois as terminadas hoje. */

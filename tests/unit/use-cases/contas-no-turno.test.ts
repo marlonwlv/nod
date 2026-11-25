@@ -1,3 +1,4 @@
+import { TETO_REENVIOS } from "../../../src/domain/inteligencia.ts";
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ContaAnunciada } from "../../../src/contracts/contas-ia.ts";
@@ -124,7 +125,7 @@ describe("a conta do turno no limite (ADR-102)", () => {
   it("R6: na segunda ausência (a fala já foi refeita uma vez) não refaz de novo", async () => {
     const c = await cenario();
     const t = c.banco.turnos.find((x) => x.id === c.turnoId)!;
-    t.reenvios = 1;
+    t.reenvios = TETO_REENVIOS;
     await c.reivindicar();
     await c.deps.repos.turnos.registrarConta(c.turnoId, c.contas.cPessoal.id);
     await c.entregar({ ...base, desfecho: "interrompido", motivoInterrupcao: "executor_indisponivel", contaAusente: true }, "claude-cli");
@@ -413,20 +414,20 @@ describe("NOD-268: regressão de 15/10 (a conversa inundada de notas e reenvios)
 
   it("no limite da conta com a troca já usada nesta fala: espera a conta voltar com UMA linha, sem 'Seguindo com'", async () => {
     const c = await cenario();
-    c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = 1;
+    c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = TETO_REENVIOS;
     await c.reivindicar();
     await c.deps.repos.turnos.registrarConta(c.turnoId, c.contas.cPessoal.id);
     await c.entregar(limite(T0 + 2 * HORA), "claude-cli");
     const novas = c.banco.mensagens.slice(c.antes);
     expect(novas.map((m) => m.payload ?? null)).toEqual([null]);
     expect(novas[0]?.texto).toMatch(ESPERA);
-    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", reenvios: 2, acordarEm: T0 + 2 * HORA }]);
+    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", reenvios: TETO_REENVIOS + 1, acordarEm: T0 + 2 * HORA }]);
   });
 
   it("revisão do PR #319: e a que já esperou a hora não ganha 'Seguindo com' (nada segue): o aviso do limite com a hora", async () => {
     const c = await cenario();
     const t = c.banco.turnos.find((x) => x.id === c.turnoId)!;
-    t.reenvios = 2;
+    t.reenvios = TETO_REENVIOS + 1;
     t.acordarEm = T0 - 1;
     await c.reivindicar();
     await c.deps.repos.turnos.registrarConta(c.turnoId, c.contas.cPessoal.id);

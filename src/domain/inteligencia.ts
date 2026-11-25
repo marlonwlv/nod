@@ -4,6 +4,7 @@ import { MODOS_INTELIGENCIA, RACIOCINIOS, type EscolhaDaIa, type EscolhasIa, typ
 import { CAUSA_LIMITE, type Inventario } from "../contracts/inventario.ts";
 import { ErroDeDominio } from "./erro.ts";
 import { iaAceitaModelo, iaDoModelo } from "./ia-do-modelo.ts";
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "./desvios-da-conversa.ts";
 
 /**
  * A inteligência de cada bot (definido em 2026-10-10, emenda da ADR-036; plano "IAs: conexão, troca e escolha de
@@ -11,7 +12,7 @@ import { iaAceitaModelo, iaDoModelo } from "./ia-do-modelo.ts";
  * ordem e os limites que vêm daqui; a fila usa `iasParaOAutomatico`; o limite usa `proximaIaNoLimite` e `prazoDoLimite`.
  */
 
-/** definido em 2026-10-10 (decisão do Marlon): o raciocínio do "Recomendado" nas duas IAs. */
+/** definido em 2026-10-10 (decisão do dono): o raciocínio do "Recomendado" nas duas IAs. */
 export const RACIOCINIO_RECOMENDADO: EsforcoAgente = "medium";
 /**
  * definido em 2026-10-10: o Codex diz "usage limit" sem horário (nenhuma amostra com hora até aqui) e o Claude Code pode
@@ -88,8 +89,10 @@ export function proximaIaNoLimite(p: { ordem: readonly IdHarness[]; prontos: rea
  * definido em 2026-10-15 (NOD-268, decisão da PM; o Marlon pode vetar): uma fala da pessoa é reenviada sozinha no máximo
  * UMA vez — troca de IA no limite, troca de conta, conta ausente, conta sem acesso. Passou do teto, o turno espera a hora
  * em que o limite sai (`acordar_em`) com uma linha só na conversa, em vez de girar de máquina em máquina.
+ * revisto em 2026-11-22 (lote B das Jornadas da IA, regra 2, decisão do dono): até 3 tentativas automáticas por mensagem,
+ * somadas — mesma conta, próxima conta, outra IA —, o mesmo teto da tabela de desvios (TETO_TENTATIVAS_DA_MENSAGEM).
  */
-export const TETO_REENVIOS = 1;
+export const TETO_REENVIOS = TETO_TENTATIVAS_DA_MENSAGEM;
 
 export function podeReenviar(turno: { reenvios: number }): boolean {
   return turno.reenvios < TETO_REENVIOS;

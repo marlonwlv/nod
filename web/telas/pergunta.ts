@@ -3,6 +3,7 @@ import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { FioDaPergunta } from "../../src/contracts/pedido.ts";
 import type { Estado } from "../estado/reducer.ts";
 import { estadoDaPergunta, fiosDaConversa, iconeBalao, inicioDaPergunta, mensagemDaPergunta, modoDoComposer, rodadaEscrita, type ItemPergunta, type ModoComposer } from "../lib/perguntas.ts";
+import { placeholderComPedido } from "../lib/pedidos-que-esperam.ts";
 import { botao, esc, hora } from "../lib/render.ts";
 import { renderCartaoPergunta, rodapeDaConversa, type SituacaoDoCartao } from "./cartao-pergunta.ts";
 import { rotuloVencido } from "./sua-vez.ts";
@@ -178,9 +179,15 @@ export type AparenciaComposer = {
  * (web/lib/regioes.ts). revisto em 2026-10-18 (plano "pergunta com botões", Parte 2): com pergunta aberta o campo não
  * muda — sem placeholder "Responda à…", sem borda realçada, sem a nota e sem o clipe desligado (o anexo vai como
  * mensagem comum). Risco aceito no plano: nada no campo diz que a próxima mensagem responde (gatilho na ADR-045).
+ *
+ * `pedidoDe` (definido em 2026-11-20, ADR-191, pedido do dono): o nome do bot quando há um cartão aberto que a mensagem
+ * nova fecha (login do computador, conexão, proposta, "Retomar" — web/lib/pedidos-que-esperam.ts). Aí o placeholder
+ * muda para "Responda à <bot> ou fale de outra coisa": mandar mensagem agora dispensa o cartão, e o campo diz isso. Só
+ * com o campo no modo comum — com pergunta de texto aberta a mensagem é a resposta, e o campo segue sem mudar (acima).
  */
-export function aparenciaDoComposer(modo: ModoComposer, estado: Estado, padrao: { placeholder: string; nota: string }, conversaId?: string): AparenciaComposer {
-  return { topo: renderTopoComposer(modo, estado, conversaId), placeholder: padrao.placeholder, nota: padrao.nota };
+export function aparenciaDoComposer(modo: ModoComposer, estado: Estado, padrao: { placeholder: string; nota: string }, conversaId?: string, pedidoDe?: string | null): AparenciaComposer {
+  const placeholder = pedidoDe && modo.tipo === "normal" ? placeholderComPedido(pedidoDe) : padrao.placeholder;
+  return { topo: renderTopoComposer(modo, estado, conversaId), placeholder, nota: padrao.nota };
 }
 
 /** Uma linha já desenhada da conversa: o id da mensagem, se é linha de sistema (recolhível) e o HTML. */

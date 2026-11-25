@@ -221,6 +221,40 @@ describeIntegracao("apps do bot (NOD-445)", () => {
     });
   });
 
+  it("QA-138: remover e restaurar repetidos pelo chat devolvem ja_estava, sem evento e sem mexer na ordem", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const { d, bot } = await montar(trx);
+      const vagas = (await criarDireto(d, bot.agenteId, "Vagas"))!;
+      await criarDireto(d, bot.agenteId, "Leituras");
+      const rm1 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "remover", app: vagas.id });
+      expect(rm1.data).toMatchObject({ ok: true, app_id: vagas.id });
+      expect(rm1.data).not.toHaveProperty("ja_estava");
+      const fora = (await paginas(d, bot.agenteId)).ordem;
+      for (const ref of [vagas.id, "vagas"]) {
+        const rm2 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "remover", app: ref });
+        expect(rm2.data).toMatchObject({ ok: true, ja_estava: true, app_id: vagas.id });
+        expect(rm2.events ?? []).toHaveLength(0);
+      }
+      expect((await paginas(d, bot.agenteId)).ordem).toEqual(fora);
+      const rs1 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "restaurar", app: vagas.id });
+      expect(rs1.data).toMatchObject({ ok: true, app_id: vagas.id });
+      expect(rs1.data).not.toHaveProperty("ja_estava");
+      const volta = (await paginas(d, bot.agenteId)).ordem;
+      for (const ref of [vagas.id, "Vagas"]) {
+        const rs2 = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "restaurar", app: ref });
+        expect(rs2.data).toMatchObject({ ok: true, ja_estava: true, app_id: vagas.id });
+        expect(rs2.events ?? []).toHaveLength(0);
+      }
+      expect((await paginas(d, bot.agenteId)).ordem).toEqual(volta);
+      // A tela também: o duplo clique no Desfazer não vira erro.
+      await executar(d, EXECUTORES_APPS["paginas.restaurar_app"], { agenteId: bot.agenteId, app: vagas.id });
+      // O que nunca existiu segue nao_encontrado.
+      expect((await executar(d, gerirApps, { ...(await turno(d, bot)), op: "remover", app: "Nunca" })).data).toMatchObject({ ok: false, erro: "nao_encontrado" });
+      expect((await executar(d, gerirApps, { ...(await turno(d, bot)), op: "restaurar", app: "Nunca" })).data).toMatchObject({ ok: false, erro: "nao_encontrado" });
+    });
+  });
+
   it("revisão 4 do #626: restaurar pelo chat aceita o nome (sem acento nem caixa) e traz o removido mais recente com ele", async () => {
     await withRollback(MARLON, async (trx) => {
       trxAtual = trx;
@@ -525,6 +559,38 @@ describeIntegracao("apps do bot (NOD-445)", () => {
       const fora = await recusa("POST", `/agentes/${bot.agenteId}/apps/${vagas.id}/restaurar`.replace(vagas.id, "00000000-0000-4000-8000-000000000000"));
       expect(fora.status).toBe(404);
       expect(fora.corpo).not.toHaveProperty("motivo");
+    });
+  });
+
+  it("QA-237: o bot pelo nome olha só os da pessoa; o da empresa de outra pessoa com o mesmo nome não esconde o dela, e dois dela pedem o id", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const { d, bot } = await montar(trx);
+      const nome = `Vera ${Math.random().toString(36).slice(2, 7)}`;
+      // A Ana cria antes um bot da empresa (que o Marlon vê) com o mesmo nome do bot do Marlon.
+      await trx.savepoint(async (sp) => {
+        await vincularEscopo(sp, ANA);
+        const daAna = await agenteComConversa(sp, ANA, { nome, dono: "empresa" });
+        await sp`update agentes set criado_em = criado_em - interval '1 day' where id = ${daAna.agenteId}`;
+      });
+      await vincularEscopo(trx, MARLON);
+      const minha = await agenteComConversa(trx, MARLON, { nome });
+      await criarDireto(d, minha.agenteId, "Vagas");
+      const naConversa = await turno(d, bot);
+      const r = await executar(d, gerirApps, { ...naConversa, op: "listar", bot: nome.toUpperCase() });
+      expect(r.data).toMatchObject({ ok: true });
+      expect(JSON.stringify(r.data)).toContain("Vagas");
+      // Dois bots do Marlon com o mesmo nome: o pedido pelo nome não cai calado no mais antigo; a recusa traz os ids.
+      const gemea = await agenteComConversa(trx, MARLON, { nome });
+      const dupla = await executar(d, gerirApps, { ...naConversa, op: "listar", bot: nome });
+      expect(dupla.data).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      if (dupla.data.ok) return;
+      expect(dupla.data.instrucao).toContain(minha.agenteId);
+      expect(dupla.data.instrucao).toContain(gemea.agenteId);
+      const proposta = await executar(d, gerirApps, { ...naConversa, op: "propor", bot: nome, nome: "Leads", icone: "app", fonte: "bot", forma: "lista" });
+      expect(proposta.data).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      // Pelo id, segue valendo.
+      expect((await executar(d, gerirApps, { ...naConversa, op: "listar", bot: gemea.agenteId })).data).toMatchObject({ ok: true });
     });
   });
 

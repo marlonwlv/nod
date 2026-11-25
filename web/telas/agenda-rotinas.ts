@@ -214,7 +214,7 @@ function metaDaLinha(ctx: Ctx, l: LinhaRotina, tipo: Tipo): { tom: Tom; texto: s
 function colunaDaDireita(ctx: Ctx, l: LinhaRotina, tipo: Tipo): string {
   if (tipo !== "proxima") return "";
   if (ehWebhook(l.dto)) return '<span class="ag-prox"><small>quando chamarem</small></span>';
-  const p = proximaVez(l.dto.proximaExecucao, ctx.agora);
+  const p = proximaVez(l.dto.proximaExecucao, ctx.agora, l.dto.rotina.fusoIana);
   return `<span class="ag-prox"><span class="ag-sr">Próxima vez: </span><b>${esc(p.hora)}</b><small>${esc(p.quando)}</small></span>`;
 }
 
@@ -255,7 +255,8 @@ function ondeRoda(r: RotinaDto): string | null {
 }
 
 function dados(ctx: Ctx, r: RotinaDto): string {
-  const fuso = ctx.estado.agenda.dto && r.rotina.fusoIana !== ctx.estado.agenda.dto.fuso ? ` (fuso ${r.rotina.fusoIana})` : "";
+  // PR #333 (achado 17): o resumo já pode trazer o fuso ("todo dia às 09:00 (America/Sao_Paulo)"); não repete.
+  const fuso = ctx.estado.agenda.dto && r.rotina.fusoIana !== ctx.estado.agenda.dto.fuso && !r.resumo.includes(r.rotina.fusoIana) ? ` (fuso ${r.rotina.fusoIana})` : "";
   const linhas: [string, string][] = [["Quando", `${r.resumo}${fuso}`]];
   const onde = ondeRoda(r);
   if (onde) linhas.push(["Onde roda", onde]);
@@ -283,6 +284,8 @@ function acoesDaRotina(ctx: Ctx, l: LinhaRotina): Acao[] {
     ...(ctx.estado.ocupado ? [] : [{ act: "executar-rotina", rotulo: "Testar agora", dados: { id: r.id, agente: r.agenteId } }]),
     { act: pausada ? "ativar-rotina" : "pausar-rotina", rotulo: pausada ? "Ativar" : "Pausar", dados: { id: r.id }, pri: pausada },
     { act: "abrir-conversa", rotulo: "Mudar pela conversa", dados: { conversa: r.conversaId, agente: r.agenteId } },
+    // PR #333 (achado 4): excluir pela tela, com a confirmação do diálogo; antes só pela conversa com o bot.
+    { act: "excluir-rotina", rotulo: "Excluir", dados: { id: r.id, titulo: titulo(l.dto) } },
   ];
 }
 
@@ -374,4 +377,21 @@ export function valorDaAgenda(estado: Estado): string {
   const ontem = somarDias(hoje, -1);
   const n = dto.itens.filter((i) => (i.dia === hoje || i.dia === ontem) && itemComProblema(i)).length;
   return n === 0 ? "" : n === 1 ? "1 falha" : `${n} falhas`;
+}
+
+/**
+ * QA r235: o destino do foco quando a rotina `id` sai da lista pelo Excluir da tela — a linha da rotina seguinte, senão a
+ * da anterior, senão o "Nova rotina" (no vazio, o da caixa "Nenhuma rotina ainda"). Um seletor para `focoPendente`.
+ */
+export function destinoAoExcluirRotina(raiz: { querySelectorAll(s: string): ArrayLike<{ getAttribute(n: string): string | null }> }, id: string): string {
+  const ids = Array.from(raiz.querySelectorAll('#espaco [data-act="agenda-linha"][data-id]'), (el) => el.getAttribute("data-id") ?? "").filter((x, i, todos) => x && todos.indexOf(x) === i);
+  const i = ids.indexOf(id);
+  const vizinho = i < 0 ? undefined : ids[i + 1] ?? ids[i - 1];
+  // Um seletor só: `querySelector` com vírgula pega o primeiro na ordem do documento (o "Nova rotina" do cabeçalho).
+  return vizinho ? `#espaco [data-act="agenda-linha"][data-id="${cssId(vizinho)}"]` : '#espaco [data-act="navegar"][data-tela="nova-rotina"]';
+}
+
+/** O id (uuid) dentro de aspas num seletor de atributo; fora de navegador não há `CSS.escape`. */
+function cssId(id: string): string {
+  return id.replace(/["\\]/g, "\\$&");
 }
