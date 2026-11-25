@@ -239,7 +239,8 @@ describeIntegracao("fila de turnos (ADR-010): enviar → despachar → assentar,
       const casos = [
         // ADR-171 (falhas tipadas, como a fatura em aberto): o crédito acabado tem frase própria, não a genérica.
         { erro: "Credit balance is too low", aviso: "Turno interrompido: a conta do Claude Code está sem crédito ou com fatura em aberto; espere o uso renovar e tente de novo." },
-        { erro: "Invalid API key · Please run /login", aviso: "Turno interrompido: sua conta do Claude Code saiu deste Mac; use Conectar IA para entrar de novo." },
+        // Lote B (desvio 2, 2026-11-22): o login vencido sem outra conta é o cartão do desvio — a mensagem espera o login.
+        { erro: "Invalid API key · Please run /login", aviso: "O login da conta do Claude venceu. Entre de novo e a mensagem sai em seguida." },
       ];
       for (const c of casos) {
         const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });

@@ -79,6 +79,17 @@ export function propostasRepo(conn: Conn, escopo: Escopo) {
      * passa a travar aqui antes de fechar a decisão. Mesmo filtro de `decidir` (só a dona): o FOR UPDATE passa pela
      * policy de UPDATE, então a proposta de outra pessoa do tenant volta null.
      */
+    /**
+     * QA r175 (2026-11-21): a trava SEM esperar do "seguir conversando" (ADR-191). Quem decide o card (Confirmar das
+     * colunas, apps, assumir quadro, credencial) trava a PROPOSTA e só depois fecha a DECISÃO; esperar aqui por ela
+     * fechava o ciclo com a mensagem nova (que fecha a decisão primeiro) e o Postgres matava uma das duas com deadlock.
+     * `null` = a linha está travada agora por quem a decide (ou não existe): quem chama deixa o pedido para o clique.
+     */
+    async travarSeLivre(id: string): Promise<Proposta | null> {
+      const [l] = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from propostas where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} for update skip locked`;
+      return l ? paraProposta(l) : null;
+    },
+
     async buscarParaAtualizar(id: string): Promise<Proposta | null> {
       const [l] = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from propostas where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} for update`;
       return l ? paraProposta(l) : null;

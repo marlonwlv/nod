@@ -1,3 +1,5 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
+// Lote B (desvios 11 e 12, 2026-11-22): a conversa volta sozinha uma vez; o "Retomar" deste teste é o do teto da mensagem.
 import { randomUUID } from "node:crypto";
 import { afterEach, expect, it } from "vitest";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES, type IdHarness } from "../../src/contracts/harness.ts";
@@ -156,6 +158,7 @@ describeIntegracao("trabalhos: sessão, pasta, retomada e parada (#192, ADR-083)
       const w = (await criarTrabalho(m.deps, { agenteId: m.agenteId, conversaId: m.conversaId, titulo: "Caiu", origem: "pessoa" })).trabalho;
       const daConversa = await m.turno(null);
       const daTask = await m.turno(w.id);
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${daConversa!.id}`;
       const maquina = randomUUID();
       const agora = Date.now();
       await m.repos.turnos.reivindicar({ machineId: maquina, agora: agora - 200_000 });

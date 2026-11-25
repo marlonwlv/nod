@@ -210,10 +210,12 @@ describe("o estado das IAs da pessoa (GET /ias)", () => {
 });
 
 describe("NOD-268: teto de reenvios, espera do Automático e o alarme do laço", () => {
-  it("podeReenviar: uma vez só (TETO_REENVIOS = 1)", () => {
-    expect(TETO_REENVIOS).toBe(1);
+  // revisto em 2026-11-22 (lote B, regra 2): até 3 tentativas automáticas por mensagem, somadas.
+  it("podeReenviar: até o teto da mensagem (TETO_REENVIOS = 3)", () => {
+    expect(TETO_REENVIOS).toBe(3);
     expect(podeReenviar({ reenvios: 0 })).toBe(true);
-    expect(podeReenviar({ reenvios: 1 })).toBe(false);
+    expect(podeReenviar({ reenvios: 2 })).toBe(true);
+    expect(podeReenviar({ reenvios: 3 })).toBe(false);
     expect(podeReenviar({ reenvios: 5 })).toBe(false);
   });
 

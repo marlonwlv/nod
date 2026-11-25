@@ -56,8 +56,9 @@ export type FluxoVivo = {
 /** O que o laço usa da ponte HTTP (`criarPonteHttp(...).computador`). */
 export type CanalDoMotor = {
   puxar(): Promise<ComandoComputador[] | null | "sem_rota">;
-  resultado(r: ResultadoComandoComputador): Promise<boolean>;
-  estado(e: EstadoComputadorRelatado): Promise<boolean>;
+  /** false = não chegou (guarda e reenvia); "recusado" = o servidor recusou o corpo (400), definitivo: descarta. */
+  resultado(r: ResultadoComandoComputador): Promise<boolean | "recusado">;
+  estado(e: EstadoComputadorRelatado): Promise<boolean | "recusado">;
   /** NOD-95: abre o fluxo da sessão ao vivo com o servidor; null = não abriu (servidor fora, sessão recusada). */
   vivo?(sessao: SessaoVivo): Promise<FluxoVivo | null>;
 };
@@ -84,15 +85,25 @@ export function iniciarComputador(o: { canal: CanalDoMotor; socket?: string; bat
   const vivos = new Set<Socket>();
 
   function guardar(r: RelatoComputador) {
+    // definido em 2026-11-23: da foto do computador só vale a mais nova — a guardada antes dela sai (a fila cheia de
+    // fotos velhas reenviadas a cada batimento era o grosso das chamadas).
+    if (r.tipo === "estado") {
+      const i = pendentes.findIndex((p) => p.tipo === "estado" && p.computadorId === r.computadorId);
+      if (i >= 0) pendentes.splice(i, 1);
+    }
     pendentes.push(r);
     while (pendentes.length > RELATOS_GUARDADOS) pendentes.shift();
   }
-  async function postar(r: RelatoComputador): Promise<boolean> {
+  async function postar(r: RelatoComputador): Promise<boolean | "recusado"> {
     if (r.tipo === "resultado") { const { tipo: _t, ...resto } = r; return o.canal.resultado(resto); }
     const { tipo: _t, ...foto } = r; return o.canal.estado(foto);
   }
   async function relatar(r: RelatoComputador) {
-    if (!(await postar(r).catch(() => false))) guardar(r);
+    const enviado = await postar(r).catch(() => false as const);
+    // medido em 2026-11-23 em produção: 64 relatos recusados (400) voltavam à fila e saíam de novo a cada batimento de
+    // 15 s — 4,3 chamadas por segundo, por horas, todas 400. O 400 é definitivo (o mesmo corpo dá o mesmo 400): descarta.
+    if (enviado === "recusado") { log("aviso", "computador_relato_recusado", { tipo: r.tipo }); return; }
+    if (!enviado) guardar(r);
   }
   async function reenviar() {
     const fila = pendentes.splice(0);

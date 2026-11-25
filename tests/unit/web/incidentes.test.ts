@@ -19,16 +19,18 @@ describe("aviso de queda do Mac (ADR-045): incidente não é decisão", () => {
     expect(fraseDoIncidente(incidente({ rotinas: 1, agentes: ["Taga"] }))).toContain("1 execução de rotina não concluiu (Taga);");
   });
 
-  it("em curso, só conversa, e misto: a frase diz o que a pessoa pode fazer", () => {
+  it("em curso, só conversa, e misto (revisto no lote B, desvio 12): a conversa fica com a linha dela; o aviso fala das rotinas", () => {
     expect(fraseDoIncidente(incidente({ voltouEm: null }))).toMatch(/^Seu Mac está sem contato desde \d{2}:\d{2}\. /);
-    expect(fraseDoIncidente(incidente({ rotinas: 0, conversas: 1, agentes: ["Vera"] }))).toContain("1 resposta em conversa não concluiu (Vera); nada foi reenviado e dá para retomar pela conversa.");
-    expect(fraseDoIncidente(incidente({ rotinas: 2, conversas: 1 }))).toContain("2 execuções de rotina e 1 resposta em conversa não concluíram (Ada, Taga); nada foi reenviado: as rotinas seguem agendadas e a conversa pode ser retomada.");
+    expect(fraseDoIncidente(incidente({ rotinas: 0, conversas: 1, agentes: ["Vera"] }))).toMatch(/^Seu Mac ficou sem contato entre \d{2}:\d{2} e \d{2}:\d{2}\.$/);
+    expect(fraseDoIncidente(incidente({ rotinas: 2, conversas: 1 }))).toMatch(/2 execuções de rotina não concluíram; nada foi reenviado e as próximas seguem agendadas\.$/);
+    // Só conversa: nenhum aviso na barra (a conversa diz na linha do desvio 12).
+    expect(renderIncidentes(comAvisos([incidente({ rotinas: 0, conversas: 1 })]))).toBe("");
   });
 
-  it("2026-10-09: a queda da VM do motor nomeia a máquina; sem o campo, é o Mac", () => {
-    expect(fraseDoIncidente(incidente({ maquina: "nod-motor-teste", rotinas: 0, conversas: 2, agentes: ["Ze 1"] }))).toMatch(/^A máquina nod-motor-teste ficou sem contato entre \d{2}:\d{2} e \d{2}:\d{2}\. 2 respostas em conversa não concluíram \(Ze 1\);/);
-    expect(fraseDoIncidente(incidente({ maquina: "nod-motor-teste", voltouEm: null }))).toMatch(/^A máquina nod-motor-teste está sem contato desde \d{2}:\d{2}\. /);
-    expect(fraseDoIncidente(incidente())).not.toContain("máquina");
+  it("toda máquina vai pelo nome, com o artigo dela; sem o campo, é o Mac", () => {
+    expect(fraseDoIncidente(incidente({ maquina: "VM sp-01", voltouEm: null }))).toMatch(/^A VM sp-01 está sem contato desde \d{2}:\d{2}\. /);
+    expect(fraseDoIncidente(incidente({ maquina: "MacBook de teste" }))).toMatch(/^O MacBook de teste ficou sem contato entre /);
+    expect(fraseDoIncidente(incidente())).toMatch(/^Seu Mac /);
   });
 
   it("um aviso por incidente, em estilo de status, com 'Entendi' — nunca um card de decisão", () => {

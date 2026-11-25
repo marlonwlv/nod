@@ -169,6 +169,9 @@ const decidirAcessoDaDona: CasoDeUso<EntradaDecidirAcesso, SaidaDecidirAcesso> =
   // do clique via "sem concessão" e "sem card pendente" ao mesmo tempo e abria um card novo.
   const doPedido = lidaSemTrava?.payload.kind === "acesso" ? await deps.repos.conectores.buscarPorSlug(lidaSemTrava.payload.conector) : null;
   if (lidaSemTrava && doPedido) await deps.repos.concessoes.travar(lidaSemTrava.agenteId, doPedido.id);
+  // QA-121: depois do par, a linha do BOT — a que concederLote trava. O excluir trava o bot e depois fecha propostas e
+  // decisões; travar o bot só lá no concederLote (depois da decisão e da proposta) seria a ordem inversa, 40P01.
+  if (lidaSemTrava) await deps.repos.agentes.buscarParaAtualizar(lidaSemTrava.agenteId);
   if (input.capacidades && !input.recusar) {
     const pedidas = new Set(lidaSemTrava?.payload.kind === "acesso" ? lidaSemTrava.payload.capacidades : []);
     if (input.capacidades.length === 0 || input.capacidades.some((c) => !pedidas.has(c))) throw new ErroDeDominio("entrada_invalida", { cause: "capacidades fora do pedido" });

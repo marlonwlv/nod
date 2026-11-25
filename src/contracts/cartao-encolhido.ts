@@ -1,4 +1,5 @@
 import type { EstadoProposta, KindProposta } from "./conversa.ts";
+import type { TipoDecisao } from "./decisao.ts";
 
 /**
  * O cartão encolhe com o resultado (definido em 2026-10-18, plano do chat limpo, Parte 3 · 3A, PR 4; ADR-114 e emenda da
@@ -30,3 +31,25 @@ export type PayloadRegraPermanente = { kind: "regra_permanente"; decisaoId: stri
  * Atividade (assunto `proposta.decidida`).
  */
 export type PayloadPropostaDecidida = { kind: "proposta_decidida"; propostaId: string; tipo: KindProposta; titulo: string; estado: Exclude<EstadoProposta, "pendente">; turnoId: string | null };
+
+/**
+ * O pedido que a pessoa deixou para trás ao mandar mensagem nova (definido em 2026-11-20, ADR-191, pedido do dono). É o
+ * recibo do cartão — a web desenha a linha cinza "Conectar o Google Drive · você seguiu sem conectar" na âncora do pedido
+ * (o turno que pediu) — e o histórico do modelo lê o `texto` da mensagem (a linha fixa de src/domain/pedido-dispensado.ts).
+ * `decisaoId` é a decisão (ou a proposta de mesmo id; o card de conexão não tem decisão); `tipo`, o tipo da decisão ou,
+ * na proposta sozinha, 'acesso'; `frase`, a frase curta do pedido. `conector` é o app do pedido de acesso e `conectar`, o
+ * card de conexão (o app ainda não estava pronto: a linha oferece "Conectar"); `ajuda`, o pedido de ajuda do computador
+ * (o "Fazer agora" abre a tela do bot). `agenteId` é o bot que pediu.
+ */
+export type PayloadPedidoDispensado = {
+  kind: "pedido_dispensado";
+  decisaoId: string;
+  tipo: TipoDecisao;
+  frase: string;
+  motivo: "seguiu_conversando";
+  turnoId: string | null;
+  agenteId: string;
+  conector?: string;
+  conectar?: true;
+  ajuda?: true;
+};

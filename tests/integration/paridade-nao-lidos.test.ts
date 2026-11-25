@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { DepsRotas } from "../../src/adapters/http/rotas/executar-caso.ts";
 import { criarRotasNaoLidos } from "../../src/adapters/http/rotas/nao-lidos.ts";
@@ -242,6 +243,31 @@ describeIntegracao("paridade tela × chat das leituras (NOD-449, ADR-135)", () =
       const ana = await servidor.entrar("ana");
       expect((await servidor.chamar(ana, "POST", `/nao-lidos/recibos/${recibo!.id}/desfazer`)).status).toBe(404);
       expect(await retrato(m)).toEqual({ bia: 0, lia: 1 });
+    });
+  });
+  it("nome repetido entre bot e sala: a recusa diz que é ambíguo e dá o id de cada uma, e o id resolve (QA-235)", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const m = await montar(trx);
+      // Uma sala com o mesmo nome da Bia (salas não têm nome único; a de outra pessoa onde o bot está também aparece).
+      const salaId = randomUUID();
+      const conversa = (await m.d.repos.conversas.criar({ id: randomUUID(), tipo: "sala", salaId }))!;
+      await m.d.repos.salas.criarComMembros({ id: salaId, nome: m.nomes.bia, conversaId: conversa.id }, [{ agenteId: m.lia.agenteId, pessoaLeitoraId: MARLON.pessoaId }]);
+      await peloChat(m, [tudo], m.gil);
+      const ctx = await turnoDe(m.d, m.gil.agenteId, m.gil.conversaId);
+      for (const acao of ["marcar", "marcar_nao_lida"] as const) {
+        const r = await executar(m.d, naoLidosNoChat, { ...ctx, acao, conversas: [m.nomes.bia] });
+        expect(r.data).toMatchObject({ ok: false, erro: "nao_encontrado" });
+        const txt = JSON.stringify(r.data);
+        // Não é "não achei": achou duas. A recusa diz isso e traz o id de cada uma, que o bot pode mandar no lugar do nome.
+        expect(txt).not.toContain("não achei");
+        expect(txt).toContain("ambíguo");
+        expect(txt).toContain(m.bia.conversaId);
+        expect(txt).toContain(conversa.id);
+      }
+      const r = await executar(m.d, naoLidosNoChat, { ...ctx, acao: "marcar_nao_lida", conversas: [m.bia.conversaId] });
+      expect(r.data).toMatchObject({ ok: true, marcadas: [m.nomes.bia] });
+      expect((await retrato(m)).bia).toBe(1);
     });
   });
 });

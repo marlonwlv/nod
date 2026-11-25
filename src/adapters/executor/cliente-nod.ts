@@ -28,7 +28,7 @@ export type RespostaPlano =
 
 /** Corpo devolvido por POST /api/interno/ferramentas/:nome. `aguardar` = decisão criada, o proxy faz long-poll. */
 export type RespostaFerramenta =
-  | { ok: true; conteudo: string; confianca: Confianca; isError?: boolean; imagem?: { mimeType: "image/png"; data: string }; audio?: { mimeType: "audio/wav"; data: string } }
+  | { ok: true; conteudo: string; confianca: Confianca; isError?: boolean; imagem?: { mimeType: "image/png" | "image/jpeg"; data: string }; audio?: { mimeType: "audio/wav"; data: string } }
   | { ok: false; negacao: Negacao }
   | { aguardar: string }
   /** ADR-048: o servidor decidiu e a ferramenta roda NESTA máquina (gh do Mac); o proxy executa e relata. */
@@ -39,7 +39,8 @@ export type RespostaErroHttp = { erroHttp: { status: number; codigo: string; men
 
 export type RespostaAguardar =
   /** `resultado` (0032): o que a ação aprovada no computador devolveu — conteúdo NÃO confiável. */
-  | { estado: "decidida"; itens: { idx: number; desfecho: DesfechoItem | null; resultado?: string }[] }
+  /** `origem` (ADR-190): "navegador" quando o resultado é da ação aprovada no navegador do bot; ausente = computador. */
+  | { estado: "decidida"; itens: { idx: number; desfecho: DesfechoItem | null; resultado?: string; origem?: "navegador" }[] }
   /** `soltar` (ADR-083, #194): a memória do Mac apertou — pare de esperar agora e encerre o turno. */
   | { estado: "pendente"; soltar?: true };
 
@@ -99,7 +100,8 @@ export function criarClienteNod(opcoes: OpcoesClienteNod): ClienteNod {
   const timeout = opcoes.timeoutMs ?? TIMEOUT_CLIENTE_NOD_MS;
   // O servidor só responde a ferramenta depois de ouvir o conector: esperar menos que ele é declarar
   // "servidor fora" um servidor que está trabalhando. timeoutMs explícito (testes) vale para tudo.
-  const prazoFerramenta = (nome: string): number => (nome.startsWith("computador_") ? 240_000 : opcoes.timeoutMs ?? PRAZO_FERRAMENTA_PROXY_MS);
+  // ADR-190: o navegador do bot também espera a página (e um script de até 20 passos): o mesmo prazo do computador.
+  const prazoFerramenta = (nome: string): number => (nome.startsWith("computador_") || nome.startsWith("navegador_") ? 240_000 : opcoes.timeoutMs ?? PRAZO_FERRAMENTA_PROXY_MS);
   const agora = opcoes.agora ?? (() => Date.now());
 
   async function chamar(metodo: "GET" | "POST", caminho: string, corpo?: unknown, timeoutMs = timeout): Promise<{ status: number; json: unknown } | FalhaTransporte> {

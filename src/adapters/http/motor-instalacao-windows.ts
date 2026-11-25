@@ -18,7 +18,7 @@
 import { CONVITE } from "../../shared/convite.ts";
 import { ARQUIVOS_DO_MOTOR } from "../../domain/atualizacao-do-motor.ts";
 import { PISO_CLI } from "../executor/flag-floors.ts";
-import { NODE_DO_MOTOR } from "./motor-instalacao.ts";
+import { AGENT_BROWSER_DO_MOTOR, NODE_DO_MOTOR } from "./motor-instalacao.ts";
 
 /**
  * O começo do nome da Tarefa Agendada (e do valor na chave Run) que sobe o motor no login. A tarefa fica na raiz do
@@ -462,6 +462,28 @@ function InstalarIas {
   }
 }
 
+# ADR-190 (2026-11-22): o navegador do bot neste PC, o agent-browser fixo em $Pasta\navegador (o motor o acha la, como
+# o do Linux em /opt/nod-motor/navegador). Falhar aqui nao derruba a instalacao: o bot diz que o navegador nao esta
+# nesta maquina, e rodar o comando de novo tenta outra vez.
+function InstalarNavegador {
+  $pastaNav = Join-Path $Pasta 'navegador'
+  $exe = Join-Path $pastaNav 'node_modules\@agent-browser\cli-win32-x64-msvc\bin\agent-browser.exe'
+  $manifesto = Join-Path $pastaNav 'node_modules\agent-browser\package.json'
+  if ((Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $manifesto) -and ((Get-Content -LiteralPath $manifesto -Raw) -match '"version":\s*"${AGENT_BROWSER_DO_MOTOR}"')) {
+    Passo 'navegador do bot (agent-browser ${AGENT_BROWSER_DO_MOTOR})'
+    return
+  }
+  try {
+    New-Item -ItemType Directory -Path $pastaNav -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $pastaNav 'package.json'), '{"name":"nod-navegador","private":true}')
+    $npm = Join-Path $PastaNode 'node_modules\npm\bin\npm-cli.js'
+    $r = Rodar $NodeExe @($npm, 'install', '--prefix', $pastaNav, '--no-fund', '--no-audit', '--ignore-scripts', '--loglevel=error', 'agent-browser@${AGENT_BROWSER_DO_MOTOR}')
+    if ($r -eq 0 -and (Test-Path -LiteralPath $exe)) { Passo 'navegador do bot (agent-browser ${AGENT_BROWSER_DO_MOTOR})'; return }
+    Registrar ('navegador: npm saiu com ' + $r)
+  } catch { Registrar ('navegador: ' + $_.Exception.Message) }
+  Aviso 'O navegador do bot não instalou agora. Rode este comando de novo depois para tentar outra vez.'
+}
+
 # O motor da versao do servidor: o sha256 de cada arquivo confere com o manifesto antes de trocar.
 function InstalarMotor {
   try { $manifesto = Invoke-RestMethod -Uri ($NodServidor + '/api/motor/manifesto') -UseBasicParsing }
@@ -597,6 +619,7 @@ function Principal {
     PorNoPathDoUsuario @($PastaBin, $PastaNode, $PastaNpm)
     InstalarIas
     InstalarMotor
+    InstalarNavegador
     CriarComandos
     RegistrarInicio
   } finally { Remover $Tmp }

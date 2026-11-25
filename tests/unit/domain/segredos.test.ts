@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cunharChaveMaquina } from "../../../src/services/token-maquina.ts";
+import { cunharTokenMcp } from "../../../src/services/token-mcp.ts";
 import { erroDoCodex, interpretarCodex, ultimaLinhaUtil } from "../../../src/domain/codex-stream.ts";
 import { redigirCampos, redigirECortar, redigirSegredos } from "../../../src/domain/segredos.ts";
 import { interpretarLinhaStreamJson } from "../../../src/domain/stream-json.ts";
@@ -69,6 +70,24 @@ describe("redigirSegredos (NOD-158)", () => {
     const { chave } = cunharChaveMaquina({ tenantId: "00000000-0000-4000-8000-000000000001", pessoaId: "00000000-0000-4000-8000-000000000002" });
     expect(chave.startsWith("eyJ")).toBe(true);
     expect(redigirSegredos(`x-nod-maquina: ${chave} recusada`)).toBe(`x-nod-maquina: ${m(chave.length)} recusada`);
+  });
+
+  it("o token MCP do nod (nod_mcp_ + chave) é redigido inteiro, solto, no JSON e no echo (QA-184)", () => {
+    const { chave } = cunharTokenMcp({ tenantId: "00000000-0000-4000-8000-000000000001", pessoaId: "00000000-0000-4000-8000-000000000002" });
+    expect(chave.startsWith("nod_mcp_eyJ")).toBe(true);
+    expect(redigirSegredos(chave)).toBe(m(chave.length));
+    expect(redigirSegredos(`echo ${chave}`)).toBe(`echo ${m(chave.length)}`);
+    expect(redigirSegredos(`{"headers":{"x-nod":"${chave}"}}`)).toBe(`{"headers":{"x-nod":"${m(chave.length)}"}}`);
+  });
+
+  it("o token de turno com escopo é redigido no env e no cabeçalho (QA-184)", () => {
+    const escopo = { tenantId: "00000000-0000-4000-8000-000000000001", pessoaId: "00000000-0000-4000-8000-000000000002" };
+    const turno = `${Buffer.from(JSON.stringify({ t: escopo.tenantId, p: escopo.pessoaId })).toString("base64url")}.${"A".repeat(31)}w`;
+    expect(redigirSegredos(`NOD_TOKEN_TURNO=${turno}\nPATH=/usr/bin`)).toBe(`NOD_TOKEN_TURNO=${m(turno.length)}\nPATH=/usr/bin`);
+    expect(redigirSegredos(`x-nod-token-turno: ${turno}`)).toBe(`x-nod-token-turno: ${m(turno.length)}`);
+    // base64 de outra coisa com o mesmo tamanho não é mexido
+    const outro = `${Buffer.from('{"a":1,"b":2}').toString("base64url")}.${"A".repeat(32)}`;
+    expect(redigirSegredos(`solto ${outro}`)).toBe(`solto ${outro}`);
   });
 
   it("o token de turno sem prefixo só é pego por Bearer ou token=", () => {

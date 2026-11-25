@@ -89,7 +89,7 @@ export const SCHEMA_PEDIR_A_PESSOA = {
     tipo: { type: "string", enum: TIPOS_PEDIDO_A_PESSOA },
     texto: { type: "string", description: "A pergunta como você diria à pessoa, em uma ou duas frases (\"Qual é o processo de lançamento do gamefik? Pode ser um link ou duas linhas.\"). É a sua fala, nunca um molde.", minLength: 1 },
     dado: { type: "string", description: "Nome curto do dado que falta (em falta_de_dado).", minLength: 1 },
-    quem_destrava: { type: "string", description: "Nome da pessoa que pode destravar (entre as pessoas do tenant).", minLength: 1 },
+    quem_destrava: { type: "string", description: "Nome (ou id) da pessoa do time que pode destravar. Nome repetido no time ou que não existe faz a pergunta ir para a dona, e o resultado traz um aviso.", minLength: 1 },
     opcoes: {
       type: "array",
       description: "De 2 a 4 respostas, escritas como a pessoa responderia (\"Sim, pode arquivar\"), cada uma com até 60 caracteres. Omita só quando a resposta for livre (um nome, um texto, um link).",
