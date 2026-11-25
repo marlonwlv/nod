@@ -277,6 +277,7 @@ import type { MotivoAvaliacaoLigacao } from "./lib/api.ts";
 import { aceitaDoBot } from "./lib/capacidades.ts";
 import { FRASE_CREDENCIAIS_INVALIDAS, lerCredenciaisJson } from "./lib/credenciais-json.ts";
 import { mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
+import { devolverFocoNaFila, lugarDoFocoNaFila } from "./lib/anexos-foco.ts";
 import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
 import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
 import { aplicarBalaoCor, lerBalaoCor } from "./lib/balao.ts";
@@ -306,6 +307,7 @@ import { criarNavegadorNaTela, type LugarAtivo } from "./telas/navegador.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
 import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
+import { dispensarVencidos } from "./lib/limpar-vencidos.ts";
 // NOD-117: as teclas dos atalhos mudam com o lugar (app do Mac, navegador no Mac, Windows/Linux): web/lib/atalhos.ts.
 const LUGAR_TECLADO = lugarAtual();
 /** COP-12: ⌘/, "?", Suporte › Atalhos de teclado e a paleta abrem o diálogo de atalhos com as teclas deste lugar. */
@@ -2542,9 +2544,18 @@ function decidirRitmo(el: HTMLElement): Promise<void> {
 
 /** Sua vez (e a conversa): dispensa os pedidos vencidos de uma vez ("Limpar vencidos"). */
 function limparVencidos(ids: readonly string[]): Promise<void> {
+  // QA-166: o duplo clique (o botão em React não fica desligado) começava um segundo lote que esbarrava no 409 do primeiro.
+  if (estado.ocupado) return Promise.resolve();
+  // As conversas dos cartões: o fio relê e diz "Deixada pra lá", como no × de um cartão só.
+  const conversas = new Set(ids.map((id) => estado.suaVez?.itens.find((i) => i.decisao.id === id)?.decisao.conversaId).filter((c): c is string => !!c));
   return agir(async () => {
-    for (const id of ids) await api!.dispensar(id);
-    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+    try {
+      // QA-166: o que já saiu por outro caminho (409/404) não para o lote; outra falha para e o agir mostra.
+      await dispensarVencidos(ids, (id) => api!.dispensar(id));
+    } finally {
+      // Relê sempre: com a falha no meio, os já dispensados saem da tela e os que ficaram continuam com o botão.
+      dispatch({ tipo: "invalidar", quais: ["sua-vez", ...[...conversas].map((c) => `conversa:${c}` as Invalidacao)] });
+    }
   });
 }
 
@@ -6863,8 +6874,10 @@ function removerAnexo(chave: string): void {
   const fila = anexosPendentes.get(alvo.chave) ?? [];
   const item = fila.find((i) => i.chave === chave);
   if (item?.previa) URL.revokeObjectURL(item.previa);
+  const lugar = lugarDoFocoNaFila(chave);
   anexosPendentes.set(alvo.chave, fila.filter((i) => i.chave !== chave));
   redesenharAnexos();
+  devolverFocoNaFila(lugar);
 }
 
 /**
@@ -10443,7 +10456,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversaId ? [`conversa:${conversaId}` as Invalidacao] : [])] });
     if (el.closest(".cartao-pergunta")) anunciarPergunta("Pergunta deixada pra lá");
   }),
-  // Em série: são poucas, e uma recusa no meio não deixa metade gravada sem a tela saber.
+  // Em série: são poucas; a recusa no meio relê a tela (QA-166, web/lib/limpar-vencidos.ts).
   "limpar-vencidos": (el) => limparVencidos((el.dataset.ids ?? "").split(",").filter(Boolean)),
 };
 

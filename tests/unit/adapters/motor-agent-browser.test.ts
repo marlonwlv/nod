@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { alvoDoMotor, ARGS_CHROME_DO_BOT, cookieVale, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
@@ -164,6 +164,29 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
     await expect(m.esperar(s, { texto: "Pronto" })).rejects.toMatchObject({ motivo: "tempo_esgotado" });
     expect(recebidos[2]!.args.slice(0, 3)).toEqual(["wait", "--text", "Pronto"]);
     expect(recebidos[2]!.prazoMs).toBeLessThanOrEqual(15_000);
+  });
+
+  it("baixar que estoura o prazo fecha o Chrome do bot e apaga o download pela metade (QA-207: seguia enchendo o disco)", async () => {
+    const m = motor();
+    // O agent-browser morre no prazo, mas o Chrome do bot já gravava o .crdownload e seguiria baixando.
+    respostas.push(() => ({ codigo: null, saida: "", estourou: true }));
+    const baixando = m.baixar(s, "e3", "grande.bin");
+    await expect(baixando).rejects.toMatchObject({ motivo: "tempo_esgotado", detalhe: expect.stringContaining("cancelado") });
+    expect(recebidos.map((r) => r.args[0])).toEqual(["download", "get", "close"]);
+    expect(recebidos[0]!.args[0]).toBe("download");
+    const arquivos = dirname(String(recebidos[0]!.args[2]));
+    // O arquivo pela metade que existia antes do close sai; um arquivo pronto de antes fica.
+    await mkdir(arquivos, { recursive: true });
+    await writeFile(join(arquivos, "pronto.pdf"), "x");
+    await writeFile(join(arquivos, "a1b2.crdownload"), "metade");
+    respostas.push(() => ({ codigo: null, saida: "", estourou: true }));
+    await expect(m.baixar(s, "e3", "grande.bin")).rejects.toMatchObject({ motivo: "tempo_esgotado" });
+    expect(await readdir(arquivos)).toEqual(["pronto.pdf"]);
+    // Outra falha do download não fecha o navegador.
+    respostas.push(() => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "Element not found" }) }));
+    const antes = recebidos.length;
+    await expect(m.baixar(s, "e9", "x.bin")).rejects.toBeInstanceOf(FalhaNavegador);
+    expect(recebidos.slice(antes).map((r) => r.args[0])).toEqual(["download"]);
   });
 
   it("print lê o JPEG que o agent-browser gravou e apaga o arquivo", async () => {

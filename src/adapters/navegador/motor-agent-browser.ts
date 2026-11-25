@@ -643,6 +643,11 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     const n = nomeDeArquivo(nome);
     return { nome: n, caminho: join(pasta(s), "arquivos", n) };
   }
+  async function apagarDownloadsIncompletos(s: SessaoNavegador): Promise<void> {
+    const dir = join(pasta(s), "arquivos");
+    const nomes = await readdir(dir).catch(() => [] as string[]);
+    await Promise.all(nomes.filter((n) => n.endsWith(".crdownload")).map((n) => rm(join(dir, n), { force: true })));
+  }
 
   return {
     lugar: { tipo: "nod" },
@@ -723,6 +728,14 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
         // fora do Chrome, numa pasta dele). Cada salto passa pela mesma regra do `abrir`.
         if (!(e instanceof FalhaNavegador) || (e.motivo !== "acao_falhou" && e.motivo !== "tempo_esgotado")) throw e;
         const url = await linkDoAlvo(s, alvo).catch(() => null);
+        if (e.motivo === "tempo_esgotado") {
+          // Revisto em 2026-11-25 (QA-207): o prazo só mata o CLI; o Chrome do bot seguia baixando sem teto e enchia o disco
+          // da máquina. Sem comando de cancelar download no agent-browser, fecha o Chrome do bot (os logins ficam no perfil)
+          // e apaga o que ficou pela metade. O link já foi lido acima, antes de fechar a página.
+          await rodar(s, ["close"]).catch(() => undefined);
+          await apagarDownloadsIncompletos(s);
+          if (!url) throw new FalhaNavegador("tempo_esgotado", "o download não terminou a tempo e foi cancelado; o navegador do bot foi fechado e abre de novo no próximo comando, já sem as abas");
+        }
         if (!url) throw e;
         const bytes = await baixarDireto(s, url, a.caminho);
         return { nome: a.nome, bytes };

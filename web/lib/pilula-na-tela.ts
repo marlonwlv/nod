@@ -21,6 +21,9 @@ import { htmlDaPilula, type PartesDaPilula } from "../telas/pilula-do-bot.ts";
 /** definido em 2026-10-18: a maior duração das transições da pílula no CSS (o `clip-path` do painel, .42 s), com folga. */
 export const FIM_DA_TRANSICAO_MS = 460;
 
+/** O que recebe o foco pelo Tab dentro de uma parte da pílula (QA-165). */
+const FOCAVEL = "button:not([disabled]), [href], summary, [tabindex]:not([tabindex='-1'])";
+
 export type DesenhoDaPilula =
   | null
   | { tipo: "legado"; html: string }
@@ -50,17 +53,30 @@ export function criarPilulaNaTela(lugar: HTMLElement, palco: HTMLElement, c: { r
     return atual !== null && ativo instanceof HTMLElement && atual.raiz.contains(ativo);
   };
 
-  /** Troca o miolo de uma parte só quando mudou; o foco que morava nela volta ao mesmo botão (como `regiaoPorBlocos`). */
-  function trocar(el: HTMLElement, antes: string, depois: string): void {
+  /**
+   * Troca o miolo de uma parte só quando mudou; o foco que morava nela volta ao mesmo botão (como `regiaoPorBlocos`).
+   * QA-165 (r165): sem o mesmo botão (o "Parar" depois de parar tudo, a tarefa que saiu da lista) ou com ele dentro das
+   * prontas recolhidas, o foco ia para o <body>. Agora: o resumo das prontas, o botão que ocupa a mesma posição na parte
+   * (ou o anterior), e por fim o primeiro do painel ou a própria pílula.
+   */
+  function trocar(e: Esqueleto, el: HTMLElement, antes: string, depois: string): void {
     if (antes === depois) return;
     const focado = document.activeElement instanceof HTMLElement && el.contains(document.activeElement) ? document.activeElement : null;
+    const focaveis = (raiz: HTMLElement): HTMLElement[] => [...raiz.querySelectorAll<HTMLElement>(FOCAVEL)].filter((x) => !x.closest("details:not([open]) > :not(summary)"));
+    const posicao = focado ? focaveis(el).indexOf(focado) : -1;
     el.innerHTML = depois;
-    if (focado && !focado.isConnected) {
-      for (const seletor of seletoresDoFoco(focado.dataset)) {
-        const alvo = el.querySelector<HTMLElement>(seletor);
-        if (alvo) { alvo.focus({ preventScroll: true }); break; }
-      }
+    if (!focado || focado.isConnected) return;
+    for (const seletor of seletoresDoFoco(focado.dataset)) {
+      const alvo = el.querySelector<HTMLElement>(seletor);
+      if (!alvo) continue;
+      const recolhido = alvo.closest<HTMLDetailsElement>("details:not([open])");
+      (recolhido?.querySelector<HTMLElement>(":scope > summary") ?? alvo).focus({ preventScroll: true });
+      return;
     }
+    const lista = focaveis(el);
+    const vizinho = posicao >= 0 ? lista[Math.min(posicao, lista.length - 1)] : undefined;
+    const destino = vizinho ?? focaveis(e.painel)[0] ?? (e.escondida ? null : e.botao);
+    destino?.focus({ preventScroll: true });
   }
 
   function montar(partes: PartesDaPilula, aberta: boolean, escondida: boolean): Esqueleto {
@@ -148,11 +164,11 @@ export function criarPilulaNaTela(lugar: HTMLElement, palco: HTMLElement, c: { r
         return;
       }
       const e = atual;
-      trocar(e.botao, e.partes.botao, partes.botao);
-      trocar(e.memoria, e.partes.memoria, partes.memoria);
-      trocar(e.cab, e.partes.cab, partes.cab);
-      trocar(e.corpo, e.partes.corpo, partes.corpo);
-      trocar(e.pe, e.partes.pe, partes.pe);
+      trocar(e, e.botao, e.partes.botao, partes.botao);
+      trocar(e, e.memoria, e.partes.memoria, partes.memoria);
+      trocar(e, e.cab, e.partes.cab, partes.cab);
+      trocar(e, e.corpo, e.partes.corpo, partes.corpo);
+      trocar(e, e.pe, e.partes.pe, partes.pe);
       if (e.partes.rotulo !== partes.rotulo) e.painel.setAttribute("aria-label", partes.rotulo);
       e.partes = partes;
       // Fechar antes de esconder: o foco vai à pílula só quando ela continua à vista.

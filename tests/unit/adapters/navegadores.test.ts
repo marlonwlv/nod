@@ -347,6 +347,12 @@ describe("ler → agir por referência", () => {
     for (const u of ["https://g1.globo.com", "http://localhost:3000", "file:///etc/passwd", "http://[::1]/", "javascript:alert(1)"]) expect(enderecoMalformado(u), u).toBe(false);
   });
 
+  it("QA-202: o ponto final do nome e o IPv6 que embute um IPv4 de dentro também são recusados", () => {
+    // No Chromium real, `localhost.` e `[::ffff:127.0.0.1]` chegam ao servidor da própria máquina.
+    for (const u of ["http://localhost./", "http://metadata.google.internal./", "http://nod.local./", "http://[::ffff:127.0.0.1]/", "http://[::ffff:169.254.169.254]/latest", "http://[::127.0.0.1]/", "http://[64:ff9b::7f00:1]/", "http://[2002:a9fe:a9fe::]/", "http://[fe90::1]/", "http://[ff02::1]/", "http://[::]/"]) expect(enderecoPermitido(u), u).toBe(false);
+    for (const u of ["http://[2606:4700:4700::1111]/", "http://[::ffff:8.8.8.8]/", "http://[64:ff9b::808:808]/", "https://exemplo.com.br./"]) expect(enderecoPermitido(u), u).toBe(true);
+  });
+
   it("navegador_ver devolve o print em JPEG", async () => {
     const r = await criar().chamar(MARLON, plano(A), "navegador_ver", {});
     expect(r).toMatchObject({ ok: true, confianca: "nao_confiavel", imagem: { mimeType: "image/jpeg", data: "/9j/AAAA" } });

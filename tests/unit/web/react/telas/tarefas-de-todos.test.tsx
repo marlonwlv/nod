@@ -2,7 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ColunaDto, QuadroDto, TarefaDto } from "../../../../../src/contracts/quadro.ts";
 import { gruposDasTarefas, quantasPerguntaram, resumoDosQuadros, type FiltrosDasTarefas, type QuadroComProjeto, type VistaDasTarefas } from "../../../../../web/lib/tarefas-de-todos.ts";
-import type { DadosDasTarefas } from "../../../../../web/lib/tarefas-de-todos-na-tela.ts";
+import { criarTarefasDeTodosNaTela, type ApiDasTarefas, type DadosDasTarefas } from "../../../../../web/lib/tarefas-de-todos-na-tela.ts";
 import { renderTarefasDeTodos } from "../../../../../web/telas/tarefas-de-todos.ts";
 import { TelaTarefasDeTodos, type AcoesDasTarefas } from "../../../../../web/react/telas/tarefas-de-todos.tsx";
 
@@ -108,5 +108,28 @@ describe("Tarefas de todos em React", () => {
     act(() => acoes.fonte.trocar({ quadros: null, erro: "Não deu para ler os quadros." }));
     fireEvent.click(container.querySelector(".tdt-link")!);
     expect(acoes.fonte.tentarDeNovo).toHaveBeenCalled();
+  });
+  it("QA-147: a vista, a busca e os filtros ficam ao sair e voltar à tela, como na por string", async () => {
+    const api: ApiDasTarefas = {
+      quadros: async () => ({ quadros: QS.map((q) => ({ id: q.quadro.id, agenteId: q.quadro.agenteId })) as never }),
+      quadroPorId: async (qid) => ({ quadro: QS.find((q) => q.quadro.id === qid)!.quadro }),
+      quadrosDoBot: async () => ({ projetos: [{ id: "pj1", nome: "Produto" }] }) as never,
+    };
+    const controlador = criarTarefasDeTodosNaTela(document, { api: () => api, avatar, abrirTarefa: vi.fn(), abrirPagina: vi.fn(), agora: () => AGORA });
+    const acoes: AcoesDasTarefas = { fonte: controlador, avatar, abrirTarefa: vi.fn(), abrirPagina: vi.fn(), agora: () => AGORA };
+    controlador.abrir();
+    const primeira = render(<TelaTarefasDeTodos acoes={acoes} />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    fireEvent.click([...primeira.container.querySelectorAll(".tdt-seg-bt")][1]!);
+    fireEvent.click(primeira.container.querySelector(".tdt-filtro")!);
+    fireEvent.change(primeira.container.querySelector<HTMLInputElement>(".tdt-busca-campo")!, { target: { value: "nod" } });
+    // Abrir um card navega para a conversa do dono: a tela desmonta e o controlador fecha; voltar abre de novo.
+    primeira.unmount();
+    controlador.fechar();
+    controlador.abrir();
+    const segunda = render(<TelaTarefasDeTodos acoes={acoes} />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(segunda.container.querySelector<HTMLInputElement>(".tdt-busca-campo")!.value).toBe("nod");
+    expect(normalizar(segunda.container.firstElementChild!)).toBe(normalizar(porString(controlador.dados(), "bot", { busca: "nod", emAberto: false, porPrioridade: false })));
   });
 });
