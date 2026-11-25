@@ -365,3 +365,20 @@ export function valorDaAgenda(estado: Estado): string {
   const n = dto.itens.filter((i) => (i.dia === hoje || i.dia === ontem) && itemComProblema(i)).length;
   return n === 0 ? "" : n === 1 ? "1 falha" : `${n} falhas`;
 }
+
+/**
+ * QA r235: o destino do foco quando a rotina `id` sai da lista pelo Excluir da tela — a linha da rotina seguinte, senão a
+ * da anterior, senão o "Nova rotina" (no vazio, o da caixa "Nenhuma rotina ainda"). Um seletor para `focoPendente`.
+ */
+export function destinoAoExcluirRotina(raiz: { querySelectorAll(s: string): ArrayLike<{ getAttribute(n: string): string | null }> }, id: string): string {
+  const ids = Array.from(raiz.querySelectorAll('#espaco [data-act="agenda-linha"][data-id]'), (el) => el.getAttribute("data-id") ?? "").filter((x, i, todos) => x && todos.indexOf(x) === i);
+  const i = ids.indexOf(id);
+  const vizinho = i < 0 ? undefined : ids[i + 1] ?? ids[i - 1];
+  // Um seletor só: `querySelector` com vírgula pega o primeiro na ordem do documento (o "Nova rotina" do cabeçalho).
+  return vizinho ? `#espaco [data-act="agenda-linha"][data-id="${cssId(vizinho)}"]` : '#espaco [data-act="navegar"][data-tela="nova-rotina"]';
+}
+
+/** O id (uuid) dentro de aspas num seletor de atributo; fora de navegador não há `CSS.escape`. */
+function cssId(id: string): string {
+  return id.replace(/["\\]/g, "\\$&");
+}

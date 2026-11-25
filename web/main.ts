@@ -215,6 +215,7 @@ import { umaPorVez } from "./lib/uma-por-vez.ts";
 import { inventarioEmUso, motorDesatualizado, situacaoMotorFora } from "./telas/frota.ts";
 import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas/ia-fora.ts";
 import { renderRotinas } from "./telas/rotinas.ts";
+import { destinoAoExcluirRotina } from "./telas/agenda-rotinas.ts";
 import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sala.ts";
 import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
 import { aparenciaDoComposer, topoDoComposer } from "./telas/pergunta.ts";
@@ -2554,14 +2555,30 @@ function ativarRotina(id: string): Promise<void> {
 }
 /** PR #333 (achado 4): Excluir pela tela de Rotinas, depois do "Excluir esta rotina?" (cancelar não muda nada). */
 function excluirRotinaPelaTela(id: string, titulo: string, ancora: HTMLElement): Promise<void> {
+  // QA r235: o "ocupado" do agir redesenha a linha (o Excluir que pediu sai do documento) e, excluída, a linha some; sem
+  // destino, o foco caía no <body> nos dois casos. Cancelar volta ao Excluir redesenhado; excluir vai à rotina vizinha.
+  const seletorDoExcluir = `#espaco [data-act="excluir-rotina"][data-id="${CSS.escape(id)}"]`;
+  const destino = destinoAoExcluirRotina(document, id);
   return agir(async () => {
     const texto = `«${titulo}» para de rodar e sai da lista. As execuções passadas continuam na conversa do bot.`;
     const sim = moduloDosDialogos
-      ? await moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "excluir-rotina-titulo", titulo: "Excluir esta rotina?", texto, cancelar: "Cancelar", confirmar: "Excluir", principal: "cancelar", origem: ancora })
+      ? await moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "excluir-rotina-titulo", titulo: "Excluir esta rotina?", texto, cancelar: "Cancelar", confirmar: "Excluir", principal: "cancelar", origem: ancora, reencontrar: () => document.querySelector<HTMLElement>(seletorDoExcluir) })
       : window.confirm(`Excluir esta rotina?\n\n${texto}`);
     if (!sim) return;
     await api!.excluirRotina(id);
+    // O diálogo ainda pode estar fechando (o foco segue nele e o próximo desenho descartaria o destino). Depois, enquanto
+    // a lista não relê, o foco fica no Excluir (casa com o seletor); quando a linha some, vai ao destino.
+    await esperarDialogoFechar();
+    focoPendente.lembrar(`${seletorDoExcluir}, ${destino}`);
     dispatch({ tipo: "invalidar", quais: ["rotinas"] });
+  });
+}
+/** QA r235: até o diálogo de confirmação sair da página (a animação de fechar devolve o foco); no máximo 1,5 s. */
+function esperarDialogoFechar(): Promise<void> {
+  const fim = Date.now() + 1500;
+  return new Promise((ok) => {
+    const ver = (): void => { if (!document.querySelector(".rx-dlg") || Date.now() > fim) ok(); else requestAnimationFrame(ver); };
+    ver();
   });
 }
 /** `ancora`: o botão que pediu (o diálogo "rodar mais uma" abre junto dele). */
@@ -2570,7 +2587,7 @@ function executarRotina(id: string, agenteId: string, ancora: HTMLElement): Prom
     // NOD-272: com execução já aberta, pergunta antes no diálogo próprio (A1 do Gil no #335); cancelar não roda nada.
     // ADR-179 (item 4): a confirmação pelo Dialog do Base UI (o mesmo texto); sem o módulo, o diálogo nativo.
     const perguntar = (p: string): Promise<boolean> => (moduloDosDialogos
-      ? moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: TITULO_JA_NA_FILA, texto: p, cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: ancora })
+      ? moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: TITULO_JA_NA_FILA, texto: p, cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: ancora, reencontrar: () => document.querySelector<HTMLElement>(`#espaco [data-act="executar-rotina"][data-id="${CSS.escape(id)}"], [data-act="executar-rotina"][data-id="${CSS.escape(id)}"]`) })
       : abrirRodarMaisUma(p, ancora));
     const r = await executarRotinaComConfirmacao((o) => api!.executarRotina(id, o), perguntar);
     if (!r) return;
