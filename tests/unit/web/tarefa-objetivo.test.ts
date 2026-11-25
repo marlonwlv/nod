@@ -6,7 +6,6 @@ import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
 import { comArquivadas, htmlDasArquivadas, passoDaTarefa, prontas, trabalhosDaTela } from "../../../web/telas/tela-tarefas.ts";
 import { renderIconeTrabalhos } from "../../../web/telas/trabalhos.ts";
-import { readFileSync } from "node:fs";
 import { campoDaTarefa, htmlObjetivoDaTarefa, htmlSaidaDaParada, linhaDoFim, rotuloDoObjetivo } from "../../../web/telas/tarefa-detalhada.ts";
 
 /**
