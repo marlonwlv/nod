@@ -36,7 +36,9 @@ export function eventsRepo(conn: Conn, escopo: Escopo) {
         ids.push(linha.id);
       }
       // #218: acorda o despachante deste processo (o passo ocioso dele é de até 5 s); a entrega continua na consulta dele.
-      if (ids.length > 0) avisarOutbox();
+      // 2026-11-23: e o `puxar` das máquinas destas pessoas — a da sessão (dona do turno que a mesma tx gravou, sob RLS)
+      // e as de destino.
+      if (ids.length > 0) avisarOutbox([...new Set([escopo.pessoaId, ...eventos.map((ev) => ev.pessoaDestinoId)])]);
       return { ids };
     },
 

@@ -109,7 +109,7 @@ describe("skill /acao-no-chat (NOD-392)", () => {
       "Efeito fora do banco vai em `Deps.aposCommit` (ADR-135 §4)",
       "Ação que fica `falta` não sobe o piso e diz a onda.",
       "Ação `parcial` ou `nunca` leva registro e rota, e a linha diz a divergência ou o motivo.",
-      "entra na união `EfeitoAposCommit` e ganha o seu ramo em `rodarAposCommit` (`src/adapters/http/compor.ts`), que hoje desliga o computador, limpa o computador removido e traz a importação do Linear em segundo plano.",
+      "entra na união `EfeitoAposCommit` e ganha o seu ramo em `rodarAposCommit` (`src/adapters/http/compor.ts`), que hoje desliga o computador, limpa o computador removido, traz a importação do Linear em segundo plano e solta os pedidos dispensados do navegador do bot.",
       "**O cartão só sai do risco sozinho no lote do `gerir_bots`** (`riscoDaAcao` em `src/domain/lote-bots.ts`; o modo, o de quem recebe o pedido, lá o do Nod, entra em `decidirLote`; hoje, lá, `leitura` segue o modo como `muda`).",
       "`leitura` não consulta o modo; `pessoa_confirma` vira cartão antes do modo",
       "`arriscada` vai direto em `semRevisor(decidirPeloModo(modo, { arriscada: true, credencial: false }))` (modo atual do bot; sem plano, manual), nunca por `confirmacaoPeloModo`",
@@ -176,10 +176,12 @@ describe("skill /acao-no-chat (NOD-392)", () => {
     expect(modelo).toContain("lote (só se entra no `gerir_bots`): lote.tipo = via.tipoNoLote, `riscoDe`/`deFora` se o risco muda com o argumento ou depois de conteúdo de fora, o tipo em `TIPOS_ACAO_LOTE` e o `case` em `src/use-cases/gerir-bots.ts`");
     expect(ler("src/use-cases/chamar-ferramenta.ts")).toMatch(/\bgerir_bots: \(/);
     expect(ler("src/use-cases/gerir-bots.ts")).toMatch(/case "[a-z_]+":[\s\S]*?EXECUTORES_BOTS\[/);
-    // o efeito pós-commit: a união tem três tipos, e rodarAposCommit desliga o computador, limpa o removido (ADA-245) e traz a importação do Linear
-    const hoje = 'efeito novo: atualize o "hoje desliga o computador, limpa o computador removido e traz a importação do Linear" da skill e este teste';
-    expect([...ler("src/contracts/acoes.ts").matchAll(/export type EfeitoAposCommit =[\s\S]*?};/g)][0]?.[0].match(/tipo:/g), hoje).toHaveLength(3);
-    expect(ler("src/adapters/http/compor.ts"), hoje).toMatch(/rodarAposCommit = [\s\S]*?desligarExcluido[\s\S]*?removerDepoisDoCommit[\s\S]*?trazerImportacao/);
+    // o efeito pós-commit: a união tem quatro tipos, e rodarAposCommit desliga o computador, limpa o removido (ADA-245), solta os
+    // pedidos dispensados do navegador (ADR-191 no navegador, 2026-11-22) e traz a importação do Linear
+    const hoje = 'efeito novo: atualize o "hoje desliga o computador, limpa o computador removido, traz a importação do Linear e solta os pedidos dispensados do navegador" da skill e este teste';
+    expect([...ler("src/contracts/acoes.ts").matchAll(/export type EfeitoAposCommit =[\s\S]*?};/g)][0]?.[0].match(/tipo:/g), hoje).toHaveLength(4);
+    expect(ler("src/adapters/http/compor.ts"), hoje).toMatch(/rodarAposCommit = [\s\S]*?desligarExcluido[\s\S]*?removerDepoisDoCommit[\s\S]*?pedidosDispensados[\s\S]*?trazerImportacao/);
+    expect(ler(".claude/skills/acao-no-chat/SKILL.md"), hoje).toContain("solta os pedidos dispensados do navegador do bot");
     expect(so(plano)).toContain('"Ignorar todas as aprovações" não pula o `pessoa_confirma`');
     expect(plano).toMatch(/QA testa os dois caminhos/);
   });

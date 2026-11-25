@@ -328,7 +328,7 @@ jobs:
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git fetch --no-tags --depth=1 origin "$BASE"; then
             echo "roda=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if git diff --name-only "$BASE" HEAD | grep -qE '^(motor/|src/adapters/executor/|src/adapters/mcp-proxy/|src/adapters/conectores-locais/|src/contracts/|src/shared/|src/domain/|scripts/motor/|scripts/windows/|src/adapters/http/motor-instalacao(-windows)?\.ts$|src/adapters/http/rotas/motor\.ts$|src/adapters/http/servidor\.ts$|tests/windows/|desktop/windows/|desktop/atualizacao\.ts$|scripts/desktop/build\.mjs$|electron-builder-windows\.yml$|tsconfig(\.motor|\.desktop)?\.json$|\.github/workflows/ci\.yml$|package(-lock)?\.json$|vitest\.config\.ts$)'; then
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(motor/|src/adapters/executor/|src/adapters/mcp-proxy/|src/adapters/conectores-locais/|src/contracts/|src/shared/|src/domain/|scripts/motor/|scripts/windows/|src/adapters/http/motor-instalacao(-windows)?\.ts$|src/adapters/http/rotas/motor\.ts$|src/adapters/http/servidor\.ts$|tests/windows/|desktop/windows/|desktop/cofres-do-(mac|windows)\.ts$|desktop/cookies-do-chrome-windows\.ts$|src/adapters/navegador/|extensao-chrome/|desktop/atualizacao\.ts$|scripts/desktop/build\.mjs$|electron-builder-windows\.yml$|tsconfig(\.motor|\.desktop)?\.json$|\.github/workflows/ci\.yml$|package(-lock)?\.json$|vitest\.config\.ts$)'; then
             echo "roda=true" >> "$GITHUB_OUTPUT"
           else
             echo "roda=false" >> "$GITHUB_OUTPUT"

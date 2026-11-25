@@ -14,7 +14,17 @@ export function rotuloDoMac(celular = ehCelular()): string {
   return celular ? "Seu Mac" : "Este Mac";
 }
 
-/** O detalhe do Tema: no celular, o sistema é o do aparelho, não o macOS. */
-export function detalheDoTema(celular = ehCelular()): string {
-  return celular ? "Sistema segue o modo claro ou escuro do aparelho" : "Sistema acompanha o modo claro ou escuro do macOS. Vale para este computador.";
+/** O sistema do computador pelo `navigator.platform` ("MacIntel", "Win32", "Linux x86_64"); fora do navegador, vazio. */
+function plataformaAtual(): string {
+  return (globalThis as { navigator?: { platform?: string } }).navigator?.platform ?? "";
+}
+
+/**
+ * O detalhe do Tema: no celular, o sistema é o do aparelho, não o macOS. PR #333 (achado 7, QA do rc.10 no Windows): no
+ * Windows o texto dizia "macOS"; agora nomeia o sistema de verdade (Mac → macOS, Windows → Windows, outro → do sistema).
+ */
+export function detalheDoTema(celular = ehCelular(), plataforma = plataformaAtual()): string {
+  if (celular) return "Sistema segue o modo claro ou escuro do aparelho";
+  const sistema = /Win/i.test(plataforma) ? "do Windows" : /Linux|X11|CrOS/i.test(plataforma) ? "do sistema" : "do macOS";
+  return `Sistema acompanha o modo claro ou escuro ${sistema}. Vale para este computador.`;
 }

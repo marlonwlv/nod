@@ -28,6 +28,10 @@ import { substituirAprovacoesAbertas } from "./substituir-aprovacoes.ts";
 import { donosDosBots, presencaDasMaquinas } from "./estado-do-dono.ts";
 import { trabalhosParaDto } from "./trabalhos.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
+import type { RuntimeEvent } from "../contracts/evento.ts";
+import { cartaoDoDesvio } from "../domain/desvios-da-conversa.ts";
+import { CONTATO_RECENTE_MS } from "./contas-do-turno.ts";
+import { alvoDoBot } from "./alvo-do-bot.ts";
 
 export type EntradaEnviarMensagem = {
   conversaId: string;
@@ -185,6 +189,7 @@ export const enviarMensagem: CasoDeUso<EntradaEnviarMensagem, SaidaEnviarMensage
     if (negacao) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { mensagem_id: negacao.id, kind: "negacao" } }));
   } else {
     events.push(evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { origem, agente_id: agente.id } }));
+    if (conversa.tipo === "propria") events.push(...(await avisarComputadorForaDoAr(deps, { conversaId: conversa.id, turnoId: turno.id, agenteId: agente.id, nomeDoBot: agente.nome, executor, agora })));
   }
   return { data: { mensagem, turno, negacao }, events };
 };
@@ -204,6 +209,29 @@ async function envioRepetido(deps: Deps, existente: Mensagem, texto: string, ane
   if (!turno) throw new ErroDeDominio("estado_invalido", { cause: "id_envio sem turno" });
   log("info", "envio_repetido", { conversa_id: existente.conversaId, mensagem_id: existente.id });
   return { mensagem: anexos.length > 0 ? { ...existente, anexos } : existente, turno, negacao: null };
+}
+
+/**
+ * Lote B das Jornadas da IA (desvio 7, regra 6, definido em 2026-11-22): o envio olha a máquina do bot AGORA (o último
+ * puxar dela, `ultimo_uso_em`), não só o inventário gravado. Sem contato há mais de 2 min, a mensagem segue na fila — sai
+ * quando a máquina voltar — e a conversa avisa na hora, com "Rodar no <outra> desta vez" quando outra máquina está viva.
+ * Antes ela esperava calada por até 24 h. Sem máquina do bot nem padrão, nada a dizer (qualquer máquina viva pega).
+ */
+async function avisarComputadorForaDoAr(deps: Deps, p: { conversaId: string; turnoId: string; agenteId: string; nomeDoBot: string; executor: Executor; agora: number }): Promise<RuntimeEvent[]> {
+  const alvo = await alvoDoBot(deps, p.agenteId);
+  if (!alvo) return [];
+  const chaves = await deps.repos.maquinaTokens.listar();
+  const viva = (k: (typeof chaves)[number]) => k.revogadaEm === null && k.papel !== "computador" && k.ultimoUsoEm !== null && p.agora - k.ultimoUsoEm < CONTATO_RECENTE_MS;
+  const doBot = chaves.find((k) => k.id === alvo.id);
+  if (!doBot || viva(doBot)) return [];
+  const outra = chaves.find((k) => k.id !== alvo.id && viva(k)) ?? null;
+  const cartao = cartaoDoDesvio("computador_fora", { bot: p.nomeDoBot, ia: "", maquina: alvo.nome, outraMaquina: outra ? { id: outra.id, nome: outra.nome } : null }, { agora: p.agora, turnoId: p.turnoId });
+  // O "desta vez" move os pendentes da conversa (a rota sem turno): a mensagem ainda não rodou.
+  const payload = { ...cartao, botoes: cartao.botoes.map((b) => (b.acao === "rodar_em_outra_maquina" ? { ...b, dados: { maquinaId: b.dados?.maquinaId ?? "", maquinaNome: b.dados?.maquinaNome ?? "" } } : b)) };
+  const autoria = autoriaAgente({ agenteId: p.agenteId, contaDeExecucao: deps.escopo.pessoaId, executor: p.executor, localityReason: "motor_ausente" });
+  const m = await deps.repos.mensagens.criar({ conversaId: p.conversaId, turnoId: p.turnoId, autoria, kind: "sistema", texto: `${payload.titulo}. ${payload.texto}`, payload, confianca: "confiavel" });
+  log("info", "envio_maquina_fora_do_ar", { turno_id: p.turnoId, machine_id: alvo.id, outra: outra?.id ?? null });
+  return m ? [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: p.agora, conversaId: p.conversaId, turnoId: p.turnoId, dados: { mensagem_id: m.id, kind: "sistema" } })] : [];
 }
 
 /**
@@ -305,8 +333,11 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   ]);
   // Cancelado antes de rodar = interrompido pela pessoa sem nunca ter sido reivindicado (attempted
   // nasce false e só o reivindicar o liga). Um Parar no meio da execução não entra: aquele rodou.
+  // Lote B (auditoria de 2026-11-22): a cópia que esperava e saiu da fila porque um botão do cartão refez a fala
+  // ("Responder com o Claude desta vez") não foi cancelada pela pessoa: um turno mais novo da mesma fala a substituiu.
+  const substituida = (t: (typeof turnosRecentes)[number]) => turnosRecentes.some((o) => o.id !== t.id && o.mensagemOrigemId === t.mensagemOrigemId && o.criadoEm > t.criadoEm);
   const turnosCancelados = turnosRecentes
-    .filter((t) => t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && !t.sinais.attempted && t.mensagemOrigemId)
+    .filter((t) => t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && !t.sinais.attempted && t.mensagemOrigemId && !substituida(t))
     .map((t) => ({ id: t.id, mensagemId: t.mensagemOrigemId as string }));
   const turnosEmCurso = vivos
     .filter((t): t is typeof t & { estado: "pendente" | "despachando" } => t.estado === "pendente" || t.estado === "despachando")

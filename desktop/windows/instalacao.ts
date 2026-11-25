@@ -1,4 +1,5 @@
 import type { ChildProcess } from "node:child_process";
+import { servidorValido } from "../../motor/atualizacao-no-windows.ts";
 
 /**
  * ADA-229 (ADR-152, item 4): o app instala o motor rodando o script `/windows` da ADR-151 num PowerShell oculto. A
@@ -12,9 +13,7 @@ export const TAREFA_DO_MOTOR = "nod-motor";
 export const MARCA_RESULTADO = "NOD_INSTALACAO_RESULTADO=";
 
 /** Só https://host (ou http em loopback, na CI): o endereço entra entre aspas simples no PowerShell. */
-export function servidorValido(servidor: string): boolean {
-  return /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$/.test(servidor) || /^http:\/\/(127\.0\.0\.1|localhost)(:[0-9]{1,5})?$/.test(servidor);
-}
+export { servidorValido };
 
 export type Comando = { arquivo: string; args: string[] };
 

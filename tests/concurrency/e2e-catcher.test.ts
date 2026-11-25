@@ -1,3 +1,4 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -535,7 +536,8 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
     const casos = [
       // ADR-171 (falhas tipadas): o crédito acabado tem frase própria.
       { erro: "Credit balance is too low", aviso: "Turno interrompido: a conta da sua IA está sem crédito ou com fatura em aberto; espere o uso renovar e tente de novo." },
-      { erro: "API Error: 529 overloaded", aviso: "Turno interrompido: o serviço da sua IA está instável ou fora do ar; tente de novo em alguns minutos." },
+      // Lote B (ADR-192, desvio 5): o serviço instável não para a mensagem; a linha discreta diz que o nod tenta de novo.
+      { erro: "API Error: 529 overloaded", aviso: "A sua IA está instável. Tentando de novo em 30 s (1 de 3).", repete: true },
     ];
     for (const c of casos) {
       const { turnoId } = await enviar(bot.conversa.id, `veja a planilha [[delta: Vou olhar a planilha.]] [[falha: ${c.erro}]]`);
@@ -553,6 +555,8 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
       expect(JSON.stringify(doTurno)).not.toContain(c.erro);
       const [diag] = await comoPessoa((trx) => trx<{ erro_cru: string | null }[]>`select erro_cru from turno_diagnosticos where turno_id = ${turnoId}`);
       expect(diag?.erro_cru).toContain(c.erro);
+      // A repetição automática (daqui a 30 s) falharia de novo: o Parar a tira da fila para não rodar nas jornadas seguintes.
+      if (c.repete) expect((await json<FaixaParada>("POST", `conversas/${bot.conversa.id}/parar`)).nadaRodando).toBe(false);
     }
   });
 
@@ -578,9 +582,10 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
     expect(deNovo.nadaRodando).toBe(true);
 
     // A máquina some no meio de um turno: o lease vence, o varredor encerra com 'maquina_sem_contato' e abre 'retomar?' em Sua vez.
+    // Lote B (ADR-192, desvio 12): a queda volta sozinha uma vez; com a mensagem no teto de tentativas, sobra o Retomar.
     const outro = await enviar(vera.conversaId, `de novo ${longo} [[texto: outro relatório]]`);
     await esperarFrame("agente.estado", frames.length - 1, (f) => compondoNo(f) === outro.turnoId);
-    await comoPessoa((trx) => trx`update turnos set lease_ate = now() - interval '1 minute' where id = ${outro.turnoId}`);
+    await comoPessoa((trx) => trx`update turnos set lease_ate = now() - interval '1 minute', reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${outro.turnoId}`);
     const sumido = await esperarTurno(outro.turnoId, ["interrompido"]);
     expect(sumido.motivoInterrupcao).toBe("maquina_sem_contato");
     const fila = await json<SuaVezDto>("GET", "sua-vez");

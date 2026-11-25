@@ -31,6 +31,13 @@ describe("respostas prontas (opcoes)", () => {
     expect(normalizarPedidoAPessoa({ tipo: "permissao_total", opcoes: "sim" })).toEqual({ tipo: "pergunta", texto: "(pedido sem texto)" });
   });
 
+  it("a frase em `pergunta` e as opções como texto JSON viram texto e opções (prova real: o cartão saía '(pedido sem texto)')", () => {
+    expect(normalizarPedidoAPessoa({ pergunta: "Quer que eu faça isso sozinho?", opcoes: ["Todo dia às 9h", "Só quando eu pedir"] })).toEqual({ tipo: "pergunta", texto: "Quer que eu faça isso sozinho?", opcoes: ["Todo dia às 9h", "Só quando eu pedir"] });
+    expect(normalizarPedidoAPessoa({ pergunta: "Faço sozinho?", opcoes: '["Todo dia às 9h", "Só quando eu pedir"]' })).toEqual({ tipo: "pergunta", texto: "Faço sozinho?", opcoes: ["Todo dia às 9h", "Só quando eu pedir"] });
+    // `texto` manda quando os dois vêm; texto JSON quebrado não vira opção.
+    expect(normalizarPedidoAPessoa({ texto: "A", pergunta: "B", opcoes: "[Sim, Não" })).toEqual({ tipo: "pergunta", texto: "A" });
+  });
+
   it("recomendada: a opção segue pela origem depois de repetidas e longas saírem, e vai para a primeira (recomendada: 0)", () => {
     const longa = "x".repeat(MAX_CARACTERES_OPCAO + 1);
     // Índice 3 bruto ("Tentar de novo") vira o 2 depois que a longa sai — e sobe para A.
@@ -143,4 +150,41 @@ it.each(["automatico", "total"] as const)("confirmação explicitamente pedida p
   expect(banco.turnos.filter((t) => t.retomaTurnoId === turno.id)).toHaveLength(0);
 });
 
+});
+
+describe("quem_destrava com nome repetido ou desconhecido (QA-236)", () => {
+  const ANA_LIMA = "00000000-0000-4000-8000-0000000a11aa";
+  const ANA_SOUZA = "00000000-0000-4000-8000-0000000a22bb";
+  async function cenario() {
+    const { deps, banco } = depsEmMemoria();
+    banco.pessoas.push({ tenantId: MARLON.tenantId, id: MARLON.pessoaId, nome: "Marlon", iniciais: "M", email: null });
+    banco.pessoas.push({ tenantId: MARLON.tenantId, id: ANA_LIMA, nome: "Ana Lima", iniciais: "AL", email: null });
+    banco.pessoas.push({ tenantId: MARLON.tenantId, id: ANA_SOUZA, nome: "Ana Souza", iniciais: "AS", email: null });
+    const { data: bot } = await criarAgente(deps, { dono: "pessoa", nome: "Nina" });
+    const turno = await deps.repos.turnos.enfileirar({ executor: "catcher", conversaId: bot.conversa.id, agenteId: bot.agente.id, origem: "conversa", prazoEm: deps.agora() + 60_000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "sonnet" });
+    if (!turno) throw new Error("turno");
+    const pedir = (quem: string) => pedirAPessoa(deps, { turnoId: turno.id, conversaId: bot.conversa.id, agenteId: bot.agente.id, tipo: "pergunta", texto: "Posso publicar?", quem_destrava: quem });
+    return { banco, pedir };
+  }
+
+  it("primeiro nome de duas pessoas: não escolhe uma calada; vai à dona e o aviso traz o id de cada homônima", async () => {
+    const { banco, pedir } = await cenario();
+    const r = await pedir("ana");
+    expect(banco.decisoes.find((d) => d.id === r.data.decisao_id)?.decisorId).toBe(MARLON.pessoaId);
+    expect(r.data.aviso).toContain(ANA_LIMA);
+    expect(r.data.aviso).toContain(ANA_SOUZA);
+    expect(r.data.aviso).toContain("Marlon");
+  });
+
+  it("nome que não existe vai à dona com aviso; nome inteiro, primeiro nome único e id acertam sem aviso", async () => {
+    const { banco, pedir } = await cenario();
+    const fantasma = await pedir("Beatriz");
+    expect(banco.decisoes.find((d) => d.id === fantasma.data.decisao_id)?.decisorId).toBe(MARLON.pessoaId);
+    expect(fantasma.data.aviso).toContain("Beatriz");
+    for (const [quem, id] of [["Ana Souza", ANA_SOUZA], [ANA_LIMA, ANA_LIMA], ["marlon", MARLON.pessoaId]] as const) {
+      const r = await pedir(quem);
+      expect(banco.decisoes.find((d) => d.id === r.data.decisao_id)?.decisorId).toBe(id);
+      expect(r.data.aviso).toBeUndefined();
+    }
+  });
 });
