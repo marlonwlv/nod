@@ -19,6 +19,8 @@ body.bko-pagina { margin: 0; min-height: 100vh; background: var(--surface); colo
 .bko-principal { min-inline-size: 0; padding: 28px 32px 64px; max-inline-size: 1180px; box-sizing: border-box; }
 .bko-topo { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-block-end: 24px; }
 .bko-topo h1 { margin: 0; }
+/* foco-ok: o título recebe o foco por código ao trocar de tela (QA r220), só para o leitor de tela anunciar; não é controle. */
+.bko-topo h1:focus { outline: none; }
 .bko-nota { margin: 4px 0 0; color: var(--ink-3); }
 .bko-sozinho { min-block-size: 100vh; display: grid; place-content: center; text-align: center; }
 
@@ -61,7 +63,7 @@ body.bko-pagina { margin: 0; min-height: 100vh; background: var(--surface); colo
 .bko-barras svg { display: block; inline-size: 100%; block-size: 120px; }
 .bko-barras rect { fill: var(--ink-2); }
 .bko-barras rect:hover { fill: var(--link); }
-.bko-eixo { display: flex; justify-content: space-between; margin-block-start: 6px; color: var(--ink-4); }
+.bko-eixo { display: flex; justify-content: space-between; margin-block-start: 6px; color: var(--ink-3); }
 .bko-faisca { inline-size: 96px; block-size: 20px; flex: none; }
 .bko-faisca polyline { stroke: var(--warning); stroke-width: 1.6; }
 
@@ -104,7 +106,7 @@ body.bko-pagina { margin: 0; min-height: 100vh; background: var(--surface); colo
 .bko-casos { display: flex; flex-direction: column; gap: 4px; margin-block-start: 8px; font-size: var(--fs-corpo-2); }
 .bko-casos li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 4px 0; border-block-start: 1px solid var(--borda-sutil); }
 .bko-alvo { padding: 0 6px; border-radius: var(--raio-6); background: var(--hover); color: var(--ink-2); }
-.bko-ids { display: inline-flex; gap: 6px; color: var(--ink-4); }
+.bko-ids { display: inline-flex; gap: 6px; color: var(--ink-3); }
 .bko-ids code { font-size: var(--fs-legenda); user-select: all; }
 
 .bko-linha { display: flex; flex-direction: column; border-inline-start: 1px solid var(--divisoria); margin-inline-start: 6px; }
