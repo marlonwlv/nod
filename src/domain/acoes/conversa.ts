@@ -1,6 +1,6 @@
 import type { DefinicaoAcao } from "../../contracts/acoes.ts";
 import { FERRAMENTAS_DO_NOD } from "../../contracts/ferramentas-do-nod.ts";
-import { FERRAMENTAS_TRABALHO } from "../../contracts/ferramentas-trabalho.ts";
+import { FERRAMENTAS_FRENTE } from "../../contracts/ferramentas-frente.ts";
 import { PROPRIEDADES_NAO_LIDOS } from "../../contracts/ferramentas-nao-lidos.ts";
 import { PROPRIEDADES_QUADRO } from "../../contracts/ferramentas-quadro.ts";
 import type { JsonSchema } from "../../contracts/json-schema.ts";
@@ -64,10 +64,11 @@ export const ACOES_CONVERSA = [
   {
     id: "trabalhos.abrir",
     titulo: "Abrir uma tarefa",
-    schema: FERRAMENTAS_TRABALHO.abrir_task,
+    // QA-190: pelo abrir_frentes, que está no catálogo; o abrir_task é só sinônimo, fora de todo catálogo (o gateway o nega).
+    schema: FERRAMENTAS_FRENTE.abrir_frentes,
     risco: "muda",
     cartaoNoChat: false,
-    chat: { estado: "parcial", via: { ferramenta: "abrir_task" }, falta: "pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato" },
+    chat: { estado: "parcial", via: { ferramenta: "abrir_frentes" }, falta: "pelo chat quem escreve o pedido é o bot (abrir_frentes, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato" },
   },
   // ADR-187 §6 (2026-11-18): renomear a tarefa na aba. No chat ainda não: nenhuma ferramenta do bot muda o título (a
   // mesma onda das irmãs parar, depois e fazer_aqui).

@@ -68,7 +68,7 @@ export function fraseDaTroca(p: {
   const apelido = p.contaDe ?? p.contaQueParou ?? null;
   const quem = apelido ? `A conta ${apelido} do ${p.nomeDe}` : `O ${p.nomeDe}`;
   const quandoVolta = volta ? ` · volta ${volta}` : ` · o ${p.nomeDe} não disse quando volta`;
-  const fora = p.foraDaMaquina ? ` O ${p.foraDaMaquina.nome} não está ${p.foraDaMaquina.maquina ? `em ${p.foraDaMaquina.maquina}, ` : "n"}a máquina do ${p.nomeDoBot}.` : "";
+  const fora = p.foraDaMaquina ? ` O ${p.foraDaMaquina.nome} não está ${p.foraDaMaquina.maquina ? `em ${p.foraDaMaquina.maquina}, ` : "n"}a máquina de ${p.nomeDoBot}.` : "";
   const destino = p.contaDe ? `outra conta do ${p.nomeDe}` : `o ${p.nomePara}`;
   const recomenda = p.recomendacao === "esperar" || !p.nomePara
     ? `Para ${tasks}, recomendo esperar o ${p.nomeDe}: continuam de onde pararam.`

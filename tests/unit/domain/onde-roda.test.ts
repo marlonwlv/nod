@@ -18,6 +18,8 @@ describe("ondeRodaDaRotina", () => {
     // ADA-11 (ADR-147): o PC com Windows não é o Mac — não depende dele nem vira "seu Mac" no qualquer.
     ["alvo Windows", { id: pc.id, nome: pc.nome }, [mac, pc], { modo: "maquina", maquina: pc, dependeDoMac: false }],
     ["qualquer com Windows e Mac nomeia o Mac", null, [pc, mac], { modo: "qualquer", maquina: mac, dependeDoMac: true }],
+    // PR #333 (achado 1): só o PC com Windows vivo — ele leva o "qualquer", sem "seu Mac" e sem depender do Mac.
+    ["qualquer só com Windows nomeia o PC e não depende do Mac", null, [pc], { modo: "qualquer", maquina: pc, dependeDoMac: false }],
   ] as const)("%s", (_, alvo, vivas, esperado) => {
     expect(ondeRodaDaRotina(alvo, vivas)).toEqual(esperado);
   });

@@ -19,6 +19,8 @@ export type ApiDasTarefas = {
 export type DepsDasTarefas = {
   api: () => ApiDasTarefas;
   avatar: (agenteId: string | null) => string;
+  /** QA-181: o nome de quem lê (as iniciais do "Você" nas linhas sem bot). */
+  voce?: () => string | null;
   /** Abre a tarefa no quadro do dono (a conversa dele, página Tarefas, a tarefa aberta). */
   abrirTarefa: (donoId: string, tarefaId: string, quadroId: string) => void;
   /** Abre a página Tarefas do bot (no quadro pedido, se houver). */
@@ -97,7 +99,7 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
     const campo = el.querySelector<HTMLInputElement>('[data-tdt="busca"]');
     const comFoco = !!campo && doc.activeElement === campo;
     const sel = campo ? [campo.selectionStart, campo.selectionEnd] as const : null;
-    el.innerHTML = renderTarefasDeTodos({ carga: carga(), vista, filtros, avatar: deps.avatar });
+    el.innerHTML = renderTarefasDeTodos({ carga: carga(), vista, filtros, avatar: deps.avatar, voceNome: deps.voce?.() ?? null });
     if (comFoco) {
       const novo = el.querySelector<HTMLInputElement>('[data-tdt="busca"]');
       novo?.focus();

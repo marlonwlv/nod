@@ -3,7 +3,7 @@ import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { CasoNod } from "../contracts/servicos.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { appDaPagina, homeDoBot, PAGINA_CONVERSA, PAGINA_TAREFAS } from "../domain/apps-do-bot.ts";
-import { editarApp, listarPaginas, ordenarPaginas, proporApp, removerApp, restaurarApp, type Autor, type Falha } from "./apps-do-bot.ts";
+import { botDaPessoa, editarApp, listarPaginas, ordenarPaginas, proporApp, removerApp, restaurarApp, type Autor, type Falha } from "./apps-do-bot.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
@@ -38,7 +38,7 @@ const naConversa = (t: Pick<Turno, "origem" | "profundidade">): boolean => t.ori
 /** O nome da página como a pessoa a vê na pílula. */
 const nome = (p: PaginasDto, id: string): string => (id === PAGINA_CONVERSA ? "Conversa" : id === PAGINA_TAREFAS ? "Tarefas" : p.apps.find((a) => a.id === appDaPagina(id))?.nome ?? id);
 
-function resumo(p: PaginasDto, instrucao: string, extra: { proposta_id?: string; cards_fechados?: { proposta_id: string; nome: string }[]; app_id?: string } = {}): ResultadoGerirApps {
+function resumo(p: PaginasDto, instrucao: string, extra: { proposta_id?: string; cards_fechados?: { proposta_id: string; nome: string }[]; app_id?: string; ja_estava?: true } = {}): ResultadoGerirApps {
   return {
     ok: true,
     paginas: p.ordem.map((id, i) => ({ pagina: id, nome: nome(p, id), posicao: i + 1 })),
@@ -86,9 +86,8 @@ export const gerirApps: CasoNod<Deps, "gerir_apps"> = async (deps, input) => {
   let agenteId = input.agenteId;
   let nomeDoAlvo: string | null = null;
   if (input.bot !== undefined && input.op !== "propor") {
-    const l = await deps.repos.agentes.buscar(/^[0-9a-f-]{36}$/i.test(input.bot) ? input.bot : "00000000-0000-0000-0000-000000000000");
-    const a = l ?? (await deps.repos.agentes.buscarPorNome(input.bot));
-    if (!a || a.ownerId !== deps.escopo.pessoaId) return recusa({ ok: false, erro: "nao_encontrado", detalhe: `a pessoa não tem um bot chamado ${input.bot}` });
+    const a = await botDaPessoa(deps, input.bot);
+    if (!a.ok) return recusa(a);
     agenteId = a.id;
     if (a.id !== input.agenteId) nomeDoAlvo = a.nome;
   }
@@ -143,12 +142,14 @@ export const gerirApps: CasoNod<Deps, "gerir_apps"> = async (deps, input) => {
       if (!limpo) return recusa({ ok: false, erro: "entrada_invalida", detalhe: SO_LIMPO });
       const r = await removerApp(deps, { ...comum, app: input.app ?? "" });
       if (!r.data.ok) return recusa(r.data, r.events);
+      if (r.data.jaEstava) return { data: resumo(r.data.paginas, `Já estava: ${r.data.app.nome} já tinha saído da pílula, nada mudou agora. Para desfazer: {op: "restaurar", app: "${r.data.app.id}"}.`, { app_id: r.data.app.id, ja_estava: true }), events: r.events };
       return { data: resumo(r.data.paginas, `Removido: ${r.data.app.nome} saiu da pílula (o dado de origem ficou). Diga isso em uma frase; para desfazer: {op: "restaurar", app: "${r.data.app.id}"}.`, { app_id: r.data.app.id }), events: r.events };
     }
     case "restaurar": {
       if (!conversa) return recusa({ ok: false, erro: "entrada_invalida", detalhe: SO_NA_CONVERSA });
       const r = await restaurarApp(deps, { ...comum, app: input.app ?? "" });
       if (!r.data.ok) return recusa(r.data, r.events);
+      if (r.data.jaEstava) return { data: resumo(r.data.paginas, `Já estava: ${r.data.app.nome} já está na pílula, nada mudou agora.`, { app_id: r.data.app.id, ja_estava: true }), events: r.events };
       return { data: resumo(r.data.paginas, `Feito: ${r.data.app.nome} voltou para a pílula.`, { app_id: r.data.app.id }), events: r.events };
     }
   }

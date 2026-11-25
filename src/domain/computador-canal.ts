@@ -46,6 +46,15 @@ export function textoAssinado(c: Omit<ComandoComputador, "assinatura">): string 
   return formaCanonica(resto);
 }
 
+/**
+ * definido em 2026-11-25 (pedido do Marlon): o computador do bot fica desligado no Mac e no Windows até a reestruturação
+ * do computador; nessas máquinas o bot usa só o navegador (ADR-190). Medido em produção nos 14 dias até 25/11: 1.450
+ * ações concluídas em máquinas Linux e nenhuma fora delas (o Windows anuncia `sem_suporte`, ADR-147). Com `false`, o Mac
+ * não entra em `escolherMaquina`, `lugarPadrao` nem `opcoesDeLugar`, e a pessoa sem máquina Linux fica sem computador
+ * (src/use-cases/computador-tem-lugar.ts). Religar o Mac (ADR-127 §5) = `true`.
+ */
+export const COMPUTADOR_NO_MAC: boolean = false;
+
 /** Uma máquina conectada da pessoa, como o despachante a vê. */
 export type MaquinaCandidata = {
   machineId: string;
@@ -61,13 +70,13 @@ export type MaquinaCandidata = {
  * de contato mais recente. Nunca a máquina do turno. As duas primeiras valem mesmo sem contato: o disco é daquela
  * máquina, e quem chama diz "sem contato" em vez de ligar outra. null = nenhuma máquina conectada serve.
  * ADR-127 §5: sem nenhuma Linux que anuncie o computador, valem os Macs que anunciam (o supervisor na VM local), pelas
- * mesmas regras; com uma Linux anunciando, o Mac não entra.
+ * mesmas regras; com uma Linux anunciando, o Mac não entra. Desde 2026-11-25 o Mac não entra nunca (COMPUTADOR_NO_MAC).
  */
 export function escolherMaquina(p: { maquinaId: string | null; hospedeiraId: string | null; padraoId: string | null; conectadas: readonly MaquinaCandidata[] }): string | null {
   if (p.maquinaId) return p.maquinaId;
   if (p.hospedeiraId) return p.hospedeiraId;
   const linux = p.conectadas.filter((m) => m.plataforma === "linux" && m.computador !== null);
-  const grupo = linux.length ? linux : p.conectadas.filter((m) => m.plataforma === "darwin" && m.computador !== null);
+  const grupo = linux.length || !COMPUTADOR_NO_MAC ? linux : p.conectadas.filter((m) => m.plataforma === "darwin" && m.computador !== null);
   const prontas = grupo.filter((m) => m.computador === "pronto");
   if (prontas.length === 1) return prontas[0]!.machineId;
   const padrao = p.padraoId ? prontas.find((m) => m.machineId === p.padraoId) : undefined;
@@ -88,7 +97,7 @@ export function lugarPadrao(vivas: readonly (MaquinaCandidata & { vmLocal?: unkn
     ?? (padraoId && l.some((m) => m.machineId === padraoId) ? padraoId : null)
     ?? [...l].sort((a, b) => b.ultimoContato - a.ultimoContato)[0]?.machineId ?? null;
   return recente(vivas.filter((m) => m.plataforma === "linux" && m.computador === "pronto"))
-    ?? recente(vivas.filter((m) => m.plataforma === "darwin" && m.computador !== null && m.computador !== "sem_suporte" && m.vmLocal !== undefined));
+    ?? (COMPUTADOR_NO_MAC ? recente(vivas.filter((m) => m.plataforma === "darwin" && m.computador !== null && m.computador !== "sem_suporte" && m.vmLocal !== undefined)) : null);
 }
 
 /** As três formas de lugar da seção "Onde o computador mora" (NOD-365). */
@@ -105,7 +114,7 @@ export type OpcaoDeLugar = { maquinaId: string; nome: string; tipo: TipoDeLugar;
  */
 export function opcoesDeLugar(conectadas: readonly LugarCandidato[], atual: { maquinaId: string; nome: string; papel: "motor" | "computador"; plataforma: MaquinaCandidata["plataforma"] } | null): OpcaoDeLugar[] {
   const tipoDe = (m: { plataforma: MaquinaCandidata["plataforma"]; papel: "motor" | "computador" }): TipoDeLugar | null =>
-    m.papel === "computador" ? "outra_maquina" : m.plataforma === "linux" ? "onde_o_nod_roda" : m.plataforma === "darwin" ? "este_mac" : null;
+    m.papel === "computador" ? "outra_maquina" : m.plataforma === "linux" ? "onde_o_nod_roda" : m.plataforma === "darwin" && COMPUTADOR_NO_MAC ? "este_mac" : null;
   const ordem = (t: TipoDeLugar) => TIPOS_DE_LUGAR.indexOf(t);
   const opcoes: OpcaoDeLugar[] = [];
   for (const m of conectadas) {

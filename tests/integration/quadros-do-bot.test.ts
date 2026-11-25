@@ -302,4 +302,30 @@ describeIntegracao("quadros do bot: caso de uso (ADA-14)", () => {
       expect((await m.pessoa(m.ana, [{ tipo: "editar_quadro", nome: "Site" }])).data).toMatchObject({ ok: true, lote: null });
     });
   });
+  it("QA-191: vincular nem renomear deixam um bot com dois quadros de mesmo nome", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await m.pessoa(m.ana, [{ tipo: "criar_quadro", meta: null, prazo: null }]);
+      await m.pessoa(m.ana, [{ tipo: "criar_quadro", meta: null, prazo: null, nome: "Site" }]);
+      await m.pessoa(m.ana, [{ tipo: "criar_quadro", meta: null, prazo: null, nome: "Blog" }]);
+      await m.pessoa(m.gil, [{ tipo: "criar_quadro", meta: null, prazo: null }]);
+      await m.pessoa(m.gil, [{ tipo: "criar_quadro", meta: null, prazo: null, nome: "site" }]);
+      await m.pessoa(m.gil, [{ tipo: "criar_quadro", meta: null, prazo: null, nome: "Loja" }]);
+      const daAna = await m.repos.quadros.vinculadosAo(m.ana);
+      const site = daAna.find((q) => q.nome === "Site")!;
+      const blog = daAna.find((q) => q.nome === "Blog")!;
+      const op = (o: Parameters<typeof aplicarQuadrosDoBot>[1]["op"]) => aplicarQuadrosDoBot(m.deps, { autor: { tipo: "pessoa" }, anfitriaoId: m.ana, op: o });
+      const v = await op({ tipo: "vincular_bot", quadro: site.id, bot: m.nomeGil });
+      expect(v.data).toMatchObject({ ok: false, erro: "entrada_invalida", detalhe: expect.stringContaining(`${m.nomeGil} já tem um quadro "site"`) });
+      expect(await m.repos.quadros.doBot(m.gil, site.id)).toBeNull();
+      expect((await op({ tipo: "vincular_bot", quadro: blog.id, bot: m.nomeGil })).data).toMatchObject({ ok: true });
+      const renome = await m.pessoa(m.ana, [{ tipo: "editar_quadro", nome: "LOJA " }], blog.id);
+      expect(renome.data).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      expect(JSON.stringify(renome.data)).toContain(m.nomeGil);
+      expect((await m.repos.quadros.buscar(blog.id))?.nome).toBe("Blog");
+      expect((await m.repos.quadros.vinculadosAo(m.gil)).map((q) => q.nome).sort()).toEqual(["Blog", "Loja", "site", null].sort());
+      expect((await m.pessoa(m.ana, [{ tipo: "editar_quadro", nome: "Blog novo" }], blog.id)).data).toMatchObject({ ok: true });
+      expect((await m.pessoa(m.ana, [{ tipo: "editar_quadro", nome: "Site" }], site.id)).data).toMatchObject({ ok: true });
+    });
+  });
 });

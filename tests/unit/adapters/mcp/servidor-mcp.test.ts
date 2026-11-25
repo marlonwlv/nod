@@ -42,6 +42,8 @@ function rotasFalsas() {
     // Regression: ISSUE-003 — registrar um app leva segredo (o `env` sai cifrado) e, em stdio, um comando que o servidor
     // roda na sondagem e que sobrevive à revogação do token. Found by /qa on 2026-11-12
     { metodo: "POST", acao: "apps.criar", padrao: /^\/conectores$/, async handler(ctx) { await registrar(ctx, "POST", "/conectores"); ctx.json(201, { ok: true }); } },
+    // Regression: QA-179 — conectar um app do Marketplace com chave leva a chave de API da pessoa no corpo.
+    { metodo: "POST", acao: "apps.conectar_com_chave", padrao: /^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar-com-chave$/, async handler(ctx) { await registrar(ctx, "POST", `/marketplace/${ctx.params.slug}/conectar-com-chave`); ctx.json(200, { conectado: true }); } },
     { metodo: "GET", publica: true, padrao: /^\/so-publica$/, async handler(ctx) { await registrar(ctx, "GET", "/so-publica"); ctx.json(200, { ok: true }); } },
     { metodo: "GET", interno: true, padrao: /^\/so-interna$/, async handler(ctx) { await registrar(ctx, "GET", "/so-interna"); ctx.json(200, { ok: true }); } },
     { metodo: "GET", maquina: true, padrao: /^\/so-maquina$/, async handler(ctx) { await registrar(ctx, "GET", "/so-maquina"); ctx.json(200, { ok: true }); } },
@@ -207,6 +209,14 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
     const r = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "POST", caminho: "/conectores", corpo })).texto) as { status: number };
     expect(r.status).toBe(404);
     expect(falsas.chamadas.some((c) => c.caminho === "/conectores")).toBe(false);
+  });
+
+  // Regression: QA-179 — apps.conectar_com_chave ficou fora da lista e o nod_chamar_rota levava a chave de API do app.
+  it("nod_chamar_rota não conecta app do Marketplace com chave (a chave de API passaria pela conversa)", async () => {
+    const corpo = { campos: { api_key: "segredo-do-app" } };
+    const r = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "POST", caminho: "/marketplace/fireflies/conectar-com-chave", corpo })).texto) as { status: number };
+    expect(r.status).toBe(404);
+    expect(falsas.chamadas.some((c) => c.caminho.endsWith("/conectar-com-chave"))).toBe(false);
   });
 
   it("recusar um retomar_turno vai pelo Deixar pra lá (dispensar), nunca pelo /decidir que retomaria", async () => {

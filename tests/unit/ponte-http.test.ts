@@ -11,6 +11,7 @@ import { contasAnunciadas, entrega, falas, impressoes, inventario, memoria, prog
 import { CONTAS_ANUNCIADAS_MAX } from "../../src/contracts/contas-ia.ts";
 import { TEXTO_ENTREGA_MAX_CHARS } from "../../src/shared/constantes.ts";
 import { camposDoRelato, relatoValido } from "../../src/use-cases/limpeza-das-tasks.ts";
+import { avisarOutbox } from "../../src/shared/sinal-outbox.ts";
 import { criarAgente } from "../../src/use-cases/criar-agente.ts";
 import { despacharTurno } from "../../src/use-cases/despachar-turno.ts";
 import { definirInteligenciaDoBot } from "../../src/use-cases/inteligencia.ts";
@@ -420,6 +421,70 @@ describe("NOD-175: ponte do servidor na drenagem", () => {
     expect(await chamar("puxar")).toEqual({ status: 200, body: { plano: null } });
     expect(puxar).not.toHaveBeenCalled();
     expect(p.reservasEmVoo()).toBe(0);
+  });
+});
+
+describe("2026-11-23: o puxar só pergunta ao banco com aviso do outbox ou na rede de segurança", () => {
+  const escopo = { tenantId: "00000000-0000-4000-8000-000000000001", pessoaId: "00000000-0000-4000-8000-000000000002" };
+  const conectar = { versaoContrato: 1, nome: "Mac", inventario: { estado: "pronto", versao: "fake", em: 0 } };
+
+  function montar(puxar: PonteInternaNod["puxar"], autorizar = vi.fn(async () => ({ ...escopo, chaveId: "m1" }))) {
+    const ponte: PonteInternaNod = { conectar: async () => undefined, puxar, renovar: async () => ({ ativo: true, versaoMinimaApp: VERSAO_MINIMA_APP }), entregar: async () => undefined, desconectar: async () => undefined, maquinasConectadas: () => [], escopoDoTurno: () => null };
+    const p = criarPonteHttpServidor({
+      criar: () => ponte, persistir: async () => undefined, autorizar,
+      segredo: "s", seguro: false, agora: () => Date.now(), delta: () => undefined, ferramenta: () => undefined, tarefas: () => undefined,
+      longpollMs: 4_000, rechecagemMs: 60_000,
+    });
+    const chamar = async (nome: string, corpo: unknown = {}) => {
+      const rota = p.rotas.find((r) => r.padrao.test(`/${nome}`));
+      let resposta: { status: number; body: unknown } | null = null;
+      const req = new IncomingMessage(new Socket());
+      req.headers = { authorization: "Bearer k", "x-nod-versao": VERSAO_MINIMA_APP };
+      await rota!.handler({ req, res: new ServerResponse(req), escopo, params: { chaveId: "m1" }, corpo: async () => corpo, json: (status, body) => { resposta = { status, body }; } });
+      return resposta!;
+    };
+    return { p, chamar, autorizar };
+  }
+  const plano = { turnoId: "00000000-0000-4000-8000-000000000003" } as PlanoTurno;
+  const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("sem aviso pergunta uma vez (antes eram 4 por segundo); aviso de outra pessoa não acorda; o da pessoa acorda e repete 1 s depois", async () => {
+    let devolver: PlanoTurno | null = null;
+    const puxar = vi.fn<PonteInternaNod["puxar"]>().mockImplementation(async () => devolver);
+    const { chamar, p, autorizar } = montar(puxar);
+    await chamar("conectar", conectar);
+    autorizar.mockClear();
+    const esperando = chamar("puxar");
+    await vi.waitFor(() => expect(puxar).toHaveBeenCalledTimes(1));
+    await dormir(700);
+    expect(puxar).toHaveBeenCalledTimes(1);
+    expect(autorizar).toHaveBeenCalledTimes(1);
+    avisarOutbox(["00000000-0000-4000-8000-0000000000ff"]);
+    await dormir(400);
+    expect(puxar).toHaveBeenCalledTimes(1);
+    avisarOutbox([escopo.pessoaId]);
+    await vi.waitFor(() => expect(puxar).toHaveBeenCalledTimes(2), { timeout: 400 });
+    // O aviso sai antes do commit de quem gravou: o reforço pergunta de novo ~1 s depois, e entrega o turno.
+    devolver = plano;
+    expect(await esperando).toEqual({ status: 200, body: { plano } });
+    expect(puxar).toHaveBeenCalledTimes(3);
+    p.iniciarDrenagem();
+  });
+
+  it("aviso sem pessoa (gravação antiga) acorda todo mundo; o long-poll que acabou para de ouvir", async () => {
+    const puxar = vi.fn<PonteInternaNod["puxar"]>().mockResolvedValue(null);
+    const { chamar, p } = montar(puxar);
+    await chamar("conectar", conectar);
+    const esperando = chamar("puxar");
+    await vi.waitFor(() => expect(puxar).toHaveBeenCalledTimes(1));
+    avisarOutbox();
+    await vi.waitFor(() => expect(puxar).toHaveBeenCalledTimes(2), { timeout: 400 });
+    p.iniciarDrenagem();
+    expect(await esperando).toEqual({ status: 200, body: { plano: null } });
+    const antes = puxar.mock.calls.length;
+    avisarOutbox();
+    await dormir(400);
+    expect(puxar.mock.calls.length).toBe(antes);
   });
 });
 

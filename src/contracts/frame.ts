@@ -52,6 +52,11 @@ export type TipoFrame =
    * publicar; ausente se a leitura falhou) — a linha do bot se atualiza sem refazer a lista.
    */
   | "trabalho.mudou"
+  /**
+   * ADR-192 (definido em 2026-11-22): uma Tarefa (objetivo) nasceu ou mudou: {tarefaId, agenteId, estado, motivo, trabalhoId?}.
+   * Só ids e o estado; a web relê a Tarefa e a lista por REST. Cliente antigo ignora o frame e segue no `trabalho.mudou`.
+   */
+  | "tarefa.mudou"
   /** ADR-083 (#194): a pressão de memória do Mac mudou de nível: {nivel}. Só na mudança. */
   | "memoria.mudou"
   /** ADR-113: as reações de uma fala mudaram: {conversaId, mensagem_id}. A web relê a conversa (o chip embaixo da fala). */
@@ -81,6 +86,11 @@ export type TipoFrame =
   | "computador.cursor"
   /** D (2026-11-12): o estado da máquina do computador mudou: `DadosFrameMaquina` (src/contracts/estado-vivo.ts). */
   | "computador.estado"
+  /**
+   * ADR-190 (2026-11-20): a vista do navegador de um bot mudou: {agenteId, mudou} (os campos de VistaNavegador que
+   * mudaram; src/adapters/navegador/aviso-mudou.ts), no máximo ~4/s por bot. A web relê GET /agentes/:id/navegador.
+   */
+  | "navegador.mudou"
   | "resumed";
 
 /**

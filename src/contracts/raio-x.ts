@@ -80,7 +80,7 @@ export type SecaoDoPrompt = (typeof SECOES_DO_PROMPT)[number];
 export type ParteDoPrompt = { secao: SecaoDoPrompt; chars: number; texto?: string };
 
 /** Definições de ferramenta que o proxy lista, agrupadas: `nod`, `computador`, `pastas` ou o slug do app. */
-export type GrupoDeFerramentas = { grupo: string; origem: "nod" | "computador" | "workspace" | "conector"; quantidade: number; chars: number };
+export type GrupoDeFerramentas = { grupo: string; origem: "nod" | "computador" | "navegador" | "workspace" | "conector"; quantidade: number; chars: number };
 
 export type ComposicaoRaioX = {
   modo: ModoTurno;

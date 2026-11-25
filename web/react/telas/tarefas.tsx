@@ -10,7 +10,7 @@ import { quemPediu } from "../../lib/dono.ts";
 import { agente } from "../../telas/trabalhos.ts";
 import {
   botsDaNovaTarefa, contasDoBot, esperasDaConversa, GRUPOS_DO_BOT, GRUPOS_DO_ESTADO, ICONE_DO_GRUPO, iconeDaTarefa, linhasDosBots, origemNaTela,
-  passoDaTarefa, plural, prontas, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
+  comArquivadas, htmlDasArquivadas, passoDaTarefa, plural, prontas, trabalhosDaTela, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
 } from "../../telas/tela-tarefas.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
@@ -46,7 +46,7 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
   const tela: TelaTarefas = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" };
   if (!estado.trabalhos) return <section className="tela-tarefas" aria-label="Tarefas"><p className="tf-vazio">carregando…</p></section>;
   const porBot = temDonos(estado) && !tela.filtro;
-  const todos = estado.trabalhos.trabalhos.filter((t) => !tela.bot || t.agenteId === tela.bot);
+  const todos = trabalhosDaTela(estado).filter((t) => !tela.bot || t.agenteId === tela.bot);
   const abertas = todos.filter(aberto).length;
   const mostrar = tela.mostrar ?? "abertas";
   const bot = tela.bot ? agente(estado, tela.bot) : undefined;
@@ -66,12 +66,12 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
         {botsDaNovaTarefa(estado).length > 0 && <button type="button" className="tf-nova" aria-haspopup="menu" onClick={(e) => acoes.novaTarefa(e.currentTarget)}>+ Nova tarefa</button>}
       </header>
       <div className="tf-filtros" role="group" aria-label="Filtrar tarefas">
-        {chip("abertas", <>Abertas <span className="tf-chip-n">{abertas}</span></>)}{chip("feitas", "Feitas")}{chip("todas", "Todas")}
+        {chip("abertas", <>Abertas <span className="tf-chip-n">{abertas}</span></>)}{chip("feitas", "Feitas")}{chip("todas", "Todas")}{comArquivadas(estado) && chip("arquivadas", "Arquivadas")}
         <span className="tf-traco" aria-hidden="true" />
         <button type="button" className="tf-chip tf-chip-bots" aria-haspopup="menu" aria-pressed={!!bot} onClick={(e) => acoes.menuDeBots(e.currentTarget)}>{bot?.nome ?? "Todos os bots"}{html(SETA_MENU)}</button>
       </div>
       {html(pilulaDaCota(estado.trabalhos.cota, estado.trabalhos.trabalhos, estado.agora, estado.trabalhos.pedidosNaFila))}
-      <div className="tf-lista">{porBot ? <PorBot estado={estado} tela={tela} acoes={acoes} html={html} /> : <PorEstado estado={estado} tela={tela} acoes={acoes} html={html} />}</div>
+      <div className="tf-lista">{mostrar === "arquivadas" && comArquivadas(estado) ? html(htmlDasArquivadas(estado, tela.bot)) : porBot ? <PorBot estado={estado} tela={tela} acoes={acoes} html={html} /> : <PorEstado estado={estado} tela={tela} acoes={acoes} html={html} />}</div>
     </section>
   );
 }
@@ -79,7 +79,7 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
 const rotuloDoGrupo = (titulo: string, n: number) => <h2 className="tf-rotulo">{`${titulo} · ${plural(n, "bot", "bots")}`}</h2>;
 
 function PorBot({ estado, tela, acoes, html }: { estado: Estado; tela: TelaTarefas; acoes: AcoesDasTarefasDosBots; html: Html }) {
-  const todos = estado.trabalhos?.trabalhos ?? [];
+  const todos = trabalhosDaTela(estado);
   const mostrar = tela.mostrar ?? "abertas";
   const hoje = meiaNoiteDe(estado.agora);
   const { linhas: todasAsLinhas, livres: todosOsLivres } = linhasDosBots(estado);
@@ -125,7 +125,7 @@ function PorBot({ estado, tela, acoes, html }: { estado: Estado; tela: TelaTaref
           })}</div>
         </section>
       )}
-      {!secoes.length && !feitasPorBot.length && <p className="tf-vazio">{mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>}
+      {!secoes.length && !feitasPorBot.length && <p className="tf-vazio">{mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>}
       {nomes.length > 0 && <p className="tf-livres">{`Livres: ${nomes.length > 12 ? `${nomes.slice(0, 11).join(", ")} e mais ${nomes.length - 11}` : nomes.join(", ")}`}</p>}
     </>
   );
@@ -189,12 +189,12 @@ function TarefaNoBot({ t, todos, estado, acoes, html }: { t: TrabalhoDto; todos:
 }
 
 function PorEstado({ estado, tela, acoes, html }: { estado: Estado; tela: TelaTarefas; acoes: AcoesDasTarefasDosBots; html: Html }) {
-  const todos = estado.trabalhos?.trabalhos ?? [];
+  const todos = trabalhosDaTela(estado);
   const mostrar = tela.mostrar ?? "abertas";
   const grupos = agrupar(filtrar(todos, tela.filtro).filter((t) => !tela.bot || t.agenteId === tela.bot), estado.agora);
   const secoes = GRUPOS_DO_ESTADO.filter((g) => (mostrar === "todas" || g.mostrar === mostrar) && grupos[g.chave].length > 0);
   if (!secoes.length) {
-    const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
+    const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
     return <p className="tf-vazio">{vazio}</p>;
   }
   return (

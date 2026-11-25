@@ -1,3 +1,4 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
 import { randomUUID } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import { iniciarOrquestrador, type IniciarLaco } from "../../src/adapters/fundo/orquestrador-turnos.ts";
@@ -98,6 +99,10 @@ afterEach(async () => {
     await trx`delete from turnos where owner_id = ${p}`;
     // ADR-083 (0060): o trabalho aponta para agente, conversa e rotina, e os turnos apontam para ele — sai entre os dois.
     await trx`delete from trabalhos where owner_id = ${p}`;
+    // ADR-192: a frente nasce com Tarefa + Thread (emenda 5); saem antes da conversa.
+    await trx`delete from threads where owner_id = ${p}`;
+    await trx`delete from tarefa_eventos where owner_id = ${p}`;
+    await trx`delete from tarefas where owner_id = ${p}`;
     await trx`delete from inventario_motores where owner_id = ${p}`;
     if (criados.conversas.length) await trx`delete from conversas where id in ${trx(criados.conversas)}`;
     if (criados.agentes.length) await trx`delete from agentes where id in ${trx(criados.agentes)}`;
@@ -186,7 +191,9 @@ describeIntegracao("orquestrador + ponte interna + catcher (ADR-021 in-process):
     expect((await ponteA.renovar({ turnoId: plano2?.turnoId ?? "", machineId: maquinaB, sinais: SINAIS_ZERADOS, eventos: [] })).ativo).toBe(false);
     expect((await ponteB.renovar({ turnoId: plano2?.turnoId ?? "", machineId: maquinaB, sinais: SINAIS_ZERADOS, eventos: [] })).ativo).toBe(true);
 
-    // a máquina B some: o lease vence, o varredor (paraCadaPessoa, tx real) encerra e abre a decisão
+    // a máquina B some: o lease vence, o varredor (paraCadaPessoa, tx real) encerra e abre a decisão. Lote B (ADR-192,
+    // desvio 12): a queda volta sozinha uma vez; com a mensagem já no teto de tentativas, sobra o "Retomar" da pessoa.
+    await escopado(async (trx) => { await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${plano2?.turnoId ?? ""}`; });
     const varrido = await varrer(db, Date.now() + LEASE_MS + 1, { listarPessoas });
     expect(varrido[PESSOA.pessoaId]?.interrompidos).toEqual([plano2?.turnoId]);
     const decisaoId = varrido[PESSOA.pessoaId]?.decisoes[0] ?? "";
@@ -195,7 +202,7 @@ describeIntegracao("orquestrador + ponte interna + catcher (ADR-021 in-process):
     // entrega tardia da B com a retomada já na fila: anexo parcial, sem reabrir (sem retomada, a tardia com sucesso
     // concluiria o turno e fecharia o "Retomar" — NOD-264, E8)
     await ponteB.entregar({ turnoId: plano2?.turnoId ?? "", machineId: maquinaB, seqLocal: 1, fala: { tipo: "texto", texto: "tarde" }, resultado: { ...(primeiro?.resultado as ResultadoTurno), texto: "tarde" } });
-    expect(retomado.turno).toMatchObject({ origem: "retomada", retomaTurnoId: plano2?.turnoId, reenvios: 1 });
+    expect(retomado.turno).toMatchObject({ origem: "retomada", retomaTurnoId: plano2?.turnoId, reenvios: TETO_TENTATIVAS_DA_MENSAGEM + 1 });
     const terceiro = await rodarUmCiclo(ponteA, maquinaA);
     expect(terceiro?.plano).toMatchObject({ turnoId: retomado.turno.id, entrada: { texto: "[[texto: continuei]]", sessaoCli: sessao } });
     await escopado(async (trx) => {

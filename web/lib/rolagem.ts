@@ -143,7 +143,7 @@ export function pilulaDosPedidos(p: PedidosNaJanela | null): string {
   if (!p || p.posicao === "visivel" || p.total === 0) return "";
   const seta = p.posicao === "abaixo" ? SETA_BAIXO : SETA_CIMA;
   const texto = p.total === 1
-    ? `A ${esc(p.nome)} espera você${p.frase ? `: <b>${esc(p.frase)}</b>` : ""}`
+    ? `${esc(p.nome)} espera você${p.frase ? `: <b>${esc(p.frase)}</b>` : ""}`
     : `${p.total} pedidos esperam você`;
   return `<button type="button" class="pilula-novas pilula-pergunta pilula-pedidos" data-act="ver-decisao" data-id="${esc(p.decisaoId)}" title="Ir para o pedido"><span class="pp-ponto" aria-hidden="true"></span><span class="pp-texto">${texto}</span><span class="pp-ver">${p.total === 1 ? "" : '<span aria-hidden="true">· </span>'}Ver ${seta}</span></button>`;
 }
