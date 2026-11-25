@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casosDaPessoa, diasDaJanela, ehAdmin, janelaDias, montarPainel, montarPainelPessoa, rotuloProblema, type FatosPessoa } from "../../src/domain/admin-uso.ts";
+import { casosDaPessoa, diasDaJanela, janelaDias, montarPainel, montarPainelPessoa, rotuloProblema, type FatosPessoa } from "../../src/domain/backoffice-uso.ts";
 
 const DIA = 86_400_000;
 const AGORA = Date.parse("2026-11-23T12:00:00Z");
@@ -30,18 +30,6 @@ function fatos(over: Partial<FatosPessoa> & { id: string }): FatosPessoa {
 
 const caso = (fonte: FatosPessoa["problemas"][number]["fonte"], motivo: string, em: number, extra: Partial<FatosPessoa["problemas"][number]> = {}) => ({
   fonte, motivo, em, conversaId: null, turnoId: null, tarefaId: null, alvo: null, ...extra,
-});
-
-describe("ehAdmin", () => {
-  it("lista vazia não deixa ninguém entrar", () => {
-    expect(ehAdmin([], { id: "a", email: "x@y" })).toBe(false);
-  });
-  it("aceita o id ou o e-mail, sem diferença de caixa", () => {
-    expect(ehAdmin(["abc"], { id: "ABC", email: null })).toBe(true);
-    expect(ehAdmin(["admin@exemplo.test"], { id: "z", email: "Admin@Exemplo.test" })).toBe(true);
-    expect(ehAdmin(["admin@exemplo.test"], { id: "z", email: "outra@exemplo.test" })).toBe(false);
-    expect(ehAdmin(["abc"], null)).toBe(false);
-  });
 });
 
 describe("janela", () => {

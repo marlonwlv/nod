@@ -54,7 +54,7 @@ export function rotaForaDoMcp(rota: Rota, caminho: string): boolean {
  * responderErro) e devolvida como dado.
  */
 export function criarChamadorInterno(rotas: readonly Rota[]): ChamadorInterno {
-  const daPessoa = rotas.filter((r) => !r.interno && !r.publica && !r.maquina);
+  const daPessoa = rotas.filter((r) => !r.interno && !r.publica && !r.maquina && !r.backoffice);
   return async (escopo, pedido) => {
     const url = new URL(pedido.caminho, "http://127.0.0.1");
     const caminho = url.pathname;

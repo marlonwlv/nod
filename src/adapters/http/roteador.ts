@@ -12,6 +12,9 @@ import { json, lerCorpo } from "./util.ts";
  *  - /api/t/:tenantId/…  escopada: exige sessão e o tenant da URL casa a sessão (senão 404, nunca 403 — ADR-005);
  *  - /api/interno/…      autenticada por token de turno: Origin → 403 ANTES do token (ADR-021);
  *                        qualquer campo 'remetente' no corpo é ignorado (ADR-024);
+ *  - /api/backoffice/…   backoffice interno (ADR-194): exige sessão (senão 401) e papel na equipe do backoffice,
+ *                        conferido AQUI a cada pedido por `papelBackoffice` (sem papel: 404, como rota que não existe);
+ *                        nunca reaproveita o papel de workspace, que é do futuro /api/t/:tenantId/admin/…;
  *  - /api/…              pública (saude, sessao): sem escopo garantido.
  * Cada rota é fina: valida, chama caso de uso, responde. Erro passa por responderErro.
  */
@@ -38,8 +41,8 @@ export type Metodo = "GET" | "HEAD" | "POST" | "PATCH" | "PUT" | "DELETE";
  * que muda algo declara o seu; a catraca (tests/conformidade/paridade.test.ts) falha sem ele. Id fora do registro não compila.
  */
 export type Rota =
-  | { metodo: Metodo; padrao: RegExp; handler(ctx: Ctx): Promise<void>; interno?: true; maquina?: true; publica?: undefined; acao?: IdAcao; /** Teto do corpo desta rota (padrão: CORPO_MAX). */ corpoMax?: number }
-  | { metodo: Metodo; padrao: RegExp; handler(ctx: CtxPublico): Promise<void>; publica: true; interno?: undefined; maquina?: undefined; acao?: IdAcao };
+  | { metodo: Metodo; padrao: RegExp; handler(ctx: Ctx): Promise<void>; interno?: true; maquina?: true; publica?: undefined; acao?: IdAcao; /** Teto do corpo desta rota (padrão: CORPO_MAX). */ corpoMax?: number; /** ADR-194: rota do backoffice interno, sob /api/backoffice (o papel vai em `params.papelBackoffice`). */ backoffice?: true }
+  | { metodo: Metodo; padrao: RegExp; handler(ctx: CtxPublico): Promise<void>; publica: true; interno?: undefined; maquina?: undefined; acao?: IdAcao; backoffice?: undefined };
 
 /** Identidade derivada do token de turno (L5 implementa services.tokenTurno.autorizar). */
 export interface IdentidadeDeTurno extends Escopo {
@@ -55,6 +58,11 @@ export interface DepsRoteador {
   autorizarMaquina?(token: string): Promise<(Escopo & { chaveId: string }) | null>;
   /** Servidor MCP do Nod (0173): trata `/api/mcp` inteiro (autentica pelo token MCP, JSON-RPC). */
   mcp?(req: IncomingMessage, res: ServerResponse): Promise<void>;
+  /**
+   * ADR-194: o papel da pessoa da sessão no backoffice interno (equipe_backoffice; vazia, NOD_ADMINS). null = não é da
+   * equipe, e toda rota /api/backoffice/* responde 404. Ausente = backoffice desligado (404 para todos).
+   */
+  papelBackoffice?(escopo: Escopo): Promise<string | null>;
   /** Último recurso quando nenhuma rota casa (ex.: estático). Devolve true se respondeu. */
   fallback?(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
 }
@@ -70,6 +78,7 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const GRUPOS_UUID = new Set(["id", "mid", "aid", "eid", "qid", "pid"]);
 const PREFIXO_INTERNO = /^\/api\/interno(\/.*)$/;
 const PREFIXO_PUBLICO = /^\/api(\/.*)$/;
+const PREFIXO_BACKOFFICE = /^\/api\/backoffice(\/.*)?$/;
 
 function montarCtx(req: IncomingMessage, res: ServerResponse, escopo: Escopo | null, params: Record<string, string>, daPessoa = false, corpoMax?: number): CtxPublico {
   let corpoLido: Promise<unknown> | null = null;
@@ -155,6 +164,23 @@ export function criarRoteador(rotas: Rota[], deps: DepsRoteador): (req: Incoming
       return;
     }
 
+    const backoffice = PREFIXO_BACKOFFICE.exec(caminho);
+    if (backoffice) {
+      const escopo = await deps.resolverEscopo(req);
+      if (!escopo) {
+        json(res, 401, { codigo: "nao_permitido", mensagem: "Sua sessão terminou. Entre de novo para continuar." });
+        return;
+      }
+      const papel = deps.papelBackoffice ? await deps.papelBackoffice(escopo) : null;
+      const achado = papel ? casar(rotas, metodo, backoffice[1] ?? "/", (r) => r.backoffice === true) : null;
+      if (!papel || !achado) {
+        json(res, 404, { codigo: "nao_encontrado", mensagem: "rota não encontrada" });
+        return;
+      }
+      await (achado.rota.handler as (c: CtxPublico) => Promise<void>)(montarCtx(req, res, escopo, { ...achado.params, papelBackoffice: papel }, true));
+      return;
+    }
+
     const escopado = PREFIXO_TENANT.exec(caminho);
     if (escopado) {
       const escopo = await deps.resolverEscopo(req);
@@ -166,7 +192,7 @@ export function criarRoteador(rotas: Rota[], deps: DepsRoteador): (req: Incoming
         json(res, 404, { codigo: "nao_encontrado", mensagem: "rota não encontrada" });
         return;
       }
-      const achado = casar(rotas, metodo, escopado[2] ?? "/", (r) => !r.interno && !r.publica && !r.maquina);
+      const achado = casar(rotas, metodo, escopado[2] ?? "/", (r) => !r.interno && !r.publica && !r.maquina && !r.backoffice);
       if (!achado) {
         json(res, 404, { codigo: "nao_encontrado", mensagem: "rota não encontrada" });
         return;

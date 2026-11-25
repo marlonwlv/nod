@@ -1,5 +1,5 @@
 /**
- * Painel admin de uso (definido em 2026-11-23, ADR-193). Só leitura, só metadados e contagens: nenhum texto de
+ * Backoffice interno (ADR-194; o painel de uso nasceu no ADR-193, em 2026-11-23). Só leitura, só metadados e contagens: nenhum texto de
  * mensagem, nenhum erro cru, nenhum segredo. Instantes em ISO UTC; dias em `AAAA-MM-DD` (UTC).
  */
 
@@ -116,3 +116,10 @@ export type PainelPessoaDto = {
   problemas: { chave: string; rotulo: string; ocorrencias: number }[];
   linhaDoTempo: EventoLinhaDto[];
 };
+
+/** ADR-194: quem está entrando no backoffice. `dono` e `leitura` veem o mesmo hoje; `dono` é quem poderá gerir a equipe. */
+export type BackofficeEuDto = { papel: "dono" | "leitura"; nome: string; iniciais: string };
+
+export type BackofficeProblemasDto = { geradoEm: string; dias: string[]; problemas: ProblemaRankDto[] };
+
+export type BackofficePessoasDto = { geradoEm: string; dias: string[]; pessoas: ResumoPessoaDto[] };

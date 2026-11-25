@@ -3,6 +3,7 @@ import { papelDoScript } from "./motor-instalacao.ts";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { Escopo } from "../../shared/types.ts";
 import { log } from "../../obs/log.ts";
+import { criarPaginaBackoffice } from "./backoffice-pagina.ts";
 import { criarEstatico } from "./estatico.ts";
 import { criarRoteador, type DepsRoteador, type Rota } from "./roteador.ts";
 import { criarChamadorInterno } from "./mcp/chamador-interno.ts";
@@ -58,6 +59,11 @@ export interface OpcoesServidor {
    * como se o processo fosse a única cor, pronta.
    */
   estadoSaude?: EstadoSaude;
+  /**
+   * ADR-194: o backoffice interno. `papel` diz o papel da pessoa da sessão na equipe (null = não é da equipe); serve a
+   * guarda da API /api/backoffice/* e da tela /backoffice. Sem isto, as duas dão 404 para todos.
+   */
+  backoffice?: { papel(escopo: Escopo): Promise<string | null> };
 }
 
 export function criarServidor(opcoes: OpcoesServidor = {}) {
@@ -65,12 +71,16 @@ export function criarServidor(opcoes: OpcoesServidor = {}) {
   const sessao = criarSessao(segredoEfetivo(opcoesSessao.modo, opcoes.segredoSessao ?? process.env.NOD_SESSAO_SEGREDO), opcoesSessao, opcoes.contas);
   const estadoLb: EstadoSaude = opcoes.estadoSaude ?? { pronto: () => true, ativa: () => true, drenando: () => false, cor: null };
   const rotas: Rota[] = [criarRotaSaude(opcoes.verificarSaude, opcoes.estadoSaude), criarRotaSaudeLb(opcoes.verificarSaude, estadoLb), ...sessao.rotas, ...(opcoes.rotas ?? [])];
+  const staticDir = opcoes.staticDir ?? process.env.NOD_STATIC_DIR;
+  const estatico = criarEstatico(staticDir);
+  const paginaBackoffice = criarPaginaBackoffice({ staticDir, resolverEscopo: sessao.resolverEscopo, ...(opcoes.backoffice ? { papel: opcoes.backoffice.papel } : {}) });
   const roteador = criarRoteador(rotas, {
     resolverEscopo: sessao.resolverEscopo,
     autorizarTokenTurno: opcoes.autorizarTokenTurno,
     autorizarMaquina: opcoes.autorizarMaquina,
     ...(opcoes.mcp ? { mcp: criarServidorMcp({ ...opcoes.mcp, chamar: criarChamadorInterno(rotas) }) } : {}),
-    fallback: criarEstatico(opcoes.staticDir ?? process.env.NOD_STATIC_DIR),
+    ...(opcoes.backoffice ? { papelBackoffice: opcoes.backoffice.papel } : {}),
+    fallback: async (req, res) => (await paginaBackoffice(req, res)) || estatico(req, res),
   });
   const server = createServer((req, res) => {
     // ADR-090: `curl -fsSL https://<nod>/motor | sh` — o endereço curto do script de instalação do motor (o -L segue).

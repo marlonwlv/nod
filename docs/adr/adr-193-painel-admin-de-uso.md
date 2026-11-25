@@ -1,6 +1,8 @@
 # ADR-193 — Painel admin de uso, só leitura
 
-Status: aceita (2026-11-23, pedido do dono) · Relacionadas:
+Status: aceita (2026-11-23, pedido do dono); **emendada pelo [ADR-194](adr-194-backoffice-interno.md)** em 2026-11-24 — o painel
+virou o backoffice interno em `/backoffice`, com API em `/api/backoffice/*`, papéis em `equipe_backoffice` e auditoria;
+os itens 1–3 abaixo valem como histórico · Relacionadas:
 [ADR-048](adr-048-github-um-conector-varios-jeitos-de-conectar.md) (admin = `NOD_ADMINS`),
 [ADR-166](adr-166-regras-do-revisor-niveis-e-teto.md) (mesma lista de admins).
 

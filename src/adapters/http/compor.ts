@@ -201,7 +201,9 @@ import { criarRotasBusca } from "./rotas/busca.ts";
 import { lerPoolMax } from "../../db/client.ts";
 import { criarRotasConversas } from "./rotas/conversas.ts";
 import { criarRotasRelatos } from "./rotas/relatos.ts";
-import { criarRotasAdminUso } from "./rotas/admin-uso.ts";
+import { criarRotasBackoffice } from "./rotas/backoffice.ts";
+import { papelNoBackoffice, type PapelBackoffice } from "../../domain/backoffice-equipe.ts";
+import { fatosDaEquipe } from "../../repositories/backoffice.repo.ts";
 import { criarRotasDecisoes } from "./rotas/decisoes.ts";
 import { executar, type DentroDeTx } from "./rotas/dentro-de-tx.ts";
 import { type RodarNaTx, trazerImportacao } from "../../use-cases/importar-linear.ts";
@@ -326,6 +328,8 @@ export type App = {
   rotas: Rota[];
   /** NOD-345: as contas (NOD_CONTAS); null desligadas. O boot passa ao servidor (sessão revogável + rotas). */
   contas: ContasMontadas | null;
+  /** ADR-194: o papel da pessoa no backoffice interno (equipe_backoffice; vazia, NOD_ADMINS). O boot passa ao servidor. */
+  backoffice: { papel(escopo: Escopo): Promise<PapelBackoffice | null> };
   /** ADR-115: o executor do revisor no servidor (uma fila por processo). Os testes esperam `ocioso()`. */
   revisor: ExecutorRevisor;
   barramento: Barramento;
@@ -1661,6 +1665,16 @@ export function comporApp(o: OpcoesCompor): App {
     rodarAposCommit: (escopo, efeito) => rodarAposCommit(escopo, efeito),
   };
   const depsL7: DepsRotasL7 = { executor: () => executorAtual, txPara: (escopo) => abrirTxEscopada(db, escopo), services, useCases, agora: relogio, fusoPadrao };
+  /**
+   * ADR-194: a guarda do backoffice. Uma consulta à equipe (o papel e se ela está vazia); só com a equipe vazia e
+   * NOD_ADMINS preenchido lê o e-mail da pessoa, para o bootstrap do primeiro deploy.
+   */
+  async function papelBackoffice(escopo: Escopo): Promise<PapelBackoffice | null> {
+    const fatos = await fatosDaEquipe(db, escopo);
+    if (!fatos.equipeVazia || adminsVoz.length === 0) return papelNoBackoffice(fatos, adminsVoz, null);
+    const eu = (await listarTodas(db)).find((p) => p.tenantId === escopo.tenantId && p.id === escopo.pessoaId) ?? null;
+    return papelNoBackoffice(fatos, adminsVoz, eu ? { id: eu.id, email: eu.email } : null);
+  }
   const rotas: Rota[] = [
     ...criarRotasFrota(depsRotas),
     criarRotaInventario({ inventario }),
@@ -1694,8 +1708,9 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasApps(depsRotas),
     ...rotasCanvas(depsRotas),
     ...criarRotasRelatos(depsRotas),
-    // ADR-193: o painel admin de uso (só leitura). Admin = NOD_ADMINS, conferido no servidor; quem não é recebe 404.
-    ...criarRotasAdminUso({ admins: adminsVoz, listarPessoas: () => listarTodas(db), abrirTx: (escopo) => abrirTxEscopada(db, escopo), agora: relogio }),
+    // ADR-194 (nasceu no ADR-193): o backoffice interno, só leitura, sob /api/backoffice. A guarda (papelBackoffice) é do
+    // roteador, a cada pedido; cada acesso fica em acessos_backoffice.
+    ...criarRotasBackoffice({ listarPessoas: () => listarTodas(db), abrirTx: (escopo) => abrirTxEscopada(db, escopo), agora: relogio }),
     ...criarRotasPropostas(depsRotas),
     ...criarRotasTurnos(depsRotas),
     ...criarRotasRaioX(depsRotas),
@@ -1915,6 +1930,7 @@ export function comporApp(o: OpcoesCompor): App {
     ponte,
     rotas,
     contas,
+    backoffice: { papel: papelBackoffice },
     revisor,
     barramento,
     interruptor,

@@ -1,10 +1,10 @@
-import type { FonteProblema, PessoaRefDto } from "../contracts/admin-uso.ts";
-import type { CasoFato, FatosPessoa } from "../domain/admin-uso.ts";
+import type { FonteProblema, PessoaRefDto } from "../contracts/backoffice.ts";
+import type { CasoFato, FatosPessoa } from "../domain/backoffice-uso.ts";
 import type { Conn, Escopo } from "../shared/types.ts";
 import { ms } from "./conversao.ts";
 
 /**
- * Os fatos de UMA pessoa para o painel admin de uso (definido em 2026-11-23, ADR-193). Roda na transação escopada da
+ * Os fatos de UMA pessoa para o painel de uso do backoffice (definido em 2026-11-23, ADR-193; backoffice no ADR-194). Roda na transação escopada da
  * própria pessoa (RLS por pessoa intacta: o painel abre uma por pessoa, como os laços de fundo), e cada consulta ainda
  * filtra pelo dono explicitamente (a política também deixa ver o que é compartilhado). Só lê metadados: nunca
  * `mensagens.texto`, `turno_diagnosticos.erro_cru`, payload de proposta ou valor de credencial.
@@ -24,7 +24,7 @@ const TETO_POR_FONTE = 1000;
 
 const toMs = (d: Date | null): number | null => (d ? ms(d) : null);
 
-export function adminUsoRepo(conn: Conn, escopo: Escopo) {
+export function backofficeUsoRepo(conn: Conn, escopo: Escopo) {
   const t = escopo.tenantId;
   const p = escopo.pessoaId;
 

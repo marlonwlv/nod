@@ -10,10 +10,10 @@ import type {
   ProblemaRankDto,
   ResumoPessoaDto,
   TempoAteDto,
-} from "../contracts/admin-uso.ts";
+} from "../contracts/backoffice.ts";
 
 /**
- * Agregações do painel admin de uso (definido em 2026-11-23, ADR-193). Puro: recebe os fatos de cada pessoa (lidos um
+ * Agregações do painel de uso do backoffice (definido em 2026-11-23, ADR-193; backoffice desde o ADR-194). Puro: recebe os fatos de cada pessoa (lidos um
  * por um, cada um na transação escopada da própria pessoa) e o relógio por parâmetro. Nada aqui lê texto de mensagem.
  */
 
@@ -51,14 +51,6 @@ export type FatosPessoa = {
   travadas: number;
   macsSemContato: number;
 };
-
-/** Quem é admin: o id ou o e-mail da pessoa na lista (NOD_ADMINS, já em minúsculas). Lista vazia = ninguém. */
-export function ehAdmin(admins: readonly string[], pessoa: { id: string; email: string | null } | null): boolean {
-  if (!pessoa || admins.length === 0) return false;
-  if (admins.includes(pessoa.id.toLowerCase())) return true;
-  const email = pessoa.email?.toLowerCase();
-  return !!email && admins.includes(email);
-}
 
 /** A janela pedida, limitada a [1, 90]; valor inválido cai no padrão. */
 export function janelaDias(bruto: string | null): number {

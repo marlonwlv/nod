@@ -91,6 +91,7 @@ import { botCasaComBusca } from "./telas/config-agentes.ts";
 import type { AlvoAviso, IaDesktop } from "../src/contracts/desktop.ts";
 import type { Experimentos } from "../src/contracts/raio-x.ts";
 import type { Escopo } from "../src/shared/types.ts";
+import { caminhoDeVolta, PARAMETRO_VOLTA } from "./lib/backoffice.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
@@ -4939,6 +4940,13 @@ function marcarBordasDaLista(lista: HTMLElement): void {
 // Sessão, SSE e relógio.
 
 async function iniciarSessao(escopo: Escopo): Promise<void> {
+  // ADR-194: quem chegou pelo /backoffice sem sessão entrou por aqui com `?volta=`; com a sessão aberta, volta para lá.
+  // A promessa não resolve: a página já está indo embora, e nada do app (SSE, leituras) precisa começar.
+  const volta = tirarVoltaDoBackoffice();
+  if (volta) {
+    window.location.assign(volta);
+    return new Promise<void>(() => undefined);
+  }
   conexoes.cancelarTodas();
   // NOD-106: outra pessoa ou outro tenant, a leitura da sessão velha para (o reducer zera o estado, o som ia seguir).
   if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) tocador.parar("saiu");
@@ -5099,6 +5107,18 @@ const CHAVE_CODIGO_MAQUINA = "nod-parear-maquina";
 /** NOD-416 (ADR-144): o link da tarefa (`?tarefa=ZE-12`), guardado até a sessão existir. */
 const CHAVE_TAREFA_LINK = "nod-tarefa-link";
 const CHAVE_QUADRO_LINK = "nod-quadro-link";
+/** ADR-194: o caminho do backoffice para onde a pessoa volta depois de entrar (só caminhos do backoffice, validados). */
+const CHAVE_VOLTA_BACKOFFICE = "nod-volta-backoffice";
+function voltaDoBackofficePendente(): boolean {
+  try { return caminhoDeVolta(window.sessionStorage.getItem(CHAVE_VOLTA_BACKOFFICE)) !== null; } catch { return false; }
+}
+function tirarVoltaDoBackoffice(): string | null {
+  try {
+    const volta = caminhoDeVolta(window.sessionStorage.getItem(CHAVE_VOLTA_BACKOFFICE));
+    window.sessionStorage.removeItem(CHAVE_VOLTA_BACKOFFICE);
+    return volta;
+  } catch { return null; }
+}
 const CAMINHO_TAREFAS = "/tarefas";
 const CHAVE_VOLTA_NUVEM = "nod-volta-nuvem";
 async function boot(): Promise<void> {
@@ -5132,6 +5152,14 @@ async function boot(): Promise<void> {
   if (url.searchParams.has(PARAMETROS_DO_PEDIDO[0])) {
     if (pedidoNaUrl) { try { window.sessionStorage.setItem(CHAVE_GUARDADA, JSON.stringify(pedidoNaUrl)); } catch { /* sem storage: o diálogo não abre e o app espera até o prazo */ } }
     for (const k of PARAMETROS_DO_PEDIDO) url.searchParams.delete(k);
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }
+  // ADR-194: `/?volta=/backoffice/...` (o servidor manda para cá quem abriu o backoffice sem sessão). Fica na aba até a
+  // sessão existir — inclusive na ida e volta do Google — e só vale caminho do backoffice (caminhoDeVolta).
+  if (url.searchParams.has(PARAMETRO_VOLTA)) {
+    const volta = caminhoDeVolta(url.searchParams.get(PARAMETRO_VOLTA));
+    if (volta) { try { window.sessionStorage.setItem(CHAVE_VOLTA_BACKOFFICE, volta); } catch { /* sem storage: entra no app */ } }
+    url.searchParams.delete(PARAMETRO_VOLTA);
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }
   // ADR-090: o link que o motor mostra no terminal (`?parear-maquina=K7QM-4F2X`) abre Máquinas › Conectar com o código,
@@ -5212,7 +5240,7 @@ async function boot(): Promise<void> {
         // tela, sem executor. Sessão do app que caiu volta à tela de entrar.
         // NOD-406: a volta recusada do Google da equipe fica na tela de entrada, com o motivo, sem abrir um provisório.
         // A marca da equipe: quem já entrou pelo Google da equipe neste navegador volta à tela de entrar.
-        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() });
+        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() || voltaDoBackofficePendente() });
         // #81: na primeira visita deste navegador, pergunta "Já usa o nod?" antes de abrir um espaço provisório novo.
         // #84: quem chega pelo QR já escolheu entrar numa conta; segue direto para a confirmação do pareamento.
         if (!codigoDoLinkGuardado(window) && mostrarEntrarPrimeiro({ abreProvisorio: abre, temVerificador: temVerificador() })) {
