@@ -28,7 +28,7 @@ import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio } from "
 import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../../src/contracts/desktop-atualizacao.ts";
 import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
-import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
+import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, motorSeAtualiza, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
 import { FalhaPareamentoWindows, linkDePareamento, parearPorDispositivo } from "./pareamento.ts";
 import { abrirSessao, cookieDaJanela, PARTITION_DA_JANELA } from "./sessao.ts";
@@ -187,7 +187,7 @@ async function conferirMotor(): Promise<void> {
   conferindoMotor = true;
   try {
     const diferente = await motorDoWindowsDiferente({ servidor: c.url, env: process.env });
-    const d = appDeveAtualizar(estadoDoMotorNoApp, { agora: Date.now(), diferente, atualizando: await atualizandoAgora(process.env) });
+    const d = appDeveAtualizar(estadoDoMotorNoApp, { agora: Date.now(), diferente, atualizando: await atualizandoAgora(process.env), motorCuida: await motorSeAtualiza(process.env) });
     estadoDoMotorNoApp = d.estado;
     if (!d.atualizar) return;
     const cmd = comandoDeAtualizarSolto(c.url, systemRoot);

@@ -53,7 +53,7 @@ import { iniciarContasDoMotor, lerIdentidadeNoCli, logoutNoCli, type ClisDoMotor
 import { depsDeVerdade, desinstalar } from "./desinstalar.ts";
 import type { OpcoesRemover } from "../src/contracts/remover-computador.ts";
 import { arquivoDoPedido, atualizacaoLigada, iniciarAtualizacao, MARCA_DA_ATUALIZACAO, type Atualizador } from "./atualizacao.ts";
-import { atualizandoAgora, comandoDeAtualizarSolto } from "./atualizacao-no-windows.ts";
+import { atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_SINAL_MS, sinalizarQueSeAtualiza } from "./atualizacao-no-windows.ts";
 import { anuncioDoComputador, sondaLocal } from "./computador.ts";
 import { arquivoDasAtualizacoes, arquivoDoEstadoDeIa, arquivoDoPedidoDeIa, ESPERA_DA_RESPOSTA_MS, ESPERA_DO_SERVICO_MS, gravarJson, IA_DO_TERMINAL, lerEstadoDoPedido, passoNpmLocal, vigiarPedidosDoTerminal } from "./atualizar-ias.ts";
 import { criarPreparoNoMotor } from "./preparo-do-login.ts";
@@ -352,6 +352,10 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
     if (import.meta.url.endsWith(".mjs") && NO_WINDOWS && process.env.NOD_ATUALIZAR_SOZINHO !== "0" && !atualizador) {
       const ia = () => (iasAtualizando() ? 1 : 0);
       atualizador = iniciarAtualizacao({ url: c.url, dir, pastaDoMotor: pasta, turnosRodando: () => (laco?.turnosAtuais().length ?? 0) + ia(), turnosDaPessoa: () => (laco?.turnosDaPessoa() ?? 0) + ia(), drenar: (nivel) => laco?.drenar(nivel), pedir: () => atualizarNoWindows(c.url) });
+      // QA-234: o sinal diz ao app que este motor cuida da própria troca (o app não passa por cima dos turnos).
+      const sinalizar = () => void sinalizarQueSeAtualiza(process.env).catch(() => undefined);
+      sinalizar();
+      setInterval(sinalizar, INTERVALO_DO_SINAL_MS).unref();
     }
     if (import.meta.url.endsWith(".mjs") && !NO_WINDOWS) {
       void atualizacaoLigada({ url: c.url }).then((ligada) => {

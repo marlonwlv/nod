@@ -102,3 +102,8 @@ atômica, religa a tarefa, a conexão fica), disparado num PowerShell solto (`St
 
 `NOD_ATUALIZAR_SOZINHO=0` desliga nos dois. Gatilho de reversão: a troca solta interrompendo turnos da pessoa com
 frequência, o Defender barrando o PowerShell solto, ou o log mostrando a troca falhando em laço.
+
+Emenda QA-234 (2026-11-25): o motor que sabe se atualizar renova `%LOCALAPPDATA%\nod\motor-se-atualiza` a cada 5 min.
+Com esse sinal vivo (15 min), o app não troca o motor, nem ao abrir nem além da carência: o motor espera os turnos da
+pessoa e pode adiar de propósito por horas (ADR-131), e o app passava por cima disso. O app segue cobrindo o motor antigo
+(sem sinal) e o que parou de sinalizar.

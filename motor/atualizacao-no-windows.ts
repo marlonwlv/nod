@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ARQUIVOS_DO_MOTOR, motorDiferente } from "../src/domain/atualizacao-do-motor.ts";
 
@@ -29,12 +29,22 @@ export const MARCA_ATUALIZANDO = "atualizando-motor";
 export const VALIDADE_DA_MARCA_MS = 20 * 60_000;
 /** O motor novo pede em até ~35 min (JANELA_OCIOSA_MS + o intervalo); o app só entra depois disso. */
 export const CARENCIA_DO_APP_MS = 60 * 60_000;
+/**
+ * QA-234 (2026-11-25): o motor que sabe se atualizar renova este sinal enquanto vive. Com ele, o app não troca o motor:
+ * o motor espera os turnos da pessoa (ADR-100, ADR-131) e pode adiar de propósito por horas com um turno longo; o app
+ * passava por cima depois de 1 h (e logo ao abrir, como depois da própria atualização do app) e o `taskkill /T` do
+ * script cortava o turno no meio. O app segue cobrindo o motor antigo (sem sinal) e o motor que parou de sinalizar.
+ */
+export const SINAL_DO_MOTOR = "motor-se-atualiza";
+export const INTERVALO_DO_SINAL_MS = 5 * 60_000;
+export const VALIDADE_DO_SINAL_MS = 3 * INTERVALO_DO_SINAL_MS;
 /** De quanto em quanto tempo o app confere o motor com o manifesto. */
 export const INTERVALO_DO_APP_MS = 30 * 60_000;
 
 /** A pasta do nod no Windows, como o script da instalação a calcula (`$Pasta`). */
 export const pastaDoNodNoWindows = (env: Env): string => env.NOD_PASTA || join(env.LOCALAPPDATA ?? "", "nod");
 export const arquivoDaMarca = (env: Env): string => join(pastaDoNodNoWindows(env), MARCA_ATUALIZANDO);
+export const arquivoDoSinal = (env: Env): string => join(pastaDoNodNoWindows(env), SINAL_DO_MOTOR);
 export const pastaDosArquivosDoMotor = (env: Env): string => join(pastaDoNodNoWindows(env), "motor", "app");
 
 /** Só https://host (ou http em loopback, na CI): o endereço entra entre aspas simples no PowerShell. */
@@ -82,6 +92,18 @@ export async function atualizandoAgora(env: Env, agora = Date.now()): Promise<bo
   return marcaValida(m, agora);
 }
 
+/** O motor (que sabe se atualizar) diz que está vivo e cuidando da própria troca. */
+export async function sinalizarQueSeAtualiza(env: Env, agora = Date.now()): Promise<void> {
+  await mkdir(pastaDoNodNoWindows(env), { recursive: true });
+  await writeFile(arquivoDoSinal(env), `${new Date(agora).toISOString()}\n`);
+}
+
+/** O app: o motor instalado sinalizou há pouco que cuida da própria troca? */
+export async function motorSeAtualiza(env: Env, agora = Date.now()): Promise<boolean> {
+  const m = await stat(arquivoDoSinal(env)).then((s) => s.mtimeMs, () => null);
+  return m !== null && agora - m < VALIDADE_DO_SINAL_MS;
+}
+
 /** O sha256 dos arquivos do motor instalado (o que falta vem null). */
 export async function shaDoMotorInstalado(env: Env): Promise<Record<string, string | null>> {
   const r: Record<string, string | null> = {};
@@ -111,11 +133,13 @@ export const APP_PARADO: EstadoDoApp = { diferenteDesde: null, jaConferiu: false
 /**
  * O app decide se atualiza o motor. A primeira conferência depois de abrir atualiza na hora (é o caminho do motor antigo,
  * e o app recém-aberto quase nunca tem turno no meio); depois, só se o motor seguir diferente além da carência — o motor
- * novo pede sozinho, esperando os turnos da pessoa. Troca em curso (marca) ou sem resposta do servidor: nada.
+ * novo pede sozinho, esperando os turnos da pessoa. Troca em curso (marca), motor novo vivo (o sinal, QA-234) ou sem
+ * resposta do servidor: nada.
  */
-export function appDeveAtualizar(e: EstadoDoApp, o: { agora: number; diferente: boolean | null; atualizando: boolean }): { estado: EstadoDoApp; atualizar: boolean } {
+export function appDeveAtualizar(e: EstadoDoApp, o: { agora: number; diferente: boolean | null; atualizando: boolean; motorCuida?: boolean }): { estado: EstadoDoApp; atualizar: boolean } {
   if (o.diferente === null) return { estado: e, atualizar: false };
-  if (!o.diferente) return { estado: { diferenteDesde: null, jaConferiu: true }, atualizar: false };
+  // QA-234: o motor novo vivo cuida da troca esperando os turnos da pessoa; a carência só conta quando ele para de cuidar.
+  if (!o.diferente || o.motorCuida) return { estado: { diferenteDesde: null, jaConferiu: true }, atualizar: false };
   const desde = e.diferenteDesde ?? o.agora;
   if (o.atualizando) return { estado: { diferenteDesde: desde, jaConferiu: true }, atualizar: false };
   const atualizar = !e.jaConferiu || o.agora - desde >= CARENCIA_DO_APP_MS;
