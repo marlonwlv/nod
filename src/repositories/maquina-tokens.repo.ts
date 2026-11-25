@@ -149,5 +149,28 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
           and (ultimo_uso_em is null or ultimo_uso_em < ${data(agora - MARCAR_USO_A_CADA_MS)}) returning id`;
       return r.length > 0;
     },
+
+    /**
+     * definido em 2026-11-24 (sucessão de chave): o mesmo computador pareou de novo e ganhou a chave `para`; tudo o que
+     * apontava para a chave `de` passa a apontar para ela, ANTES de `de` ser revogada. Sem isto os bots presos a `de`
+     * (`agentes.maquina_id`) e as sessões do CLI nascidas nela (`trabalhos`/`conversas.sessao_maquina_id`, o nível da
+     * sessão em alvo-da-maquina.ts) esperavam "sem contato" uma chave que ninguém mais usa — com o computador ligado e
+     * puxando com a nova. Medido em produção em 24/11: o Dev Local e o Mr Mime presos assim; o Comunidade Nod desde 16/11.
+     * A sessão segue retomável: é o mesmo computador, as pastas das contas são as mesmas. Só da dona (filtro por owner).
+     * Devolve os bots que mudaram (o chamador avisa a tela).
+     */
+    async transferirReferencias(de: string, para: string): Promise<{ bots: string[]; padrao: boolean; sessoes: number; turnos: number; navegador: number }> {
+      const dono = conn`tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}`;
+      const bots = await conn<{ id: string }[]>`update agentes set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning id`;
+      const padrao = await conn`update preferencias set maquina_padrao_id = ${para} where ${dono} and maquina_padrao_id = ${de} returning 1`;
+      // sessao_maquina_id é text (0079): compara pelo texto.
+      const trabalhos = await conn`update trabalhos set sessao_maquina_id = ${para} where ${dono} and sessao_maquina_id = ${de} returning 1`;
+      const conversas = await conn`update conversas set sessao_maquina_id = ${para} where ${dono} and sessao_maquina_id = ${de} returning 1`;
+      // O "desta vez" só importa no turno que ainda vai sair; o histórico fica como foi.
+      const turnos = await conn`update turnos set maquina_desta_vez = ${para} where ${dono} and maquina_desta_vez = ${de} and estado = 'pendente' returning 1`;
+      // ADR-190: o navegador escolhido nesta máquina segue nela (senão o revogar o devolveria ao nod com aviso).
+      const navegador = await conn`update navegador_preferencias set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning 1`;
+      return { bots: bots.map((b) => b.id), padrao: padrao.length > 0, sessoes: trabalhos.length + conversas.length, turnos: turnos.length, navegador: navegador.length };
+    },
   };
 }

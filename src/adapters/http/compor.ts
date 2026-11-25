@@ -4,6 +4,7 @@ import { anunciarContasDaMaquina } from "../../use-cases/contas-ia.ts";
 import { rotasContasIa } from "./rotas/contas-ia.ts";
 import { rotasInstalacoesSsh } from "./rotas/instalacoes-ssh.ts";
 import { criarInstalacoesPorSsh } from "../../services/instalacoes-por-ssh.ts";
+import { casaHash, hashDaChave } from "../../services/token-maquina.ts";
 import type { ContaAnunciada, ProgressoDoLogin, PuxadaDeContas } from "../../contracts/contas-ia.ts";
 import type { ProgressoDeInstalacao } from "../../contracts/instalacoes-ssh.ts";
 import type { PlataformaMaquina } from "../../contracts/ponte.ts";
@@ -1163,8 +1164,17 @@ export function comporApp(o: OpcoesCompor): App {
         return r.aceito;
       },
       // ADR-121: a VM ligada à nuvem não perde a chave por aqui (como no revogar da tela).
-      aposentar: (escopo: Escopo, chaveId: string) => dentro(escopo, async (d) => {
+      aposentar: (escopo: Escopo, chaveId: string, sucessora?: string) => dentro(escopo, async (d) => {
         if (await d.repos.maquinasNuvem.buscarPorMaquina(chaveId)) return "nuvem" as const;
+        // Definido em 2026-11-24 (sucessão de chave): o mesmo computador pareou de novo. A nova tem de ser viva e desta
+        // pessoa (a RLS do escopo da antiga já garante a pessoa); o que apontava para a antiga passa para ela antes do revogar.
+        if (sucessora !== undefined) {
+          const hash = hashDaChave(sucessora);
+          const nova = await d.repos.maquinaTokens.buscarVivaPorHash(hash, d.agora());
+          if (!nova || !casaHash(nova.hash, hash) || nova.id === chaveId) return "sucessora_invalida" as const;
+          const t = await d.repos.maquinaTokens.transferirReferencias(chaveId, nova.id);
+          log("info", "maquina_sucedida", { tenant_id: escopo.tenantId, pessoa_id: escopo.pessoaId, machine_id: chaveId, sucessora_id: nova.id, bots: t.bots.length, padrao: t.padrao, sessoes: t.sessoes, turnos: t.turnos, navegador: t.navegador });
+        }
         return (await removerMaquina(d, chaveId)).revogou;
       }),
     } } : {}),

@@ -3551,6 +3551,22 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
     },
     maquinaTokens: {
+      // Sucessão de chave (24/11): o bot, a padrão e o "desta vez" pendente. As sessões e o navegador o Postgres cobre
+      // (tests/concurrency/instalacao-ssh-http.test.ts); aqui ficam em 0.
+      async transferirReferencias(de, para) {
+        const bots = doTenant(b.agentes).filter((x) => x.ownerId === escopo.pessoaId && x.maquinaId === de);
+        for (const a of bots) a.maquinaId = para;
+        const chave = `${escopo.tenantId}:${escopo.pessoaId}`;
+        const pref = b.preferencias.get(chave);
+        const padrao = pref?.maquinaPadraoId === de;
+        if (pref && padrao) b.preferencias.set(chave, { ...pref, maquinaPadraoId: para });
+        let turnos = 0;
+        for (const t of doTenant(b.turnos)) {
+          if (t.ownerId !== escopo.pessoaId || t.estado !== "pendente" || b.maquinaDestaVez.get(t.id) !== de) continue;
+          b.maquinaDestaVez.set(t.id, para); t.maquinaDestaVez = para; turnos++;
+        }
+        return { bots: bots.map((a) => a.id), padrao, sessoes: 0, turnos, navegador: 0 };
+      },
       async criar(e) {
         const papel = e.papel ?? "motor";
         // O índice único parcial da 0105 (maquina_tokens_um_computador), como no Postgres.
