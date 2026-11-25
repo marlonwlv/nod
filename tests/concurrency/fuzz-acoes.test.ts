@@ -112,6 +112,10 @@ const ISENCOES_DE_ACOES_NOVAS: Readonly<Record<string, string>> = {
   // ADA-232 (PR #698): acordar exige um trabalho já parado em me_chame_as (hora ou CI); o fuzz semeia a tarefa, mas não
   // esse estado do executor. Semear os trabalhos do quadro no fuzz é da NOD-409 (ADA-55).
   "quadro.acordar_trabalho": "NOD-409",
+  // ADR-196 (PR #372): remover uma conta a mais só leva o id, sem corpo para barrar antes da busca, e só acha a conta com
+  // sessão do Composio da própria pessoa; o fuzz não semeia sessão do Composio (e corta a rede, onde o DELETE da conta iria).
+  // O caminho é coberto por tests/integration/marketplace-contas.test.ts. Semear as entidades no fuzz é da NOD-409 (ADA-55).
+  "apps.remover_conta": "NOD-409",
 };
 /** As ações do quadro que a NOD-420 mudou (o prazo_min): no PR levam as N entradas; as outras do quadro, metade. */
 const ACOES_DO_QUADRO_COM_N = new Set(["quadro.criar_coluna", "quadro.renomear_coluna"]);
