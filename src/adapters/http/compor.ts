@@ -4,6 +4,7 @@ import { anunciarContasDaMaquina } from "../../use-cases/contas-ia.ts";
 import { rotasContasIa } from "./rotas/contas-ia.ts";
 import { rotasInstalacoesSsh } from "./rotas/instalacoes-ssh.ts";
 import { criarInstalacoesPorSsh } from "../../services/instalacoes-por-ssh.ts";
+import { casaHash, hashDaChave } from "../../services/token-maquina.ts";
 import type { ContaAnunciada, ProgressoDoLogin, PuxadaDeContas } from "../../contracts/contas-ia.ts";
 import type { ProgressoDeInstalacao } from "../../contracts/instalacoes-ssh.ts";
 import type { PlataformaMaquina } from "../../contracts/ponte.ts";
@@ -24,7 +25,21 @@ import { criarDriverMotor } from "../computador/motor.ts";
 import { lugarPadrao } from "../../domain/computador-canal.ts";
 import type { EstadoComputadorRelatado } from "../../contracts/computador-motor.ts";
 import { type Computadores, criarComputadores, reconciliarTelas } from "../fundo/computadores.ts";
+import { criarNavegadores, type Navegadores } from "../fundo/navegadores.ts";
+import { criarAvisoNavegadorMudou } from "../navegador/aviso-mudou.ts";
+import { criarVivoNavegador } from "../navegador/vivo.ts";
+import { criarCanalNavegador } from "../navegador/canal-maquina.ts";
+import { criarMotorRemoto } from "../navegador/motor-remoto.ts";
+import { criarVivoDaMaquina } from "../navegador/vivo-maquina.ts";
+import { criarChromeDesteMac } from "../navegador/chrome-deste-mac.ts";
+import { criarMacDaPessoa } from "../navegador/mac-da-pessoa.ts";
+import type { MotorNavegador } from "../navegador/motor-agent-browser.ts";
+import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
+import { aoConectarMaquina, decidirLugarDoNavegador } from "../../use-cases/navegador-lugar.ts";
+import { retomarAoLigarOMac } from "../../use-cases/navegador-mac-desligado.ts";
+import { criarMotorAgentBrowser } from "../navegador/motor-agent-browser.ts";
 import { rotasComputadores } from "./rotas/computadores.ts";
+import { rotasCofreLogins, rotasNavegador, rotasTarefasEnsinadas } from "./rotas/navegador.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { expandirTil } from "../executor/caminho.ts";
@@ -98,6 +113,7 @@ import { pedirCredencial } from "../../use-cases/pedir-credencial.ts";
 import { avisarPessoa } from "../../use-cases/avisar-pessoa.ts";
 import { mostrarCartoes } from "../../use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../use-cases/ajustar-barra-lateral.ts";
+import { ajustarNavegador } from "../../use-cases/ajustar-navegador.ts";
 import { gerirQuadro, gerirQuadroEmFases } from "../../use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../use-cases/gerir-apps.ts";
 import { gerirTimes } from "../../use-cases/gerir-times.ts";
@@ -151,6 +167,7 @@ import { criarRotasAgentes } from "./rotas/agentes.ts";
 import { criarRotasAjustesAprovacao } from "./rotas/ajustes-aprovacao.ts";
 import { rotasTimes } from "./rotas/times.ts";
 import { criarRotasTrabalhos } from "./rotas/trabalhos.ts";
+import { criarRotasTarefas } from "./rotas/tarefas.ts";
 import { criarRotasAtividade } from "./rotas/atividade.ts";
 import { criarRotasDecisoesDoBot } from "./rotas/decisoes-do-bot.ts";
 import { criarTrabalhosVivos } from "../fundo/trabalhos-vivos.ts";
@@ -185,6 +202,9 @@ import { criarRotasBusca } from "./rotas/busca.ts";
 import { lerPoolMax } from "../../db/client.ts";
 import { criarRotasConversas } from "./rotas/conversas.ts";
 import { criarRotasRelatos } from "./rotas/relatos.ts";
+import { criarRotasBackoffice } from "./rotas/backoffice.ts";
+import { papelNoBackoffice, type PapelBackoffice } from "../../domain/backoffice-equipe.ts";
+import { fatosDaEquipe } from "../../repositories/backoffice.repo.ts";
 import { criarRotasDecisoes } from "./rotas/decisoes.ts";
 import { executar, type DentroDeTx } from "./rotas/dentro-de-tx.ts";
 import { type RodarNaTx, trazerImportacao } from "../../use-cases/importar-linear.ts";
@@ -309,6 +329,8 @@ export type App = {
   rotas: Rota[];
   /** NOD-345: as contas (NOD_CONTAS); null desligadas. O boot passa ao servidor (sessão revogável + rotas). */
   contas: ContasMontadas | null;
+  /** ADR-194: o papel da pessoa no backoffice interno (equipe_backoffice; vazia, NOD_ADMINS). O boot passa ao servidor. */
+  backoffice: { papel(escopo: Escopo): Promise<PapelBackoffice | null> };
   /** ADR-115: o executor do revisor no servidor (uma fila por processo). Os testes esperam `ocioso()`. */
   revisor: ExecutorRevisor;
   barramento: Barramento;
@@ -353,6 +375,8 @@ export type App = {
   computadores: Computadores | null;
   /** NOD-374: o disjuntor por app — a confirmação depois da chamada que falhou e o laço de re-sonda (o boot liga na cor ativa). */
   disjuntor: Disjuntor;
+  /** ADR-190: o navegador do bot; o boot liga a pausa dos ociosos (varredor-navegadores.ts) na cor ativa. */
+  navegadores: Navegadores;
   /** Liga os dois canais WebSocket da ligação ao servidor HTTP (boot, depois do listen). */
   anexarVoz(server: Server, resolverEscopo: (req: IncomingMessage) => Escopo | null | Promise<Escopo | null>): CanaisVoz;
   fechar(): Promise<void>;
@@ -424,6 +448,10 @@ export function comporApp(o: OpcoesCompor): App {
   const machineId = env.NOD_MACHINE_ID ?? "";
   const prazoDecisaoMs = numero(env.NOD_PRAZO_DECISAO_MS, 86_400_000);
   const modeloPadrao = env.NOD_MODELO ?? "auto";
+  // ADR-192 (etapa 2): a flag de escrita da Tarefa como objetivo, ligada por padrão; NOD_TAREFA_OBJETIVO=0 desliga.
+  const tarefaObjetivo = env.NOD_TAREFA_OBJETIVO !== "0";
+  // ADR-192 (etapa 5): a virada da leitura, desligada por padrão (sete dias de sombra antes de ligar).
+  const leituraNovaDasTarefas = env.NOD_TAREFAS_LEITURA_NOVA === "1";
   const chave = chaveDe(env.NOD_CREDENTIAL_KEY ?? "chave-de-desenvolvimento-sem-valor");
   let registryLigado: Registry | null = null;
   let inventarioInicial: Inventario | null = null;
@@ -439,7 +467,18 @@ export function comporApp(o: OpcoesCompor): App {
   const estadoVivo = criarEstadoVivo(criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) }), { agora: relogio });
   // C1 (2026-11-12): o frame que pode trazer fala para a sessão viva acorda o long-poll do laço (aguardarMensagem).
   const avisoDeMensagem = criarAvisoDeMensagem();
-  const barramento = comAvisoDeMensagem(estadoVivo.barramento, avisoDeMensagem);
+  // Ponto 10 dos cenários (2026-11-22): o fim do turno marca o navegador do bot "terminou" na hora (antes, só o varredor de
+  // 1 min). Ligado depois que o portão do navegador existe (mais abaixo).
+  let aoFimDoTurno: (pessoaId: string, turnoId: string) => void = () => undefined;
+  const comFimDoTurno = (b: Barramento): Barramento => ({
+    ...b,
+    publicar(pessoaId, tipo, dados) {
+      const f = b.publicar(pessoaId, tipo, dados);
+      if ((tipo === "turno.encerrado" || tipo === "turno.interrompido") && typeof dados.turnoId === "string") aoFimDoTurno(pessoaId, dados.turnoId);
+      return f;
+    },
+  });
+  const barramento = comFimDoTurno(comAvisoDeMensagem(estadoVivo.barramento, avisoDeMensagem));
   const interruptor = criarInterruptor();
   // revisto em 2026-10-12 (NOD-214): o token que falta na memória (o processo é novo, o turno seguiu na máquina durante o
   // deploy) é procurado pelo hash em `turno_credenciais`, no escopo que o token alega, e só vale com o turno ainda
@@ -466,7 +505,7 @@ export function comporApp(o: OpcoesCompor): App {
     return tenants.get(pessoaId) ?? null;
   }
 
-  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso: pedirAcessoDoBot, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, decisoesNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
+  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso: pedirAcessoDoBot, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, decisoesNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat, ajustarNavegador };
 
   // NOD-351: a situação da conta para abrir_conta, lida na transação do turno (sem outra conexão do pool). Liga tarde: as
   // contas nascem depois, sobre `dentro`; false = desligadas, e abrir_conta volta `indisponivel`.
@@ -482,7 +521,7 @@ export function comporApp(o: OpcoesCompor): App {
   configurarRotinasFora(lerRotinasFora(env));
   // ADA-28 (ADR-159): NOD_TAREFA_CASA=1 liga a jornada chat × quadro (desligada até o protótipo e as suposições).
   configurarTarefaCasa(lerTarefaCasa(env));
-  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
+  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }), ...(leituraNovaDasTarefas ? { leituraNovaDasTarefas: true } : {}), ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
   // NOD-443 (ADR-143): a porta para o quadro da dona, na mesma transação (o turno do bot de quem participa).
   const depsDe = (trx: Tx, escopo: Escopo): Deps => comPortas(trx, escopo, (e) => depsSemPorta(trx, e));
   const depsSobre = (trx: Tx): Deps => depsDe(trx, escopoDoContexto());
@@ -665,7 +704,7 @@ export function comporApp(o: OpcoesCompor): App {
     const efeitos: EfeitoAposCommit[] = [];
     const r = await abrirTxEscopada(db, escopo)((trx) => fn({ ...depsDe(trx, escopo), aposCommit: (e) => void efeitos.push(e) }));
     // Pelo Nod (e no clique do cartão do lote), a ação já commitou: a falha do efeito vira aviso no log, não erro do lote.
-    for (const e of efeitos) await rodarAposCommit(escopo, e).catch((erro: unknown) => log("aviso", "efeito_apos_commit_falhou", { tipo: e.tipo, ...(e.tipo === "desligar_computador" ? { agente_id: e.agenteId } : e.tipo === "remover_computador" ? { maquina_id: e.maquinaId } : { importacao_id: e.importacaoId }), erro: erro instanceof Error ? erro.message : String(erro) }));
+    for (const e of efeitos) await rodarAposCommit(escopo, e).catch((erro: unknown) => log("aviso", "efeito_apos_commit_falhou", { tipo: e.tipo, ...(e.tipo === "desligar_computador" ? { agente_id: e.agenteId } : e.tipo === "remover_computador" ? { maquina_id: e.maquinaId } : e.tipo === "importar_linear" ? { importacao_id: e.importacaoId } : {}), erro: erro instanceof Error ? erro.message : String(erro) }));
     return r;
   };
   // ADR-165 (0170): os passos do run gravados no ponto em que os frames ao vivo saem (publicarDoPlano), com o escopo da dona
@@ -843,6 +882,8 @@ export function comporApp(o: OpcoesCompor): App {
   })();
   const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual,
     porPessoa: computadorNoMotor || provedoresComputador !== null,
+    // 2026-11-25: no motor, o computador só mora numa máquina Linux da pessoa (Mac e Windows ficam só com o navegador).
+    soNoLinux: computadorNoMotor,
     ...(sessoesVivo ? { vivo: sessoesVivo } : {}),
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),
@@ -851,9 +892,73 @@ export function comporApp(o: OpcoesCompor): App {
     // D (2026-11-12): o cursor da ação do bot, efêmero (não grava), para a tela daquele bot.
     cursor: (escopo, frame) => { barramento.publicar(escopo.pessoaId, "computador.cursor", frame); } });
   if (o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador) services.computadores = computadores;
+  // ADR-190 (2026-11-20): o navegador do bot. O portão existe sempre; o motor no servidor só com NOD_NAVEGADOR_NO_SERVIDOR=1
+  // (o e2-medium de produção não tem memória para Chromes). Sem motor, o plano sai sem navegador_* e a chamada que chegar
+  // responde indisponível com o motivo. O perfil de cada bot mora em NOD_HOME/navegadores, cifrado pela chave do servidor.
+  const motorNoServidor = env.NOD_NAVEGADOR_NO_SERVIDOR === "1"
+    ? criarMotorAgentBrowser({ dados: join(expandirTil(env.NOD_HOME ?? "~/.nod", homedir()), "navegadores"), segredo: chave, chrome: env.NOD_NAVEGADOR_CHROME ?? null })
+    : null;
+  // A vista que muda vai ao canal ao vivo (quem assiste) e ao SSE (`navegador.mudou`, ~4/s por bot; a web relê por REST).
+  const avisoNavegador = criarAvisoNavegadorMudou({ publicar: (pessoaId, dados) => barramento.publicar(pessoaId, "navegador.mudou", dados) });
+  let vivoDoNavegador: ReturnType<typeof criarVivoNavegador> | null = null;
+  // ADR-190 (decisão 5, definido em 2026-11-20): com NOD_NAVEGADOR_NA_MAQUINA=1 (e o modo compartilhado, onde as máquinas
+  // falam pela ponte), o navegador do bot também roda no Mac da pessoa (app) e nas máquinas sempre ligadas dela (motor):
+  // a fila `navegador/*` da ponte, o motor remoto e a vista que a máquina abre. O lugar de cada bot sai das preferências
+  // dele (0180/0181), das máquinas da pessoa e de quem está com o navegador ligado agora (navegador-lugar.ts).
+  // ADR-190 (K1): o app do Mac voltou a puxar o navegador: os pedidos de "Quando o Mac ligar" continuam.
+  const aoLigarOMac = (escopo: Escopo, _maquinaId: string, plataforma: PlataformaMaquina) => {
+    if (plataforma === "linux") return;
+    void dentro(escopo, async (d) => { const ev = await retomarAoLigarOMac(d); if (ev.length) await d.repos.events.gravarComOutbox(ev); })
+      .catch((e: unknown) => log("aviso", "navegador_retomar_ao_ligar_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }));
+  };
+  const canalNavegador = compartilhado && env.NOD_NAVEGADOR_NA_MAQUINA === "1" ? criarCanalNavegador({ agora: relogio, aoLigar: aoLigarOMac }) : null;
+  /** A máquina de um lugar remoto: a do nome ("maquina"), ou o Mac/PC da pessoa com o navegador ligado agora ("mac"). */
+  const maquinaDoLugar = (lugar: LugarNavegador, escopo: Escopo): string | null => {
+    if (!canalNavegador || lugar.tipo === "nod") return null;
+    if (lugar.tipo === "maquina") return lugar.maquinaId;
+    return canalNavegador.ligadas(escopo).find((m) => m.plataforma !== "linux")?.maquinaId ?? null;
+  };
+  const motoresRemotos = new Map<string, MotorNavegador>();
+  const motorRemoto = (lugar: LugarNavegador, escopo: Escopo): MotorNavegador | null => {
+    const maquinaId = maquinaDoLugar(lugar, escopo);
+    if (!canalNavegador || !maquinaId) return null;
+    const k = `${escopo.tenantId}:${escopo.pessoaId}:${maquinaId}:${lugar.tipo}`;
+    let m = motoresRemotos.get(k);
+    if (!m) { m = criarMotorRemoto({ canal: canalNavegador, escopo, maquinaId, lugar }); motoresRemotos.set(k, m); }
+    return m;
+  };
+  // ADR-177/190 (L, A1): o cofre do Mac (1Password, Bitwarden), os cookies do Chrome e o Touch ID vêm do app pela mesma
+  // fila; sem a fila, só o cofre do nod e a confirmação comum.
+  // 2026-11-23, só no desenvolvimento: o servidor de login stub no Mac da própria pessoa lê o Chrome deste Mac direto
+  // ("Trazer do meu Chrome" sem o app; chrome-deste-mac.ts). Nunca no compartilhado nem fora do macOS.
+  const chromeDesteMac = !canalNavegador && !compartilhado && env.NOD_LOGIN === "stub" && process.platform === "darwin" && env.NOD_NAVEGADOR_CHROME_DESTE_MAC === "1";
+  const macDoNavegador = canalNavegador ? criarMacDaPessoa({ canal: canalNavegador }) : chromeDesteMac ? criarChromeDesteMac({ home: env.HOME ?? homedir() }) : null;
+  const navegadores = criarNavegadores({ dentro, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), max: numero(env.NOD_NAVEGADORES_MAX, 4),
+    motor: (lugar, escopo) => (lugar.tipo === "nod" ? motorNoServidor : motorRemoto(lugar, escopo)),
+    ...(macDoNavegador ? { mac: macDoNavegador, ...(canalNavegador ? { maquinaDoLugar } : {}) } : {}),
+    algumLugar: () => motorNoServidor !== null || canalNavegador !== null,
+    ...(canalNavegador ? { lugarDe: (d: Deps, escopo: Escopo, agenteId: string) => decidirLugarDoNavegador(d, agenteId, {
+      ligadas: canalNavegador.ligadas(escopo),
+      conectadas: ponteHttp.maquinasDaPessoa(escopo).map((m) => ({ maquinaId: m.machineId, plataforma: m.plataforma })),
+    }) } : {}),
+    motivoIndisponivel: canalNavegador
+      ? "O navegador do bot não roda no nod agora, e este bot continua com o Mac desligado sem uma máquina sempre ligada para ele."
+      : "O navegador do bot não roda neste servidor agora e ainda não há outro lugar ligado para ele.",
+    executor: () => executorAtual,
+    aoMudar: (escopo, vista) => { vivoDoNavegador?.vistaMudou(escopo, vista); avisoNavegador.mudou(escopo, vista); } });
+  const vivoDaMaquina = canalNavegador ? criarVivoDaMaquina({ canal: canalNavegador, maquinaDoBot: (escopo, agenteId) => maquinaDoLugar(navegadores.vistaDe(escopo, agenteId).lugar, escopo) }) : null;
+  const vivoNavegador = criarVivoNavegador({ portao: navegadores, ...(vivoDaMaquina ? { maquina: vivoDaMaquina } : {}) });
+  vivoDoNavegador = vivoNavegador;
+  aoFimDoTurno = (pessoaId, turnoId) => navegadores.turnoAcabou(pessoaId, turnoId);
+  services.navegadores = navegadores;
   rodarAposCommit = async (escopo, efeito) => {
-    if (efeito.tipo === "desligar_computador") return computadores.desligarExcluido(escopo, efeito.agenteId);
+    if (efeito.tipo === "desligar_computador") {
+      // ADR-190: o bot excluído também perde o Chrome; desde 2026-11-22 (ponto 09 dos cenários), o perfil sai do disco.
+      await navegadores.desligar(escopo, efeito.agenteId, { apagarPerfil: true }).catch((e: unknown) => log("aviso", "navegador_desligar_falhou", { agente_id: efeito.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+      return computadores.desligarExcluido(escopo, efeito.agenteId);
+    }
     if (efeito.tipo === "remover_computador") return removerDepoisDoCommit(escopo, efeito);
+    if (efeito.tipo === "pedidos_dispensados") { navegadores.pedidosDispensados(escopo, efeito.decisaoIds); return; }
     // NOD-422: a busca do Linear roda em segundo plano (minutos, com progresso); quem confirmou não espera por ela.
     const rodar: RodarNaTx = (fn) => dentro(escopo, async (d) => executar(d, (dd) => fn(dd), undefined));
     void trazerImportacao(rodar, efeito.importacaoId).catch((erro: unknown) => log("erro", "importar_linear_falhou", { importacao_id: efeito.importacaoId, erro: erro instanceof Error ? erro.message : String(erro) }));
@@ -1006,7 +1111,11 @@ export function comporApp(o: OpcoesCompor): App {
     persistir: compartilhado ? (escopo, inv) => dentro(escopo, async (d) => { await d.repos.inventario.registrar("claude-cli", inv); }) : async () => undefined,
     ...(compartilhado ? {} : { descartarSessao: true }),
     // ADR-090 (0067): nos dois modos — no local, a VM também cai, e o aviso a nomeia.
-    registrarPlataforma: (escopo, chaveId, plataforma) => dentro(escopo, (d) => d.repos.maquinaTokens.registrarPlataforma(chaveId, plataforma)),
+    // ADR-190 (N): a primeira conexão da PRIMEIRA máquina sempre ligada avisa os bots que continuam com o Mac desligado.
+    registrarPlataforma: (escopo, chaveId, plataforma) => dentro(escopo, async (d) => {
+      const mudou = await d.repos.maquinaTokens.registrarPlataforma(chaveId, plataforma);
+      if (mudou && plataforma === "linux") await aoConectarMaquina(d, chaveId).catch((e: unknown) => log("aviso", "navegador_aviso_maquina_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }));
+    }),
     nomeDaChave: (escopo, chaveId) => dentro(escopo, async (d) => (await d.repos.maquinaTokens.identificar(chaveId))?.nome ?? null),
     ...(contas ? { sessaoDaMaquina: async (escopo: Escopo, chaveId: string) => contas.sessaoDaMaquina(escopo, chaveId, await dentro(escopo, async (d) => (await d.repos.maquinaTokens.identificar(chaveId))?.nome ?? null)) } : {}),
     papelDaChave: (escopo, chaveId) => dentro(escopo, async (d) => (await d.repos.maquinaTokens.identificar(chaveId))?.papel ?? null),
@@ -1028,6 +1137,7 @@ export function comporApp(o: OpcoesCompor): App {
     vigia: (plano, aviso) => avisoDoVigia(plano, aviso),
     longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined,
     ...(canalComputador ? { computador: { canal: canalComputador, reconciliar: reconciliarComputador } } : {}),
+    ...(canalNavegador ? { navegador: { canal: canalNavegador } } : {}),
     // ADR-048: itens aprovados que rodam no gh do Mac da dona — a máquina puxa, executa e relata. No modo local o item roda
     // neste Mac na hora (executarNaMaquina) e nenhuma máquina da ponte o puxa (ADR-092).
     // definido em 2026-10-05: uma IA ficou pronta no Mac — as falas barradas por falta de IA são repetidas sozinhas. No modo
@@ -1037,6 +1147,11 @@ export function comporApp(o: OpcoesCompor): App {
       repetirBarrados: (escopo: Escopo, prontos: readonly IdHarness[]) => dentro(escopo, async (d) => {
         const r = await repetirBarradosPorIa(d, { executor: "local", prontos });
         if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+        // Lote B (desvio 9): a fala do "Reinstalar e tentar" sai quando a IA reinstalada volta pronta.
+        for (const ia of prontos) {
+          const acordadas = await d.repos.turnos.anteciparReinstaladas(ia);
+          if (acordadas.length > 0) log("info", "fala_reinstalada_antecipada", { ia, turnos: acordadas.length });
+        }
       }),
     } : {}),
     concluirItemLocal: (escopo, itemId, desfecho) => dentro(escopo, async (d) => {
@@ -1056,8 +1171,17 @@ export function comporApp(o: OpcoesCompor): App {
         return r.aceito;
       },
       // ADR-121: a VM ligada à nuvem não perde a chave por aqui (como no revogar da tela).
-      aposentar: (escopo: Escopo, chaveId: string) => dentro(escopo, async (d) => {
+      aposentar: (escopo: Escopo, chaveId: string, sucessora?: string) => dentro(escopo, async (d) => {
         if (await d.repos.maquinasNuvem.buscarPorMaquina(chaveId)) return "nuvem" as const;
+        // Definido em 2026-11-24 (sucessão de chave): o mesmo computador pareou de novo. A nova tem de ser viva e desta
+        // pessoa (a RLS do escopo da antiga já garante a pessoa); o que apontava para a antiga passa para ela antes do revogar.
+        if (sucessora !== undefined) {
+          const hash = hashDaChave(sucessora);
+          const nova = await d.repos.maquinaTokens.buscarVivaPorHash(hash, d.agora());
+          if (!nova || !casaHash(nova.hash, hash) || nova.id === chaveId) return "sucessora_invalida" as const;
+          const t = await d.repos.maquinaTokens.transferirReferencias(chaveId, nova.id);
+          log("info", "maquina_sucedida", { tenant_id: escopo.tenantId, pessoa_id: escopo.pessoaId, machine_id: chaveId, sucessora_id: nova.id, bots: t.bots.length, padrao: t.padrao, sessoes: t.sessoes, turnos: t.turnos, navegador: t.navegador });
+        }
         return (await removerMaquina(d, chaveId)).revogou;
       }),
     } } : {}),
@@ -1541,6 +1665,8 @@ export function comporApp(o: OpcoesCompor): App {
     useCases,
     agora: relogio,
     modeloPadrao,
+    ...(tarefaObjetivo ? {} : { tarefaObjetivo: false }),
+    ...(leituraNovaDasTarefas ? { leituraNovaDasTarefas: true } : {}),
     prazoDecisaoMs,
     // Jornada C do onboarding: sem IA, a fala da pessoa fica guardada (flag NOD_ONBOARDING_TEXTO=1, desligada por padrão).
     ...(onboardingTexto ? { guardarSemIa: true } : {}),
@@ -1551,6 +1677,16 @@ export function comporApp(o: OpcoesCompor): App {
     rodarAposCommit: (escopo, efeito) => rodarAposCommit(escopo, efeito),
   };
   const depsL7: DepsRotasL7 = { executor: () => executorAtual, txPara: (escopo) => abrirTxEscopada(db, escopo), services, useCases, agora: relogio, fusoPadrao };
+  /**
+   * ADR-194: a guarda do backoffice. Uma consulta à equipe (o papel e se ela está vazia); só com a equipe vazia e
+   * NOD_ADMINS preenchido lê o e-mail da pessoa, para o bootstrap do primeiro deploy.
+   */
+  async function papelBackoffice(escopo: Escopo): Promise<PapelBackoffice | null> {
+    const fatos = await fatosDaEquipe(db, escopo);
+    if (!fatos.equipeVazia || adminsVoz.length === 0) return papelNoBackoffice(fatos, adminsVoz, null);
+    const eu = (await listarTodas(db)).find((p) => p.tenantId === escopo.tenantId && p.id === escopo.pessoaId) ?? null;
+    return papelNoBackoffice(fatos, adminsVoz, eu ? { id: eu.id, email: eu.email } : null);
+  }
   const rotas: Rota[] = [
     ...criarRotasFrota(depsRotas),
     criarRotaInventario({ inventario }),
@@ -1576,6 +1712,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...criarRotasConversas(depsRotas),
     ...criarRotasBusca(depsRotas, { poolMax: lerPoolMax(env) }),
     ...criarRotasTrabalhos(depsRotas),
+    ...criarRotasTarefas(depsRotas),
     ...criarRotasAtividade(depsRotas),
     ...criarRotasDecisoesDoBot(depsRotas),
     ...criarRotasArtefatos(depsRotas),
@@ -1583,6 +1720,9 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasApps(depsRotas),
     ...rotasCanvas(depsRotas),
     ...criarRotasRelatos(depsRotas),
+    // ADR-194 (nasceu no ADR-193): o backoffice interno, só leitura, sob /api/backoffice. A guarda (papelBackoffice) é do
+    // roteador, a cada pedido; cada acesso fica em acessos_backoffice.
+    ...criarRotasBackoffice({ listarPessoas: () => listarTodas(db), abrirTx: (escopo) => abrirTxEscopada(db, escopo), agora: relogio }),
     ...criarRotasPropostas(depsRotas),
     ...criarRotasTurnos(depsRotas),
     ...criarRotasRaioX(depsRotas),
@@ -1645,7 +1785,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasAtualizacaoApp({ config: configAtualizacaoApp, versaoMinima: VERSAO_MINIMA_APP, teste: configTesteApp, canalDe: (escopo) => canalDasFlags(fonteFlags.avaliar(escopo)), publicadaEm: new Date(relogio()).toISOString().replace(/\.\d{3}Z$/, "Z"),
       assinar: configAtualizacaoApp ? cachearAssinador(o.assinadorAtualizacaoApp ?? criarAssinadorGcs({ bucket: configAtualizacaoApp.bucket, fonteToken: criarFonteDeToken({ env }) }), { agora: relogio }) : null }),
     ...rotasMotor({ pasta: env.NOD_MOTOR_DIR ?? resolve("dist/motor"), versao: versaoDoServidor(), ...(env.NOD_COMPUTADORES === "motor" ? { computador: true } : {}), ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
-    ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome) }),
+    ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome), prontosDaPessoa: (escopo) => Object.entries(ponteHttp.harnessesDaPessoa(escopo.pessoaId)).filter(([, inv]) => inv?.estado === "pronto").map(([ia]) => ia as IdHarness) }),
     ...(compartilhado ? rotasInstalacoesSsh({ dentro, instalacoes, dispositivo, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }) : []),
     ...rotasMcpTokens({ dentro, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada,
@@ -1654,8 +1794,11 @@ export function comporApp(o: OpcoesCompor): App {
     ...(nuvemLigada ? rotasNuvem({ dentro, segredo: segredoEfetivo(env.NOD_LOGIN === "google" ? "google" : "stub", env.NOD_SESSAO_SEGREDO), oauth: oauthNuvem(env), conta: o.nuvem?.conta ?? criarContaGcp({ contaFaturamento: env.NOD_NUVEM_CONTA_FATURAMENTO ?? null }), ...(o.nuvem?.fetchImpl ? { fetchImpl: o.nuvem.fetchImpl } : {}), cifrar: (t) => cifrar(t, chave), provedorDa: async (escopo, credencialId) => provedorDaChave(await dentro(escopo, (d) => d.repos.credenciaisNuvem.chaveCifrada(credencialId))), ...(criacaoNuvem ? { registrarConvite: criacaoNuvem.registrarConvite } : {}), agora: relogio }) : []),
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.
     ...rotasComputadores(computadores),
+    ...rotasNavegador(navegadores, { dentro, ligadas: (escopo) => canalNavegador?.ligadas(escopo) ?? [] }),
+    ...rotasCofreLogins({ dentro, cifrar: (s) => cifrar(s, chave) }),
+    ...rotasTarefasEnsinadas({ dentro, espaco: (escopo, agenteId) => navegadores.espaco(escopo, agenteId) }),
     ...rotasWorkspaces(workspaces, dentro),
-    ...rotasInternas({ dentro, computadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
+    ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),
     // NOD-84 (ADR-139): a rota pública do webhook só no compartilhado — o nod local, no Mac, não é alcançável de fora.
     ...(compartilhado ? criarRotasWebhook({ ...depsL7, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave) }) : []),
@@ -1793,11 +1936,13 @@ export function comporApp(o: OpcoesCompor): App {
     useCases,
     dentro,
     computadores: o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador ? computadores : null,
+    navegadores,
     disjuntor,
     depsDe,
     ponte,
     rotas,
     contas,
+    backoffice: { papel: papelBackoffice },
     revisor,
     barramento,
     interruptor,
@@ -1849,6 +1994,7 @@ export function comporApp(o: OpcoesCompor): App {
         anexarMidia: ({ escopo, ligacaoId, retomar, canal }) => voz.anexarMidia({ pessoaId: escopo.pessoaId, ligacaoId, retomar, canal }),
         anexarCerebro: ({ identidade, ligacaoId, canal }) => voz.anexarCerebro({ turnoId: identidade.turnoId, ligacaoId, canal }),
         anexarDitado: ({ escopo, canal }) => anexarDitado(escopo, canal),
+        navegadorVivo: { web: (escopo, agenteId, canal) => vivoNavegador.web(escopo, agenteId, canal), ...(vivoDaMaquina ? { maquina: (agenteId: string, token: string, canal: CanalVoz) => vivoDaMaquina.anexar(agenteId, token, canal) } : {}) },
         ...(sessoesVivo ? { computadorVivo: {
           web(escopo, agenteId, canal, modo) {
             const assistir = modo?.assistir === true;
@@ -1868,6 +2014,8 @@ export function comporApp(o: OpcoesCompor): App {
     },
     async fechar() {
       leitor.fechar();
+      vivoNavegador.fechar();
+      avisoNavegador.parar();
       await ditado.fechar();
       await voz.fechar();
       await provedoresVoz.encerrar();

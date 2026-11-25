@@ -6,7 +6,8 @@ import { ligarDecisaoATarefa } from "./tarefa-casa.ts";
 import type { Concessao } from "../contracts/concessao.ts";
 import type { Assunto } from "../contracts/destino-no-chat.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
-import type { ItemAprovacao } from "../contracts/item-aprovacao.ts";
+import type { DestinoItem, ItemAprovacao } from "../contracts/item-aprovacao.ts";
+import { jsonEstavel } from "../domain/json-estavel.ts";
 import type { DesfechoItem, MotivoAprovacaoManual } from "../contracts/motivos.ts";
 import type { CasoNod } from "../contracts/servicos.ts";
 import { montarItens, type PropostaItem } from "../domain/aprovacao-item.ts";
@@ -95,6 +96,20 @@ async function quemPediuSaiuDoQuadro(deps: Deps, turnoId: string): Promise<boole
   return !!q && !(await deps.repos.quadros.ehMembro(q.id, turno.sobProcuracaoDe));
 }
 
+const chaveDoLote = (itens: readonly { texto: string; destino: DestinoItem }[]): string =>
+  jsonEstavel(itens.map((i) => ({ texto: i.texto, conector: i.destino.conector, ferramenta: i.destino.ferramenta, argumentos: i.destino.argumentos ?? {} })));
+
+/** QA-144: o card de aprovação deste turno ainda aberto com exatamente os mesmos itens (texto e destino, na ordem). */
+async function cardIgualAberto(deps: Deps, turnoId: string, propostas: readonly PropostaItem[]): Promise<string | null> {
+  const chave = chaveDoLote(propostas);
+  for (const d of await deps.repos.decisoes.doTurno(turnoId)) {
+    if (d.tipo !== "aprovacao" || d.estado !== "pendente") continue;
+    const itens = await deps.repos.itensAprovacao.listar(d.id);
+    if (chaveDoLote(itens.map((i) => ({ texto: i.textoOriginal, destino: i.destino }))) === chave) return d.id;
+  }
+  return null;
+}
+
 /** `comRevisor`: só o caminho da ferramenta (a rota interna sabe esperar a revisão e enfileirar o pedido); os outros, como hoje. */
 const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: Deps, input: EntradaPedido): Promise<SaidaFase1Pedido> => {
   const agora = deps.agora();
@@ -106,6 +121,12 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   if (!computador && input.itens.some((i) => i.destino.conector === "computador" ||
     (i.destino.conector === "nod" && i.destino.ferramenta.startsWith("computador_")))) {
     return { saida: { data: { estado: "recusada", erros: ["Destino de computador não é conector de aprovação. Nada foi executado. Use diretamente a ferramenta computador_* disponível. Se a pessoa pediu confirmação antes, use pedir_a_pessoa e espere a resposta. Não contorne aprovação pendente nem falha de autorização."],
+      instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
+  }
+  // ADR-190 (2026-11-20): o navegador também tem portão próprio; a classe sai do alvo que o servidor resolveu.
+  if (!computador && input.itens.some((i) => i.destino.conector === "navegador" ||
+    (i.destino.conector === "nod" && i.destino.ferramenta.startsWith("navegador_")))) {
+    return { saida: { data: { estado: "recusada", erros: ["Destino de navegador não é conector de aprovação. Nada foi executado. Use diretamente a ferramenta navegador_* disponível: o portão do navegador pede a aprovação quando o ponto é sem volta."],
       instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
   }
   const propostas: PropostaItem[] = [];
@@ -126,7 +147,7 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   const nivelPorIdx: (NivelFerramenta | undefined)[] = [];
   const barrados: string[] = [];
   for (const [idxItem, item] of input.itens.entries()) {
-    if (!computador && (item.destino.conector === "computador" || item.destino.conector === "terminal")) {
+    if (!computador && (item.destino.conector === "computador" || item.destino.conector === "terminal" || item.destino.conector === "navegador")) {
       return { saida: { data: { estado: "recusada", erros: [`itens[${idxItem}]: ${item.destino.conector} usa o adaptador direto`], instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
     }
     if (item.destino.conector === "computador") {
@@ -142,6 +163,17 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
       envioPorIdx.push(false);
       nivelPorIdx.push(undefined);
       if (ajustes.soLeitura) barrados.push(`itens[${idxItem}]: ${FRASE_SO_LEITURA}`);
+      continue;
+    }
+    // ADR-190: a ação do navegador vai cifrada no próprio item (`acao`); só o portão do navegador a cria.
+    if (item.destino.conector === "navegador") {
+      const id = item.destino.argumentos?.acaoId;
+      if (typeof id !== "string" || !/^[a-f0-9-]{36}$/.test(id) || typeof item.destino.argumentos?.acao !== "string" || item.destino.ferramenta !== "executar") throw new ErroDeDominio("entrada_invalida");
+      propostas.push({ texto: item.texto, destino: item.destino, origemSensivel: false });
+      conectorIdPorIdx.push(null);
+      arriscadaPorIdx.push(false);
+      envioPorIdx.push(false);
+      nivelPorIdx.push(undefined);
       continue;
     }
     const conector = await deps.repos.conectores.buscarPorSlug(item.destino.conector);
@@ -225,6 +257,13 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
       agente: agente ? { nome: agente.nome, titulo: agente.titulo, descricao: agente.descricao } : null,
     });
     return { revisao: { aguardar: r.data.aguardar, fila: r.data.revisao }, events: r.events ?? [] };
+  }
+
+  // QA-144: o bot repetir o MESMO lote no turno (retry depois de timeout, chamada duplicada) não abre outro card. Dois
+  // cards iguais aprovados executavam o efeito duas vezes (o e-mail saía em dobro). Devolve o card ainda aberto.
+  if (!automatico) {
+    const igual = await cardIgualAberto(deps, input.turnoId, propostas);
+    if (igual) return { saida: { data: { estado: "pendente", decisao_id: igual, instrucao: "encerre o turno; a decisão retoma depois" }, events: [] } };
   }
 
   const decisao = await deps.repos.decisoes.criar({

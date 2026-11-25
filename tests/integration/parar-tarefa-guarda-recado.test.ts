@@ -60,7 +60,8 @@ describeIntegracao("o Parar da tarefa guarda o recado (ADR-187 §6, ADR-185)", (
       await c.repos.turnos.interromper(c.vivo, "parado_pela_pessoa");
       const r = await encerrarTrabalho(c.deps, { trabalhoId: c.trabalhoId });
       expect(r.data.trabalho.estado).toBe("terminado");
-      expect(r.events?.map((e) => e.kind)).toEqual(["trabalho_mudou"]);
+      // ADR-192 (etapa 2): encerrar é o gesto da pessoa que resolve a Tarefa ligada — o `tarefa_mudou` vem junto.
+      expect(r.events?.map((e) => e.kind)).toEqual(["trabalho_mudou", "tarefa_mudou"]);
       expect((await encerrarTrabalho(c.deps, { trabalhoId: c.trabalhoId })).events).toEqual([]);
       await mensagemParaTrabalho(c.deps, { trabalhoId: c.trabalhoId, texto: "mais uma coisa" });
       expect((await c.repos.turnos.buscar(naFila))?.estado).toBe("interrompido");

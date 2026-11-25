@@ -13,6 +13,7 @@ import { origemDasFrentes } from "./pedido-de-colega.ts";
 import { autoriaAgente, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { conversaDoBot, enfileirarNoTrabalho } from "./coordenar-trabalhos.ts";
 import type { Deps } from "./tipos.ts";
+import { ligarObjetivoDoTrabalhoNovo } from "./tarefas.ts";
 import { criarTrabalho } from "./trabalhos.ts";
 import { repoDoGithub } from "../domain/clone-da-maquina.ts";
 import { codigoDaTarefa } from "../domain/codigo-tarefa.ts";
@@ -110,6 +111,8 @@ async function abrirLote(deps: Deps, ctx: ContextoFerramenta, frentes: readonly 
       tarefaId: tarefaId ?? daTarefa?.id ?? null,
     });
     events.push(...criados);
+    // ADR-192 (emenda 5): a frente que o bot abre ganha a Tarefa como a do "+ Nova tarefa" — antes do turno, que nasce na Thread.
+    events.push(...(await ligarObjetivoDoTrabalhoNovo(deps, trabalho, { tipo: "agente", id: turno.agenteId })));
     const novo = await deps.repos.turnos.enfileirar({
       conversaId,
       agenteId: turno.agenteId,
@@ -188,6 +191,11 @@ export const mandarParaFrente: CasoNod<Deps, "mandar_para_frente"> = async (deps
   if (!t || t.agenteId !== turno.agenteId) return { data: { ok: false, erro: "task_nao_encontrada", instrucao: "Esse id não é de uma frente sua. Use o id de \"Trabalhos em andamento\"." } };
   // Revisão do épico (S7, 2026-10-08): o recado não reabre o que a pessoa parou ou o que já acabou.
   if (!trabalhoAberto(t.estado)) return { data: { ok: false, erro: "task_fechada", instrucao: `"${t.titulo}" já ${t.estado === "parado" ? "foi parada pela pessoa" : "acabou"}: o recado não entra nela. Se precisa continuar, abra outra frente com abrir_frentes ou faça aqui.` } };
+  // QA-231 (ADR-192, emenda 5): a Tarefa que a pessoa arquivou ou marcou como resolvida (com "deixar terminar", o
+  // trabalho segue aberto) não ganha recado do bot — a fala da própria pessoa na arquivada já é recusada, e só ela
+  // reabre a resolvida (Continuar). Sem isto o recado enfileirava trabalho novo numa Tarefa escondida ou decidida.
+  const tarefa = await deps.repos.tarefas.doTrabalho(t.id);
+  if (tarefa?.estado === "arquivada" || tarefa?.estado === "resolvida") return { data: { ok: false, erro: "task_fechada", instrucao: `"${t.titulo}" foi ${tarefa.estado === "arquivada" ? "arquivada" : "marcada como resolvida"} pela pessoa: o recado não entra nela. Se precisa continuar, abra outra frente com abrir_frentes ou faça aqui.` } };
   const rodando = (await deps.repos.turnos.doTrabalho(t.id)).some((x) => x.estado === "despachando");
   const texto = input.texto.trim();
   const r = await enfileirarNoTrabalho(deps, t, { texto, entrada: `[nod] Recado da conversa com a pessoa, repassado por você: ${texto}`, deQuem: { agenteId: turno.agenteId, turno } });

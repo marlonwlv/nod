@@ -79,6 +79,17 @@ describe("Tarefas de todos os bots (tela 18d do Paper)", () => {
     expect(html).toContain("página Quadro de ada");
   });
 
+  it("QA-181: o Você da linha sem bot leva as iniciais de quem lê (não um MW fixo) e o leitor de tela ouve o você", () => {
+    const grupos = gruposDasTarefas(QS, "quadro", { busca: "", emAberto: true, porPrioridade: false }, AGORA);
+    const opcoes = { carga: { tipo: "pronto" as const, grupos, resumo: resumoDosQuadros(QS), perguntaram: 1, total: 2 }, vista: "quadro" as const, filtros: { busca: "", emAberto: true, porPrioridade: false }, avatar: () => "<i></i>" };
+    const daBeatriz = renderTarefasDeTodos({ ...opcoes, voceNome: "Beatriz Souza" });
+    expect(daBeatriz).toContain('<span class="tdt-voce" aria-hidden="true">BS</span>');
+    expect(daBeatriz).not.toContain(">MW<");
+    expect(daBeatriz).toContain('aria-label="SIT-1 Tarefa SIT-1, A fazer, você, há 1 dia"');
+    expect(daBeatriz).toContain('aria-label="NOD-1 Tarefa NOD-1, Fazendo, Dante, Trabalhando · 2 min"');
+    expect(renderTarefasDeTodos(opcoes)).toContain('<span class="tdt-voce" aria-hidden="true">V</span>');
+  });
+
   it("sem quadro nenhum, diz como começar", () => {
     const html = renderTarefasDeTodos({ carga: { tipo: "pronto", grupos: [], resumo: "0 quadros", perguntaram: 0, total: 0 }, vista: "quadro", filtros: { busca: "", emAberto: true, porPrioridade: false }, avatar: () => "" });
     expect(html).toContain("Nenhum bot tem quadro ainda");

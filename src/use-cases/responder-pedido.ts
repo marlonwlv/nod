@@ -25,7 +25,18 @@ const RECUSA: Record<Exclude<ErroResponderPedido, "remetente_excluido">, string>
   fora_da_conversa: "responder_pedido só vale na conversa ou na sala com a pessoa. Nada mudou.",
   pedido_nao_encontrado: "Esse tarefa_id não é um pedido de colega para você. Use um da lista de pedidos pendentes. Nada mudou.",
   ja_em_andamento: "Esse pedido já começou a rodar ou já foi respondido: o turno dele responde sozinho. Nada mudou.",
+  pedido_fechado: "Esse pedido já foi fechado sem resposta (a pessoa desistiu da espera, parou o bot ou o prazo venceu) e quem pediu já foi avisado: ele não volta para a sua fila. Se a resposta ainda importa, diga isso à pessoa ou mande a quem pediu com pedir_a_bot. Nada mudou.",
 };
+
+/**
+ * QA r181: o pedido que a pessoa fechou (Desistir da espera, Parar) ou que venceu o prazo saiu da fila sem resposta e
+ * quem pediu já foi avisado — não é "já em andamento", que leva o bot a dizer à pessoa que o turno do pedido ainda vai
+ * responder. As quedas (máquina, motor) ficam como estavam: o varredor ainda pode retomar o pedido.
+ */
+const FECHOS_SEM_RESPOSTA = new Set(["parado_pela_pessoa", "vencido"]);
+function fechadoSemResposta(t: { estado: string; motivoInterrupcao?: string | null }): boolean {
+  return t.estado === "interrompido" && FECHOS_SEM_RESPOSTA.has(t.motivoInterrupcao ?? "");
+}
 
 const MODOS_COM_A_PESSOA = new Set(["conversa", "sala"]);
 
@@ -47,14 +58,18 @@ export async function responderPedido(deps: Deps, input: ContextoFerramenta & Ar
   if (!chamador || chamador.agenteId !== input.agenteId || !modo || !MODOS_COM_A_PESSOA.has(modo)) return recusa("fora_da_conversa");
   const pedido = await deps.repos.turnos.buscar(input.tarefa_id);
   if (!pedido || pedido.origem !== "delegacao" || pedido.agenteId !== input.agenteId) return recusa("pedido_nao_encontrado");
-  if (pedido.estado !== "pendente") return recusa("ja_em_andamento");
+  if (pedido.estado !== "pendente") return recusa(fechadoSemResposta(pedido) ? "pedido_fechado" : "ja_em_andamento");
 
   const agora = deps.agora();
   let entrega: { data: SaidaEntregaPeer; events?: RuntimeEvent[] };
   try {
     entrega = await emSavepoint(deps, async () => {
       const absorvido = await deps.repos.turnos.absorverDelegacao(pedido.id, chamador.id);
-      if (!absorvido) throw new EntregaNaoSaiu("ja_em_andamento");
+      if (!absorvido) {
+        // Saiu da fila entre a leitura e o UPDATE (o Desistir, o Parar ou o prazo chegaram antes): relê para dizer qual.
+        const agoraNoBanco = await deps.repos.turnos.buscar(pedido.id);
+        throw new EntregaNaoSaiu(agoraNoBanco && fechadoSemResposta(agoraNoBanco) ? "pedido_fechado" : "ja_em_andamento");
+      }
       // ADR-062: a resposta sai do turno que chama; se ele leu algo de fora, a marca segue para quem pediu (entregar lê
       // a marca da cadeia do pedido).
       if (chamador.entradaConfianca !== "confiavel" || input.plano?.confiancaEntrada === "nao_confiavel" || (await deps.repos.turnos.contaminado(chamador.id))) {
@@ -66,7 +81,7 @@ export async function responderPedido(deps: Deps, input: ContextoFerramenta & Ar
       return r;
     });
   } catch (e) {
-    if (e instanceof EntregaNaoSaiu) return recusa(e.ignorado === "nao_e_tarefa_peer" ? "pedido_nao_encontrado" : "ja_em_andamento");
+    if (e instanceof EntregaNaoSaiu) return recusa(e.ignorado === "nao_e_tarefa_peer" ? "pedido_nao_encontrado" : e.ignorado === "pedido_fechado" ? "pedido_fechado" : "ja_em_andamento");
     throw e;
   }
   const autoria = autoriaDoAgente(deps.escopo, chamador.agenteId, { decididoPor: "regra:responder_pedido" });

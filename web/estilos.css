@@ -156,30 +156,11 @@ body.ocupado { cursor: progress; }
 /* NOD-215: o "Reconectando…" ocupa o lugar do banner de erro, com o mesmo respiro, no tom neutro do aviso de estado. */
 /* Revisão: `.aviso-compacto` (mais abaixo, mesma especificidade) ganhava; as duas classes juntas vencem. */
 .aviso-compacto.aviso-reconectando { margin: 10px 14px 0; }
-/* Aviso de estado (componente Notice do design system, web/lib/aviso-estado.ts; definido em 2026-10-04): o que aconteceu,
-   o motivo e o botão que resolve. O botão primário dentro do aviso usa a cor do estado.
-   Revisto em 2026-10-16 (plano "tela limpa", T7; pedido do Marlon: "cards bege muito feios"): o alerta é um cartão branco
-   com borda fina; o âmbar fica só no ícone e o botão que resolve é o primário de sempre (--action). */
-.aviso-estado { display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 12px; border: 1px solid; border-radius: var(--raio-10);
-  font-size: var(--fs-corpo-2); line-height: 18px; margin: 4px 0 14px; }
-.aviso-estado-ic { flex: none; align-self: flex-start; margin-top: 1px; }
-.aviso-estado-txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.aviso-estado-txt b { font-weight: 600; }
-.aviso-estado .bt { flex: none; }
-.tom-erro { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
-.tom-alerta { background: var(--surface); border-color: var(--line); color: var(--ink); }
-.tom-alerta .aviso-estado-ic { color: var(--warning); }
-.tom-ok { background: var(--success-soft); border-color: transparent; color: var(--success); }
-.tom-info { background: var(--surface-raised); border-color: var(--line); color: var(--ink); }
-.tom-erro .bt.pri { background: var(--danger); border-color: var(--danger); color: var(--on-status); }
-.tom-alerta .bt.pri { background: var(--action); border-color: var(--action); color: var(--on-action); }
-.tom-ok .bt.pri { background: var(--success); border-color: var(--success); color: var(--on-status); }
+/* O aviso de estado (componente Notice, web/lib/aviso-estado.ts) mora em ds.css desde 2026-11-22 (cartão do Paper). */
 /* ADR-108 (R4/R6, canvas C1–C3): o aviso de troca de IA — cartão neutro com as opções em lista, a recomendada marcada. */
-.aviso-troca { align-items: flex-start; padding: 14px 16px; background: var(--surface); font-size: var(--fs-corpo); line-height: 21px; }
-.aviso-troca p { margin: 4px 0 10px; color: var(--ink-2); }
 .troca-opcoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.troca-opcao { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 10px 12px; border: 1px solid var(--line);
-  border-radius: var(--raio-10); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.troca-opcao { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 10px 12px; border: 1px solid var(--borda);
+  border-radius: var(--raio-10); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .troca-opcao:hover, .troca-opcao:focus-visible { border-color: var(--ink); }
 .troca-opcao.recomendada { border-color: var(--ink-2); }
 .troca-opcao small { color: var(--ink-3); font-size: var(--fs-corpo-2); line-height: 18px; }
@@ -194,23 +175,15 @@ body.ocupado { cursor: progress; }
 .ritmo-pilula { padding: 4px 12px; border: 1px solid var(--line); border-radius: var(--raio-full); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 20px; cursor: pointer; }
 .ritmo-pilula:hover, .ritmo-pilula:focus-visible { border-color: var(--line-strong); }
 .ritmo-pilula:disabled { opacity: .5; cursor: default; }
-.troca-rodape { display: block; margin-top: 10px; color: var(--ink-3); font-size: var(--fs-corpo-2); }
-.aviso-estado-detalhes { margin-top: 4px; color: var(--ink-2); font-size: var(--fs-rotulo); }
-.aviso-estado-detalhes > summary { cursor: pointer; width: fit-content; color: var(--ink-3); }
-.aviso-estado-detalhes[open] > summary { margin-bottom: 4px; }
-/* Na barra lateral: menor, colado ao rodapé, e o botão volta ao tamanho do texto (vence o .sidebar .bt.sm de bloco). */
-.aviso-compacto { margin: 0 12px 6px; padding: 7px 8px 7px 10px; font-size: var(--fs-rotulo); gap: 8px; }
+.troca-rodape { display: block; color: var(--ink-3); font-size: var(--fs-corpo-2); }
 /* definido em 2026-10-05 (ia-fora.ts): o aviso "a conta da IA não serve" e a linha "Respondendo pelo ChatGPT". O logo do
    provedor vai no HTML (cor de marca de terceiros, fora dos tokens de propósito); aqui só a moldura dele. */
 .ia-logo { width: 22px; height: 22px; flex: none; display: inline-grid; place-items: center; border-radius: var(--raio-6); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .ia-logo svg { width: 14px; height: 14px; }
-.aviso-estado-acoes { display: flex; gap: 8px; flex-wrap: wrap; flex: none; }
 .bt.com-logo { display: inline-flex; align-items: center; gap: 7px; }
 .bt.com-logo .ia-logo { width: 18px; height: 18px; border-radius: var(--raio-6); }
 .bt.com-logo .ia-logo svg { width: 12px; height: 12px; }
 .aviso-ia-fora { flex-wrap: wrap; }
-.aviso-ia-trocada { margin: 4px 0 12px 46px; max-width: 620px; font-size: var(--fs-corpo-2); }
-.sidebar .aviso-estado .bt.sm { display: inline-block; width: auto; margin: 0; }
 .timeline-wrap { flex: 1; overflow: auto; min-height: 0; padding: 14px 16px 18px; }
 .timeline { max-width: 880px; margin: 0 auto; width: 100%; }
 /* As duas partes da timeline (histórico e ao vivo) e os blocos do histórico são regiões de render, não caixas:
