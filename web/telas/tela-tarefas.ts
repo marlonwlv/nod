@@ -1,3 +1,4 @@
+import { ROTULO_DO_OBJETIVO, rotuloDoObjetivo } from "./tarefa-detalhada.ts";
 import type { DonoDto } from "../../src/contracts/dono.ts";
 import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { Estado, MostrarTarefas, Tela } from "../estado/reducer.ts";
@@ -6,12 +7,14 @@ import { conversaViva, esperaNaTela, grupoDaLinha, linhaDoDono, quemPediu, temDo
 import { avatarDoBot } from "../lib/mascote.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
 import { esc, hora, horaSemZero, iconeAgente } from "../lib/render.ts";
-import { aberto, agrupar, dicaSemContato, emEspera, filtrar, meiaNoiteDe, naFilaDaCota, pilulaDaCota, situacaoDe, tempoDe, textoNaFilaDaCota, tituloCurto, type GruposTrabalhos } from "../lib/trabalhos.ts";
+import { aberto, agrupar, trabalhosDaTela, dicaSemContato, emEspera, filtrar, meiaNoiteDe, naFilaDaCota, pilulaDaCota, situacaoDe, tempoDe, textoNaFilaDaCota, tituloCurto, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { iconeDaAba } from "./abas-de-tarefa.ts";
 import { botAceitaTarefa } from "./nova-tarefa.ts";
 import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
+
+export { trabalhosDaTela };
 
 /**
  * A tela Tarefas (ADR-187 §8, lote B, passo 5, definido em 2026-11-18; Paper 5a "Por bot (abre nesta)", 5b "Por estado"
@@ -27,12 +30,12 @@ type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 export type TelaTarefas = Extract<Tela, { tipo: "trabalhos" }>;
 
 // Paper 5a: o anel tracejado de quem espera (14 de caixa, raio 5,5, traço 1,6 em 2 2), o par do anel de quem roda.
-const ANEL_ESPERANDO = '<svg class="pf-aba-ic tf-espera" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="7" cy="7" r="5.5"/></svg>';
-const SETA_DIREITA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
-const SETA_CIMA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
-const SETA_MENU = '<svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M2 3.5 H8 L5 7 Z"/></svg>';
+export const ANEL_ESPERANDO = '<svg class="pf-aba-ic tf-espera" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="7" cy="7" r="5.5"/></svg>';
+export const SETA_DIREITA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
+export const SETA_CIMA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
+export const SETA_MENU = '<svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M2 3.5 H8 L5 7 Z"/></svg>';
 
-const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
+export const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
 const precisaDeVoce = (t: Pick<TrabalhoDto, "estado">): boolean => t.estado === "precisa_de_voce" || t.estado === "fechado_ocioso";
 const esperandoAlgo = (t: TrabalhoDto): boolean => t.estado === "rodando" && emEspera(t);
 const rodandoDeFato = (t: TrabalhoDto): boolean => t.estado === "rodando" && !emEspera(t);
@@ -46,7 +49,7 @@ export function iconeDaTarefa(t: TrabalhoDto): string {
 export function origemNaTela(t: Pick<TrabalhoDto, "origem" | "pedidoPorNome">): string {
   if (t.origem === "quadro") return "do Quadro";
   if (t.origem === "rotina") return "da rotina";
-  if (t.origem === "colega") return `pedido do ${t.pedidoPorNome ?? "colega"}`;
+  if (t.origem === "colega") return t.pedidoPorNome ? `pedido de ${t.pedidoPorNome}` : "pedido do colega";
   return "";
 }
 
@@ -69,7 +72,36 @@ function filtros(estado: Estado, tela: TelaTarefas, abertas: number): string {
   const chip = (id: MostrarTarefas, nome: string): string => `<button type="button" class="tf-chip" data-act="mostrar-tarefas" data-id="${id}" aria-pressed="${mostrar === id}">${nome}</button>`;
   const bot = tela.bot ? agente(estado, tela.bot) : undefined;
   const bots = `<button type="button" class="tf-chip tf-chip-bots" data-act="bots-tarefas" aria-haspopup="menu" aria-pressed="${!!bot}">${esc(bot?.nome ?? "Todos os bots")}${SETA_MENU}</button>`;
-  return `<div class="tf-filtros" role="group" aria-label="Filtrar tarefas">${chip("abertas", `Abertas <span class="tf-chip-n">${abertas}</span>`)}${chip("feitas", "Feitas")}${chip("todas", "Todas")}<span class="tf-traco" aria-hidden="true"></span>${bots}</div>`;
+  const arquivadas = comArquivadas(estado) ? chip("arquivadas", "Arquivadas") : "";
+  return `<div class="tf-filtros" role="group" aria-label="Filtrar tarefas">${chip("abertas", `Abertas <span class="tf-chip-n">${abertas}</span>`)}${chip("feitas", "Feitas")}${chip("todas", "Todas")}${arquivadas}<span class="tf-traco" aria-hidden="true"></span>${bots}</div>`;
+}
+
+/**
+ * ADR-192 (emenda 5, achado das jornadas de QA): o chip "Arquivadas" — com a leitura nova a arquivada sai da lista e só
+ * voltava pela aba aberta ou pela linha da conversa. Sem a leitura nova a lista de antes não esconde nada: sem chip.
+ */
+export function comArquivadas(estado: Pick<Estado, "trabalhos">): boolean {
+  return estado.trabalhos?.leituraNovaDasTarefas === true;
+}
+
+/** A lista do chip "Arquivadas" (GET tarefas?estado=arquivada): título, bot e quando arquivou; a linha abre a tarefa. */
+export function htmlDasArquivadas(estado: Estado, bot?: string): string {
+  if (estado.tarefasArquivadas === null) return '<p class="tf-vazio">carregando…</p>';
+  if (estado.tarefasArquivadas === "erro") return '<p class="tf-vazio" role="alert">Não deu para carregar as tarefas arquivadas. <button type="button" class="atv-link" data-act="arquivadas-tentar">Tentar de novo</button></p>';
+  const lista = estado.tarefasArquivadas.filter((t) => !bot || t.agenteId === bot);
+  if (lista.length === 0) return '<p class="tf-vazio">Nenhuma tarefa arquivada.</p>';
+  const linha = (t: (typeof lista)[number]): string => {
+    const dono = agente(estado, t.agenteId);
+    const quando = t.arquivadaEm ? `Arquivada · ${diaEHora(t.arquivadaEm)}` : "Arquivada";
+    const abre = t.trabalhoId ? ` data-act="abrir-trabalho" data-id="${esc(t.trabalhoId)}"` : " disabled";
+    return `<button type="button" class="tf-tarefa" data-grupo="arquivada"${abre}><span class="tf-meio"><span class="tf-t-titulo">${esc(tituloCurto(t.titulo))}</span><span class="tf-t-passo">${esc(quando)}</span></span><span class="tf-quem">${dono ? iconeAgente(dono, "sm") : ""}<span>${esc(dono?.nome ?? "bot")}</span></span><span class="tf-origem"></span><span class="tf-tempo"></span></button>`;
+  };
+  return `<section class="tf-grupo" data-grupo="arquivada"><h2 class="tf-rotulo">Arquivadas · ${lista.length}</h2><div class="tf-tarefas">${lista.map(linha).join("")}</div></section>`;
+}
+
+function diaEHora(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${hora(ms)}`;
 }
 
 /** O menu de "Todos os bots ▾": todos e cada bot com tarefa (ou da frota), o escolhido marcado. */
@@ -98,31 +130,31 @@ function topo(estado: Estado, tela: TelaTarefas, porBot: boolean, abertas: numbe
 export function renderTelaTarefas(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
   if (!estado.trabalhos) return '<section class="tela-tarefas" aria-label="Tarefas"><p class="tf-vazio">carregando…</p></section>';
   const porBot = temDonos(estado) && !tela.filtro;
-  const todos = estado.trabalhos.trabalhos.filter((t) => !tela.bot || t.agenteId === tela.bot);
+  const todos = trabalhosDaTela(estado).filter((t) => !tela.bot || t.agenteId === tela.bot);
   const abertas = todos.filter(aberto).length;
   const cota = pilulaDaCota(estado.trabalhos.cota, estado.trabalhos.trabalhos, estado.agora, estado.trabalhos.pedidosNaFila);
-  const corpo = porBot ? renderTarefasPorBot(estado, tela) : renderTarefasPorEstado(estado, tela);
+  const corpo = tela.mostrar === "arquivadas" && comArquivadas(estado) ? htmlDasArquivadas(estado, tela.bot) : porBot ? renderTarefasPorBot(estado, tela) : renderTarefasPorEstado(estado, tela);
   return `<section class="tela-tarefas" aria-label="Tarefas" data-vista="${porBot ? "por-bot" : "por-estado"}">${topo(estado, tela, porBot, abertas)}${cota}<div class="tf-lista">${corpo}</div></section>`;
 }
 
 // ---- Por bot (Paper 5a) -----------------------------------------------------------------------------------------------
 
-const GRUPOS_DO_BOT: { chave: GrupoDoBot; titulo: string }[] = [
+export const GRUPOS_DO_BOT: { chave: GrupoDoBot; titulo: string }[] = [
   { chave: "precisa", titulo: "Precisa de você" },
   { chave: "trabalhando", titulo: "Trabalhando" },
   { chave: "esperando", titulo: "Esperando" },
 ];
 
-type LinhaDoBot = { bot: Agente; dono: DonoDto; linha: LinhaDoDono; grupo: GrupoDoBot };
+export type LinhaDoBot = { bot: Agente; dono: DonoDto; linha: LinhaDoDono; grupo: GrupoDoBot };
 
 /** As decisões abertas do bot (a mais nova primeiro): a pergunta vira o título da linha do bot sem tarefa. */
-function decisoesDoBot(estado: Estado, agenteId: string): { frase: string; desde: number }[] {
+export function decisoesDoBot(estado: Estado, agenteId: string): { frase: string; desde: number }[] {
   const itens = (estado.suaVez?.itens ?? []).filter((i) => i.decisao.agenteId === agenteId && i.estadoColuna !== "vencido");
   return itens.map((i) => ({ frase: i.decisao.frase, desde: Date.parse(i.decisao.criadoEm) })).sort((a, b) => b.desde - a.desde);
 }
 
 /** As tarefas do bot na ordem da lista aberta: quem precisa de você, quem roda, quem espera, a fila (o mais antigo antes). */
-function tarefasDoBot(todos: readonly TrabalhoDto[], agenteId: string, hoje: number, mostrar: MostrarTarefas): TrabalhoDto[] {
+export function tarefasDoBot(todos: readonly TrabalhoDto[], agenteId: string, hoje: number, mostrar: MostrarTarefas): TrabalhoDto[] {
   const doBot = todos.filter((t) => t.agenteId === agenteId);
   const ordem = (t: TrabalhoDto): number => (precisaDeVoce(t) ? 0 : rodandoDeFato(t) ? 1 : t.estado === "rodando" ? 2 : 3);
   const abertas = doBot.filter(aberto).sort((a, b) => ordem(a) - ordem(b) || a.criadoEm - b.criadoEm);
@@ -134,7 +166,7 @@ function tarefasDoBot(todos: readonly TrabalhoDto[], agenteId: string, hoje: num
  * O título da linha do bot (Paper 5a): a tarefa principal (a aberta mais antiga); sem tarefa, a pergunta que espera a
  * pessoa, o que o bot faz na conversa ou o que ele espera.
  */
-function tituloDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]): string {
+export function tituloDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]): string {
   const [principal] = todos.filter((t) => t.agenteId === x.bot.id && aberto(t)).sort((a, b) => (a.iniciadoEm ?? a.criadoEm) - (b.iniciadoEm ?? b.criadoEm));
   if (principal) return tituloCurto(principal.titulo);
   if (x.grupo === "precisa") {
@@ -145,7 +177,7 @@ function tituloDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[
 }
 
 /** "1 precisa de você · 8 rodando · 3 prontas" (Paper 5a): o que o bot tem em cada estado, com as prontas de hoje. */
-function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[], hoje: number): string {
+export function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[], hoje: number): string {
   const doBot = todos.filter((t) => t.agenteId === x.bot.id);
   const daConversa = x.dono.esperas.filter((e) => e.trabalhoId === null).length;
   const precisa = doBot.filter(precisaDeVoce).length || (x.grupo === "precisa" ? Math.max(1, decisoesDoBot(estado, x.bot.id).length) : 0);
@@ -159,13 +191,18 @@ function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[
   return partes.filter(Boolean).join(" · ");
 }
 
-function prontas(doBot: readonly TrabalhoDto[], hoje: number): string {
-  const n = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje).length;
-  return n ? plural(n, "pronta", "prontas") : "";
+export function prontas(doBot: readonly TrabalhoDto[], hoje: number): string {
+  const feitas = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje);
+  // ADR-192 (etapa 3): com a Tarefa ligada, o que terminou foi ENTREGUE; resolvida só depois da pessoa. As sem Tarefa
+  // (rotina, colega, as de antes) seguem "prontas".
+  const resolvidas = feitas.filter((t) => t.tarefa?.estado === "resolvida").length;
+  const entregues = feitas.filter((t) => t.tarefa && t.tarefa.estado !== "resolvida").length;
+  const semTarefa = feitas.length - resolvidas - entregues;
+  return [semTarefa ? plural(semTarefa, "pronta", "prontas") : "", entregues ? plural(entregues, "entregue", "entregues") : "", resolvidas ? plural(resolvidas, "resolvida", "resolvidas") : ""].filter(Boolean).join(" · ");
 }
 
 /** O tempo à direita: "há 9 min" (menos de uma hora) ou "desde 9:14"; a espera de colega vencida, "sem resposta há 26h". */
-function tempoDoBot(estado: Estado, x: LinhaDoBot): string {
+export function tempoDoBot(estado: Estado, x: LinhaDoBot): string {
   const desde = x.dono.estado.desde ?? estado.agora;
   if (x.grupo === "precisa") {
     const ds = decisoesDoBot(estado, x.bot.id);
@@ -182,7 +219,7 @@ function tempoDoBot(estado: Estado, x: LinhaDoBot): string {
   return estado.agora - desde < 60 * 60_000 ? `há ${duracaoCurta(estado.agora - desde)}` : `desde ${horaSemZero(desde)}`;
 }
 
-const ICONE_DO_GRUPO: Record<GrupoDoBot | "feitas", string> = { precisa: PONTO_PRECISA, trabalhando: ANEL_RODANDO, esperando: ANEL_ESPERANDO, feitas: `<span class="pf-aba-ic at-feita">${IC_OK}</span>` };
+export const ICONE_DO_GRUPO: Record<GrupoDoBot | "feitas", string> = { precisa: PONTO_PRECISA, trabalhando: ANEL_RODANDO, esperando: ANEL_ESPERANDO, feitas: `<span class="pf-aba-ic at-feita">${IC_OK}</span>` };
 
 /** Uma linha de bot (Paper 5a): estado, mascote, nome (90), o título, as contas, o tempo (60) e a seta. */
 function linhaDoBot(estado: Estado, b: { bot: Agente; grupo: GrupoDoBot | "feitas"; titulo: string; contas: string; tempo: string }, aberta: boolean, tarefas: string): string {
@@ -200,7 +237,7 @@ function tarefaNoBot(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Esta
 }
 
 // definido em 2026-11-18 (Paper 5a: três tarefas e "+ 9 tarefas do mesmo pedido"): até 4 cabem; mais que isso, 3 e a conta.
-const TAREFAS_A_VISTA = 3;
+export const TAREFAS_A_VISTA = 3;
 
 /** As tarefas do bot aberto, as esperas da conversa, a fila e o rodapé ("+ N tarefas do mesmo pedido", "Abrir a conversa"). */
 function tarefasDoBotAberto(estado: Estado, x: { bot: Agente; dono: DonoDto | null }, todos: readonly TrabalhoDto[], mostrar: MostrarTarefas): string {
@@ -222,7 +259,7 @@ function tarefasDoBotAberto(estado: Estado, x: { bot: Agente; dono: DonoDto | nu
 }
 
 /** As esperas da própria conversa (sem tarefa): o colega, o comando, a volta marcada; vencida, com Cobrar e Desistir. */
-function esperasDaConversa(estado: Estado, agenteId: string, dono: DonoDto): string {
+export function esperasDaConversa(estado: Estado, agenteId: string, dono: DonoDto): string {
   return dono.esperas.filter((e) => e.trabalhoId === null).map((d) => comAcaoLocal(d)).filter((e) => e !== null).map((e) => {
     const v = esperaNaTela(e, estado.agora);
     const c = v.colega;
@@ -235,7 +272,7 @@ function esperasDaConversa(estado: Estado, agenteId: string, dono: DonoDto): str
 }
 
 /** As linhas de bot pelo dono de cada um (ADR-099 item 10): o grupo sai do sinal da linha; sem linha, o bot está livre. */
-function linhasDosBots(estado: Estado): { linhas: LinhaDoBot[]; livres: Agente[] } {
+export function linhasDosBots(estado: Estado): { linhas: LinhaDoBot[]; livres: Agente[] } {
   const linhas: LinhaDoBot[] = [];
   const livres: Agente[] = [];
   for (const dono of estado.trabalhos?.donos ?? []) {
@@ -260,7 +297,7 @@ const rotuloDoGrupo = (titulo: string, n: number): string => `<h2 class="tf-rotu
 
 /** Por bot (Paper 5a): os três grupos em cartões, as feitas de hoje (com Feitas ou Todas) e "Livres: …" no fim. */
 export function renderTarefasPorBot(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
-  const todos = estado.trabalhos?.trabalhos ?? [];
+  const todos = trabalhosDaTela(estado);
   const mostrar = tela.mostrar ?? "abertas";
   const hoje = meiaNoiteDe(estado.agora);
   const { linhas: todasAsLinhas, livres: todosOsLivres } = linhasDosBots(estado);
@@ -289,13 +326,13 @@ export function renderTarefasPorBot(estado: Estado, tela: TelaTarefas = { tipo: 
   // definido em 2026-11-18 (Paper 5a: oito nomes numa linha): até 12 nomes, depois "e mais N".
   const nomes = livres.map((b) => b.nome);
   const livresHtml = nomes.length ? `<p class="tf-livres">Livres: ${esc(nomes.length > 12 ? `${nomes.slice(0, 11).join(", ")} e mais ${nomes.length - 11}` : nomes.join(", "))}</p>` : "";
-  const vazio = secoes || feitas ? "" : `<p class="tf-vazio">${mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>`;
+  const vazio = secoes || feitas ? "" : `<p class="tf-vazio">${mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>`;
   return `${secoes}${feitas}${vazio}${livresHtml}`;
 }
 
 // ---- Por estado (Paper 5b) --------------------------------------------------------------------------------------------
 
-const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; mostrar: MostrarTarefas }[] = [
+export const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; mostrar: MostrarTarefas }[] = [
   { chave: "precisa", titulo: "Precisa de você", mostrar: "abertas" },
   { chave: "trabalhando", titulo: "Trabalhando", mostrar: "abertas" },
   { chave: "esperando", titulo: "Esperando", mostrar: "abertas" },
@@ -304,15 +341,19 @@ const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; mostrar:
 ];
 
 /** O passo da linha ("rodando os testes de unidade", "esperando a CI"); a terminada diz como acabou. */
-function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
-  if (!aberto(t)) return { passo: t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
-  const passo = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
+
+export function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
+  // ADR-192 (etapa 3): com a Tarefa ligada, a linha diz o estado do objetivo ("Entregue · precisa de você", "Resolvida") —
+  // "Entregue" nunca aparece como resolvida; aberta, o estado do objetivo vem antes do passo de agora.
+  if (!aberto(t)) return { passo: t.tarefa ? rotuloDoObjetivo(t.tarefa) : t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
+  const situacao = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
+  const passo = t.tarefa && t.tarefa.estado !== "em_andamento" ? `${ROTULO_DO_OBJETIVO[t.tarefa.estado]} · ${situacao}` : situacao;
   // O passo corta: o title leva o texto inteiro e, sem contato com a máquina, o que fazer.
   return { passo, dica: passo.includes(" · sem contato") ? dicaSemContato(t, estado.agora) : "" };
 }
 
 /** O tempo à direita: rodando, há quanto ("22 min"); na fila, nada; terminada, a hora. */
-function tempoDaTarefa(t: TrabalhoDto, agora: number): string {
+export function tempoDaTarefa(t: TrabalhoDto, agora: number): string {
   if (!aberto(t)) return hora(t.terminadoEm ?? t.criadoEm);
   return t.estado === "na_fila" ? "" : tempoDe(t, agora);
 }
@@ -330,11 +371,11 @@ function linhaDaTarefa(estado: Estado, t: TrabalhoDto, todos: readonly TrabalhoD
 
 /** Por estado (Paper 5b): Precisa de você, Trabalhando, Esperando e Na fila (Abertas), Feitas hoje (Feitas), ou todos. */
 export function renderTarefasPorEstado(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
-  const todos = estado.trabalhos?.trabalhos ?? [];
+  const todos = trabalhosDaTela(estado);
   const mostrar = tela.mostrar ?? "abertas";
   const grupos = agrupar(filtrar(todos, tela.filtro).filter((t) => !tela.bot || t.agenteId === tela.bot), estado.agora);
   const secoes = GRUPOS_DO_ESTADO.filter((g) => (mostrar === "todas" || g.mostrar === mostrar) && grupos[g.chave].length > 0).map((g) =>
     `<section class="tf-grupo" data-grupo="${g.chave}"><h2 class="tf-rotulo">${g.titulo} · ${grupos[g.chave].length}</h2><div class="tf-tarefas">${grupos[g.chave].map((t) => linhaDaTarefa(estado, t, todos, g.chave)).join("")}</div></section>`).join("");
-  const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
+  const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
   return secoes || `<p class="tf-vazio">${vazio}</p>`;
 }

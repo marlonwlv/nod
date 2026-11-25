@@ -31,9 +31,11 @@ export type ArgsResponderPedido = { tarefa_id: string; texto: string };
 /**
  * fora_da_conversa: o turno não é a pessoa falando com o bot (conversa ou sala). pedido_nao_encontrado: o tarefa_id não
  * é um pedido de colega para este bot. ja_em_andamento: o turno do pedido já rodou, está rodando ou já respondeu.
+ * pedido_fechado (QA r181): o pedido saiu da fila sem resposta (a pessoa desistiu da espera, parou o bot ou o prazo
+ * venceu) — quem pediu já foi avisado; "o turno dele responde sozinho" seria falso.
  * remetente_excluido: quem pediu foi excluído — o pedido sai da fila mesmo assim, sem a quem entregar.
  */
-export type ErroResponderPedido = "fora_da_conversa" | "pedido_nao_encontrado" | "ja_em_andamento" | "remetente_excluido";
+export type ErroResponderPedido = "fora_da_conversa" | "pedido_nao_encontrado" | "ja_em_andamento" | "pedido_fechado" | "remetente_excluido";
 
 export type ResultadoResponderPedido = { ok: true; instrucao: string } | { ok: false; erro: ErroResponderPedido; instrucao: string };
 

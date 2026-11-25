@@ -26,7 +26,7 @@ const ESPERADO: Record<string, readonly [string, string]> = {
   "--surface": ["#fcfcfc", "#121212"],
   "--surface-side": ["#f5f5f5", "#0e0e0e"],
   "--surface-elevated": ["#ffffff", "#1f1f1f"],
-  "--surface-chrome": ["#ffffff", "#161616"],
+  "--surface-chrome": ["#fcfcfc", "#161616"],
   "--surface-dialogo-cfg": ["#fcfcfc", "#121212"],
   "--surface-criar-bot": ["#ffffff", "#1f1f1f"],
   "--menu-realce": ["#f1f1f1", "#2c2c2c"],

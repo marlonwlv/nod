@@ -1,4 +1,4 @@
-import type { ResultadoPedirAcesso } from "./acesso.ts";
+import type { RecusaPedirAcesso, ResultadoPedirAcesso } from "./acesso.ts";
 import type { ContratoFerramentasAcessos } from "./ferramentas-acessos.ts";
 import type { ContratoFerramentasApps } from "./ferramentas-apps.ts";
 import type { ContratoFerramentasArtefato } from "./ferramentas-artefato.ts";
@@ -6,6 +6,7 @@ import type { ContratoFerramentasAviso } from "./ferramentas-aviso.ts";
 import type { ContratoFerramentasBarra } from "./ferramentas-barra.ts";
 import type { ContratoFerramentasCanvas } from "./ferramentas-canvas.ts";
 import type { ContratoFerramentasComputadores } from "./ferramentas-computadores.ts";
+import type { ContratoFerramentasNavegadorLugar } from "./ferramentas-navegador-lugar.ts";
 import type { ContratoFerramentasConta } from "./ferramentas-conta.ts";
 import type { ContratoFerramentasConversas } from "./ferramentas-conversas.ts";
 import type { ContratoFerramentasCredencial } from "./ferramentas-credencial.ts";
@@ -58,16 +59,17 @@ export type ResultadoPedirAprovacao =
   | { estado: "decidida"; itens: { idx: number; desfecho: string }[] }
   | { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a decisão retoma depois" }
   | { estado: "recusada"; erros: string[]; instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" | "não peça de novo; encerre o turno" | "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" | "não peça de novo: diga à pessoa o que ficou de fora e por quê" };
-export type ResultadoPedirAPessoa = { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a resposta retoma depois" };
+/** `aviso` (QA-236, 2026-11-25): só quando `quem_destrava` não apontou uma pessoa só e a pergunta foi para a dona. */
+export type ResultadoPedirAPessoa = { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a resposta retoma depois"; aviso?: string };
 export type ResultadoOk = { ok: true };
 export type ResultadoPedirABot = { ok: true; tarefa_id: string; instrucao: string; livres: { id: string; nome: string }[] } | { ok: false; erro: "espera_circular" | "ja_pedido" | "experimento_desligado" | "sem_quadro" | "tarefa_invalida" | "colega_fora_do_quadro" | "colega_nao_acionado"; instrucao: string };
 
 import type { ContratoFerramentasCartoes } from "./ferramentas-cartoes.ts";
 
-export type ContratoFerramentaNod = ContratoFerramentasCartoes & ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & ContratoFerramentasDecisoes & {
+export type ContratoFerramentaNod = ContratoFerramentasCartoes & ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & ContratoFerramentasDecisoes & ContratoFerramentasNavegadorLugar & {
   lembrar: { args: ArgsLembrar; resultado: ResultadoLembrar };
   atualizar_perfil: { args: ArgsAtualizarPerfil; resultado: ResultadoAtualizarPerfil };
-  pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso };
+  pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso | RecusaPedirAcesso };
   criar_rotina: { args: ArgsCriarRotina; resultado: ResultadoCriarRotina };
   listar_rotinas: { args: ArgsListarRotinas; resultado: ResultadoListarRotinas };
   ver_agenda: { args: ArgsVerAgenda; resultado: ResultadoVerAgenda };

@@ -167,7 +167,7 @@ describe("Por estado (Paper 5b)", () => {
   it("a origem: do Quadro, da rotina e o pedido do colega; a da pessoa e a da rede, sem chip", () => {
     expect(origemNaTela({ origem: "quadro", pedidoPorNome: null })).toBe("do Quadro");
     expect(origemNaTela({ origem: "rotina", pedidoPorNome: null })).toBe("da rotina");
-    expect(origemNaTela({ origem: "colega", pedidoPorNome: "Chico" })).toBe("pedido do Chico");
+    expect(origemNaTela({ origem: "colega", pedidoPorNome: "Chico" })).toBe("pedido de Chico");
     expect(origemNaTela({ origem: "pessoa", pedidoPorNome: null })).toBe("");
     expect(origemNaTela({ origem: "rede", pedidoPorNome: null })).toBe("");
   });
@@ -176,7 +176,8 @@ describe("Por estado (Paper 5b)", () => {
 describe("no main (Paper 4e: o clique numa tarefa abre a tarefa em tela cheia)", () => {
   const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
   it("a tela, a vista, os chips e o bot trocam a tela; o + Nova tarefa sem bot abre o menu \"Nova tarefa com\"", () => {
-    expect(main).toContain("corpo = renderTelaTarefas(estado, t);");
+    // ADR-179: com as telas em React, a vaga; sem elas (?telas-react=0), o desenho por string.
+    expect(main).toContain('corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("trabalhos") : renderTelaTarefas(estado, t);');
     expect(main).toContain('"vista-tarefas": (el) => {');
     expect(main).toContain('"mostrar-tarefas": (el) => {');
     expect(main).toContain('"bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),');

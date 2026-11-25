@@ -175,8 +175,11 @@ export type PassoIa = {
   log: string | null;
   /** Codex: o código de uso único para digitar na página da OpenAI. */
   codigo: string | null;
-  /** O link oficial do login está pronto: o botão "Abrir a página da …" aparece. */
-  abrir: boolean;
+  /**
+   * O link oficial do login está pronto: o botão "Abrir a página da …" aparece. "de-novo" (Paper A2/C2): a página já
+   * abriu sozinha no navegador e o botão vira "A página não abriu? Abrir de novo".
+   */
+  abrir: boolean | "de-novo";
   /** Claude: o campo para colar o código que a página da Anthropic mostra. */
   colar: boolean;
   esperando: string | null;
@@ -322,13 +325,15 @@ export function passosDaIa(ia: IaMac, e: EstadoNaTela, c: ContextoCartao): Passo
       lista.push(passo("entrar", tituloEntrar, { marca: "ativo", texto: "Ainda não vimos o login terminar. Se você já entrou, confira de novo.", abrir: login.host !== null, acoes: [{ act: "ia-verificar", rotulo: "Verificar de novo", contorno: true }] }));
     } else if (!login.host) lista.push(passo("entrar", tituloEntrar, { marca: "girando", texto: "Abrindo o login…" }));
     else if (ia === "codex-cli") {
-      lista.push(passo("entrar", tituloEntrar, { marca: "ativo", texto: trocando ? `Na página da ${empresa}, entre com a outra conta e digite este código:` : `Na página da ${empresa}, digite este código:`, codigo: login.codigoDoDispositivo, abrir: true, esperando: "Esperando você entrar…", ...naTroca }));
+      // Paper C2: o nod abre a página sozinho (web/lib/ias-do-mac.ts); a pessoa só digita o código lá, nada volta para cá.
+      lista.push(passo("entrar", tituloEntrar, { marca: "ativo", texto: `Abrimos a página da ${empresa} no seu navegador.${trocando ? " Entre com a outra conta e digite" : " Digite"} lá este código:`, codigo: login.codigoDoDispositivo, abrir: "de-novo", esperando: "Nada para colar de volta: o nod percebe quando você confirmar.", ...naTroca }));
     } else {
       const colar = login.pedeCodigo && !login.codigoEnviado;
       lista.push(passo("entrar", tituloEntrar, {
         marca: "ativo",
-        texto: colar ? `Entre na página da ${empresa}${outra} e cole aqui o código que ela mostrar.` : login.codigoEnviado ? "Conferindo o código…" : `Entre na página da ${empresa}${outra}. Quando terminar, volte aqui: o nod percebe sozinho.`,
-        abrir: true,
+        // Paper A2: o Claude Code abre a página sozinho no navegador do Mac.
+        texto: colar ? `Abrimos a página da ${empresa} no seu navegador. Entre${outra} e cole aqui o código que ela mostrar.` : login.codigoEnviado ? "Conferindo o código…" : `Abrimos a página da ${empresa} no seu navegador. Entre${outra}; quando terminar, o nod percebe sozinho.`,
+        abrir: "de-novo",
         colar,
         esperando: colar ? null : "Esperando você entrar…",
         ...naTroca,
@@ -570,7 +575,9 @@ function htmlPasso(v: VistaIa, p: PassoIa, n: number, ui: UiIas): string {
   if (p.codigo) partes.push(`<div class="ia-codigo"><code>${esc(p.codigo)}</code><button type="button" class="ob-link" data-act="ia-copiar-codigo" data-ia="${v.ia}" data-texto="${esc(p.codigo)}" ${VIVO}>${ui.copiado === v.ia ? ROTULO_COPIADO : "Copiar"}</button></div>`);
   if (p.dica) partes.push(`<div class="ia-troca-dica">${ICONE_IA.aviso}<p>${esc(p.dica)}</p></div>`);
   if (p.abrir || p.esperando) {
-    const abrir = p.abrir ? `<button type="button" class="ob-link" data-act="ia-abrir-link" data-ia="${v.ia}">Abrir a página da ${esc(empresa)}${ICONE_IA.abrir}</button>` : "";
+    const abrir = p.abrir === "de-novo"
+      ? `<span class="ia-reabrir">A página não abriu? <button type="button" class="ob-link" data-act="ia-abrir-link" data-ia="${v.ia}">Abrir de novo${ICONE_IA.abrir}</button></span>`
+      : p.abrir ? `<button type="button" class="ob-link" data-act="ia-abrir-link" data-ia="${v.ia}">Abrir a página da ${esc(empresa)}${ICONE_IA.abrir}</button>` : "";
     const esperando = p.esperando ? `<span class="ia-esperando"><span class="ob-gira" aria-hidden="true"></span>${esc(p.esperando)}</span>` : "";
     partes.push(`<div class="ia-acoes">${abrir}${esperando}</div>`);
   }

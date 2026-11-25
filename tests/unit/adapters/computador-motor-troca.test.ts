@@ -4,6 +4,7 @@ import { criarCanalComputador } from "../../../src/adapters/computador/canal.ts"
 import { criarDriverMotor, type LugarGravado, type MaquinaDaPessoa, PACOTE_VAZIO } from "../../../src/adapters/computador/motor.ts";
 import { abrirSelo, chaveDaMaquina, conferirAssinatura, gerarParX25519, publicaDeAssinatura } from "../../../src/adapters/computador/selo.ts";
 import type { ComandoComputador } from "../../../src/contracts/computador-motor.ts";
+import { COMPUTADOR_NO_MAC } from "../../../src/domain/computador-canal.ts";
 import { ehFalhaComputador } from "../../../src/domain/computador.ts";
 
 const CHAVE = "cd".repeat(32);
@@ -177,7 +178,9 @@ describe("driver motor: trocar (NOD-365)", () => {
   it("a atual sem contato vem da chave gravada: nome, tipo e o último uso (a ponte já esqueceu a conexão)", async () => {
     const m = mundo({ conectadas: ["B"] });
     expect(await m.driver.maquinaDoComputador!(ID, escopo)).toMatchObject({ id: "A", nome: "A-gravada", contato: null, ultimoContato: 4242 });
-    expect(await m.driver.lugares!(ID, escopo)).toContainEqual({ maquinaId: "A", nome: "A-gravada", tipo: "este_mac", atual: true, pronta: false, conectada: false });
+    // 2026-11-25: o Mac não é lugar do computador (COMPUTADOR_NO_MAC); a atual no Mac some das opções até ele ser religado.
+    if (COMPUTADOR_NO_MAC) expect(await m.driver.lugares!(ID, escopo)).toContainEqual({ maquinaId: "A", nome: "A-gravada", tipo: "este_mac", atual: true, pronta: false, conectada: false });
+    else expect((await m.driver.lugares!(ID, escopo)).some((l) => l.maquinaId === "A")).toBe(false);
   });
 
   it("lugares: a atual marcada, o tipo pelo papel e pela plataforma", async () => {

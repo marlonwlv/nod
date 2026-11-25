@@ -1,3 +1,4 @@
+import { TETO_REENVIOS } from "../../../src/domain/inteligencia.ts";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { IdHarness } from "../../../src/contracts/harness.ts";
@@ -132,17 +133,17 @@ describe("NOD-287: troca de conta leva a marca da web", () => {
 describe("NOD-268: o teto de reenvios na troca de conta", () => {
   it("Trocar sozinho com a fala já reenviada uma vez: não repete — espera a conta voltar, com UMA linha", async () => {
     const c = await cenario({ pedido: { modo: "fixa", fixa: "claude-cli" } });
-    c.turno().reenvios = 1;
+    c.turno().reenvios = TETO_REENVIOS;
     await c.entregar(comConta({ tipo: "trocou", de: 1, para: 3, voltaEm: T0 + DUAS_HORAS, foraDaTroca: [] }), "claude-cli");
     const novas = c.banco.mensagens.slice(c.antes);
     expect(novas).toHaveLength(1);
     expect(novas[0]?.texto).toMatch(/^O Claude Code está no limite da assinatura\. Sua mensagem espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d\.$/);
-    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", reenvios: 2, acordarEm: T0 + DUAS_HORAS }]);
+    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", reenvios: TETO_REENVIOS + 1, acordarEm: T0 + DUAS_HORAS }]);
   });
 
   it("e a que já esperou a hora fica com o aviso de sempre (nada na fila)", async () => {
     const c = await cenario({ pedido: { modo: "fixa", fixa: "claude-cli" } });
-    c.turno().reenvios = 2;
+    c.turno().reenvios = TETO_REENVIOS + 1;
     c.turno().acordarEm = T0 - 1;
     await c.entregar(comConta({ tipo: "trocou", de: 1, para: 3, voltaEm: T0 + DUAS_HORAS, foraDaTroca: [] }), "claude-cli");
     expect(c.banco.turnos).toHaveLength(1);

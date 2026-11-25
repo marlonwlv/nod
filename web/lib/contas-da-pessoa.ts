@@ -1,7 +1,7 @@
 import type { CodigoCifrado, ContasIaDto, FrenteAtivaDaConta, IaComConta, LoginNaMaquina } from "../../src/contracts/contas-ia.ts";
 import type { DetalhesDasContas } from "../../src/contracts/desktop.ts";
 import type { MaquinaDto } from "../../src/contracts/maquina.ts";
-import { contaDoLogin, idDoLogin, maquinaDoLogin, type LoginNaTela, type UiContas } from "../telas/contas-lista.ts";
+import { contaDoLogin, idDoLogin, maquinaDoLogin, nomeDaContaNaTela, type LoginNaTela, type UiContas } from "../telas/contas-lista.ts";
 import { ErroApi } from "./erro-api.ts";
 import { PREFIXO_MENU_DA_IA } from "./ordem.ts";
 
@@ -45,12 +45,18 @@ export type DepsContasDaPessoa = {
    * instalação (o passo 1) ou a abertura do login falhou, e o login não começou; a nota mostra o erro.
    */
   entrarNoMac: (ia: IaComConta, apelido: string | null) => Promise<boolean | { erro: string }>;
-  avisarTermos: (ia: IaComConta) => Promise<boolean>;
+  /** Paper G3: a conta vai junto (o nome e o lugar dela na fila da IA). */
+  avisarTermos: (ia: IaComConta, conta?: { nome: string; ordem: number }) => Promise<boolean>;
   cifrar: (chavePublica: string, codigo: string) => Promise<CodigoCifrado>;
   agendar: (fn: () => void, ms: number) => void;
   agora: () => number;
   /** Injetável no teste; em produção a busca nunca segura a confirmação além deste prazo. */
   prazoFrentesMs?: number;
+  /**
+   * Jornadas da IA (Paper A2/C2): abre a página oficial do login no navegador assim que a VM manda o link. Sem ela (ou
+   * com o navegador bloqueando), o "Abrir de novo" do bloco resolve.
+   */
+  abrirPagina?: (url: string) => void;
 };
 
 /** definido em 2026-10-13: a tela confere o login aberto numa VM a cada segundo (a máquina puxa a cada 1 s com login). */
@@ -58,6 +64,8 @@ export const INTERVALO_LOGIN_TELA_MS = 1_000;
 /** O "✓ Entrou" fica à vista por um tempo antes de o bloco sair (a pílula da máquina já apareceu na linha). */
 export const PRONTO_VISIVEL_MS = 6_000;
 export const PRAZO_FRENTES_MS = 5_000;
+/** Paper A2/C2: o código que venceu com a pessoa no meio do login renova sozinho até 2 vezes (3 códigos ao todo). */
+export const RENOVACOES_DO_LOGIN = 2;
 
 const FINAIS = new Set(["pronto", "falhou", "cancelado"]);
 
@@ -79,6 +87,15 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
   const trocarLogin = (id: string, fn: (l: LoginNaTela) => LoginNaTela | null) => {
     d.mudar({ logins: logins().flatMap((l) => (idDoLogin(l) === id ? [fn(l)].filter((x): x is LoginNaTela => x !== null) : [l])) });
   };
+  /** Os logins cuja página já abriu (uma vez por login) e quantas vezes o código de cada máquina·IA·conta renovou. */
+  const paginasAbertas = new Set<string>();
+  const renovacoes = new Map<string, number>();
+  const chaveDaRenovacao = (g: LoginNaMaquina) => `${g.maquinaId}:${g.ia}:${g.contaId ?? `nova:${g.apelido ?? ""}`}`;
+  function abrirPaginaDoLogin(g: LoginNaMaquina): void {
+    if (g.fase !== "aguardando_pessoa" || !g.url || paginasAbertas.has(g.id)) return;
+    paginasAbertas.add(g.id);
+    d.abrirPagina?.(g.url);
+  }
   const erroCurto = (e: unknown, padrao: string) => (e instanceof ErroApi && e.status === 429 ? "Você já tem logins demais abertos. Termine ou cancele um deles." : padrao);
 
   /** Confere os logins abertos nas VMs; para sozinho quando não há nenhum em curso. */
@@ -94,7 +111,17 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
           if (l.onde !== "vm" || FINAIS.has(l.login.fase) || !api) continue;
           const novo = await api.verLogin(l.login.maquinaId, l.login.id).catch((e: unknown) => (e instanceof ErroApi && e.status === 404 ? ({ ...l.login, fase: "falhou", erro: "tempo_esgotado" } as LoginNaMaquina) : null));
           if (!novo || (novo.fase === l.login.fase && novo.atualizadoEm === l.login.atualizadoEm && novo.url === l.login.url)) continue;
+          // Paper A2/C2: o código venceu enquanto a pessoa estava na página — um login novo, sem pedir nada a ela.
+          const chave = chaveDaRenovacao(novo);
+          if (novo.fase === "falhou" && novo.erro === "tempo_esgotado" && l.login.fase === "aguardando_pessoa" && (renovacoes.get(chave) ?? 0) < RENOVACOES_DO_LOGIN) {
+            renovacoes.set(chave, (renovacoes.get(chave) ?? 0) + 1);
+            trocarLogin(l.login.id, () => null);
+            await entrarNaMaquina(novo.maquinaId, novo.ia, novo.contaId, novo.apelido);
+            continue;
+          }
           trocarLogin(l.login.id, (x) => (x.onde === "vm" ? { ...x, login: novo } : x));
+          abrirPaginaDoLogin(novo);
+          if (novo.fase === "pronto") renovacoes.delete(chave);
           if (novo.fase === "pronto") {
             d.invalidar();
             // A conta "nova" que já estava na lista deixa o aviso até a pessoa fechar (QA do PR #306, ISSUE-003).
@@ -123,6 +150,7 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
     try {
       const login = await api.pedirLogin(maquinaId, { ia, ...(contaId ? { contaId } : { apelido }) });
       d.mudar({ nota: null, logins: [...logins(), { onde: "vm", login, codigo: "", enviando: false, erroEnvio: null }] });
+      abrirPaginaDoLogin(login);
       conferir();
     } catch (e) {
       d.mudar({ nota: erroCurto(e, `Não deu para começar o login na ${m.nome}. Confira se ela está conectada e tente de novo.`) });
@@ -160,20 +188,22 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
         return l.contaId ? logadas.includes(l.contaId) : logadas.some((id) => !l.antes.includes(id));
       }).map(idDoLogin);
       if (fechar.length) d.mudar({ logins: logins().filter((l) => !fechar.includes(idDoLogin(l))) });
-      // Uma conta que sumiu da lista leva junto o menu, o renomear e o detalhe.
+      // Uma conta que sumiu da lista leva junto o menu e o detalhe.
       const ids = new Set(contas.contas.map((c) => c.id));
       const u = d.ui();
       const limpo: Partial<UiContas> = {};
       if (u.menu && !u.menu.startsWith(PREFIXO_MENU_DA_IA) && !ids.has(u.menu)) limpo.menu = null; // o "…" de uma IA não é de conta
-      if (u.renomear && !ids.has(u.renomear)) limpo.renomear = null;
       if (u.detalhe && !ids.has(u.detalhe)) limpo.detalhe = null;
       if (Object.keys(limpo).length) d.mudar(limpo);
     },
     menu(id: string): void { d.mudar({ menu: d.ui().menu === id ? null : id }); },
     fecharMenu(): void { if (d.ui().menu) d.mudar({ menu: null }); },
-    renomear(id: string | null): void { d.mudar({ renomear: id, menu: null }); },
     detalhe(id: string): void { d.mudar({ detalhe: d.ui().detalhe === id ? null : id, menu: null }); },
     filtro(maquinaId: string | null): void { d.mudar({ filtro: maquinaId, menu: null }); },
+    /** Jornadas da IA (Paper G2): abre a conta na tela própria; fechar volta à lista. */
+    abrirConta(id: string | null): void { d.mudar({ aberta: id, menu: null, nova: null }); },
+    /** Paper G1: a lista só com as contas que precisam da pessoa. */
+    pendentes(sim: boolean): void { d.mudar({ pendentes: sim }); },
     terminal(loginId: string): void { d.mudar({ terminal: d.ui().terminal === loginId ? null : loginId }); },
 
     async salvarApelido(id: string, apelido: string): Promise<void> {
@@ -181,7 +211,6 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       if (!limpo) return;
       const c = d.contas();
       if (c) d.trocarContas({ ...c, contas: c.contas.map((x) => (x.id === id ? { ...x, apelido: limpo } : x)) });
-      d.mudar({ renomear: null });
       await d.api()?.mudarConta(id, { apelido: limpo }).catch(() => d.mudar({ nota: "Não deu para renomear. Tente de novo." }));
       d.invalidar();
     },
@@ -191,7 +220,7 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       if (!c) return;
       const conta = c.contas.find((x) => x.id === id);
       if (!conta || conta.entraNaTrocaAutomatica === ligado) return;
-      if (ligado && ligarPedeAvisoDosTermos(c, id) && !(await d.avisarTermos(conta.ia))) return;
+      if (ligado && ligarPedeAvisoDosTermos(c, id) && !(await d.avisarTermos(conta.ia, { nome: nomeDaContaNaTela(conta), ordem: c.contas.filter((x) => x.ia === conta.ia && x.entraNaTrocaAutomatica).length + 1 }))) return;
       const atual = d.contas() ?? c;
       d.trocarContas({ ...atual, contas: atual.contas.map((x) => (x.id === id ? { ...x, entraNaTrocaAutomatica: ligado } : x)) });
       await d.api()?.mudarConta(id, { entraNaTrocaAutomatica: ligado }).catch(() => d.mudar({ nota: "Não deu para salvar. Tente de novo." }));
@@ -255,11 +284,25 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       const maquinas = d.maquinas().filter((m) => m.conectada && (m.plataforma !== "darwin" || m.id === daqui)).map((m) => m.id);
       d.mudar({ nova: { ia: "claude-cli", apelido: "", maquinas }, menu: null });
     },
+    /** Paper G1b: a linha do login de conta nova reabre a Nova conta no ponto em que o login está. */
+    retomarNova(ia: IaComConta, apelido: string): void {
+      const doLogin = (l: LoginNaTela) => contaDoLogin(l) === null && (l.onde === "vm" ? l.login.ia : l.ia) === ia && ((l.onde === "vm" ? l.login.apelido : l.apelido) ?? "") === apelido;
+      d.mudar({ nova: { ia, apelido, maquinas: logins().filter(doLogin).map(maquinaDoLogin), entrando: true }, aberta: null, menu: null });
+    },
+    /** Paper A, desvio 7: "Entrar com outra conta" abre a Nova conta com a mesma IA e as mesmas máquinas da conta sem acesso. */
+    abrirNovaDaConta(id: string): void {
+      const c = d.contas()?.contas.find((x) => x.id === id);
+      if (!c) return;
+      const daqui = d.detalhes()?.maquinaId ?? null;
+      const podem = new Set(d.maquinas().filter((m) => m.conectada && (m.plataforma !== "darwin" || m.id === daqui)).map((m) => m.id));
+      d.mudar({ nova: { ia: c.ia, apelido: "", maquinas: c.maquinas.map((v) => v.maquinaId).filter((m) => podem.has(m)) }, aberta: null, menu: null });
+    },
     mudarNova(m: Partial<NonNullable<UiContas["nova"]>>): void {
       const n = d.ui().nova;
       if (n) d.mudar({ nova: { ...n, ...m } });
     },
-    fecharNova(): void { d.mudar({ nova: null }); },
+    /** Paper A3: o Concluir leva de volta à lista com a conta nova marcada. */
+    fecharNova(recente?: string): void { d.mudar({ nova: null, ...(recente ? { recente } : {}) }); },
     /** "Entrar nas N máquinas": um login por máquina, todos com o mesmo apelido. */
     async enviarNova(): Promise<void> {
       const n = d.ui().nova;

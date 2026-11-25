@@ -103,6 +103,32 @@ export function sujeitoUniversal(composto: string): boolean {
   return resto === "" || /^[a-z][a-z0-9-]*$/i.test(resto);
 }
 
+/** Os compostos do seletor (divididos pelos combinadores de fora dos parênteses). */
+export function compostos(seletor: string): string[] {
+  const partes: string[] = [];
+  let nivel = 0;
+  let atual = "";
+  for (const c of seletor) {
+    if (c === "(" || c === "[") nivel++;
+    if (c === ")" || c === "]") nivel--;
+    if (nivel === 0 && (c === " " || c === ">" || c === "+" || c === "~")) { if (atual.trim()) partes.push(atual.trim()); atual = ""; continue; }
+    atual += c;
+  }
+  if (atual.trim()) partes.push(atual.trim());
+  return partes;
+}
+
+/**
+ * Fase 5 da ADR-179 (medido em 2026-11-19, trace com invalidação ao abrir o quadro): o composto é um ancestral da conversa
+ * inteira — `html`, `body`, `main`, `.app` ou `.stage` (com ou sem classe de estado). O Chrome junta todas as regras de
+ * `:has()` num conjunto de invalidação só: com a âncora num desses, o nó que entra perto (os cards, a barra do quadro, o
+ * `hidden` do `#quadro`) invalida dali para baixo com o conjunto juntado (`.message`, `.bubble`, os mascotes…).
+ */
+export function ancestralDaConversa(composto: string): boolean {
+  const base = composto.replace(/:{1,2}[a-z-]+\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)/gi, "").replace(/:{1,2}[a-z-]+/gi, "").replace(/\[[^\]]*\]/g, "");
+  return /^(?:html|body|main|:root)(?:[.#]|$)/i.test(base) || /\.(?:app|stage)(?![\w-])/.test(base);
+}
+
 describe("CSS: :has() sem sujeito universal (ADR-189)", () => {
   it("nenhuma regra com :has() termina num sujeito que casa com qualquer elemento", () => {
     const ruins = arquivosCss(RAIZ).flatMap((arq) =>
@@ -116,7 +142,34 @@ describe("CSS: :has() sem sujeito universal (ADR-189)", () => {
     expect(ruins).toEqual([]);
   });
 
+  it("nenhum :has() fora do sujeito ancorado num ancestral da conversa (fase 5 da ADR-179)", () => {
+    const ruins = arquivosCss(RAIZ).flatMap((arq) =>
+      seletoresDoCss(readFileSync(arq, "utf8"))
+        .filter((s) => compostos(s).slice(0, -1).some((c) => c.includes(":has(") && ancestralDaConversa(c)))
+        .map((s) => `${arq.slice(RAIZ.length)}: ${s}`),
+    );
+    // O estado vira classe no `.stage` ou no `<html>`, posta pelo JS (web/lib/estado-da-pagina.ts).
+    expect(ruins).toEqual([]);
+  });
+
+  it("nenhum sujeito universal sob uma classe do .stage (fase 5 da ADR-179)", () => {
+    // Trocar uma classe no `.stage` (qd-no-quadro, palco-*) com uma regra `.stage.x … > *` invalida o palco inteiro: a
+    // conversa por baixo do quadro, ~40 mil nós, a cada ida e volta. O sujeito nomeia o que estiliza.
+    const ruins = arquivosCss(RAIZ).flatMap((arq) =>
+      seletoresDoCss(readFileSync(arq, "utf8"))
+        .filter((s) => compostos(s).slice(0, -1).some((c) => /\.stage(?![\w-])/.test(c)) && sujeitoUniversal(sujeito(s)))
+        .map((s) => `${arq.slice(RAIZ.length)}: ${s}`),
+    );
+    expect(ruins).toEqual([]);
+  });
+
   it("o varredor acha o caso ruim e deixa passar o bom", () => {
+    expect(ancestralDaConversa("body:has(#pg-menu)")).toBe(true);
+    expect(ancestralDaConversa(".stage.qd-no-quadro:has(.qm-barra)")).toBe(true);
+    expect(ancestralDaConversa("html:has(.x)")).toBe(true);
+    expect(ancestralDaConversa(".qd-vista:has(.qm-barra)")).toBe(false);
+    expect(ancestralDaConversa(".stage-x:has(.y)")).toBe(false);
+    expect(compostos(".stage.qd-no-quadro .abas > :not(.at-pilula)")).toEqual([".stage.qd-no-quadro", ".abas", ":not(.at-pilula)"]);
     expect(sujeitoUniversal(sujeito(".a:has(> .b) > :not(.c)"))).toBe(true);
     expect(sujeitoUniversal(sujeito("html:has(.x) :is(.app, .app *, .y)"))).toBe(true);
     expect(sujeitoUniversal(sujeito(".a:has(.b) > .c > *"))).toBe(true);

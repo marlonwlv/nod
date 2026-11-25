@@ -348,7 +348,7 @@ describe("ADA-17: o CSS do celular (lido como texto; celular.test.ts garante que
     expect(ultimo(".qd-fo-campo", "font-size")).toBe("var(--cel-campo)");
   });
   it("critério 12: o topo encolhido mostra o data-titulo (VER-1 · título) numa linha", () => {
-    const sel = ".stage.qd-no-quadro:has(.qd-tarefa-cel) .cabecalho.topo-encolhido[data-titulo]::after";
+    const sel = ".stage.qd-no-quadro.palco-tarefa-cel .cabecalho.topo-encolhido[data-titulo]::after";
     expect(ultimo(sel, "content")).toBe("attr(data-titulo)");
     expect(ultimo(sel, "white-space")).toBe("nowrap");
   });

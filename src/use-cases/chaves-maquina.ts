@@ -23,6 +23,7 @@ export const emitirChaveMaquina: CasoDeUso<{ nome: unknown; papel?: PapelMaquina
   if (nome.length === 0 || nome.length > NOME_MAX) throw new ErroDeDominio("entrada_invalida", { cause: "nome da chave" });
   const papel = input.papel ?? "motor";
   if (papel === "computador") {
+    await deps.repos.maquinaTokens.travarVagaDoComputador();
     const anterior = await deps.repos.maquinaTokens.computadorVivo(deps.agora());
     if (anterior && input.substituir !== true) throw new ErroDeDominio("estado_invalido", { cause: "já há uma máquina só computador" });
     // NOD-344: pelo removerMaquina, o aviso "sem contato" da anterior sai junto (na mesma trava do varredor).

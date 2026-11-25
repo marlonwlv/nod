@@ -63,8 +63,8 @@ describe("2: avatar, nome, título, ações rápidas e a lista agrupada com os v
   const html = renderPerfilCelular(e);
   it("avatar xl, nome e título editáveis no lugar (gvn-nome/gvn-sub) com lápis", () => {
     expect(html).toMatch(/class="icon mascote [^"]* xl"/);
-    expect(html).toMatch(/class="gvn-nome pfc-nome" data-campo="nome" data-id="a1" data-salvo="Nina"/);
-    expect(html).toMatch(/class="gvn-sub pfc-sub" data-campo="titulo" data-id="a1" data-salvo="Assistente de e-mail"/);
+    expect(html).toMatch(/class="gvn-nome pfc-nome nome-editavel" data-nome-editavel="bot" data-campo="nome" data-id="a1" data-salvo="Nina"/);
+    expect(html).toMatch(/class="gvn-sub pfc-sub nome-editavel" data-nome-editavel="bot" data-campo="titulo" data-id="a1" data-salvo="Assistente de e-mail"/);
     expect(html).toContain('data-act="perfil-editar" data-campo="nome"');
     expect(html).toContain('data-act="perfil-editar" data-campo="titulo"');
   });

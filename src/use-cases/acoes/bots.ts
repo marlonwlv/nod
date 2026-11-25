@@ -12,6 +12,7 @@ import { gerirAgente } from "../gerir-agente.ts";
 import { mudarModoAprovacao } from "../mudar-modo-aprovacao.ts";
 import type { CasoDeUso } from "../tipos.ts";
 import { restaurarVersaoDoPerfil } from "../versoes-perfil.ts";
+import { fixarAgente, ocultarAgente } from "../fixar-ocultar-agente.ts";
 
 /**
  * Os executores únicos do piloto `bots.*` (definido em 2026-10-28, NOD-391, ADR-135): a rota de pessoa
@@ -64,6 +65,8 @@ export const excluirBot: CasoDeUso<{ agenteId: string }, { agente: Agente }> = a
   return r;
 };
 
+export const restaurarBot: CasoDeUso<{ agenteId: string }, { agente: Agente }> = (deps, input) => gerirAgente(deps, { agenteId: input.agenteId, acao: "restaurar" });
+
 /** A tabela id → executor do piloto; o registro aponta para ela por `casoDeUso` (o teste de paridade confere). */
 export const EXECUTORES_BOTS = {
   "bots.criar": criarBot,
@@ -71,6 +74,9 @@ export const EXECUTORES_BOTS = {
   "bots.editar": editarPerfil,
   "bots.mover": moverBot,
   "bots.excluir": excluirBot,
+  "bots.restaurar": restaurarBot,
+  "bots.fixar": fixarAgente,
+  "bots.ocultar": ocultarAgente,
   "bots.mudar_modo": mudarModoAprovacao,
   "bots.restaurar_versao": restaurarVersaoDoPerfil,
 } as const satisfies Partial<Record<IdAcao, CasoDeUso<never, unknown>>>;

@@ -81,7 +81,9 @@ function Passo({ v, p, n, ui, acoes }: { v: VistaIa; p: PassoIa; n: number; ui: 
         {p.dica ? <div className="ia-troca-dica"><Svg html={ICONE_IA.aviso} /><p>{p.dica}</p></div> : null}
         {p.abrir || p.esperando ? (
           <div className="ia-acoes">
-            {p.abrir ? <button type="button" className="ob-link" onClick={() => acoes.agir("ia-abrir-link", v.ia)}>Abrir a página da {empresa}<Svg html={ICONE_IA.abrir} /></button> : null}
+            {p.abrir === "de-novo"
+              ? <span className="ia-reabrir">A página não abriu? <button type="button" className="ob-link" onClick={() => acoes.agir("ia-abrir-link", v.ia)}>Abrir de novo<Svg html={ICONE_IA.abrir} /></button></span>
+              : p.abrir ? <button type="button" className="ob-link" onClick={() => acoes.agir("ia-abrir-link", v.ia)}>Abrir a página da {empresa}<Svg html={ICONE_IA.abrir} /></button> : null}
             {p.esperando ? <span className="ia-esperando"><Gira />{p.esperando}</span> : null}
           </div>
         ) : null}

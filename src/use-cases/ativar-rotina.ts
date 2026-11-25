@@ -9,6 +9,7 @@ import type { Tx } from "../shared/types.ts";
 import { evento, eventoDeRotina, exigir, textoRotinaAtiva } from "./apoio-l7.ts";
 import { concederAcessosDaRotina } from "./conceder-acessos-da-rotina.ts";
 import { autoriaDeQuemConfirma, fecharDecisaoDaProposta, type PorRegra } from "./confirmar-pelo-modo.ts";
+import { perguntarNaRotina } from "./navegador-mac-desligado.ts";
 import type { CasoDeUso, Deps, Services } from "./tipos.ts";
 
 /** `prefixo`: só na rotina webhook recém-criada (o começo do endereço, para o bot e o card mascararem). */
@@ -85,6 +86,8 @@ export const ativarRotina: CasoDeUso<{ propostaId: string; semMensagem?: boolean
   ];
   events.push(...((await concederAcessosDaRotina(deps, { agenteId: rotina.agenteId, acessos: rotina.acessos, ...(input.porRegra ? { porRegra: input.porRegra } : {}) })).events ?? []));
   // A decisão 'rotina' de "Sua vez" tem o mesmo id; se ainda estava aberta, fica decidida aqui.
+  // ADR-190 (M2/J1): a rotina de um bot com navegador numa hora em que o Mac costuma estar desligado traz a pergunta, uma vez.
+  await perguntarNaRotina(deps, rotina);
   const { decisao, sincronizar } = await fecharDecisaoDaProposta(deps, proposta.id, agora, input.porRegra);
   if (decisao) events.push(evento(deps, "decisao_decidida", autoria, { decisaoId: decisao.id, tipo: "rotina" }, { conversaId: rotina.conversaId }), ...sincronizar);
   return { data: { rotina, jaExistia: false, ...(prefixo ? { prefixo } : {}) }, events };

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, session, shell, systemPreferences, Tray, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, screen, session, shell, systemPreferences, Tray, type IpcMainInvokeEvent } from "electron";
 import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -7,6 +7,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { arquivoDaConexao, carregarConexao, carregarMaquinaDoMotor, guardarConexao, pastaDoMotor, type ConexaoMotor } from "../../motor/conexao.ts";
 import { depsDeVerdade, desinstalar } from "../../motor/desinstalar.ts";
+import { criarArquivoDeLog, instalarOuvintesDeQueda, MAX_BYTES_LOG } from "../diagnostico.ts";
+import { LARGURA_MINIMA, lerEstadoJanela, medirEstadoJanela, resolverEstadoJanela, type EstadoJanela } from "../janela.ts";
 import { criarAtualizacaoDoApp, linhaDaAtualizacao, servidorDeAtualizacao, TEXTOS_ATUALIZACAO, type AtualizacaoDoApp } from "../atualizacao.ts";
 import { pedirProvisorio, segredoDeTroca, servidorOfereceProvisorio, trocarChaveDoApp, verificadorNovo, verificadorValido } from "../conta-provisoria.ts";
 import { esteComputadorEm } from "../este-computador.ts";
@@ -26,6 +28,7 @@ import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio } from "
 import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../../src/contracts/desktop-atualizacao.ts";
 import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
+import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, motorSeAtualiza, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
 import { FalhaPareamentoWindows, linkDePareamento, parearPorDispositivo } from "./pareamento.ts";
 import { abrirSessao, cookieDaJanela, PARTITION_DA_JANELA } from "./sessao.ts";
@@ -57,9 +60,23 @@ let atualizacao: AtualizacaoDoApp | null = null;
 /** ADA-245: o "Remover o nod deste computador" já limpou: nada religa nem reinstala o motor; só o Fechar resta. */
 let removido = false;
 
-const registrar = (evento: string, campos: Record<string, string | number | boolean | null> = {}) => {
-  process.stdout.write(`${JSON.stringify({ t: new Date().toISOString(), evento, ...campos })}\n`);
+/**
+ * PR #333 (achado 6, QA do rc.10 no Windows): o registro ia só para o stdout, que no app instalado não vai a lugar nenhum
+ * — não havia `nod.log` para o "Enviar feedback" nem para o suporte. Agora cada linha vai também para
+ * `<logs do app>\nod.log` (o mesmo `criarArquivoDeLog` do Mac: duas gerações de 1 MB). O arquivo liga no whenReady;
+ * erro no disco nunca derruba o registro.
+ */
+let arquivoDoLog: ((linha: string) => void) | null = null;
+const registrar = (evento: string, campos: Record<string, string | number | boolean | null | undefined> = {}) => {
+  const linha = JSON.stringify({ t: new Date().toISOString(), evento, ...campos });
+  process.stdout.write(`${linha}\n`);
+  try { arquivoDoLog?.(linha); } catch { /* o stdout já recebeu a linha */ }
 };
+
+/** A pasta de logs do app (no Windows, dentro do userData); sem ela, `userData\logs`. */
+function pastaDeLogs(): string {
+  try { return app.getPath("logs"); } catch { return join(app.getPath("userData"), "logs"); }
+}
 
 function icone() { return nativeImage.createFromPath(join(dir, "icon.png")); }
 
@@ -123,7 +140,8 @@ async function lerMotor(): Promise<EstadoDoMotor> {
   const saida = await new Promise<string>((r) => execFile(arquivo, args, { windowsHide: true, timeout: 20_000 }, (_e, out) => r(String(out ?? ""))));
   const v = vigiar(saida);
   const estado = v.estado;
-  if (v.religar) {
+  // 2026-11-25: com a troca do motor em curso (a marca), o script religa no fim; religar no meio subiria o motor velho.
+  if (v.religar && !(await atualizandoAgora(process.env))) {
     const c = comandoDeReligar(systemRoot);
     execFile(c.arquivo, c.args, { windowsHide: true, timeout: 20_000 }, () => undefined);
     registrar("motor_religado", { tarefa: v.tarefa });
@@ -156,6 +174,28 @@ async function instalar() {
   if (conexao) await entrar(conexao);
 }
 
+/**
+ * 2026-11-25 (motor/atualizacao-no-windows.ts): o app confere o motor instalado com o manifesto do servidor. Na primeira
+ * conferência depois de abrir atualiza na hora (o motor antigo não sabe se atualizar); depois, só se seguir diferente
+ * além da carência, porque o motor novo se atualiza sozinho esperando os turnos da pessoa.
+ */
+let estadoDoMotorNoApp: EstadoDoApp = APP_PARADO;
+let conferindoMotor = false;
+async function conferirMotor(): Promise<void> {
+  const c = conexao;
+  if (!c || removido || conferindoMotor || process.env.NOD_ATUALIZAR_SOZINHO === "0") return;
+  conferindoMotor = true;
+  try {
+    const diferente = await motorDoWindowsDiferente({ servidor: c.url, env: process.env });
+    const d = appDeveAtualizar(estadoDoMotorNoApp, { agora: Date.now(), diferente, atualizando: await atualizandoAgora(process.env), motorCuida: await motorSeAtualiza(process.env) });
+    estadoDoMotorNoApp = d.estado;
+    if (!d.atualizar) return;
+    const cmd = comandoDeAtualizarSolto(c.url, systemRoot);
+    spawn(cmd.arquivo, cmd.args, { detached: true, windowsHide: true, stdio: "ignore" }).on("error", () => registrar("motor_atualizacao_pelo_app_falhou", {})).unref();
+    registrar("motor_atualizacao_pelo_app", {});
+  } catch { registrar("motor_atualizacao_pelo_app_falhou", {}); } finally { conferindoMotor = false; }
+}
+
 async function entrar(c: ConexaoMotor) {
   const passo = passoDaSessao(await abrirSessao(c, app.getVersion()));
   if (!("abrir" in passo)) {
@@ -170,6 +210,29 @@ async function entrar(c: ConexaoMotor) {
   abrirJanela(c.url);
   setup?.close();
   atualizacao?.conectado();
+  void conferirMotor();
+}
+
+/**
+ * PR #333 (achado 11, QA do rc.10 no Windows): a janela reabria sempre em 1280×820 e não maximizada. Agora lembra posição,
+ * tamanho e maximizada em `userData\janela.json`, com as mesmas regras do Mac (desktop/janela.ts, NOD-137): minimizada
+ * não grava, sempre inteira numa tela que existe. Escrita em fila, pelo .tmp.
+ */
+let estadoJanela: EstadoJanela | null | undefined;
+let gravacaoJanela: Promise<void> = Promise.resolve();
+const caminhoEstadoJanela = () => join(app.getPath("userData"), "janela.json");
+function lerEstadoGuardado(): EstadoJanela | null {
+  if (estadoJanela === undefined) {
+    try { estadoJanela = lerEstadoJanela(readFileSync(caminhoEstadoJanela(), "utf8")); } catch { estadoJanela = null; }
+  }
+  return estadoJanela;
+}
+function capturarEstadoJanela(w: BrowserWindow) {
+  const estado = medirEstadoJanela(w, lerEstadoGuardado());
+  if (!estado) return;
+  estadoJanela = estado;
+  const tmp = `${caminhoEstadoJanela()}.tmp`;
+  gravacaoJanela = gravacaoJanela.then(async () => { await writeFile(tmp, JSON.stringify(estado)); await rename(tmp, caminhoEstadoJanela()); }).catch(() => undefined);
 }
 
 function abrirJanela(url: string) {
@@ -177,7 +240,21 @@ function abrirJanela(url: string) {
   origemDaJanela = origem;
   if (janela && !janela.isDestroyed()) { void janela.loadURL(`${origem}/`); janela.show(); return; }
   // 5/11: a ponte mínima dos cartões de IA (preload-web-windows.ts); sem ela a web mandava a pessoa ao PowerShell.
-  janela = new BrowserWindow({ width: 1280, height: 820, minWidth: 900, minHeight: 600, title: "nod", icon: icone(), autoHideMenuBar: true, webPreferences: { partition: PARTITION_DA_JANELA, preload: join(dir, "preload-web-windows.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false } });
+  const telas = { principal: screen.getPrimaryDisplay().workArea, todas: screen.getAllDisplays().map((d) => d.workArea) };
+  const bounds = resolverEstadoJanela(lerEstadoGuardado(), telas, { largura: 1280, altura: 820 });
+  estadoJanela = bounds;
+  janela = new BrowserWindow({ x: bounds.x, y: bounds.y, width: bounds.largura, height: bounds.altura, minWidth: Math.min(LARGURA_MINIMA, bounds.largura), minHeight: 600, title: "nod", icon: icone(), autoHideMenuBar: true, webPreferences: { partition: PARTITION_DA_JANELA, preload: join(dir, "preload-web-windows.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false } });
+  if (bounds.maximizada) janela.maximize();
+  {
+    const nova = janela;
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const agendar = () => { if (espera) clearTimeout(espera); espera = setTimeout(() => { espera = null; if (!nova.isDestroyed()) capturarEstadoJanela(nova); }, 250); };
+    nova.on("move", agendar);
+    nova.on("resize", agendar);
+    nova.on("maximize", agendar);
+    nova.on("unmaximize", agendar);
+    nova.on("close", () => { if (espera) clearTimeout(espera); if (!nova.isDestroyed()) capturarEstadoJanela(nova); });
+  }
   // ADR-053: link para fora (target=_blank) abre no navegador; a janela nunca abre outra no app.
   janela.webContents.setWindowOpenHandler(({ url: u }) => { if (abreNoNavegador(u)) void shell.openExternal(u); return { action: "deny" }; });
   janela.webContents.on("will-navigate", (e, u) => {
@@ -312,7 +389,14 @@ else {
   // A bandeja segue com as janelas fechadas; só o Sair (ou o reinício da atualização) encerra.
   app.on("window-all-closed", () => { if (saindo) app.quit(); });
   app.on("before-quit", () => { saindo = true; });
+  // PR #333 (achado 15): o atalho do Menu Iniciar abre o app com a pasta de trabalho na instalação (Programs\nod), e o
+  // seletor de arquivo do anexo abria lá na primeira vez. A pasta do usuário é o lugar certo; nada aqui depende da
+  // pasta de trabalho (os caminhos saem de import.meta.url e do ambiente).
+  try { process.chdir(app.getPath("home")); } catch { /* fica onde estava */ }
   void app.whenReady().then(() => {
+    arquivoDoLog = criarArquivoDeLog({ dir: pastaDeLogs(), maxBytes: MAX_BYTES_LOG });
+    instalarOuvintesDeQueda({ app, processo: process, registrar: (campos) => registrar("app_processo_caiu", campos), encerrando: () => saindo, ehJanelaPrincipal: (conteudo) => !!janela && !janela.isDestroyed() && conteudo === janela.webContents });
+    registrar("app_iniciado", { versao: app.getVersion(), empacotado: app.isPackaged, arquitetura: process.arch });
     Menu.setApplicationMenu(null);
     ipcMain.handle("nodwin:estado", (e) => (daTelaDeSetup(e) ? telaAtual : null));
     ipcMain.handle("nodwin:conectar", (e) => { if (daTelaDeSetup(e)) void conectar(); });
@@ -430,6 +514,7 @@ else {
     lembrarVersao();
     atualizarBandeja();
     setInterval(() => { if (conexao && !removido) void lerMotor(); }, INTERVALO_DO_VIGIA_MS).unref();
+    setInterval(() => void conferirMotor(), INTERVALO_DO_APP_MS).unref();
     registrar("app_aberto", { versao: app.getVersion() });
     void abrir();
   });

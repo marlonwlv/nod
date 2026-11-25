@@ -31,6 +31,15 @@
 export const ARQUIVOS_DO_MOTOR = ["nod-motor.mjs", "proxy.mjs", "hook-nativas.mjs"] as const;
 export type ArquivoDoMotor = (typeof ARQUIVOS_DO_MOTOR)[number];
 
+/** Partes do computador que precisam acompanhar o motor quando o servidor oferece esse recurso. */
+export const ARQUIVOS_DO_COMPUTADOR = ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"] as const;
+export type ArquivoDoComputador = (typeof ARQUIVOS_DO_COMPUTADOR)[number];
+export const DESTINOS_DO_COMPUTADOR: Record<ArquivoDoComputador, string> = {
+  "computador-supervisor.mjs": "supervisor.mjs",
+  "computador-tela.mjs": "tela.mjs",
+  "computador-terminal.mjs": "terminal.mjs",
+};
+
 /** Sem um momento ocioso nesse tempo, o motor para de puxar trabalho novo para conseguir se atualizar. */
 export const JANELA_OCIOSA_MS = 30 * 60_000;
 /** O pedido feito e o motor ainda de pé depois disso: o atualizador falhou. */
@@ -75,6 +84,17 @@ export type PassoDaAtualizacao = {
  * espera) ou nada (`"tudo"`: os segundos entre o pedido e o reinício, para nenhum turno dela começar e ser cortado).
  */
 export type Drenagem = false | "fundo" | "tudo";
+
+/**
+ * O manifesto que o motor compara: sem os arquivos do computador que o atualizador do root desta máquina não troca.
+ * `atualizador` é o texto do script do root (vazio se não deu para ler). Medido em 2026-11-20: o #165 pôs o computador no
+ * manifesto, mas o script de troca só chega à máquina na reinstalação; com o de 28/10, que troca só os três do motor, a
+ * nod-motor-teste comparou, pediu e reiniciou a cada ~37 s por 9 horas, derrubando os turnos a cada volta.
+ */
+export function manifestoComparavel(manifesto: Readonly<Record<string, string>>, atualizador: string): Record<string, string> {
+  const fora = new Set<string>(ARQUIVOS_DO_COMPUTADOR.filter((n) => !atualizador.includes(n)));
+  return Object.fromEntries(Object.entries(manifesto).filter(([n]) => !fora.has(n)));
+}
 
 /** Os arquivos diferem do manifesto: algum sha256 local não bate (arquivo que falta conta como diferente). */
 export function motorDiferente(locais: Readonly<Record<string, string | null>>, manifesto: Readonly<Record<string, string>>): boolean {

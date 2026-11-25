@@ -4,8 +4,9 @@ import { esc } from "../lib/render.ts";
 
 export function abrirWorkspace(api: Api, conversaId: string): void {
   const dialog = document.createElement("dialog");
+  dialog.className = "bot-dialogo workspace-dialogo";
   dialog.setAttribute("aria-label", "Pasta de trabalho");
-  dialog.innerHTML = `<form method="dialog"><button aria-label="Fechar">Fechar</button></form><h2>Pasta de trabalho</h2>
+  dialog.innerHTML = `<form method="dialog" class="workspace-fechar"><button aria-label="Fechar">Fechar</button></form><h2>Pasta de trabalho</h2>
     <p>Escolha uma pasta para o agente ler e editar arquivos e executar comandos isolados. O acesso vale somente para esta conversa, inclusive ao trocar de inteligência. Os comandos não têm rede nem acesso aos serviços do seu computador.</p>
     <p data-estado role="status">Carregando…</p><div data-escolha hidden><p data-caminho></p><button data-pai>Voltar uma pasta</button><details><summary>Ir para uma pasta pelo caminho</summary><label>Caminho da pasta<input data-endereco aria-label="Caminho da pasta"></label><button data-ir>Abrir pasta</button></details><ul data-pastas></ul>
     <p>Por padrão, projetos Git usam uma cópia de trabalho separada. Você pode pedir ao agente para trabalhar diretamente na pasta original.</p>

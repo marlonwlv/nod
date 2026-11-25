@@ -1,4 +1,5 @@
 import type { ColunaQuadro } from "../contracts/quadro.ts";
+import { cortarComReticencias } from "./cortar-grafema.ts";
 
 /**
  * NOD-422, PR 2 (definido em 2026-11-02): as regras puras do "o quadro assume a esteira" (src/use-cases/assumir-quadro.ts).
@@ -34,7 +35,7 @@ export function botsDoQuadro(anfitriaoId: string, colunas: readonly ColunaQuadro
 /** O título da rotina no card: a primeira linha da instrução, curta. */
 export function tituloDaRotina(instrucao: string): string {
   const linha = (instrucao.split("\n").find((l) => l.trim() !== "") ?? "").trim();
-  return linha.length > 80 ? `${linha.slice(0, 79)}…` : linha || "rotina";
+  return cortarComReticencias(linha, 80) || "rotina";
 }
 
 /** O id curto que o card e o recibo mostram. */

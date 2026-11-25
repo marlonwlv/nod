@@ -3,6 +3,7 @@ import type { IdHarness } from "../contracts/harness.ts";
 import type { TipoAnexo } from "../contracts/anexo.ts";
 import { tipoDoAnexo } from "../domain/anexo.ts";
 import { capacidadesDe, harnessFixado, validarInteligencia } from "../domain/harness.ts";
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../domain/desvios-da-conversa.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
 import type { CasoDeUso } from "./tipos.ts";
 
@@ -32,6 +33,9 @@ export const repetirBarradosPorIa: CasoDeUso<{ executor: "local" | "catcher"; pr
   const barrados = await deps.repos.turnos.barradosPorFaltaDeIa(agora - JANELA_REPETIR_BARRADOS_MS);
   const events: RuntimeEvent[] = [];
   for (const turno of barrados) {
+    // Lote B das Jornadas da IA (regra 2, 2026-11-22): a fala que já teve as tentativas automáticas da mensagem não volta
+    // sozinha a cada anúncio da máquina — sem isso, a conta que segue sem servir a repetia a cada 20 s.
+    if (turno.reenvios >= TETO_TENTATIVAS_DA_MENSAGEM) continue;
     if (input.prontos) {
       const tipos = turno.entradaAnexos.length > 0 ? (await deps.repos.anexos.metas(turno.entradaAnexos)).map((a) => tipoDoAnexo(a.mime)) : [];
       if (!repeteNosProntos(turno.harness, turno.modelo, input.prontos, tipos)) continue;

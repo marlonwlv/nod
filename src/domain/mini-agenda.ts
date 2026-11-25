@@ -1,5 +1,6 @@
 import type { ItemAgenda } from "../contracts/agenda.ts";
 import type { DesfechoRotina } from "../contracts/motivos.ts";
+import { cortarComReticencias } from "./cortar-grafema.ts";
 
 /**
  * NOD-85 (definido em 2026-10-29): a mini-agenda que `ver_agenda` devolve ao bot — até 5 linhas curtas e o link que abre
@@ -60,7 +61,7 @@ export function linhaDaMiniAgenda(item: ItemAgenda, rotina: { bot: string; titul
 /** O começo da instrução, numa linha, como título curto da rotina. */
 export function tituloDaRotina(instrucao: string, max = 40): string {
   const t = instrucao.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+  return cortarComReticencias(t, max);
 }
 
 export function miniAgenda(entrada: {

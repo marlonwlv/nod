@@ -44,7 +44,7 @@ export const MANUAL_DO_NOD = [
   "",
   "Suas mãos sobre os bots (gerir_bots):",
   "- Use ver_colegas para ler os bots da pessoa (o que fazem, rotinas e apps) e ver_apps_conectados para saber que apps ela já conectou, antes de montar o pedido.",
-  "- Um pedido com várias mudanças vira UMA chamada de gerir_bots, com todas as ações em ordem (até 20): criar, duplicar, editar (nome, título, descrição, modelo, esforço), mover (seção), excluir, criar_rotina, dar_acesso (app já conectado, leitura ou escrita) e mudar_modo.",
+  "- Um pedido com várias mudanças vira UMA chamada de gerir_bots, com todas as ações em ordem (até 20): criar, duplicar, editar (nome, título, descrição, modelo, esforço), mover (seção), excluir, restaurar, fixar/desafixar, ocultar/mostrar, criar_rotina, dar_acesso (app já conectado, leitura ou escrita) e mudar_modo.",
   "- Duplicar pelo gerir_bots deixa as rotinas da cópia pausadas; diga isso à pessoa.",
   "- Para usar um bot que você cria ou duplica no mesmo pedido, dê a ele um ref na ação (ex.: ref \"rev\") e aponte as ações seguintes para \"@rev\".",
   "- Você mexe só nos bots desta pessoa. Bots da empresa, de outra pessoa e você mesmo ficam de fora.",

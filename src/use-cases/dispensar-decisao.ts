@@ -66,8 +66,11 @@ export const RECUSA_DA_AJUDA = "A pessoa respondeu \"Agora não\" ao seu pedido 
  *    varredor) e "Limpar vencidos" escreveria uma linha na conversa por item limpo.
  * 3. Pedido de ajuda do computador do bot (computador_pedir_ajuda guarda o id): o bot recupera o
  *    computador — senão toda ação dele responderia "a pessoa está com o computador" para sempre.
+ *
+ * `semRetomada` (definido em 2026-11-20, ADR-191): quem dispensa é a mensagem nova da pessoa, que já cria o turno dela —
+ * o "Agora não" da ajuda (RECUSA_DA_AJUDA) viraria um segundo turno, e o bot fica sabendo pela linha do pedido dispensado.
  */
-export async function depoisDeDispensar(deps: DepsSuaVez, input: { decisao: Decisao }): Promise<{ data: SaidaDepoisDeDispensar; events: RuntimeEvent[] }> {
+export async function depoisDeDispensar(deps: DepsSuaVez, input: { decisao: Decisao; semRetomada?: true }): Promise<{ data: SaidaDepoisDeDispensar; events: RuntimeEvent[] }> {
   const d = input.decisao;
   const gemeas = await fecharGemeas(deps, d);
   const events = [...gemeas.events];
@@ -87,7 +90,7 @@ export async function depoisDeDispensar(deps: DepsSuaVez, input: { decisao: Deci
   const ajuda = await devolverComputador(deps, d);
   let turnoRetomadaId: string | null = null;
   // Spec D, item 6: só o pedido ainda aberto (o "Limpar vencidos" não acorda o bot) e com o turno que pediu.
-  if (ajuda.eraAjuda && d.turnoId && (antes === "pendente" || antes === "reaberta")) {
+  if (ajuda.eraAjuda && !input.semRetomada && d.turnoId && (antes === "pendente" || antes === "reaberta")) {
     const original = await deps.repos.turnos.buscar(d.turnoId);
     if (original) {
       const agora = deps.agora();

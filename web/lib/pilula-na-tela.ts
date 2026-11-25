@@ -1,4 +1,5 @@
 import { seletoresDoFoco } from "./foco-do-bloco.ts";
+import { marcarEstadoDaPagina } from "./estado-da-pagina.ts";
 import { htmlDaPilula, type PartesDaPilula } from "../telas/pilula-do-bot.ts";
 
 /**
@@ -106,6 +107,7 @@ export function criarPilulaNaTela(lugar: HTMLElement, palco: HTMLElement, c: { r
       e.painel.hidden = false;
       if (!c.reduzido()) void e.painel.offsetWidth;
       e.raiz.dataset.estado = "aberta";
+      marcarEstadoDaPagina(e.raiz.ownerDocument);
       // As linhas entram uma a uma só com movimento (o CSS também desliga, mas sem a classe não há o que desligar).
       if (!c.reduzido()) e.painel.classList.add("entrando");
       fechamento = c.agendar(() => e.painel.classList.remove("entrando"), FIM_DA_TRANSICAO_MS + 300);
@@ -115,6 +117,7 @@ export function criarPilulaNaTela(lugar: HTMLElement, palco: HTMLElement, c: { r
       return;
     }
     e.raiz.dataset.estado = "fechada";
+    marcarEstadoDaPagina(e.raiz.ownerDocument);
     e.painel.classList.remove("entrando");
     // O foco que estava no painel volta à pílula antes de ele sumir (senão cai no <body>).
     if (tinhaFoco && !e.escondida) e.botao.focus({ preventScroll: true });

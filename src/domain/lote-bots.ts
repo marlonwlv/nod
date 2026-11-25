@@ -38,7 +38,7 @@ export type AcaoResolvida = AcaoLote & {
 
 export type Problema = { i: number; motivo: string };
 
-const PRECISA_DE_BOT: ReadonlySet<TipoAcaoLote> = new Set(["duplicar", "editar", "mover", "excluir", "criar_rotina", "dar_acesso", "mudar_modo", "restaurar_versao"]);
+const PRECISA_DE_BOT: ReadonlySet<TipoAcaoLote> = new Set(["duplicar", "editar", "mover", "excluir", "restaurar", "fixar", "ocultar", "criar_rotina", "dar_acesso", "mudar_modo", "restaurar_versao"]);
 const CRIA_BOT: ReadonlySet<TipoAcaoLote> = new Set(["criar", "duplicar"]);
 
 function vazio(v: string | undefined): boolean {
@@ -48,16 +48,29 @@ function vazio(v: string | undefined): boolean {
 /**
  * Valida o lote inteiro e resolve os alvos. Qualquer problema devolve TODOS os problemas e nada roda (o Nod corrige e
  * chama de novo). `bots` são os bots da pessoa que o lote pode tocar (já filtrados por dona; excluídos e o Nod entram
- * para a mensagem de erro dizer por quê); `apps`, os que ela conectou.
+ * para a mensagem de erro dizer por quê); `apps`, os que ela conectou. `nomesDeFora`: os nomes dos outros bots vivos que
+ * ela vê no tenant (da empresa, de colegas), que também resolvem por nome no pedir_a_bot.
+ *
+ * QA-118: criar e editar o nome não deixam dois bots com o mesmo nome (sem diferenciar maiúsculas, como o resolverBot),
+ * a mesma regra do criar_bots (ADR-104). O lote é simulado na ordem: excluir e renomear liberam o nome antigo.
  */
-export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote[], apps: readonly AppConectado[], pessoaId: string, resumo?: string): { ok: true; acoes: AcaoResolvida[] } | { ok: false; problemas: Problema[] } {
+export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote[], apps: readonly AppConectado[], pessoaId: string, resumo?: string, nomesDeFora: readonly string[] = []): { ok: true; acoes: AcaoResolvida[] } | { ok: false; problemas: Problema[] } {
   const problemas: Problema[] = [];
   // Revisão 8 do #590: o resumo vai ao cartão (jsonb) e à frase da decisão; byte nulo ou surrogate solto nele dava 500.
   if (resumo !== undefined && acharTextoMalFormado(resumo) !== null) problemas.push({ i: -1, motivo: "texto inválido no resumo (byte nulo ou caractere partido)" });
   if (acoes.length === 0) problemas.push({ i: -1, motivo: "nenhuma ação" });
   if (acoes.length > MAX_ACOES_LOTE) problemas.push({ i: -1, motivo: `no máximo ${MAX_ACOES_LOTE} ações por pedido; divida em partes` });
   const refs = new Map<string, number>();
+  // QA-118: quem tem cada nome agora (o id do bot, "ref:i" de quem nasce no lote, "fora" de quem não é da pessoa).
+  const chaveDoNome = (n: string) => n.trim().toLowerCase();
+  const nomes = new Map<string, string>();
+  for (const n of nomesDeFora) nomes.set(chaveDoNome(n), "fora");
+  for (const b of bots) if (b.excluidoEm === null) nomes.set(chaveDoNome(b.nome), b.id);
+  const liberar = (dono: string) => { for (const [n, d] of nomes) if (d === dono) nomes.delete(n); };
   const resolvidas: AcaoResolvida[] = [];
+  // QA r137: quem uma ação anterior do lote exclui (id ou "ref:i"); mexer nele depois só falharia ao rodar, com o
+  // código cru no recibo ("nao_encontrado"). Restaurar volta a liberar.
+  const excluidosNoLote = new Set<string>();
 
   acoes.forEach((a, i) => {
     const erro = (motivo: string) => problemas.push({ i, motivo });
@@ -87,7 +100,7 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
           alvoNome = resolvidas[origem]?.tipo === "criar" ? acoes[origem]?.nome ?? alvo : `${resolvidas[origem]?.alvoNome ?? alvo} (cópia)`;
         }
       } else {
-        const r = resolverBot(alvo, bots, pessoaId);
+        const r = resolverBot(alvo, bots, pessoaId, a.tipo === "restaurar");
         if ("motivo" in r) erro(r.motivo);
         else { alvoId = r.bot.id; alvoNome = r.bot.nome; }
       }
@@ -107,6 +120,12 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
         break;
       case "mover":
         if (a.secao === undefined) erro("mover precisa da seção (\"\" tira da seção)");
+        break;
+      case "fixar":
+        if (typeof a.fixado !== "boolean") erro("fixar precisa de fixado (true ou false)");
+        break;
+      case "ocultar":
+        if (typeof a.oculto !== "boolean") erro("ocultar precisa de oculto (true ou false)");
         break;
       case "criar_rotina":
         if (vazio(a.cron) || vazio(a.fuso_iana) || vazio(a.instrucao)) erro("criar_rotina precisa de cron, fuso_iana e instrucao");
@@ -145,6 +164,21 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
       default:
         break;
     }
+    const alvoDoLote = alvoId ?? (alvoDaAcao !== null ? `ref:${alvoDaAcao}` : null);
+    if (alvoDoLote !== null && excluidosNoLote.has(alvoDoLote) && a.tipo !== "restaurar") {
+      erro(`"${alvoNome || a.bot}" é excluído antes neste pedido${alvoDaAcao === null ? "; se é o bot novo, use o @ref dele" : ""}`);
+    }
+    if (alvoDoLote !== null && a.tipo === "excluir") excluidosNoLote.add(alvoDoLote);
+    else if (alvoDoLote !== null && a.tipo === "restaurar") excluidosNoLote.delete(alvoDoLote);
+    // QA-118: o nome que entra não pode ser de outro bot (o chat passaria a cair em "há mais de um bot chamado").
+    const dono = alvoId ?? (alvoDaAcao !== null ? `ref:${alvoDaAcao}` : null);
+    const nomeNovo = a.tipo === "criar" || a.tipo === "editar" ? (a.nome ?? "").trim() : "";
+    if (nomeNovo !== "" && !nomeReservadoAoNod(nomeNovo)) {
+      const quem = a.tipo === "criar" ? `ref:${i}` : dono;
+      const atual = nomes.get(chaveDoNome(nomeNovo));
+      if (atual !== undefined && atual !== quem) erro(`já existe um bot chamado "${nomeNovo}": escolha outro nome`);
+      else if (quem !== null) { if (a.tipo === "editar") liberar(quem); nomes.set(chaveDoNome(nomeNovo), quem); }
+    } else if (a.tipo === "excluir" && dono !== null) liberar(dono);
     resolvidas.push({ ...a, i, alvoId, alvoDaAcao, alvoNome });
   });
 
@@ -152,15 +186,15 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
 }
 
 /** Um bot da pessoa por id ou nome exato (sem diferenciar maiúsculas); o motivo diz por que não serve. */
-export function resolverBot(alvo: string, bots: readonly BotDoLote[], pessoaId: string): { bot: BotDoLote } | { motivo: string } {
+export function resolverBot(alvo: string, bots: readonly BotDoLote[], pessoaId: string, permitirExcluido = false): { bot: BotDoLote } | { motivo: string } {
   const porId = bots.find((b) => b.id === alvo);
-  const candidatos = porId ? [porId] : bots.filter((b) => b.nome.trim().toLowerCase() === alvo.trim().toLowerCase() && b.excluidoEm === null);
+  const candidatos = porId ? [porId] : bots.filter((b) => b.nome.trim().toLowerCase() === alvo.trim().toLowerCase() && (permitirExcluido || b.excluidoEm === null));
   if (candidatos.length === 0) return { motivo: `não achei o bot "${alvo}" entre os seus` };
   if (candidatos.length > 1) return { motivo: `há mais de um bot chamado "${alvo}": use o id (ver_colegas)` };
   const bot = candidatos[0]!;
   if (ehNod(bot)) return { motivo: "o Nod não mexe em si mesmo" };
   if (bot.ownerId !== pessoaId || bot.dono !== "pessoa") return { motivo: `"${bot.nome}" não é um bot seu` };
-  if (bot.excluidoEm !== null) return { motivo: `"${bot.nome}" foi excluído` };
+  if (bot.excluidoEm !== null && !permitirExcluido) return { motivo: `"${bot.nome}" foi excluído` };
   return { bot };
 }
 

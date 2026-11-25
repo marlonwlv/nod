@@ -51,7 +51,7 @@ export type Etapa =
   | { tipo: "entrar"; erro: string | null }
   | { tipo: "recuperar"; enviadoPara: string | null }
   | { tipo: "senha"; erro: string | null; salva: number | null }
-  | { tipo: "sessoes"; dados: SessoesDto | null; confirmar: boolean }
+  | { tipo: "sessoes"; dados: SessoesDto | null; confirmar: boolean; erro: boolean }
   /** NOD-351: aberto pelo chat, antes do clique; o código só nasce em "Gerar código" (gerar invalida o anterior). */
   | { tipo: "parear-pronto" }
   | { tipo: "parear-gerar"; codigo: string; expiraEm: number; pedido: { aparelho: string; simbolos: string[] } | null; vencido: boolean }
@@ -185,7 +185,9 @@ export function htmlEtapa(e: Etapa, v: { ocupado: boolean; google: boolean; agor
           <div class="cc-acoes">${bt("conta-fechar", "Cancelar", { classe: "cc-link" })}${enviar("Salvar senha", o, "Salvando…")}</div></form>`,
         );
     case "sessoes": {
-      if (!e.dados) return cartao("Sessões", `<p class="cc-texto">carregando…</p>`);
+      if (!e.dados) return e.erro
+        ? cartao("Sessões", `<p class="cc-erro" role="alert">Não deu para carregar as sessões.</p><div class="cc-acoes">${bt("conta-sessoes-reler", "Tentar de novo", { classe: "pri" })}</div>`)
+        : cartao("Sessões", `<p class="cc-texto" role="status">Carregando…</p>`);
       const outras = e.dados.sessoes.filter((s) => s.id !== e.dados!.atual && s.revogadaEm === null).length;
       const lista = `<ul class="cc-sessoes">${e.dados.sessoes.filter((s) => s.revogadaEm === null).map((s) => linhaSessao(s, e.dados!.atual, v.agora)).join("")}</ul>`;
       if (outras === 0) return cartao("Sessões", `${lista}<p class="cc-texto">Só esta sessão está aberta.</p><div class="cc-acoes">${bt("conta-fechar", "Ok", { classe: "pri" })}</div>`);
@@ -402,7 +404,12 @@ export function criarContaNoChat(deps: DepsConta) {
   const campo = deps.campo;
   const intervalo = deps.intervalo ?? ((fn, ms) => { const t = setInterval(fn, ms); return () => clearInterval(t); });
 
-  const mudar = (e: Etapa | null) => { etapa = e; intocada = false; deps.aoMudar(); };
+  const mudar = (e: Etapa | null) => {
+    etapa = e;
+    intocada = false;
+    deps.aoMudar();
+    if (e?.tipo === "sessoes" && !e.dados && !e.erro) void carregarSessoes(e);
+  };
   const resolver = (linha: string) => { pollParar(); resolvidas = [...resolvidas, linha].slice(-6); mudar(null); };
   function pollParar() { pararPoll?.(); pararPoll = null; }
   function poll(fn: () => Promise<boolean>, ms = 2000) {
@@ -425,6 +432,15 @@ export function criarContaNoChat(deps: DepsConta) {
     try { await fn(); } catch (e) { aoErro(fraseDoErro(e)); }
   };
 
+  async function carregarSessoes(aberta: Extract<Etapa, { tipo: "sessoes" }>): Promise<void> {
+    try {
+      const dados = await deps.api().sessoes();
+      if (etapa === aberta) mudar({ ...aberta, dados });
+    } catch {
+      if (etapa === aberta) mudar({ ...aberta, erro: true });
+    }
+  }
+
   async function etapaInicial(qual: string): Promise<Etapa> {
     switch (qual) {
       case "cota": return { tipo: "inicio", cota: true };
@@ -434,10 +450,7 @@ export function criarContaNoChat(deps: DepsConta) {
       case "recuperar": return { tipo: "recuperar", enviadoPara: null };
       case "senha": return { tipo: "senha", erro: null, salva: null };
       case "parear-entrar": return { tipo: "parear-entrar", simbolos: null, erro: null };
-      case "sessoes": {
-        void deps.api().sessoes().then((dados) => { if (etapa?.tipo === "sessoes") mudar({ ...etapa, dados }); }, () => undefined);
-        return { tipo: "sessoes", dados: null, confirmar: false };
-      }
+      case "sessoes": return { tipo: "sessoes", dados: null, confirmar: false, erro: false };
       default: return { tipo: "inicio" };
     }
   }
@@ -580,6 +593,7 @@ export function criarContaNoChat(deps: DepsConta) {
     }),
     "conta-sessoes-confirmar": () => { if (etapa?.tipo === "sessoes") mudar({ ...etapa, confirmar: true }); },
     "conta-sessoes-voltar": () => { if (etapa?.tipo === "sessoes") mudar({ ...etapa, confirmar: false }); },
+    "conta-sessoes-reler": () => { if (etapa?.tipo === "sessoes") mudar({ ...etapa, dados: null, confirmar: false, erro: false }); },
     "conta-sair-outras": () => trabalhar(async () => {
       try {
         const { encerradas } = await deps.api().sairDasOutras();

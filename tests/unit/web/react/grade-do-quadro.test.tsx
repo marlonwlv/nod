@@ -63,6 +63,28 @@ describe("grade do quadro em React", () => {
     expect(conteudo.querySelectorAll("li.qd-card")).toHaveLength(2);
   });
 
+  it("fase 5 da ADR-179: escrever grava em volta da grade, que fica no documento (o mesmo nó) entre os frames", () => {
+    const html = (barra: string, cols: Coluna[]) => `<p class="barra">${barra}</p>${grade.desenhar({ colunas: cols, rotulo: "Quadro de Ada", classe: "qd-so-largo", extras: [] })}<div class="qd-so-estreito">lista</div>`;
+    act(() => grade.escrever(conteudo, html("um", [colunaDe("afazer", "A fazer", [cardDe("t1", "Um")])])));
+    const host = conteudo.querySelector(".rx-qd-grade");
+    const card = conteudo.querySelector('li[data-tarefa="t1"]');
+    const saiu: Node[] = [];
+    const mo = new MutationObserver((ms) => { for (const m of ms) saiu.push(...m.removedNodes); });
+    mo.observe(conteudo, { childList: true });
+    act(() => grade.escrever(conteudo, html("dois", [colunaDe("afazer", "A fazer", [cardDe("t1", "Um"), cardDe("t2", "Dois")])])));
+    mo.takeRecords().forEach((m) => saiu.push(...m.removedNodes));
+    mo.disconnect();
+    expect(conteudo.querySelector(".rx-qd-grade")).toBe(host);
+    expect(saiu).not.toContain(host);
+    expect(conteudo.querySelector('li[data-tarefa="t1"]')).toBe(card);
+    expect(conteudo.querySelectorAll("li.qd-card")).toHaveLength(2);
+    expect([...conteudo.children].map((e) => e.className)).toEqual(["barra", "rx-qd-grade", "qd-so-estreito"]);
+    expect(conteudo.querySelector(".barra")?.textContent).toBe("dois");
+    // Sem a vaga (outra vista, a tarefa aberta), o desenho é o de sempre e a grade sai.
+    act(() => grade.escrever(conteudo, "<article>tarefa</article>"));
+    expect(conteudo.innerHTML).toBe("<article>tarefa</article>");
+  });
+
   it("o card que muda de coluna segue sendo um card só (key pelo id da tarefa)", () => {
     desenhar([colunaDe("afazer", "A fazer", [cardDe("t1", "Um")]), colunaDe("feito", "Feito", [])]);
     desenhar([colunaDe("afazer", "A fazer", []), colunaDe("feito", "Feito", [cardDe("t1", "Um")])]);
@@ -78,6 +100,18 @@ describe("grade do quadro em React", () => {
     expect(item.textContent).toContain("Começa com Ada");
     await act(async () => { fireEvent.click(item); });
     expect(acoes.soltar).toHaveBeenCalledWith("t1", "revisao");
+  });
+
+  it("fase 5 da ADR-179: o Mover para… é um menu só para a grade, ancorado no botão do card que abriu", async () => {
+    desenhar([colunaDe("afazer", "A fazer", [cardDe("t1", "Um"), cardDe("t2", "Dois")])]);
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0);
+    const bt2 = screen.getByRole("button", { name: "Mover Dois para…" });
+    await act(async () => { fireEvent.click(bt2); });
+    expect(await screen.findByRole("menu", { name: "Mover Dois para" })).toBeTruthy();
+    expect(bt2.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Mover Um para…" }).getAttribute("aria-expanded")).toBe("false");
+    await act(async () => { fireEvent.click(await screen.findByRole("menuitem", { name: /Feito/ })); });
+    expect(acoes.soltar).toHaveBeenCalledWith("t2", "feito");
   });
 
   it("card que não arrasta não tem o Mover para… nem a marca de arrasto", () => {

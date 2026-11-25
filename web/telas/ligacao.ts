@@ -240,16 +240,16 @@ export function renderTranscricao(falas: readonly FalaLigacao[], bot: string): s
 /** As partes da região: o esqueleto só muda com o modo; cada parte é uma sub-região que só é regravada quando muda. */
 export type PartesLigacao = { esqueleto: string; mascote: string; info: string; aviso: string; legenda: string; card: string; teclado: string; controles: string };
 
-const LEGENDAS_NA_TELA = 6;
+export const LEGENDAS_NA_TELA = 6;
 
-function estadoDoMascote(t: EstadoTelaLigacao): EstadoMascote {
+export function estadoDoMascote(t: EstadoTelaLigacao): EstadoMascote {
   if (t.fase === "pensando" || t.fase === "chamando" || t.fase === "conectando") return "pensando";
   if (t.fase === "trabalhando") return "trabalhando";
   return "disponivel";
 }
 
 /** O gênero da voz do bot decide o artigo do aviso ("A Nina", "O Bento"). */
-function botDoAviso(t: EstadoTelaLigacao): { nome: string; genero: "feminina" | "masculina" } {
+export function botDoAviso(t: EstadoTelaLigacao): { nome: string; genero: "feminina" | "masculina" } {
   return { nome: t.agente.nome, genero: VOZES.find((v) => v.id === t.voz)?.genero ?? "feminina" };
 }
 
@@ -354,7 +354,7 @@ export function partesDaLigacao(t: EstadoTelaLigacao, card: CardJanela | null): 
   };
 }
 
-const MOTIVOS: readonly { id: MotivoAvaliacaoLigacao; rotulo: string }[] = [
+export const MOTIVOS: readonly { id: MotivoAvaliacaoLigacao; rotulo: string }[] = [
   { id: "demorou", rotulo: "Demorou" },
   { id: "nao_entendeu", rotulo: "Não entendeu" },
   { id: "interrompeu", rotulo: "Interrompeu" },

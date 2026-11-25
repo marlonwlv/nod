@@ -2,6 +2,7 @@ import type { RotinaDto } from "../../src/contracts/api.ts";
 import type { Estado, NivelGaveta, PerfilCelular, SecaoEspaco, Tela } from "../estado/reducer.ts";
 import { esc, iconeAgente } from "../lib/render.ts";
 import { ICONE } from "../lib/icones.ts";
+import { campoDeNome } from "../lib/nome-editavel.ts";
 import { estadoDaGaveta } from "../lib/computador-pessoa.ts";
 import { caminhoDaPastaDoBot } from "../lib/pasta-do-bot.ts";
 import { mostraCaminhoDaPasta } from "../lib/capacidades.ts";
@@ -112,10 +113,10 @@ function cabecalho(estado: Estado, a: Bot, dona: boolean): string {
     : iconeAgente(a, "xl");
   // O nome editável é um campo: a tela ganha um título só para o leitor de tela.
   const nome = nomeLivre
-    ? `<h2 class="sr-only">${esc(a.nome)}</h2><span class="pfc-campo"><label class="sr-only" for="gvn-nome">Nome do bot</label><input id="gvn-nome" class="gvn-nome pfc-nome" data-campo="nome" data-id="${esc(a.id)}" data-salvo="${esc(a.nome)}" value="${esc(a.nome)}" maxlength="60" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="gvn-erro" />${lapis("nome", a, "Editar nome")}</span>`
+    ? `<h2 class="sr-only">${esc(a.nome)}</h2><span class="pfc-campo">${campoDeNome({ dono: "bot", campo: "nome", id: a.id, valor: a.nome, rotulo: "Nome do bot", maxlength: 60, inputId: "gvn-nome", classe: "gvn-nome pfc-nome", descritoPor: "gvn-erro", extra: 'enterkeyhint="done"' })}${lapis("nome", a, "Editar nome")}</span>`
     : `<h2 class="pfc-nome pfc-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2>`;
   const titulo = tituloLivre
-    ? `<span class="pfc-campo"><label class="sr-only" for="gvn-sub">Título do bot</label><input id="gvn-sub" class="gvn-sub pfc-sub" data-campo="titulo" data-id="${esc(a.id)}" data-salvo="${esc(a.titulo)}" value="${esc(a.titulo)}" maxlength="80" autocomplete="off" enterkeyhint="done" placeholder="Adicionar um título" aria-describedby="gvn-erro" />${lapis("titulo", a, "Editar título")}</span>`
+    ? `<span class="pfc-campo">${campoDeNome({ dono: "bot", campo: "titulo", id: a.id, valor: a.titulo, rotulo: "Título do bot", maxlength: 80, inputId: "gvn-sub", classe: "gvn-sub pfc-sub", placeholder: "Adicionar um título", descritoPor: "gvn-erro", extra: 'enterkeyhint="done"' })}${lapis("titulo", a, "Editar título")}</span>`
     : `<span class="pfc-sub pfc-fixo">${esc(a.titulo || "Bot da equipe")}</span>`;
   const meta = dona ? "" : `<span class="pfc-meta">Bot compartilhado com você</span>`;
   const erro = tituloLivre ? `<span class="gvn-erro-linha"><span class="gvn-erro-icone" aria-hidden="true">${ICONE.alerta}</span><span class="gvn-erro" id="gvn-erro" role="status"></span></span>` : "";
@@ -199,7 +200,8 @@ function grupos(estado: Estado, a: Bot, dona: boolean): string {
   const rotinas = linhaDoGrupo(a, "rotinas", ICONE.relogio, "Rotinas", valorRotinas(estado, a.id));
   const biblioteca = linhaDoGrupo(a, "biblioteca", ICONE.livro, "Biblioteca", valorBiblioteca(estado, a));
   // O span escondido mantém a leitura do estado (só o status, sem captura de tela; como a gaveta do desktop): sem ele o valor fica em "carregando".
-  const computador = dona ? linhaDoGrupo(a, "computador", ICONE.monitor, "Computador", valorComputador(estado, a)) + `<span hidden data-comp-bot="${esc(a.id)}"></span>` : "";
+  // 2026-11-25: sem máquina Linux, sem a linha Computador (o bot fica só com o navegador).
+  const computador = dona && !a.semComputador ? linhaDoGrupo(a, "computador", ICONE.monitor, "Computador", valorComputador(estado, a)) + `<span hidden data-comp-bot="${esc(a.id)}"></span>` : "";
   const ajustes = linhaDoGrupo(a, "ajustes", ICONE.ajustes, "Ajustes", null);
   const g1 = [codigo, rotinas, biblioteca, computador].filter(Boolean).join("");
   const excluir = dona && a.papel !== "nod" ? `<div class="pfc-grupo"><button type="button" class="pfc-linha pfc-excluir" data-act="perfil-excluir" data-id="${esc(a.id)}" aria-haspopup="dialog">Excluir bot</button></div>` : "";

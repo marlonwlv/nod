@@ -19,6 +19,13 @@ const carregar = (f: FormatoPrevia): Promise<ModuloPrevia> => (f === "csv" ? imp
 
 class Sem404 extends Error {}
 
+/** O card do mesmo anexo na mesma casa (o chat ou a Biblioteca, NOD-326), depois de a conversa redesenhar. */
+export function reencontrarCardDaPrevia(doc: Document, origem: HTMLElement, id: string): HTMLElement | null {
+  const sel = `[data-act="previa-arquivo"][data-id="${CSS.escape(id)}"]`;
+  const casa = origem.closest<HTMLElement>("[data-biblioteca]")?.dataset["biblioteca"];
+  return doc.querySelector<HTMLElement>(casa !== undefined ? `[data-biblioteca="${CSS.escape(casa)}"] ${sel}` : `${sel}:not([data-biblioteca] *)`);
+}
+
 export function abrirPreviaArquivo(origem: HTMLElement): HTMLDialogElement | null {
   const { id, url, nome = "arquivo", mime = "" } = origem.dataset;
   if (!id || !url) return null;
@@ -32,11 +39,7 @@ export function abrirPreviaArquivo(origem: HTMLElement): HTMLDialogElement | nul
     origem,
     // A conversa pode re-renderizar com o modal aberto: o foco volta ao card novo do mesmo anexo.
     // NOD-326: o mesmo anexo está no chat e na Biblioteca; o foco volta à casa de onde a prévia abriu.
-    reencontrar: () => {
-      const sel = `[data-act="previa-arquivo"][data-id="${CSS.escape(id)}"]`;
-      const casa = origem.closest<HTMLElement>("[data-biblioteca]")?.dataset.biblioteca;
-      return document.querySelector<HTMLElement>(casa !== undefined ? `[data-biblioteca="${CSS.escape(casa)}"] ${sel}` : `${sel}:not([data-biblioteca] *)`);
-    },
+    reencontrar: () => reencontrarCardDaPrevia(document, origem, id),
     seletorFechar: '[data-previa="fechar"]',
     aoFechar: () => ctrl.abort(new DOMException("fechou", "AbortError")),
   });
