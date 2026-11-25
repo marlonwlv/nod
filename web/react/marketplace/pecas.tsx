@@ -29,7 +29,7 @@ export const IconeCadeado = () => (
 );
 
 /** O logo do app: a imagem da marca por cima da inicial; sem imagem (ou se ela falhar), fica a inicial. */
-export function Logo({ app, tamanho = "linha" }: { app: Pick<AppDaVitrine, "nome" | "logo" | "cor" | "sigla">; tamanho?: "linha" | "grande" | "pequeno" | "mini" }) {
+export function Logo({ app, tamanho = "linha" }: { app: Pick<AppDaVitrine, "nome" | "logo" | "cor" | "sigla">; tamanho?: "linha" | "grande" | "media" | "pequeno" | "mini" }) {
   const [falhou, setFalhou] = useState(false);
   const letra = app.sigla ?? app.nome.slice(0, 1).toUpperCase();
   const classe = `rx-mk-logo${tamanho === "linha" ? "" : ` rx-mk-${tamanho}`}${app.cor ? " rx-mk-com-cor" : ""}${letra.length > 1 ? " rx-mk-sigla" : ""}`;

@@ -1,6 +1,7 @@
 import type { NivelPedido, NivelVisto } from "../../lib/acessos-otimistas.ts";
 import { notasGenericas } from "./modelo.ts";
-import type { AcessosDoConector, ApiDoMarketplace, AppDaVitrine, BotDaVitrine, CampoNaTela, FormularioDaChave, FotoDoMarketplace, ResultadoDaChave } from "./tipos.ts";
+import { aceitaContas, separarChave } from "./contas.ts";
+import type { AcessosDoConector, ApiDoMarketplace, AppDaVitrine, BotDaVitrine, CampoNaTela, ContaDaVitrine, FormularioDaChave, FotoDoMarketplace, ResultadoDaChave } from "./tipos.ts";
 
 /**
  * O Marketplace de mentira (web/marketplace-simulador.html): a mesma interface do adaptador real, com os apps, os bots
@@ -102,7 +103,23 @@ export type OpcoesDoSimulado = {
   /** O Fireflies já conectado (T6 e T6b); sem isto ele está em "Precisa de atenção" (D1). */
   firefliesConectado?: boolean;
   aoAbrirAvancado?: () => void;
+  /**
+   * ADR-196 (Paper "Apps com mais de uma conta"): o Gmail já conectado, com estas contas a mais ("pessoal", "acme"…).
+   * Lista vazia = só a primeira conta.
+   */
+  contasDoGmail?: readonly string[];
+  /** Paper M4: mais bots além dos cinco do protótipo, para ver o "Quem pode usar" de um time grande. */
+  botsAMais?: number;
 };
+
+const NOMES_A_MAIS = ["Gil", "Chico", "Teodora", "Elis", "Leonardo", "Cartola", "Tarsila", "Doze", "Bruna", "Caio", "Davi", "Eva", "Fábio", "Gabi", "Hugo", "Iara", "João", "Kai", "Lia", "Malu", "Nina", "Otto", "Paula", "Rui", "Sara", "Téo", "Vera"];
+const CORES_A_MAIS = ["c-pink", "c-teal", "c-red", "c-blue", "c-purple", "c-amber", "c-green", "c-orange"] as const;
+/** Os bots do protótipo e, se pedido, mais alguns (Paper M4: 32 bots). */
+export function botsSimulados(aMais = 0): BotDaVitrine[] {
+  const extra = Array.from({ length: Math.max(0, aMais) }, (_, i): BotDaVitrine => ({ id: `bot-${i}`, nome: NOMES_A_MAIS[i % NOMES_A_MAIS.length]! + (i >= NOMES_A_MAIS.length ? ` ${Math.floor(i / NOMES_A_MAIS.length) + 1}` : ""), titulo: "Bot do time", forma: "shape-circle", cor: CORES_A_MAIS[i % CORES_A_MAIS.length]! }));
+  return [...BOTS_SIMULADOS, ...extra];
+}
+const EMAILS_DO_GMAIL: Record<string, string> = { principal: "voce@empresa.example", pessoal: "maria@pessoal.example", familia: "familia@pessoal.example", acme: "voce@acme.example", vendas: "vendas@empresa.example" };
 
 type Conexao = { conectorId: string; niveis: Record<string, NivelVisto>; acessos: { padrao: NivelPedido; seguePadrao: Set<string> } };
 
@@ -110,6 +127,9 @@ const FALHA_DA_CHAVE = (nome: string) => `A chave parou de funcionar · foi apag
 
 export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & { valoresRecebidos: () => number } {
   const latencia = o.latenciaMs ?? 1500;
+  const bots = botsSimulados(o.botsAMais ?? 0);
+  /** ADR-196: as contas a mais por app (a primeira é a conexão de sempre). */
+  const contasAMais = new Map<string, { chave: string; nome: string; email: string | null; conexao: Conexao }[]>();
   const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const ouvintes = new Set<() => void>();
   const conexoes = new Map<string, Conexao>();
@@ -121,8 +141,8 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
   const lotesSimulados = new Map<string, { conectorId: string; antes: Record<string, { nivel: NivelVisto | undefined; seguia: boolean }> }>();
   const slugDoConector = (conectorId: string): string | undefined => [...conexoes.entries()].find(([, c]) => c.conectorId === conectorId)?.[0];
   const nomeDoConector = (conectorId: string): string => APPS_SIMULADOS.find((a) => a.slug === slugDoConector(conectorId))?.nome ?? "app";
-  const todosNenhum = (): Record<string, NivelVisto> => Object.fromEntries(BOTS_SIMULADOS.map((b) => [b.id, "nenhum"]));
-  const novaConexao = (slug: string, niveis: Record<string, NivelVisto> = todosNenhum()): Conexao => ({ conectorId: `sim-${slug}`, niveis, acessos: { padrao: "nenhum", seguePadrao: new Set(BOTS_SIMULADOS.filter((b) => niveis[b.id] === "nenhum").map((b) => b.id)) } });
+  const todosNenhum = (): Record<string, NivelVisto> => Object.fromEntries(bots.map((b) => [b.id, "nenhum"]));
+  const novaConexao = (slug: string, niveis: Record<string, NivelVisto> = todosNenhum()): Conexao => ({ conectorId: `sim-${slug}`, niveis, acessos: { padrao: "nenhum", seguePadrao: new Set(bots.filter((b) => niveis[b.id] === "nenhum").map((b) => b.id)) } });
 
   for (const a of APPS_SIMULADOS) {
     if (a.estado === "conectado") conexoes.set(a.slug, novaConexao(a.slug, { ...todosNenhum(), clarice: "leitura", ada: "escrita" }));
@@ -137,7 +157,25 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
     conexoes.set("fireflies", c);
   }
 
+  if (o.contasDoGmail) {
+    // Paper M1/M5: a primeira conta com a Clarice e mais 2; a pessoal com a Clarice (Ler e alterar) e a Frida.
+    conexoes.set("gmail", novaConexao("gmail", { ...todosNenhum(), clarice: "escrita", ada: "leitura", frida: "leitura" }));
+    contasAMais.set("gmail", o.contasDoGmail.map((conta) => {
+      const chave = `gmail--${conta}`;
+      const c = novaConexao(chave, conta === "pessoal" ? { ...todosNenhum(), clarice: "escrita", frida: "leitura" } : conta === "acme" ? { ...todosNenhum(), ada: "leitura" } : todosNenhum());
+      return { chave, nome: `Gmail (${conta === "familia" ? "família" : conta === "acme" ? "Acme" : conta})`, email: EMAILS_DO_GMAIL[conta] ?? null, conexao: c };
+    }));
+  }
+
   let foto: FotoDoMarketplace | null = null;
+  const contaDe = (chave: string, nome: string, email: string | null, c: Conexao | undefined, principal: boolean): ContaDaVitrine => {
+    const login = logins.get(chave);
+    return {
+      chave, conectorId: c?.conectorId ?? null, nome, principal, email,
+      situacao: login ? "conectando" : c ? "conectado" : "nao_conectado", desligado: false, falha: null,
+      login: login ? { url: login.url, falhou: null, semJanela: true } : null, niveis: c ? { ...c.niveis } : {},
+    };
+  };
   const montar = (): FotoDoMarketplace => {
     const acessos: Record<string, AcessosDoConector> = {};
     const apps = APPS_SIMULADOS.map((a): AppDaVitrine => {
@@ -146,13 +184,26 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
       const login = logins.get(a.slug);
       if (c) acessos[c.conectorId] = { padrao: c.acessos.padrao, seguePadrao: new Set(c.acessos.seguePadrao) };
       const situacao = login ? "conectando" : atencao.has(a.slug) ? "atencao" : c && !desligados.has(a.slug) ? "conectado" : "nao_conectado";
-      return { ...resto, logo: null, situacao, conectorId: c?.conectorId ?? null, desligado: desligados.has(a.slug), falha: atencao.has(a.slug) ? FALHA_DA_CHAVE(a.nome) : null, login: login ? { url: login.url, falhou: null, semJanela: true } : null, niveis: c ? { ...c.niveis } : {} };
+      const multiconta = aceitaContas(a.slug, a.chave);
+      let contas: ContaDaVitrine[] | undefined;
+      if (multiconta && c && situacao === "conectado") {
+        const extras = contasAMais.get(a.slug) ?? [];
+        for (const x of extras) acessos[x.conexao.conectorId] = { padrao: x.conexao.acessos.padrao, seguePadrao: new Set(x.conexao.acessos.seguePadrao) };
+        const novas = [...logins.keys()].filter((k) => separarChave(k)?.app === a.slug && !extras.some((x) => x.chave === k));
+        contas = [
+          contaDe(a.slug, a.nome, a.slug === "gmail" ? EMAILS_DO_GMAIL.principal! : null, c, true),
+          ...extras.map((x) => contaDe(x.chave, x.nome, x.email, x.conexao, false)),
+          ...novas.map((k) => contaDe(k, `${a.nome} (${separarChave(k)?.conta ?? ""})`, null, undefined, false)),
+        ];
+      }
+      return { ...resto, logo: null, situacao, conectorId: c?.conectorId ?? null, desligado: desligados.has(a.slug), falha: atencao.has(a.slug) ? FALHA_DA_CHAVE(a.nome) : null, login: login ? { url: login.url, falhou: null, semJanela: true } : null, niveis: c ? { ...c.niveis } : {}, ...(multiconta ? { multiconta: true } : {}), ...(contas ? { contas } : {}) };
     });
-    return { apps, total: TOTAL_SIMULADO, bots: BOTS_SIMULADOS, acessos, composioConfigurado: true };
+    return { apps, total: TOTAL_SIMULADO, bots, acessos, composioConfigurado: true };
   };
   const mudou = () => { foto = null; for (const f of [...ouvintes]) f(); };
   const doApp = (slug: string) => APPS_SIMULADOS.find((a) => a.slug === slug);
-  const conexaoPorId = (conectorId: string) => [...conexoes.values()].find((c) => c.conectorId === conectorId);
+  const conexaoPorId = (conectorId: string) => [...conexoes.values(), ...[...contasAMais.values()].flat().map((x) => x.conexao)].find((c) => c.conectorId === conectorId);
+  const rotulos = new Map<string, string>();
 
   return {
     ler: () => (foto ??= montar()),
@@ -176,12 +227,22 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
       mudou();
       return { tipo: "conectado", conectorId: c.conectorId };
     },
-    conectarLogin(slug) {
+    conectarLogin(slug, rotulo) {
       if (logins.has(slug)) return;
+      if (rotulo) rotulos.set(slug, rotulo);
       const timers = [
         setTimeout(() => { const l = logins.get(slug); if (l) { l.url = "https://login.exemplo.invalid/autorizar"; mudou(); } }, Math.round(latencia / 2)),
         setTimeout(() => {
           logins.delete(slug);
+          const partes = separarChave(slug);
+          if (partes?.conta) {
+            // ADR-196: a conta a mais nasce com o nome que a pessoa deu e um e-mail de exemplo.
+            const lista = contasAMais.get(partes.app) ?? [];
+            if (!lista.some((x) => x.chave === slug)) lista.push({ chave: slug, nome: `${doApp(partes.app)?.nome ?? partes.app} (${rotulos.get(slug) ?? partes.conta})`, email: `${partes.conta}@exemplo.com`, conexao: novaConexao(slug) });
+            contasAMais.set(partes.app, lista);
+            mudou();
+            return;
+          }
           atencao.delete(slug);
           desligados.delete(slug);
           if (!conexoes.has(slug)) conexoes.set(slug, novaConexao(slug));
@@ -206,15 +267,15 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
       c.acessos.seguePadrao.delete(agenteId);
       mudou();
     },
-    async aplicarLote(conectorId, nivel, bots) {
+    async aplicarLote(conectorId, nivel, alvo) {
       await esperar(Math.round(latencia / 3));
       const c = conexaoPorId(conectorId);
       if (!c) return null;
       const alvos: string[] = [];
       const antes: Record<string, { nivel: NivelVisto | undefined; seguia: boolean }> = {};
-      for (const id of bots === "todos" ? BOTS_SIMULADOS.map((b) => b.id) : bots) {
+      for (const id of alvo === "todos" ? bots.map((b) => b.id) : alvo) {
         // "Todos" com Ler não rebaixa quem tem Ler e alterar (a regra do servidor, alvosDoLote).
-        if (bots === "todos" && nivel === "leitura" && c.niveis[id] === "escrita") continue;
+        if (alvo === "todos" && nivel === "leitura" && c.niveis[id] === "escrita") continue;
         antes[id] = { nivel: c.niveis[id], seguia: c.acessos.seguePadrao.has(id) };
         c.niveis[id] = nivel;
         c.acessos.seguePadrao.delete(id);
@@ -223,7 +284,7 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
       mudou();
       const loteId = `lote_sim_${++contadorDeLotes}`;
       lotesSimulados.set(loteId, { conectorId, antes });
-      const nomes = alvos.map((id) => BOTS_SIMULADOS.find((b) => b.id === id)?.nome ?? id);
+      const nomes = alvos.map((id) => bots.find((b) => b.id === id)?.nome ?? id);
       const quem = nomes.length <= 2 ? nomes.join(" e ") : `${nomes.length} bots`;
       const verbo = nivel === "escrita" ? "agora leem e alteram" : nivel === "leitura" ? "agora leem" : "ficaram sem acesso";
       return { frase: `${quem} ${nomes.length === 1 ? verbo.replace("leem e alteram", "lê e altera").replace("leem", "lê").replace("ficaram", "ficou") : verbo} no ${nomeDoConector(conectorId)}.`, loteId, alvos };
@@ -246,6 +307,16 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
       const slug = slugDoConector(conectorId);
       if (!slug) return;
       desligados.add(slug);
+      mudou();
+    },
+    async renomearConta(conectorId, nome) {
+      await esperar(Math.round(latencia / 3));
+      for (const lista of contasAMais.values()) for (const x of lista) if (x.conexao.conectorId === conectorId) x.nome = nome;
+      mudou();
+    },
+    async removerConta(conectorId) {
+      await esperar(Math.round(latencia / 2));
+      for (const [app, lista] of contasAMais) contasAMais.set(app, lista.filter((x) => x.conexao.conectorId !== conectorId));
       mudou();
     },
     async definirPadrao(conectorId, nivel) {

@@ -57,9 +57,9 @@ describe("regraDoModo (D3, D7)", () => {
 });
 
 describe("assinatura (padrão da NOD-430)", () => {
-  it("Ana, pela Ada; Você para quem lê; sem bot, o nome só", () => {
-    expect(assinatura({ pessoaId: ANA, pessoaNome: "Ana", botNome: "Ada", quemLe: DONA })).toBe("Ana, pela Ada");
-    expect(assinatura({ pessoaId: ANA, pessoaNome: "Ana", botNome: "Ada", quemLe: ANA })).toBe("Você, pela Ada");
+  it("Ana, via Ada; Você para quem lê; sem bot, o nome só", () => {
+    expect(assinatura({ pessoaId: ANA, pessoaNome: "Ana", botNome: "Ada", quemLe: DONA })).toBe("Ana, via Ada");
+    expect(assinatura({ pessoaId: ANA, pessoaNome: "Ana", botNome: "Ada", quemLe: ANA })).toBe("Você, via Ada");
     expect(assinatura({ pessoaId: ANA, pessoaNome: "Ana", botNome: null, quemLe: DONA })).toBe("Ana");
   });
 });

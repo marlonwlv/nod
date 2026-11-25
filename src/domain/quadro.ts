@@ -872,14 +872,14 @@ export function resolverAgenteDoQuadro(agentes: readonly AgenteDoQuadro[], ref: 
 
 /**
  * NOD-430 (decisão da Ada): quem fez, no histórico da tarefa. A pessoa pela tela: "Você". Um bot a pedido dela, na
- * conversa (pedido_por): "Você, pela Ada". O bot sozinho (tarefa, rotina, colega): só o nome dele. NOD-443: quem pediu
- * foi outra pessoa do quadro (não quem lê): "Ana, pela Bia".
+ * conversa (pedido_por): "Você, via Ada". O bot sozinho (tarefa, rotina, colega): só o nome dele. NOD-443: quem pediu
+ * foi outra pessoa do quadro (não quem lê): "Ana, via Bia".
  */
 export function quemFez(autor: AutorLote, pedidoPor: string | null | undefined, nomeDoBot: string | null, outraPessoa: string | null = null): string {
   // Merge NOD-430 × NOD-443: pedido_por também guarda quem participa; `outraPessoa` é o nome dela quando não é quem lê.
   const quem = outraPessoa ?? "Você";
   if (autor.tipo === "pessoa") return quem;
-  return pedidoPor ? `${quem}, pela ${nomeDoBot ?? "bot"}` : (nomeDoBot ?? "Um bot");
+  return pedidoPor ? `${quem}, via ${nomeDoBot ?? "bot"}` : (nomeDoBot ?? "Um bot");
 }
 
 /** Quantas candidatas o erro de tarefa ambígua lista (NOD-430): o bot pergunta à pessoa com elas. */

@@ -1,3 +1,4 @@
+import { criarSugestoesDaNovaConversa } from "./lib/sugestao-nova-conversa.ts";
 import { comFraseDoTeto, FRASE_TETO_ROTINAS, FRASE_TETO_TOKENS_MCP } from "./lib/frase-do-teto.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
@@ -205,6 +206,7 @@ import { voltaDaTela } from "./lib/volta.ts";
 import { cabecalhoSecao, CHAVE_SECOES_RECOLHIDAS, chaveDaSecao, definirSecaoRecolhida, ESPERA, estadoDaSecao, gruposDaBarra, lerSecoesRecolhidas, type AvisoBot } from "./lib/secoes.ts";
 import { faixaDeConectores, faixaDoUso, provedoresDoMenu, type AvisoDoUso, type DadosMenuConta } from "./telas/menu-conta.ts";
 import { renderConectores } from "./telas/conectores.ts";
+import { umEnvioPorVez } from "./lib/envio-unico.ts";
 import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
@@ -240,6 +242,7 @@ import { atalhoDoCabecalho, avisoDoNome, cabecalhoDoTime, campoDoNome, chaveDoTi
 import type { TimeNaLista } from "../src/contracts/time.ts";
 import { instalarDeslizeLida } from "./lib/deslize-lida-dom.ts";
 import { teclaNaoLidos } from "./lib/teclado-nao-lidos.ts";
+import { focoAntesDeMarcarTudo, focoAntesDeSair } from "./lib/nao-lidos-foco.ts";
 import { fraseDaContagemNoAviso, fraseDoAviso } from "./lib/frase-leitura.ts";
 import { frotaAoSoltar, ordemAoSoltar, velocidadeAutoRolagem, type Destino } from "./lib/arrastar.ts";
 import { bordasDaLista, rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
@@ -1162,12 +1165,8 @@ document.addEventListener("keydown", (ev) => {
   if (!alvo || (alvo.id !== "busca-destinatario" && alvo.id !== "nc-texto")) return;
   if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); escolherNaNovaConversa(); return; }
   if (alvo.id === "busca-destinatario" && (ev.key === "ArrowDown" || ev.key === "ArrowUp")) {
-    const bots = [...document.querySelectorAll<HTMLElement>(".nc-pop .nc-bot:not([hidden])")];
-    if (!bots.length) return;
-    ev.preventDefault();
-    const i = bots.findIndex((b) => b.hasAttribute("data-nc-atual"));
-    const j = (i + (ev.key === "ArrowDown" ? 1 : -1) + bots.length) % bots.length;
-    bots.forEach((b, k) => b.toggleAttribute("data-nc-atual", k === j));
+    const pop = document.querySelector<HTMLElement>(".nc-pop");
+    if (pop && sugestoesDaNovaConversa.mover(pop, ev.key === "ArrowDown" ? 1 : -1)) ev.preventDefault();
   }
 });
 document.addEventListener("keydown", (ev) => {
@@ -1931,7 +1930,19 @@ function desenharModalDoMarketplace(): void {
     estado: () => estado,
     api: () => api,
     // Sem a chave do Composio, o "Conectar" de sempre leva à tela avançada: o modal sai da frente antes.
-    iniciarConexao: (slug) => { if (!estado.composioConfigurado && slug !== "github") fecharModalDoMarketplace(); iniciarConexao(slug); },
+    iniciarConexao: (slug, rotulo) => {
+      if (!estado.composioConfigurado && slug !== "github") fecharModalDoMarketplace();
+      if (rotulo) rotulosDeConta.set(slug, rotulo);
+      iniciarConexao(slug);
+    },
+    renomear: async (conectorId, nome) => { await api!.renomearConector(conectorId, nome); dispatch({ tipo: "invalidar", quais: ["conectores"] }); },
+    removerConta: async (conectorId) => {
+      await api!.removerContaDoApp(conectorId);
+      // Revisão do PR: um login que ficou pendurado nesta conta não vira uma linha sem conector.
+      const slug = estado.conectores.find((c) => c.id === conectorId)?.slug;
+      if (slug) conexoes.cancelar(slug);
+      dispatch({ tipo: "invalidar", quais: ["conectores", "frota", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] });
+    },
     cancelarConexao: (slug) => conexoes.cancelar(slug),
     garantirAcessos: (conectorId) => garantirAcessosDoConector(conectorId),
     acessos: (conectorId) => gavetaDeAcessos.acessos(conectorId),
@@ -2626,7 +2637,10 @@ function invalidarLeitura(): void {
 
 /** NOD-449: marca uma conversa como lida e mostra "X marcada como lida · Desfazer" (o Desfazer volta o "lido até" de antes). */
 function marcarComDesfazer(conversaId: string, nome: string): Promise<void> {
-  document.querySelector(`.nl-item[data-conversa="${CSS.escape(conversaId)}"]`)?.classList.add("nl-sai");
+  const item = document.querySelector(`.nl-item[data-conversa="${CSS.escape(conversaId)}"]`);
+  // QA-156: o foco sai da linha antes de ela sair (o ✓ pelo teclado e o E na última linha deixavam o foco no <body>).
+  focoAntesDeSair(item);
+  item?.classList.add("nl-sai");
   return agir(async () => {
     try {
       const r = await api!.marcarLida(conversaId);
@@ -2638,6 +2652,7 @@ function marcarComDesfazer(conversaId: string, nome: string): Promise<void> {
 }
 
 function marcarTudoComDesfazer(): Promise<void> {
+  focoAntesDeMarcarTudo();
   const nomePorId = new Map((estado.naoLidos?.conversas ?? []).map((c) => [c.conversaId, nomeDaConversa(c, estado)]));
   return agir(async () => {
     try {
@@ -3108,12 +3123,19 @@ const janelaConversa = criarReleituraAdiada(JANELA_CONVERSA_MS, (fn, ms) => {
   return () => window.clearTimeout(t);
 }, () => void reidratar());
 
+/** A leitura de fundo que falhou com 5xx volta à fila em 2, 5 e 10 s antes de o erro ir à tela;
+ * na espera, a passada do `reidratar` não a busca (QA-211). */
+const leituraDeNovo = criarLeituraDeNovo<Invalidacao>({
+  agendar: (fn, ms) => window.setTimeout(fn, ms),
+  reler: (q) => dispatch({ tipo: "invalidar", quais: [q] }),
+});
+
 async function reidratar(): Promise<void> {
   if (!api) return;
   const pendentes = [...new Set([...estado.invalidacoes, ...invalidacoesDaTela(estado)])];
   // Só o que a tela atual olha entra agora; o resto fica marcado para quando a tela abrir.
   // C5 (2026-11-12): a conversa aberta é a primeira da passada (web/lib/fila-do-reidratar.ts).
-  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !leituras.emVoo(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()) && !(q.startsWith("conversa:") && janelaConversa.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
+  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !leituras.emVoo(q) && !leituraDeNovo.esperando(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()) && !(q.startsWith("conversa:") && janelaConversa.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
   // definido em 2026-09-30: nada relevante, nada a buscar nem a redesenhar. A conversa de outro bot fica marcada
   // até ser aberta, e antes cada frame caía aqui e redesenhava a tela inteira de forma síncrona.
   if (relevantes.length === 0) return;
@@ -3137,11 +3159,6 @@ async function reidratar(): Promise<void> {
   if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q) && !leituras.emVoo(q))) void reidratar();
 }
 
-/** A leitura de fundo que falhou com 5xx volta à fila em 2, 5 e 10 s antes de o erro ir à tela. */
-const leituraDeNovo = criarLeituraDeNovo<Invalidacao>({
-  agendar: (fn, ms) => window.setTimeout(fn, ms),
-  reler: (q) => dispatch({ tipo: "invalidar", quais: [q] }),
-});
 
 /** Uma leitura da passada: busca, aplica, redesenha e trata o erro. Nunca rejeita (a chave em voo é compartilhada). */
 async function lerUma(q: Invalidacao, passada: { redeCaiu: boolean }, lerParaDeepLink: (lida: NonNullable<ReturnType<typeof leituraConta>>) => void): Promise<void> {
@@ -5470,8 +5487,10 @@ function mostrarErroDoBoot(e: unknown): void {
 // o login termina. Sem um `depois` da própria tentativa, o padrão: no marketplace a gaveta abre em
 // "Quem pode usar"; no chat, o card já virou o de permitir no servidor e a conversa só relê.
 
+/** ADR-196: o nome que a pessoa deu à conta a mais, até o servidor criar a conta (a chave é "gmail--pessoal"). */
+const rotulosDeConta = new Map<string, string>();
 const conexoes = criarConexoes({
-  conectar: (slug) => api!.conectarApp(slug),
+  conectar: (slug) => api!.conectarApp(slug, rotulosDeConta.get(slug)),
   verificar: (slug) => api!.verificarApp(slug),
   mudou: (slug, valor) => dispatch({ tipo: "conexao-app", slug, valor }),
   conectado: (slug) => {
@@ -8115,21 +8134,11 @@ function aoSoltarOrdem(lista: string, ordem: string[]): void {
 }
 instalarOrdemArrastavel(document, aoSoltarOrdem);
 
-/** ADR-167 (Paper 04): na nova conversa, o termo vai para "Criar o bot “Ce”" e a 1ª sugestão ganha o ↵. */
+/** ADR-167 (Paper 04) e QA-155: o termo, o teto e o ↵ da nova conversa (a escolha das setas sobrevive ao redesenho). */
+const sugestoesDaNovaConversa = criarSugestoesDaNovaConversa();
 function marcarSugestaoDaNovaConversa(texto: string): void {
   const pop = document.querySelector<HTMLElement>(".nc-pop");
-  if (!pop) return;
-  const termo = pop.querySelector<HTMLElement>(".nc-termo");
-  if (termo) termo.textContent = texto.trim();
-  pop.querySelector<HTMLElement>(".nc-criar")?.toggleAttribute("hidden", texto.trim() === "");
-  const bots = [...pop.querySelectorAll<HTMLElement>(".nc-bot")];
-  let mostrados = 0;
-  for (const b of bots) {
-    if (!b.hidden && mostrados >= 5) b.hidden = true;
-    if (!b.hidden) mostrados++;
-  }
-  const primeira = bots.find((b) => !b.hidden);
-  for (const b of bots) b.toggleAttribute("data-nc-atual", b === primeira);
+  if (pop) sugestoesDaNovaConversa.marcar(pop, texto);
 }
 
 /** Enter na nova conversa: a sugestão marcada (ou criar o bot com o nome digitado); o texto do campo vai junto. */
@@ -10619,18 +10628,18 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
       dispatch({ tipo: "invalidar", quais: ["salas"] });
       navegar({ tipo: "sala", salaId: r.ids.salaId ?? "", conversaId: r.ids.conversaId ?? "" });
     }),
-  "configurar-composio": (form) => agir(async () => {
+  "configurar-composio": (form) => umEnvioPorVez("configurar-composio", form, () => agir(async () => {
     const d = new FormData(form);
     await api!.configurarComposio(String(d.get("chave") ?? ""));
     form.reset();
     dispatch({ tipo: "invalidar", quais: ["conectores"] });
-  }),
-  "app-github": (form) => agir(async () => {
+  })),
+  "app-github": (form) => umEnvioPorVez("app-github", form, () => agir(async () => {
     const d = new FormData(form);
     await api!.appGithub({ appId: String(d.get("appId") ?? ""), instalacaoId: String(d.get("instalacaoId") ?? ""), chavePrivada: String(d.get("chavePrivada") ?? "") });
     form.reset();
     dispatch({ tipo: "aviso-conexao", texto: "GitHub App da organização guardado. As rotinas de quem não conectou o próprio GitHub passam a usá-lo." });
-  }),
+  })),
   // ADR-190 (L4): o código vai do campo privado do cartão direto para a página (POST navegador/codigo). Não passa por
   // estado, storage nem conversa; o campo é limpo assim que o servidor responde.
   "nv-codigo": async (form) => {
@@ -10689,23 +10698,23 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
       focarCampo();
     }
   },
-  "token-github": (form) => agir(async () => {
+  "token-github": (form) => umEnvioPorVez("token-github", form, () => agir(async () => {
     const d = new FormData(form);
     const r = await api!.tokenGithub(String(d.get("token") ?? ""));
     form.reset();
     dispatch({ tipo: "aviso-conexao", texto: r.conectado ? "Token guardado. O GitHub usa o gh desta máquina quando ele está logado, e o token nos outros casos." : "Token guardado, mas o GitHub não respondeu. Tente Conectar de novo em instantes." });
     dispatch({ tipo: "invalidar", quais: ["conectores"] });
-  }),
-  "credenciais-conector": (form) => agir(async () => {
+  })),
+  "credenciais-conector": (form) => umEnvioPorVez("credenciais-conector", form, () => agir(async () => {
     const d = new FormData(form);
     const env = lerCredenciaisJson(String(d.get("env") ?? ""), "obrigatorio");
     if (!env) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: FRASE_CREDENCIAIS_INVALIDAS } }); return; }
     await api!.atualizarCredenciais(form.dataset.id ?? "", env);
     form.reset();
     dispatch({ tipo: "invalidar", quais: ["conectores"] });
-  }),
+  })),
   "registrar-conector": (form) =>
-    agir(async () => {
+    umEnvioPorVez("registrar-conector", form, () => agir(async () => {
       const d = new FormData(form);
       const args = String(d.get("args") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
       const env = lerCredenciaisJson(String(d.get("env") ?? ""), "vale-vazio");
@@ -10713,14 +10722,14 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
       await api!.registrarConector({ nome: d.get("nome"), slug: d.get("slug"), transporte: d.get("transporte"), comando: String(d.get("comando") ?? "") || null, args, url: String(d.get("url") ?? "") || null, env, declaracao: d.get("declaracao") });
       form.reset();
       dispatch({ tipo: "invalidar", quais: ["conectores"] });
-    }),
+    })),
   conceder: (form) =>
-    agir(async () => {
+    umEnvioPorVez("conceder", form, () => agir(async () => {
       const d = new FormData(form);
       const agenteId = String(d.get("agenteId") ?? "");
       await api!.conceder(agenteId, form.dataset.id ?? "", String(d.get("capacidade") ?? ""));
       dispatch({ tipo: "invalidar", quais: [`concessoes:${agenteId}`, "frota"] });
-    }),
+    })),
 };
 
 instalarDicaDeLink(document);
@@ -10774,11 +10783,12 @@ document.addEventListener("keydown", (ev) => {
   if (r.tipo === "mover") linhas[r.indice]?.querySelector<HTMLElement>(".nl-abrir")?.focus();
   else {
     const l = linhas[atual]!;
-    // O foco segue para a próxima linha (ou a anterior, se era a última): dá para marcar várias seguidas com E.
+    // O foco segue para a próxima linha (ou a anterior, se era a última) já no marcarComDesfazer (QA-156): dá para marcar
+    // várias seguidas com E; depois da resposta, volta a ela se o redesenho da tela por string a recriou.
     const prox = linhas[atual + 1] ?? linhas[atual - 1];
     void marcarComDesfazer(l.dataset.conversa ?? "", l.dataset.nome ?? "").then(() => {
       const c = prox?.dataset.conversa;
-      if (c) document.querySelector<HTMLElement>(`.nl-item[data-conversa="${CSS.escape(c)}"] .nl-abrir`)?.focus();
+      if (c && (document.activeElement === document.body || !document.activeElement?.isConnected)) document.querySelector<HTMLElement>(`.nl-item[data-conversa="${CSS.escape(c)}"] .nl-abrir`)?.focus();
     });
   }
 });
@@ -10948,6 +10958,16 @@ document.addEventListener("keydown", (ev) => {
   dispatch({ tipo: "contas-ui", mudanca });
   focarGatilho(volta);
 }, true);
+
+// QA-189: os formulários que criam algo no servidor mandavam dois POSTs no duplo clique (ou Enter + clique): dois tokens
+// MCP (só o último aparecia, o outro ficava válido sem ninguém ter visto), duas rotinas iguais, duas salas, duas memórias.
+// A chave de máquina já tinha `umaPorVez`; aqui vale a mesma trava (QA-186) para os outros, inclusive a Nova sala e a Nova
+// rotina em React, que chamam estes handlers.
+const FORMS_QUE_CRIAM = ["gerar-token-mcp", "criar-rotina", "criar-sala", "criar-memoria", "criar-agente"] as const;
+for (const qual of FORMS_QUE_CRIAM) {
+  const tratar = FORMS[qual];
+  if (tratar) FORMS[qual] = (form) => umEnvioPorVez(`cria:${qual}`, form, () => tratar(form));
+}
 
 document.addEventListener("submit", (ev) => {
   const form = (ev.target as HTMLElement).closest<HTMLFormElement>("form[data-form]");

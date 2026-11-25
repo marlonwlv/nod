@@ -181,7 +181,7 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
      * A sessão segue retomável: é o mesmo computador, as pastas das contas são as mesmas. Só da dona (filtro por owner).
      * Devolve os bots que mudaram (o chamador avisa a tela).
      */
-    async transferirReferencias(de: string, para: string): Promise<{ bots: string[]; padrao: boolean; sessoes: number; turnos: number; navegador: number }> {
+    async transferirReferencias(de: string, para: string): Promise<{ bots: string[]; padrao: boolean; sessoes: number; turnos: number; navegador: number; checkpoints: number; esperas: number; computadores: number }> {
       const dono = conn`tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}`;
       const bots = await conn<{ id: string }[]>`update agentes set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning id`;
       const padrao = await conn`update preferencias set maquina_padrao_id = ${para} where ${dono} and maquina_padrao_id = ${de} returning 1`;
@@ -192,7 +192,24 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
       const turnos = await conn`update turnos set maquina_desta_vez = ${para} where ${dono} and maquina_desta_vez = ${de} and estado = 'pendente' returning 1`;
       // ADR-190: o navegador escolhido nesta máquina segue nela (senão o revogar o devolveria ao nod com aviso).
       const navegador = await conn`update navegador_preferencias set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning 1`;
-      return { bots: bots.map((b) => b.id), padrao: padrao.length > 0, sessoes: trabalhos.length + conversas.length, turnos: turnos.length, navegador: navegador.length };
+      // QA (r211): o "Desfazer N arquivos" das falas de antes do repareamento. O git sombra mora na pasta do bot, no mesmo
+      // computador: sem isto o pedido ia para a chave revogada, ninguém o puxava e a fala ficava "desfazendo" 15 min, depois
+      // "falhou" com um "Tentar de novo" que nunca dava certo (e prendia o desfazer do bot nesse meio-tempo).
+      const checkpoints = await conn`update checkpoints set maquina_id = ${para} where ${dono} and maquina_id = ${de} and estado <> 'vencido' returning 1`;
+      // O `esperar_comando` em curso: o motor relança pelo puxar (`iniciada` conta a queda); com a chave velha a nova não o
+      // via, o varredor o dava como "sem notícia" e o turno voltava com falha.
+      const esperas = await conn`update esperas set maquina_id = ${para} where ${dono} and maquina_id = ${de} and estado = 'rodando' returning 1`;
+      // QA (r212): o computador da pessoa (NOD-94/365). `escolherMaquina` devolve a máquina gravada sem conferir se a chave
+      // vive: preso à revogada, o computador dava "<máquina> está sem contato" para sempre com o mesmo computador ligado.
+      // A saída pendente da antiga passa à nova (é o mesmo computador que precisa do `marcar_saida`). A X25519 fixada fica:
+      // é o mesmo supervisor; se a reinstalação trocou a chave dele, o TOFU já leva ao Redefinir.
+      const computadores = await conn`update computadores set
+          maquina_id = case when maquina_id = ${de} then ${para}::uuid else maquina_id end,
+          hospedeira_id = case when hospedeira_id = ${de} then ${para}::uuid else hospedeira_id end,
+          saidas_pendentes_de = case when ${para}::uuid = any(saidas_pendentes_de) then array_remove(saidas_pendentes_de, ${de}::uuid)
+            else array_replace(saidas_pendentes_de, ${de}::uuid, ${para}::uuid) end
+        where ${dono} and (maquina_id = ${de} or hospedeira_id = ${de} or ${de}::uuid = any(saidas_pendentes_de)) returning 1`;
+      return { bots: bots.map((b) => b.id), padrao: padrao.length > 0, sessoes: trabalhos.length + conversas.length, turnos: turnos.length, navegador: navegador.length, checkpoints: checkpoints.length, esperas: esperas.length, computadores: computadores.length };
     },
   };
 }

@@ -43,6 +43,31 @@ export type AppDaVitrine = {
   recomendado?: boolean;
   /** Onde a pessoa abre o app para achar a chave ("Abrir o Fireflies ↗"). */
   site?: string;
+  /**
+   * ADR-196: o app aceita mais de uma conta (login do Composio; fora o GitHub e o app de chave). Conectado, abre na tela
+   * "Contas" (Paper M1) em vez de ir direto ao "Quem pode usar".
+   */
+  multiconta?: boolean;
+  /** As contas da pessoa neste app, a primeira antes (só com `multiconta` e conectado). */
+  contas?: readonly ContaDaVitrine[];
+};
+
+/**
+ * Uma conta do app (ADR-196): a primeira é o conector de sempre ("gmail"); as outras, os conectores `<app>--<conta>`.
+ * `chave` é o slug do conector, e é também a chave do login em andamento (`estado.conectando`).
+ */
+export type ContaDaVitrine = {
+  chave: string;
+  conectorId: string | null;
+  /** "Gmail" ou "Gmail (pessoal)": o nome do conector, que o Renomear troca. */
+  nome: string;
+  principal: boolean;
+  email: string | null;
+  situacao: SituacaoApp;
+  desligado: boolean;
+  falha: string | null;
+  login: { url: string | null; falhou: string | null; semJanela: boolean } | null;
+  niveis: Readonly<Record<string, NivelVisto>>;
 };
 
 export type BotDaVitrine = { id: string; nome: string; titulo: string; forma: FormaAgente; cor: CorAgente };
@@ -105,8 +130,15 @@ export type ApiDoMarketplace = {
   campos(slug: string): Promise<FormularioDaChave>;
   /** POST /marketplace/:slug/conectar-com-chave. Os valores vêm do formulário e só passam por aqui. */
   conectarComChave(slug: string, valores: Record<string, string>): Promise<ResultadoDaChave>;
-  /** O login de sempre (web/lib/conexao.ts). Chamar DENTRO do clique: a janela só abre no gesto da pessoa. */
-  conectarLogin(slug: string): void;
+  /**
+   * O login de sempre (web/lib/conexao.ts). Chamar DENTRO do clique: a janela só abre no gesto da pessoa. ADR-196: `slug`
+   * pode ser a chave de uma conta a mais ("gmail--pessoal"), com o nome que a pessoa digitou em `rotulo`.
+   */
+  conectarLogin(slug: string, rotulo?: string): void;
+  /** ADR-196: troca o nome que aparece (PATCH conectores/:id/nome). Rejeita se o servidor recusar. */
+  renomearConta(conectorId: string, nome: string): Promise<void>;
+  /** ADR-196: tira a conta a mais (DELETE marketplace/contas/:id). Rejeita se o servidor recusar. */
+  removerConta(conectorId: string): Promise<void>;
   cancelarLogin(slug: string): void;
   /** Garante que o padrão e o "segue o padrão" do conector estão carregados (e relê ao abrir de novo). */
   abrirAcessos(conectorId: string): void;
@@ -144,7 +176,9 @@ export type Vista =
   | { tipo: "inicio" }
   | { tipo: "conectados" }
   | { tipo: "chave"; slug: string }
-  | { tipo: "acessos"; slug: string; conectorId: string | null; conectadoAgora: boolean };
+  | { tipo: "acessos"; slug: string; conectorId: string | null; conectadoAgora: boolean; conta?: string }
+  /** ADR-196 (Paper M1): as contas do app. `adicionando` abre já com o nome da conta nova (M2). */
+  | { tipo: "contas"; slug: string; adicionando?: boolean };
 
 /** Como o modal abre (o simulador usa para pular direto a um estado do protótipo). */
 export type InicialDoMarketplace = {

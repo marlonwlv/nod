@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, hkdfSync, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, open, readdir, readFile, rm, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -359,11 +359,63 @@ export function chaveDoBot(segredo: Buffer, agenteId: string): string {
   return Buffer.from(hkdfSync("sha256", segredo, Buffer.alloc(0), `nod-navegador:${agenteId}`, 32)).toString("hex");
 }
 
-/** Nome de arquivo seguro dentro da pasta do bot: sem caminho, sem começar por ponto. */
+/**
+ * revisto em 2026-11-25 (QA-215): o teto do nome é em BYTES (o ext4/APFS aceitam 255 bytes por nome; 200 deixa folga),
+ * não em caracteres — 150 "ç" são 300 bytes e o download caía em ENAMETOOLONG. E o corte sai do meio do nome, nunca da
+ * extensão: um `navegador_pdf` de 198 caracteres virava "….p", sem ".pdf".
+ */
+export const LIMITE_NOME_BYTES = 200;
+
+/** Corta `s` em até `bytes` de UTF-8 sem partir um caractere. */
+function cortarEmBytes(s: string, bytes: number): string {
+  let out = "";
+  let usados = 0;
+  for (const ch of s) {
+    const n = Buffer.byteLength(ch);
+    if (usados + n > bytes) break;
+    out += ch;
+    usados += n;
+  }
+  return out;
+}
+
+/** Nome de arquivo seguro dentro da pasta do bot: sem caminho, sem começar por ponto, até 200 bytes com a extensão inteira. */
 export function nomeDeArquivo(nome: string): string {
-  const b = basename(nome.replace(/\\/g, "/")).replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/^\.+/, "").slice(0, 200);
+  const b = basename(nome.replace(/\\/g, "/")).replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/^\.+/, "");
   if (!b) throw new FalhaNavegador("alvo_invalido", "nome de arquivo vazio");
-  return b;
+  if (Buffer.byteLength(b) <= LIMITE_NOME_BYTES) return b;
+  const ponto = b.lastIndexOf(".");
+  // Extensão é o trecho curto depois do último ponto (até 16 bytes); mais que isso é parte do nome.
+  const ext = ponto > 0 && Buffer.byteLength(b.slice(ponto)) <= 16 ? b.slice(ponto) : "";
+  const base = cortarEmBytes(ext ? b.slice(0, ponto) : b, LIMITE_NOME_BYTES - Buffer.byteLength(ext));
+  return base + ext;
+}
+
+/**
+ * revisto em 2026-11-25 (QA-216): um nome que já existe na pasta vira "nome-2.ext" — antes o
+ * segundo `navegador_baixar`/`navegador_pdf` com o mesmo nome apagava o primeiro calado e o bot ouvia "ok". Hífen e
+ * não parênteses, porque o `nomeDeArquivo` troca parênteses por "_" e o bot não acharia o arquivo no envio.
+ */
+export function nomeComNumero(nome: string, n: number): string {
+  if (n < 2) return nome;
+  const ponto = nome.lastIndexOf(".");
+  const ext = ponto > 0 && Buffer.byteLength(nome.slice(ponto)) <= 16 ? nome.slice(ponto) : "";
+  return `${cortarEmBytes(ext ? nome.slice(0, ponto) : nome, LIMITE_NOME_BYTES - Buffer.byteLength(ext) - 12)}-${n}${ext}`;
+}
+
+/**
+ * revisto em 2026-11-25 (QA-216): o agent-browser grava no caminho pedido e não devolve o nome que o site sugeriu; sem
+ * nome do bot o arquivo saía "download-<ms>", sem extensão, e o `navegador_enviar_arquivo` seguinte era recusado pelos
+ * sites que olham a extensão. A extensão sai da assinatura do conteúdo, só nos formatos que ela identifica sem dúvida.
+ */
+export function extensaoPeloConteudo(inicio: Buffer): string | null {
+  const comeca = (...b: number[]) => b.every((x, i) => inicio[i] === x);
+  if (comeca(0x25, 0x50, 0x44, 0x46, 0x2d)) return ".pdf";
+  if (comeca(0x89, 0x50, 0x4e, 0x47)) return ".png";
+  if (comeca(0xff, 0xd8, 0xff)) return ".jpg";
+  if (comeca(0x47, 0x49, 0x46, 0x38)) return ".gif";
+  if (comeca(0x50, 0x4b, 0x03, 0x04)) return ".zip";
+  return null;
 }
 
 const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
@@ -643,6 +695,29 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     const n = nomeDeArquivo(nome);
     return { nome: n, caminho: join(pasta(s), "arquivos", n) };
   }
+  /** Reserva um nome livre na pasta (cria o arquivo vazio com `wx`, sem corrida entre dois downloads do mesmo bot). */
+  async function arquivoNovoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
+    const base = nomeDeArquivo(nome);
+    await mkdir(join(pasta(s), "arquivos"), { recursive: true });
+    for (let n = 1; n <= 999; n++) {
+      const candidato = nomeComNumero(base, n);
+      const caminho = join(pasta(s), "arquivos", candidato);
+      try { await (await open(caminho, "wx")).close(); return { nome: candidato, caminho }; } catch (e) { if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; }
+    }
+    throw new FalhaNavegador("alvo_invalido", `já há 999 arquivos chamados ${base}; escolha outro nome`);
+  }
+  /** Sem extensão no nome, põe a que o conteúdo mostra (se mostrar) e devolve o nome final. */
+  async function comExtensao(s: SessaoNavegador, a: { nome: string; caminho: string }): Promise<{ nome: string; caminho: string }> {
+    if (/\.[\p{L}\p{N}]{1,10}$/u.test(a.nome)) return a;
+    const fd = await open(a.caminho, "r");
+    const inicio = Buffer.alloc(8);
+    try { await fd.read(inicio, 0, 8, 0); } finally { await fd.close(); }
+    const ext = extensaoPeloConteudo(inicio);
+    if (!ext) return a;
+    const novo = await arquivoNovoNaPasta(s, `${a.nome}${ext}`);
+    await rename(a.caminho, novo.caminho);
+    return novo;
+  }
   async function apagarDownloadsIncompletos(s: SessaoNavegador): Promise<void> {
     const dir = join(pasta(s), "arquivos");
     const nomes = await readdir(dir).catch(() => [] as string[]);
@@ -717,29 +792,30 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async quadro(s, alvo) { await rodar(s, ["frame", alvo === null ? "main" : alvoOuFalha(alvo)]); },
     async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
     async baixar(s, alvo, nome) {
-      const a = await arquivoNaPasta(s, nome);
+      const a = await arquivoNovoNaPasta(s, nome);
       try {
         await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
-        return { nome: a.nome, bytes: (await stat(a.caminho)).size };
       } catch (e) {
         // medido em 2026-11-25 (QA do navegador no Windows; agent-browser 0.43.0 no Windows e no Linux): o `download`
         // devolve "Download was canceled" (ou estoura o prazo) até para um link simples, e o arquivo nunca chega. Se o
         // alvo é um link, baixa direto daqui com os cookies do próprio perfil do bot (o openbot também salva o download
         // fora do Chrome, numa pasta dele). Cada salto passa pela mesma regra do `abrir`.
-        if (!(e instanceof FalhaNavegador) || (e.motivo !== "acao_falhou" && e.motivo !== "tempo_esgotado")) throw e;
-        const url = await linkDoAlvo(s, alvo).catch(() => null);
-        if (e.motivo === "tempo_esgotado") {
+        const falhaDoDownload = e instanceof FalhaNavegador && (e.motivo === "acao_falhou" || e.motivo === "tempo_esgotado");
+        const url = falhaDoDownload ? await linkDoAlvo(s, alvo).catch(() => null) : null;
+        if (e instanceof FalhaNavegador && e.motivo === "tempo_esgotado") {
           // Revisto em 2026-11-25 (QA-207): o prazo só mata o CLI; o Chrome do bot seguia baixando sem teto e enchia o disco
           // da máquina. Sem comando de cancelar download no agent-browser, fecha o Chrome do bot (os logins ficam no perfil)
           // e apaga o que ficou pela metade. O link já foi lido acima, antes de fechar a página.
           await rodar(s, ["close"]).catch(() => undefined);
           await apagarDownloadsIncompletos(s);
-          if (!url) throw new FalhaNavegador("tempo_esgotado", "o download não terminou a tempo e foi cancelado; o navegador do bot foi fechado e abre de novo no próximo comando, já sem as abas");
+          if (!url) { await rm(a.caminho, { force: true }); throw new FalhaNavegador("tempo_esgotado", "o download não terminou a tempo e foi cancelado; o navegador do bot foi fechado e abre de novo no próximo comando, já sem as abas"); }
         }
-        if (!url) throw e;
-        const bytes = await baixarDireto(s, url, a.caminho);
-        return { nome: a.nome, bytes };
+        // QA-216: sem o download, o nome reservado (arquivo vazio) não fica na pasta.
+        if (!url) { await rm(a.caminho, { force: true }); throw e; }
+        try { await baixarDireto(s, url, a.caminho); } catch (e2) { await rm(a.caminho, { force: true }); throw e2; }
       }
+      const final = await comExtensao(s, a);
+      return { nome: final.nome, bytes: (await stat(final.caminho)).size };
     },
     async enviarArquivo(s, alvo, nomes) {
       const caminhos = await Promise.all(nomes.map(async (n) => {
@@ -750,8 +826,8 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       await rodar(s, ["upload", alvoOuFalha(alvo), ...caminhos]);
     },
     async pdf(s, nome) {
-      const a = await arquivoNaPasta(s, nome.toLowerCase().endsWith(".pdf") ? nome : `${nome}.pdf`);
-      await rodar(s, ["pdf", a.caminho], PRAZO_ABRIR_MS);
+      const a = await arquivoNovoNaPasta(s, nome.toLowerCase().endsWith(".pdf") ? nome : `${nome}.pdf`);
+      try { await rodar(s, ["pdf", a.caminho], PRAZO_ABRIR_MS); } catch (e) { await rm(a.caminho, { force: true }); throw e; }
       return { nome: a.nome, bytes: (await stat(a.caminho)).size };
     },
     async procurar(s, p) {

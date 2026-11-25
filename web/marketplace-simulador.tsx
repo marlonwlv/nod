@@ -7,13 +7,13 @@ import type { InicialDoMarketplace } from "./react/marketplace/tipos.ts";
 /**
  * Só no dev: /marketplace-simulador.html?estado=<id> abre o Marketplace em modal com o adaptador simulado, já no estado
  * de um artboard do Paper ("Apps por chave de API · jornada"). `&controle=0` esconde o controle do canto (para a foto),
- * `&tema=escuro` força o tema escuro e `&latencia=<ms>` muda a "rede" (1500 por padrão).
+ * `&tema=escuro` força o tema escuro, `&latencia=<ms>` muda a "rede" (1500 por padrão) e `&bots=<n>` dá um time de n bots.
  */
 
 const CHAVE_FIREFLIES = "ff_live_8Jq2mW7xKp4nR9sT3v"; // 24 caracteres: os 24 pontos do T4 e do T5
 const CHAVE_FRESHDESK = "Xk29fLmQ7rTz4WcB8nPa"; // 20 caracteres: os 20 pontos do T3
 
-type Estado = { id: string; rotulo: string; inicial: InicialDoMarketplace; firefliesConectado?: boolean };
+type Estado = { id: string; rotulo: string; inicial: InicialDoMarketplace; firefliesConectado?: boolean; contasDoGmail?: readonly string[]; botsAMais?: number };
 
 const ESTADOS: readonly Estado[] = [
   { id: "d1", rotulo: "D1 Apps", inicial: {} },
@@ -24,6 +24,12 @@ const ESTADOS: readonly Estado[] = [
   { id: "t5", rotulo: "T5 Recusada", inicial: { vista: { tipo: "chave", slug: "fireflies" }, preenchido: { api_key: CHAVE_FIREFLIES }, envio: "recusada" } },
   { id: "t6", rotulo: "T6 Quem pode usar", firefliesConectado: true, inicial: { vista: { tipo: "acessos", slug: "fireflies", conectorId: "sim-fireflies", conectadoAgora: true }, selecionados: ["clarice", "ada"] } },
   { id: "t6b", rotulo: "T6b Confirmar", firefliesConectado: true, inicial: { vista: { tipo: "acessos", slug: "fireflies", conectorId: "sim-fireflies", conectadoAgora: true }, selecionados: ["clarice", "ada"], confirmarEscrita: true } },
+  // ADR-196 (Paper "Apps com mais de uma conta"): M3, M6 e M7 saem de clicar a partir destes.
+  { id: "m1", rotulo: "M1 Contas", contasDoGmail: [], inicial: { vista: { tipo: "contas", slug: "gmail" } } },
+  { id: "m2", rotulo: "M2 Nome da conta", contasDoGmail: [], inicial: { vista: { tipo: "contas", slug: "gmail", adicionando: true } } },
+  { id: "m4", rotulo: "M4 Quem pode usar (32 bots)", contasDoGmail: ["pessoal"], botsAMais: 27, inicial: { vista: { tipo: "acessos", slug: "gmail", conectorId: "sim-gmail--pessoal", conectadoAgora: true, conta: "gmail--pessoal" }, selecionados: ["clarice"] } },
+  { id: "m5", rotulo: "M5 Duas contas", contasDoGmail: ["pessoal"], inicial: { vista: { tipo: "contas", slug: "gmail" } } },
+  { id: "m8", rotulo: "M8 Limite", contasDoGmail: ["pessoal", "familia", "acme", "vendas"], inicial: { vista: { tipo: "contas", slug: "gmail" } } },
 ];
 
 const parametros = new URLSearchParams(location.search);
@@ -36,6 +42,9 @@ let vez = 0;
 const api = criarApiSimulada({
   latenciaMs: Number.isFinite(latencia) && latencia >= 0 ? latencia : 1500,
   firefliesConectado: atual.firefliesConectado === true,
+  ...(atual.contasDoGmail ? { contasDoGmail: atual.contasDoGmail } : {}),
+  // `&bots=<n>`: o total de bots do time (para medir a lista de um time grande; o M4 do Paper tem 32).
+  ...(Number(parametros.get("bots")) > 5 ? { botsAMais: Number(parametros.get("bots")) - 5 } : atual.botsAMais ? { botsAMais: atual.botsAMais } : {}),
   aoAbrirAvancado: () => { aviso = "No app, Avançado fecha o modal e abre a tela de sempre (chave do Composio, MCP próprio)."; abrir(); },
 });
 

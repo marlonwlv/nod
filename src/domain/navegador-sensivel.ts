@@ -44,3 +44,26 @@ export function segredoAindaNaPagina(urlDoSegredo: string | null, urlAgora: stri
   const tirar = (u: string) => u.split("#")[0];
   return tirar(urlDoSegredo) === tirar(urlAgora);
 }
+
+/** Alguma aba aberta ainda está na página do segredo (QA-204: a trava não sai só porque a aba ativa mudou). */
+export function segredoEmAlgumaAba(urlDoSegredo: string | null, abas: readonly { url: string }[]): boolean {
+  return abas.some((a) => segredoAindaNaPagina(urlDoSegredo, a.url));
+}
+
+/** A URL sem o fragmento: a chave das páginas em que o nod já pôs um segredo. */
+export const paginaSemFragmento = (url: string): string => url.split("#")[0]!;
+
+/**
+ * JS que o nod roda (não o bot) numa página em que já pôs um segredo e à qual a aba voltou: algum campo de texto ainda
+ * tem valor? Definido em 2026-11-25 (QA-210): voltar pelo histórico traz a página do bfcache com a senha no campo
+ * (medido no Chromium do agent-browser); recarregada do zero, os campos vêm vazios e a trava não volta.
+ */
+export const JS_CAMPO_PREENCHIDO = `(() => { const fora = /^(hidden|checkbox|radio|submit|button|reset|image|file|range|color)$/i; return [...document.querySelectorAll("input, textarea")].some((e) => !fora.test(e.type || "") && e.value !== ""); })()`;
+
+/**
+ * JS que o nod roda (não o bot) quando a URL da aba mudou depois de pôr um segredo: o campo que o próprio nod marcou
+ * (`data-nod-campo`, ver JS_CAMPOS_LOGIN) ainda está no documento com valor? Definido em 2026-11-25 (QA-214): uma SPA
+ * troca a URL com pushState sem recarregar (login com erro, etapa 2) e a senha continua no campo; medido no Chromium do
+ * agent-browser. Página carregada de novo não tem a marca.
+ */
+export const JS_SEGREDO_MARCADO = `(() => [...document.querySelectorAll('[data-nod-campo="senha"], [data-nod-campo="codigo"]')].some((e) => typeof e.value === "string" && e.value !== ""))()`;

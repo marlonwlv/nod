@@ -42,6 +42,14 @@ export const ACOES_FORA_DO_MCP: ReadonlySet<IdAcao> = new Set<IdAcao>([
   "rotinas.gerar_endereco",
   "nuvem.conectar_google", "computador.usar_tela", "cartoes.guardar_credencial", "voz.consentir",
   "mcp.criar_token", "mcp.revogar_token",
+  // O navegador do bot (ADR-190) e o cofre do nod (QA-221). Guardar um login leva a senha; com o token vazado, alguém
+  // planta no cofre o login de uma conta dele e o bot passa a entrar nela (e a mandar para lá o que a pessoa pedir). A
+  // escolha do login, o código de uso único, o "Guardar no cofre?" e a sessão trazida do Chrome são segredo que vai do
+  // cartão direto à página. Abrir endereço, trocar de aba e ensinar são as mãos da pessoa no navegador, com as sessões
+  // dela, como computador.usar_tela. Ficam abertos ao MCP o lugar, o ligar/pausar (como computador.operar), listar e
+  // apagar logins e tarefas ensinadas.
+  "cofre.criar_login", "navegador.login", "navegador.codigo", "navegador.guardar_login", "navegador.trazer_do_chrome",
+  "navegador.ir_para", "navegador.trocar_aba", "navegador.ensinar",
 ]);
 
 export function rotaForaDoMcp(rota: Rota, caminho: string): boolean {

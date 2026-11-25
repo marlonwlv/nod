@@ -23,15 +23,25 @@ export const revogarLote: CasoDeUso<EntradaRevogarLote, SaidaRevogarLote> = asyn
   const ids = [...new Set(input.concessaoIds)].map((id) => assertUuid(id, "concessao"));
   if (ids.length === 0) throw new ErroDeDominio("entrada_invalida", { cause: "nenhuma concessão para revogar" });
   const agora = deps.agora();
+  // QA r187: a mesma trava (agente, conector) do executor dos acessos (tela e gerir_acessos), em ordem de id. Sem ela,
+  // o outro lado lia o conjunto, este apagava, e o DELETE dele voltava 0 → 404 e o lote dele inteiro voltava atrás.
+  const lidas = await Promise.all(ids.map((id) => deps.repos.concessoes.buscar(id)));
+  if (lidas.some((c) => c && c.agenteId !== input.agenteId)) throw new ErroDeDominio("nao_encontrado", { cause: "concessão" });
+  for (const conectorId of [...new Set(lidas.flatMap((c) => (c ? [c.conectorId] : [])))].sort()) await deps.repos.concessoes.travar(input.agenteId, conectorId);
+  // Já revogada (outra aba, duplo clique, o chat): o que ela queria já vale — sai do lote em vez de recusar o grupo.
   const escopo: string[] = [];
   for (const id of ids) {
     const concessao = await deps.repos.concessoes.buscar(id);
-    if (!concessao || concessao.agenteId !== input.agenteId) throw new ErroDeDominio("nao_encontrado", { cause: "concessão" });
-    const apagou = await deps.repos.concessoes.revogar(concessao.id);
-    if (!apagou) throw new ErroDeDominio("nao_encontrado", { cause: "concessão de outra pessoa" });
+    if (!concessao) continue;
+    if (concessao.agenteId !== input.agenteId) throw new ErroDeDominio("nao_encontrado", { cause: "concessão" });
+    if (!(await deps.repos.concessoes.revogar(concessao.id))) {
+      if (await deps.repos.concessoes.buscar(concessao.id)) throw new ErroDeDominio("nao_encontrado", { cause: "concessão de outra pessoa" });
+      continue;
+    }
     const conector = await deps.repos.conectores.buscar(concessao.conectorId);
     escopo.push(`${conector?.slug ?? concessao.conectorId}.${concessao.capacidade}`);
   }
+  if (escopo.length === 0) return { data: { revogadas: 0, mensagemId: null } };
   const conversa = await deps.repos.conversas.buscarPropriaDoAgente(input.agenteId);
   const pessoa = await deps.repos.pessoas.buscar(deps.escopo.pessoaId);
   let mensagemId: string | null = null;
@@ -46,7 +56,7 @@ export const revogarLote: CasoDeUso<EntradaRevogarLote, SaidaRevogarLote> = asyn
     });
     mensagemId = m?.id ?? null;
   }
-  return { data: { revogadas: ids.length, mensagemId } };
+  return { data: { revogadas: escopo.length, mensagemId } };
 };
 
 export const revogar: CasoDeUso<EntradaRevogar, SaidaRevogar> = async (deps, input) => {

@@ -17,14 +17,25 @@ export interface LeituraDeNovo<Q extends string> {
   falhou(q: Q, erro: ErroNaTela): DepoisDaFalha;
   /** A leitura `q` deu certo: a conta dela volta a zero. */
   deuCerto(q: Q): void;
+  /**
+   * A leitura `q` está na espera depois de uma falha 5xx: a passada do `reidratar` não a busca agora. Sem isso a tela que
+   * ainda não tem o dado (a "falta da tela", como `trabalhos` com a tela Tarefas aberta) relia a cada passada — cerca de
+   * uma por segundo — e as esperas de 2, 5 e 10 s só somavam leituras ao servidor que já estava falhando (QA-211).
+   */
+  esperando(q: Q): boolean;
 }
 
 export function falhaPassageira(erro: ErroNaTela): boolean {
   return typeof erro.status === "number" && erro.status >= 500;
 }
 
-export function criarLeituraDeNovo<Q extends string>(deps: { agendar: (fn: () => void, ms: number) => void; reler: (q: Q) => void }): LeituraDeNovo<Q> {
+/** Depois que o erro foi à tela, a mesma leitura ainda espera a maior das esperas antes de a passada tentar de novo. */
+const ESPERA_DEPOIS_DO_ERRO_MS = ESPERAS_DA_LEITURA_MS[2];
+
+export function criarLeituraDeNovo<Q extends string>(deps: { agendar: (fn: () => void, ms: number) => void; reler: (q: Q) => void; agora?: () => number }): LeituraDeNovo<Q> {
+  const agora = deps.agora ?? (() => Date.now());
   const tentativas = new Map<Q, number>();
+  const ate = new Map<Q, number>();
   return {
     falhou(q, erro) {
       if (!falhaPassageira(erro)) return "mostrar";
@@ -32,14 +43,27 @@ export function criarLeituraDeNovo<Q extends string>(deps: { agendar: (fn: () =>
       const espera = ESPERAS_DA_LEITURA_MS[n];
       if (espera === undefined) {
         tentativas.delete(q);
+        ate.set(q, agora() + ESPERA_DEPOIS_DO_ERRO_MS);
         return "mostrar";
       }
       tentativas.set(q, n + 1);
-      deps.agendar(() => deps.reler(q), espera);
+      ate.set(q, agora() + espera);
+      deps.agendar(() => {
+        ate.delete(q);
+        deps.reler(q);
+      }, espera);
       return "calar";
     },
     deuCerto(q) {
       tentativas.delete(q);
+      ate.delete(q);
+    },
+    esperando(q) {
+      const fim = ate.get(q);
+      if (fim === undefined) return false;
+      if (agora() < fim) return true;
+      ate.delete(q);
+      return false;
     },
   };
 }

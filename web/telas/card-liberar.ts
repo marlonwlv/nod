@@ -157,7 +157,7 @@ export function renderCardLiberar(c: ConversaEstado, estado: Estado): string {
   const um = apps.length === 1;
   const nomes = apps.map((a) => nomeDoApp(estado, a.slug));
   const escolhas: EscolhaLiberar[] = apps.map((a) => ({ slug: a.slug, nivel: a.niveis[0] ?? "leitura" }));
-  const titulo = `O ${agente.nome} ainda não pode usar ${um ? "esse app" : "esses apps"}`;
+  const titulo = `${agente.nome} ainda não pode usar ${um ? "esse app" : "esses apps"}`;
   const sub = `Conectar o app é o primeiro passo. Falta dizer o que este bot pode fazer ${um ? "nele" : "neles"}.`;
   const cab = `<div class="ac-cab">${iconeAgente(agente, "lg")}<div class="ac-titulo"><b>${esc(titulo)}</b><small>${esc(sub)}</small></div></div>`;
   const permitir = botao("liberar-apps", esc(rotuloPermitir(escolhas)), { classe: "pri", id: agente.id });

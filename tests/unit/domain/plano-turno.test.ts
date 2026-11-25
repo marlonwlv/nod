@@ -439,3 +439,24 @@ describe("montarPlano: o onboarding por ligação (ADR-077)", () => {
     expect(nomes(montarPlano({ ...base, modo: "sala", terminal: true }))).not.toContain("anexar_midia");
   });
 });
+
+describe("ADR-196: duas contas do mesmo app no plano", () => {
+  const gmail = (id: string, slug: string, nome: string, extra: Partial<Conector> = {}): Conector => ({ ...conector, id, slug, nome, transporte: "http", catalogo: [{ nome: "GMAIL_SEND_EMAIL", descricao: "Envia um e-mail", schema: { type: "object" }, readOnlyHint: false }], ...extra });
+  const conceder = (conectorId: string): Concessao => ({ tenantId: "t", id: `g-${conectorId}`, ownerId: "p", agenteId: "a1", conectorId, capacidade: "GMAIL_SEND_EMAIL", mensagemId: "m", criadoEm: 0 });
+  const descricao = (p: ReturnType<typeof montarPlano>, nome: string) => p.catalogo.ferramentas.find((f) => f.nome === nome)?.schema.description;
+
+  it("cada conta vira outra ferramenta, e a descrição diz de que conta é", () => {
+    const p = montarPlano({ ...base, conectores: [gmail("g1", "gmail", "Gmail"), gmail("g2", "gmail--pessoal", "Gmail (pessoal)", { contaEmail: "maria@pessoal.example" })], concessoes: [conceder("g1"), conceder("g2")] });
+    expect(nomes(p)).toEqual(expect.arrayContaining(["gmail__GMAIL_SEND_EMAIL", "gmail--pessoal__GMAIL_SEND_EMAIL"]));
+    expect(descricao(p, "gmail__GMAIL_SEND_EMAIL")).toBe("Conta Gmail. Envia um e-mail");
+    expect(descricao(p, "gmail--pessoal__GMAIL_SEND_EMAIL")).toBe("Conta Gmail (pessoal). Envia um e-mail");
+  });
+
+  it("sem acesso a uma conta, a ferramenta dela nem entra; com uma conta só, a descrição fica como era", () => {
+    const so = montarPlano({ ...base, conectores: [gmail("g1", "gmail", "Gmail"), gmail("g2", "gmail--pessoal", "Gmail (pessoal)")], concessoes: [conceder("g2")] });
+    expect(nomes(so)).toContain("gmail--pessoal__GMAIL_SEND_EMAIL");
+    expect(nomes(so)).not.toContain("gmail__GMAIL_SEND_EMAIL");
+    const uma = montarPlano({ ...base, conectores: [gmail("g1", "gmail", "Gmail")], concessoes: [conceder("g1")] });
+    expect(descricao(uma, "gmail__GMAIL_SEND_EMAIL")).toBeUndefined();
+  });
+});

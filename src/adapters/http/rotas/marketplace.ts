@@ -1,5 +1,6 @@
 import { COMANDO_GITHUB_NATIVO, ENV_TOKEN_GITHUB, SLUG_GITHUB } from "../../../contracts/github.ts";
 import { APPS_MARKETPLACE, type CampoDeConexao } from "../../../contracts/marketplace.ts";
+import { chaveDaConta, LIMITE_CONTAS_POR_APP, nomeDaConta, normalizarConta, rotuloValido, separarChave } from "../../../domain/contas-do-app.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import { fraseSemJeito } from "../../../domain/github.ts";
 import { garantirGithubSemConfiguracao, guardarComposioGithub, guardarTokenGithub } from "../../../use-cases/conectar-github.ts";
@@ -64,7 +65,7 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
     return !!email && admins.includes(email);
   };
   const acharApp = (slug: string) => {
-    if (!/^[a-z0-9_-]{1,64}$/.test(slug)) throw new ErroDeDominio("nao_encontrado");
+    if (!/^[a-z0-9_-]{1,64}$/.test(slug) || slug.includes("--")) throw new ErroDeDominio("nao_encontrado");
     return APPS_MARKETPLACE.find((a) => a.slug === slug) ?? { slug, nome: slug, descricao: "", categoria: "" };
   };
   /** Os campos mudam quando o Composio muda o esquema do app, não a cada abertura: uma hora por toolkit. */
@@ -100,9 +101,10 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
     });
   /**
    * O conector do app aponta para a sessão do Composio, e a sessão guardada liga conta e conector. Mesmo dono e mesma
-   * sessão anterior, senão recusa (conector de outra pessoa ou registrado à mão com o mesmo slug).
+   * sessão anterior, senão recusa (conector de outra pessoa ou registrado à mão com o mesmo slug). ADR-196: a conta a
+   * mais (`conta`) vira o conector `<app>--<conta>`; a que a pessoa tirou antes volta no mesmo conector, sem acesso.
    */
-  const guardarConector = (escopo: Escopo, p: { slug: string; nome: string; chave: string; sessao: { id: string; url: string }; contaId: string }): Promise<string> =>
+  const guardarConector = (escopo: Escopo, p: { slug: string; nome: string; chave: string; sessao: { id: string; url: string }; contaId: string; conta?: string | null }): Promise<string> =>
     op.dentro(escopo, async (d) => {
       if (p.slug === SLUG_GITHUB) {
         // ADR-048: o Composio é um jeito DENTRO do GitHub nativo; os nomes estáveis e as concessões ficam.
@@ -110,18 +112,49 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
         await d.repos.composio.salvarSessao({ toolkit: p.slug, sessaoId: p.sessao.id, contaId: p.contaId, conectorId: g.id });
         return g.id;
       }
-      const existente = await d.repos.conectores.buscarPorSlug(p.slug);
+      const slugDoConector = chaveDaConta(p.slug, p.conta ?? null);
+      if (p.conta) {
+        // Revisão do PR: a contagem do limite e a gravação na mesma transação, com a trava por pessoa e app.
+        await d.repos.composio.travarApp(p.slug);
+        const outras = (await d.repos.composio.sessoesDoApp(p.slug)).filter((s) => s.conta !== p.conta).length;
+        if (outras + 1 > LIMITE_CONTAS_POR_APP) throw new ErroDeDominio("estado_invalido", { cause: "limite de contas do app" });
+      }
+      const existente = await d.repos.conectores.buscarPorSlug(slugDoConector);
       if (existente && existente.ownerId !== escopo.pessoaId) throw new ErroDeDominio("nao_permitido");
-      const anterior = await d.repos.composio.sessao(p.slug);
-      if (existente && anterior?.conectorId !== existente.id) throw new ErroDeDominio("estado_invalido");
+      const anterior = await d.repos.composio.sessao(slugDoConector);
+      const tirada = !!existente?.removidoEm && !anterior;
+      if (existente && !tirada && anterior?.conectorId !== existente.id) throw new ErroDeDominio("estado_invalido");
       const env = { "x-api-key": p.chave };
       const conector = existente
         ? await d.repos.conectores.atualizarEndpoint(existente.id, p.sessao.url, op.cifrar(JSON.stringify(env)), Object.keys(env))
-        : await executar(d, registrarConector, { nome: p.nome, slug: p.slug, transporte: "http", url: p.sessao.url, env, declaracao: "toca", cifrar: op.cifrar });
+        : await executar(d, registrarConector, { nome: p.nome, slug: slugDoConector, transporte: "http", url: p.sessao.url, env, declaracao: "toca", cifrar: op.cifrar });
       if (!conector) throw new ErroDeDominio("estado_invalido");
-      await d.repos.composio.salvarSessao({ toolkit: p.slug, sessaoId: p.sessao.id, contaId: p.contaId, conectorId: conector.id });
+      if (tirada) {
+        // Um cartão antigo pode ter concedido depois do remover: a conta volta sem acesso nenhum.
+        await d.repos.conectores.limparAcessos(conector.id, slugDoConector, agora());
+        await d.repos.conectores.restaurar(conector.id);
+        await d.repos.conectores.renomear(conector.id, p.nome);
+      }
+      await d.repos.composio.salvarSessao({ toolkit: p.slug, conta: p.conta ?? null, sessaoId: p.sessao.id, contaId: p.contaId, conectorId: conector.id });
       return conector.id;
     });
+  /**
+   * ADR-196 §6: um "Conectar" anterior que não terminou deixou uma conta pela metade no Composio (cada `link` cria uma).
+   * Antes do login novo da mesma conta, a que o nod guardou e não ficou ativa sai. A ativa fica: quem troca a conta é o
+   * login novo, e apagar a que funciona antes dele terminar deixaria a pessoa sem nenhuma. Falha aqui só vai ao log.
+   */
+  const apagarContaPelaMetade = async (escopo: Escopo, c: ReturnType<typeof cliente>, chave: string, toolkit: string): Promise<void> => {
+    const anterior = await op.dentro(escopo, (d) => d.repos.composio.sessao(chave));
+    if (!anterior) return;
+    try {
+      const { ativo } = await c.lerConta(anterior.contaId, `nod:${escopo.tenantId}:${escopo.pessoaId}`, toolkit);
+      if (ativo) return;
+      const removida = await c.removerConta(anterior.contaId);
+      log(removida ? "info" : "aviso", "marketplace_conta_pela_metade", { toolkit, removida });
+    } catch {
+      log("aviso", "marketplace_conta_pela_metade", { toolkit, removida: false });
+    }
+  };
   /**
    * definido em 2026-10-12 (NOD-208): logo depois do fixarConta a sessão do Composio pode ainda não expor o
    * toolkit; a sonda se repete com espera crescente até o teto. Cada tentativa é uma transação: a espera
@@ -189,9 +222,31 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       await op.dentro(ctx.escopo, async (d) => { await d.repos.composio.salvarChave(op.cifrar(chave)); });
       ctx.json(200, { configurado: true });
     } },
+    /**
+     * ADR-196: `slug` é a chave do conector. "gmail" conecta (ou refaz) a primeira conta; "gmail--pessoal" a conta a mais,
+     * com o nome que a pessoa deu (`rotulo` no corpo, "Pessoal" → "Gmail (Pessoal)"). A conta a mais só nasce com a
+     * primeira conectada, fora do GitHub e até LIMITE_CONTAS_POR_APP contando a primeira.
+     */
     { metodo: "POST", acao: "apps.conectar", padrao: /^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar$/, async handler(ctx) {
-      const app = acharApp(ctx.params.slug ?? "");
-      if (app.slug === SLUG_GITHUB) {
+      const partes = separarChave(ctx.params.slug ?? "");
+      if (!partes) throw new ErroDeDominio("nao_encontrado");
+      const app = acharApp(partes.app);
+      const conta = partes.conta;
+      if (conta && app.slug === SLUG_GITHUB) throw new ErroDeDominio("entrada_invalida");
+      let rotulo: string | null = null;
+      if (conta) {
+        // O slug da conta entra em niveis_ferramenta.conector_slug, que aceita até 64 (0173).
+        if (chaveDaConta(app.slug, conta).length > 64) throw new ErroDeDominio("entrada_invalida");
+        const body = await ctx.corpo() as { rotulo?: unknown } | null;
+        const bruto = typeof body?.rotulo === "string" ? body.rotulo.trim() : conta;
+        if (!rotuloValido(bruto) || normalizarConta(bruto) !== conta) throw new ErroDeDominio("entrada_invalida");
+        rotulo = bruto;
+        const sessoes = await op.dentro(ctx.escopo, (d) => d.repos.composio.sessoesDoApp(app.slug));
+        if (!sessoes.some((s) => !s.conta)) throw new ErroDeDominio("estado_invalido", { cause: "a primeira conta do app ainda não foi conectada" });
+        const outras = sessoes.filter((s) => s.conta !== conta).length;
+        if (outras + 1 > LIMITE_CONTAS_POR_APP) throw new ErroDeDominio("estado_invalido", { cause: "limite de contas do app" });
+      }
+      if (!conta && app.slug === SLUG_GITHUB) {
         // ADR-048: o que já está pronto ganha. gh logado nesta máquina (ou o App da organização no
         // servidor) = conectado agora, sem login nem campo.
         const r = await op.dentro(ctx.escopo, async (d) => {
@@ -221,12 +276,14 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       const chave = op.decifrar(cifrada);
       // definido em 2026-09-29 (ADR-057): app do catálogo público não tem curadoria; o conector nasce com
       // o nome que a grade mostrou, não com o slug. O catálogo acabou de ser lido pela tela: sai do cache.
-      const nome = APPS_MARKETPLACE.some((a) => a.slug === app.slug) ? app.nome : (await catalogo(ctx.escopo.tenantId, cifrada)).find((a) => a.slug === app.slug)?.nome ?? app.nome;
+      const nomeDoApp = APPS_MARKETPLACE.some((a) => a.slug === app.slug) ? app.nome : (await catalogo(ctx.escopo.tenantId, cifrada)).find((a) => a.slug === app.slug)?.nome ?? app.nome;
+      const nome = rotulo ? nomeDaConta(nomeDoApp, rotulo) : nomeDoApp;
       const c = cliente(chave);
       const userId = `nod:${ctx.escopo.tenantId}:${ctx.escopo.pessoaId}`;
+      await apagarContaPelaMetade(ctx.escopo, c, chaveDaConta(app.slug, conta), app.slug);
       const sessao = await c.criarSessao(userId, app.slug);
       const link = await c.autorizar(sessao.id, app.slug);
-      const conectorId = await guardarConector(ctx.escopo, { slug: app.slug, nome, chave, sessao, contaId: link.contaId });
+      const conectorId = await guardarConector(ctx.escopo, { slug: app.slug, nome, chave, sessao, contaId: link.contaId, conta });
       ctx.json(200, { url: link.url, conectorId });
     } },
     /**
@@ -281,18 +338,23 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       ctx.json(200, { conectado: r.ok, conectorId, ...(r.ok ? {} : { falhou: true, causa }), conector: r.conector });
     } },
     { metodo: "POST", acao: "apps.verificar", padrao: /^\/marketplace\/(?<slug>[a-z0-9-]+)\/verificar$/, async handler(ctx) {
-      const app = acharApp(ctx.params.slug ?? "");
-      const { cifrada, sessao } = await op.dentro(ctx.escopo, async (d) => ({ cifrada: await d.repos.composio.chave(), sessao: await d.repos.composio.sessao(app.slug) }));
+      // ADR-196: `slug` é a chave do conector ("gmail--pessoal" verifica a conta a mais).
+      const partes = separarChave(ctx.params.slug ?? "");
+      if (!partes) throw new ErroDeDominio("nao_encontrado");
+      const app = acharApp(partes.app);
+      const chaveDoConector = chaveDaConta(app.slug, partes.conta);
+      const { cifrada, sessao } = await op.dentro(ctx.escopo, async (d) => ({ cifrada: await d.repos.composio.chave(), sessao: await d.repos.composio.sessao(chaveDoConector) }));
       if (!cifrada || !sessao) throw new ErroDeDominio("estado_invalido");
       // Revisão do PR #264: o teto de 20 s conta desde aqui; a consulta da conta e o fixarConta saem dele também.
       const inicio = agora();
       const c = criarClienteComposio(op.decifrar(cifrada), op.fetchImpl, { agora, prazoFinal: inicio + VERIFICAR_TETO_MS });
-      const ativo = await c.conectado(sessao.contaId, `nod:${ctx.escopo.tenantId}:${ctx.escopo.pessoaId}`, app.slug);
-      if (!ativo) { ctx.json(200, { conectado: false }); return; }
+      const conta = await c.lerConta(sessao.contaId, `nod:${ctx.escopo.tenantId}:${ctx.escopo.pessoaId}`, app.slug);
+      if (!conta.ativo) { ctx.json(200, { conectado: false }); return; }
+      if (conta.email !== (sessao.email ?? null)) await op.dentro(ctx.escopo, (d) => d.repos.composio.salvarEmail(sessao.conectorId, conta.email));
       const fixada = await c.fixarConta(sessao.sessaoId, app.slug, sessao.contaId);
       // NOD-212: o que o próprio Composio diz que a sessão expõe depois de fixar a conta; separa no log a falha dele da nossa.
       log("info", "marketplace_fixar_conta", { toolkit: app.slug, ferramentas_sessao: fixada.ferramentas, avisos: fixada.avisos.join(",") || null });
-      const r = await sondarAteOTeto(ctx.escopo, sessao.conectorId, app.slug, inicio);
+      const r = await sondarAteOTeto(ctx.escopo, sessao.conectorId, chaveDoConector, inicio);
       // NOD-212: falha final com a sessão sem nenhuma ferramenta concreta segundo o próprio Composio é dele, não do app nem
       // do nod: a web diz isso e o "Tentar de novo" vai direto a um login novo (sessão nova), sem re-sondar esta.
       const causa = r.ok ? null : fixada.ferramentas === 0 ? "composio" : "app";
@@ -300,6 +362,30 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       // definido em 2026-09-25 (revisão do PR #68): conta ativa e sonda falhou = `falhou`, para a web parar de
       // perguntar — sem isso ela repetia fixarConta + sonda a cada 2,5 s por 10 min, com o spinner na tela.
       ctx.json(200, { conectado: r.ok, ...(r.ok ? {} : { falhou: true, causa }), conector: r.conector });
+    } },
+    /**
+     * ADR-196: tira uma conta a mais ("Remover esta conta"). A primeira sai pelo Desconectar de sempre, que guarda as
+     * escolhas. Na transação, os acessos dos bots saem e o conector fica marcado (conectores.remover); depois do commit, a
+     * conta é apagada no Composio. Falha lá só vai ao log: a conta já não alcança nada pelo nod.
+     */
+    { metodo: "DELETE", acao: "apps.remover_conta", padrao: /^\/marketplace\/contas\/(?<id>[^/]+)$/, async handler(ctx) {
+      const id = ctx.params.id ?? "";
+      const r = await op.dentro(ctx.escopo, async (d) => {
+        const conector = await d.repos.conectores.buscar(id);
+        if (!conector || conector.ownerId !== ctx.escopo.pessoaId || conector.removidoEm) throw new ErroDeDominio("nao_encontrado");
+        const partes = separarChave(conector.slug);
+        if (!partes?.conta) throw new ErroDeDominio("entrada_invalida", { cause: "a primeira conta sai pelo Desconectar" });
+        // Só conta do Composio: um MCP registrado à mão com `--` no slug não sai por aqui (revisão do PR).
+        if ((await d.repos.composio.sessao(conector.slug))?.conectorId !== conector.id) throw new ErroDeDominio("entrada_invalida", { cause: "não é uma conta do Marketplace" });
+        const removido = await d.repos.conectores.remover(id, agora());
+        if (!removido) throw new ErroDeDominio("nao_encontrado");
+        return { ...removido, cifrada: await d.repos.composio.chave(), toolkit: partes.app };
+      });
+      if (r.contaComposio && r.cifrada) {
+        const removida = await cliente(op.decifrar(r.cifrada)).removerConta(r.contaComposio);
+        log(removida ? "info" : "aviso", "marketplace_conta_removida", { toolkit: r.toolkit, removida_no_composio: removida });
+      }
+      ctx.json(200, { ok: true, ids: { conector: id } });
     } },
   ];
 }

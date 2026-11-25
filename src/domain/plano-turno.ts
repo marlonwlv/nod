@@ -17,6 +17,7 @@ import type { Profundidade, Turno } from "../contracts/turno.ts";
 import { ORCAMENTO_RESULTADO_CHARS } from "../shared/constantes.ts";
 import { nuncaPermanente } from "./aprovacao-permanente.ts";
 import { conectorTocaDadoPessoal } from "./dado-pessoal.ts";
+import { separarChave } from "./contas-do-app.ts";
 import { ErroDeDominio } from "./erro.ts";
 import { comArquivoDoMac } from "./arquivo-do-mac.ts";
 import { resolverLocalidade } from "./localidade-turno.ts";
@@ -227,6 +228,10 @@ function ferramentaNod(nome: NomeFerramentaNod): FerramentaPlano {
 function ferramentasDeConectores(conectores: readonly Conector[], concessoes: readonly Concessao[], agenteId: string): { ferramentas: FerramentaPlano[]; servidores: ServidorPlano[] } {
   const ferramentas: FerramentaPlano[] = [];
   const servidores: ServidorPlano[] = [];
+  // ADR-196: com mais de uma conta do mesmo app ligada, a descrição de cada ferramenta diz de que conta ela é
+  // ("Gmail (pessoal)"), para o bot escolher a certa quando a pessoa diz "pelo pessoal".
+  const contasPorApp = new Map<string, number>();
+  for (const c of conectores) if (c.habilitado) { const app = separarChave(c.slug)?.app ?? c.slug; contasPorApp.set(app, (contasPorApp.get(app) ?? 0) + 1); }
   for (const c of conectores) {
     if (!c.habilitado) continue;
     const minhas = concessoes.filter((g) => g.agenteId === agenteId && g.conectorId === c.id).map((g) => g.capacidade);
@@ -234,10 +239,13 @@ function ferramentasDeConectores(conectores: readonly Conector[], concessoes: re
     if (caps.length === 0) continue;
     // definido em 2026-09-16: todo conteúdo de conector é não confiável (ADR-026), logo o servidor é 'untrusted' sempre
     servidores.push({ conectorId: c.id, nome: c.slug, trust: "untrusted", transporte: c.transporte });
+    // Só o nome da conta, sem o e-mail: o plano pode servir a um turno pedido por um colega (revisão do PR).
+    const daConta = (contasPorApp.get(separarChave(c.slug)?.app ?? c.slug) ?? 0) > 1 ? `Conta ${c.nome}. ` : null;
     for (const cap of caps) {
       const nome = `${c.slug}__${cap.nome}`;
       // ADR-068: o campo de arquivo do app (`s3key`) diz ao bot que aceita o caminho do Mac.
-      ferramentas.push({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "conector", conectorId: c.id, readOnlyHint: cap.readOnlyHint, tocaDadoPessoal: conectorTocaDadoPessoal(c), schema: comArquivoDoMac(cap.schema) });
+      const schema = comArquivoDoMac(cap.schema);
+      ferramentas.push({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "conector", conectorId: c.id, readOnlyHint: cap.readOnlyHint, tocaDadoPessoal: conectorTocaDadoPessoal(c), schema: daConta ? { ...schema, description: `${daConta}${schema.description ?? cap.descricao ?? cap.nome}` } : schema });
     }
   }
   return { ferramentas, servidores };

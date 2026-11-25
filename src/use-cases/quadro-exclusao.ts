@@ -119,7 +119,7 @@ export const decidirQuadroExclusao: CasoDeUso<{ decisaoId: string; recusar: bool
     events.push(evento(deps.escopo, { kind: "decisao_decidida", autoria, agora, conversaId: proposta.conversaId, turnoId: decisao.turnoId, dados: { decisao_id: decisao.id, tipo: "quadro_exclusao", recusada } }), ...sincronizar);
   };
   if (input.recusar) {
-    await fechar("recusada", `Quadro do ${payload.anfitriaoNome} mantido.`, true);
+    await fechar("recusada", `Quadro de ${payload.anfitriaoNome} mantido.`, true);
     return { data: { aplicado: false }, events };
   }
   const atual = travado ? await revisaoDoQuadro(deps, travado) : null;
@@ -127,9 +127,9 @@ export const decidirQuadroExclusao: CasoDeUso<{ decisaoId: string; recusar: bool
     // O quadro mudou depois do pedido (ou já foi removido): excluir seria apagar o que a pessoa não viu. Fecha como recusada.
     const antes = new Set(tarefasDa(payload.revisao));
     const novas = travado ? (await deps.repos.quadros.tarefas(travado.id)).filter((t) => !antes.has(t.id)).length : 0;
-    const texto = !travado ? `O quadro do ${payload.anfitriaoNome} já não existe: nada a excluir.`
-      : novas ? `Não excluí: o quadro do ${payload.anfitriaoNome} ganhou ${novas} ${novas === 1 ? "tarefa" : "tarefas"} depois do pedido. Peça de novo se ainda quiser.`
-        : `Não excluí: o quadro do ${payload.anfitriaoNome} mudou depois do pedido. Peça de novo se ainda quiser.`;
+    const texto = !travado ? `O quadro de ${payload.anfitriaoNome} já não existe: nada a excluir.`
+      : novas ? `Não excluí: o quadro de ${payload.anfitriaoNome} ganhou ${novas} ${novas === 1 ? "tarefa" : "tarefas"} depois do pedido. Peça de novo se ainda quiser.`
+        : `Não excluí: o quadro de ${payload.anfitriaoNome} mudou depois do pedido. Peça de novo se ainda quiser.`;
     await fechar("recusada", texto, true);
     // Sem lançar: a recusa precisa ficar gravada; a rota devolve 409 depois do commit (o molde da NOD-159).
     return { data: { aplicado: false, obsoleta: true }, events };
@@ -139,7 +139,7 @@ export const decidirQuadroExclusao: CasoDeUso<{ decisaoId: string; recusar: bool
   const r = await aplicarLoteQuadro(deps, { autor, quadro: payload.quadroId, executor: input.executor, ops: [{ tipo: "remover_quadro", bot: payload.anfitriaoNome }], exclusaoConfirmada: proposta.id, ...(input.porRegra ? { turnoId: input.turnoId ?? null, conversaId: input.conversaId ?? null } : {}) });
   if (!r.data.ok) throw new ErroDeDominio(r.data.erro === "entrada_invalida" ? "entrada_invalida" : "nao_encontrado", { cause: r.data.detalhe });
   events.push(...(r.events ?? []));
-  await fechar("confirmada", `Quadro do ${payload.anfitriaoNome} excluído. ${payload.anfitriaoNome} voltou a ser um agente comum.`, false);
+  await fechar("confirmada", `Quadro de ${payload.anfitriaoNome} excluído. ${payload.anfitriaoNome} voltou a ser um agente comum.`, false);
   log("info", "nod_quadro_excluido", { pelo_modo: input.porRegra !== undefined });
   return { data: { aplicado: true }, events };
 };

@@ -47,6 +47,21 @@ describeIntegracao("tarefas: schema e repositório (ADR-192, etapa 1)", () => {
     });
   });
 
+  it("QA-193: eventos com o mesmo criado_em (o backfill) saem na ordem do ciclo de vida, não na do uuid", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const quando = Date.parse("2026-10-01T12:00:00Z");
+      // 12 Tarefas, cada uma com a trilha gravada de trás para frente e o mesmo carimbo: o uuid sozinho acertaria 1 em 6.
+      for (let i = 0; i < 12; i += 1) {
+        const { t, th } = await m.nova(`Antiga ${i}`);
+        await m.repos.tarefas.registrarEvento({ tarefaId: t.id, tipo: "entregue", autorTipo: "agente", autorId: m.ada.agenteId, criadoEm: quando });
+        await m.repos.tarefas.registrarEvento({ tarefaId: t.id, tipo: "thread_criada", autorTipo: "sistema", autorId: PESSOA_MARLON, dados: { thread_id: th.id }, criadoEm: quando });
+        await m.repos.tarefas.registrarEvento({ tarefaId: t.id, tipo: "criada", autorTipo: "sistema", autorId: PESSOA_MARLON, criadoEm: quando });
+        expect((await m.repos.tarefas.eventos(t.id)).map((e) => e.tipo)).toEqual(["criada", "thread_criada", "entregue"]);
+      }
+    });
+  });
+
   it("Tarefa sem Thread primária não passa da checagem adiada (nada órfão chega ao COMMIT)", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);

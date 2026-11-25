@@ -150,6 +150,34 @@ describe("assentarTurno: entrega depois de o Mac cair (ADR-045)", () => {
       expect(r.events.filter((e) => e.kind === "decisao_decidida").map((e) => e.dados.regra)).toEqual([REGRA_ENTREGA_TARDIA]);
     });
 
+    it("QA-228: o turno marcou me_chame_as e a entrega chegou depois da queda — a volta marcada nasce (não some com a retomada absorvida)", async () => {
+      const c = await cenario("conversa");
+      const acordarEm = T0 + 30 * 60_000;
+      await c.deps.repos.turnos.marcarDespertar(c.turnoId, acordarEm, "a CI do PR #9", null);
+      c.passar(LEASE_MS + 20_000);
+      const [vencido] = await c.deps.repos.turnos.vencidos(c.deps.agora());
+      await interromperPorMaquina(c.deps, { turnos: [vencido!] });
+      const r = await c.entregar({ ...pronto, texto: "Volto às 03:40 para conferir a CI." });
+      expect(r.data).toMatchObject({ tardia: true, turno: { estado: "concluido" } });
+      const voltas = c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId && t.estado === "pendente");
+      expect(voltas.map((t) => [t.acordarEm, t.entradaTexto.includes("a CI do PR #9")])).toEqual([[acordarEm, true]]);
+      expect(r.events.filter((e) => e.kind === "turno_criado").map((e) => e.dados.acordar_em)).toEqual([acordarEm]);
+    });
+
+    it("QA-228: o turno deixou esperar_comando e o comando terminou enquanto ele estava caído — a entrega tardia acorda o bot", async () => {
+      const c = await cenario("conversa");
+      const espera = await c.deps.repos.esperas.criar({ turnoId: c.turnoId, agenteId: c.bot.agente.id, conversaId: c.bot.conversa.id, trabalhoId: null, maquinaId: "m", pasta: null, comando: "gh pr checks 9 --watch", motivo: "a CI do PR #9" });
+      c.passar(LEASE_MS + 20_000);
+      const [vencido] = await c.deps.repos.turnos.vencidos(c.deps.agora());
+      await interromperPorMaquina(c.deps, { turnos: [vencido!] });
+      await c.deps.repos.esperas.finalizar(espera!.id, { estado: "terminou", codigo: 0, saida: "ok", agora: c.deps.agora() });
+      const r = await c.entregar(pronto);
+      expect(r.data).toMatchObject({ tardia: true, turno: { estado: "concluido" } });
+      const voltas = c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId && t.estado === "pendente");
+      expect(voltas).toHaveLength(1);
+      expect(voltas[0]!.entradaTexto).toContain("gh pr checks 9");
+    });
+
     it("com retomada já na fila: fica como hoje — turno interrompido, fala parcial, retomada intacta", async () => {
       const c = await cenario("conversa");
       // No teto da mensagem (lote B): sem a volta automática, a retomada é a do Retomar, como antes.

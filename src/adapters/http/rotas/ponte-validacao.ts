@@ -492,7 +492,10 @@ export function entrega(v: unknown, machineId: string, agora: number = Date.now(
 export function relatoEspera(v: unknown): RelatoEspera {
   const r = objeto(v);
   const id = uuid(r.id);
-  if (r.tipo === "iniciou") return { id, tipo: "iniciou" };
+  if (r.tipo === "iniciou") {
+    exigir(r.relancada === undefined || typeof r.relancada === "boolean");
+    return typeof r.relancada === "boolean" ? { id, tipo: "iniciou", relancada: r.relancada } : { id, tipo: "iniciou" };
+  }
   if (r.tipo === "caiu") {
     exigir(r.motivo === "pasta_ausente" || r.motivo === "nao_iniciou");
     return { id, tipo: "caiu", motivo: r.motivo };

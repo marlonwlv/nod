@@ -10,7 +10,7 @@ import { quemPediu } from "../../lib/dono.ts";
 import { agente } from "../../telas/trabalhos.ts";
 import {
   botsDaNovaTarefa, contasDoBot, esperasDaConversa, GRUPOS_DO_BOT, GRUPOS_DO_ESTADO, ICONE_DO_GRUPO, iconeDaTarefa, linhasDosBots, origemNaTela,
-  comArquivadas, htmlDasArquivadas, passoDaTarefa, plural, prontas, trabalhosDaTela, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
+  comArquivadas, htmlDasArquivadas, passoDaTarefa, plural, prontas, semBotQueSaiu, trabalhosDaTela, SETA_CIMA, SETA_DIREITA, SETA_MENU, TAREFAS_A_VISTA, tarefasDoBot, tempoDaTarefa, tempoDoBot, tituloDoBot, type LinhaDoBot, type TelaTarefas,
 } from "../../telas/tela-tarefas.ts";
 import { useFocoQueNaoCai } from "../use-foco-que-nao-cai.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
@@ -47,7 +47,7 @@ export function TelaTarefas({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesD
   // QA-160: o "+ N tarefas" (que troca a vista) e a tarefa que muda de grupo ou some com dado novo não deixam o foco no <body>.
   const raiz = useRef<HTMLElement | null>(null);
   useFocoQueNaoCai(raiz, { item: ".tf-tarefa-bot[data-id], .tf-tarefa", titulo: ".tf-cab h1", chave: "data-id" });
-  const tela: TelaTarefas = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" };
+  const tela: TelaTarefas = semBotQueSaiu(estado, estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" });
   if (!estado.trabalhos) return <section ref={raiz} className="tela-tarefas" aria-label="Tarefas"><p className="tf-vazio">carregando…</p></section>;
   const porBot = temDonos(estado) && !tela.filtro;
   const todos = trabalhosDaTela(estado).filter((t) => !tela.bot || t.agenteId === tela.bot);

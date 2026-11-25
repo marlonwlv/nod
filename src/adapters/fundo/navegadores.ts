@@ -12,7 +12,7 @@ import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, domi
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, mensagemDoEnsinado, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
-import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
+import { campoEhSecreto, JS_CAMPO_PREENCHIDO, JS_SEGREDO_MARCADO, paginaSemFragmento, redigirArvore, segredoAindaNaPagina, segredoEmAlgumaAba } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, viewportDeQuemAssiste, viewportMudouMuito, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
@@ -110,6 +110,8 @@ type Estado = {
   url: string;
   /** L3: a URL em que o nod pôs um segredo; enquanto a página não muda, leitura, print e eval travam. */
   urlDoSegredo: string | null;
+  /** As páginas (URL sem fragmento) em que o nod já pôs um segredo: voltar a uma delas com o campo cheio religa a trava (QA-210). */
+  paginasComSegredo: Set<string>;
   /** O Chrome deste bot conta no limite de vivos. */
   vivo: boolean;
   /** D0: as URLs das abas quando o Chrome pausou; `retomar` as reabre. */
@@ -417,7 +419,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       return e;
     }
     const novo: Estado = {
-      escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
+      escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, paginasComSegredo: new Set(), vivo: false,
       abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, siteAntesDoGoogle: null, loginEmCurso: null, captura: null, ultimoTexto: null,
       tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null, assumidoEm: null, entradaPessoaEm: null, turnoEsperando: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
@@ -620,15 +622,41 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     return { papel: PAPEIS_DE_ACAO_NO_CSS, nome: nome.slice(0, 200), host };
   }
 
-  /** Confere o segredo na página contra a URL de agora; a URL mudou, a trava sai. */
+  /** L3: o nod pôs um segredo nesta página; a página fica lembrada para a volta pelo histórico (QA-210). */
+  function travarSegredo(est: Estado, url: string): void {
+    est.urlDoSegredo = url;
+    est.paginasComSegredo.add(paginaSemFragmento(url));
+    mudar(est, { segredoNaPagina: true });
+  }
+
+  /**
+   * Confere o segredo na página contra a URL de agora: trava na aba que está nela. Revisto em 2026-11-23 (QA-204): abrir
+   * outra aba e voltar soltava a trava e o `navegador_avaliar` lia a senha que o cofre preencheu; agora ela só sai quando
+   * nenhuma aba está mais na página do segredo (sem a lista das abas, fica). Revisto em 2026-11-25 (QA-210): abrir outra
+   * URL e voltar pelo histórico trazia a página do bfcache com a senha no campo e a trava já tinha saído; numa página em
+   * que o nod já pôs segredo, a trava volta se algum campo ainda tem valor (sem a resposta, volta também).
+   */
   async function segredoTrava(c: Contexto): Promise<boolean> {
-    if (!c.est.urlDoSegredo) return false;
-    const url = await c.motor.url(sessao(c.plano.agenteId)).catch(() => c.est.url);
+    if (!c.est.urlDoSegredo && c.est.paginasComSegredo.size === 0) return false;
+    const s = sessao(c.plano.agenteId);
+    const url = await c.motor.url(s).catch(() => c.est.url);
     c.est.url = url;
-    if (segredoAindaNaPagina(c.est.urlDoSegredo, url)) return true;
-    c.est.urlDoSegredo = null;
-    mudar(c.est, { segredoNaPagina: false });
-    return false;
+    if (c.est.urlDoSegredo) {
+      if (segredoAindaNaPagina(c.est.urlDoSegredo, url)) return true;
+      const abas = await c.motor.abas(s).catch(() => null);
+      if (abas && !segredoEmAlgumaAba(c.est.urlDoSegredo, abas)) {
+        c.est.urlDoSegredo = null;
+        mudar(c.est, { segredoNaPagina: false });
+      }
+    }
+    // A URL mudou, mas a página de agora pode ainda guardar o segredo: a página lembrada voltou pelo histórico com o campo
+    // cheio (QA-210), ou a mesma página trocou a URL sem recarregar (pushState de SPA) e o campo que o nod marcou segue
+    // com valor (QA-214). Sem resposta: trava (só a página lembrada fica travada pela URL).
+    const lembrada = c.est.paginasComSegredo.has(paginaSemFragmento(url));
+    const preenchido = await c.motor.avaliar(s, lembrada ? JS_CAMPO_PREENCHIDO : JS_SEGREDO_MARCADO).catch(() => null);
+    if (preenchido === false) return false;
+    if (preenchido === true || lembrada) travarSegredo(c.est, url);
+    return true;
   }
 
   async function atualizarAbasDe(est: Estado, motor: MotorNavegador): Promise<void> {
@@ -648,7 +676,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       notarUrl(est, ativa.url);
       est.refs = null; est.refsPorTamanho = false;
       est.campo = null;
-      if (est.urlDoSegredo && !segredoAindaNaPagina(est.urlDoSegredo, ativa.url)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
+      if (est.urlDoSegredo && !segredoEmAlgumaAba(est.urlDoSegredo, abas)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
       if (/^https?:/i.test(ativa.url)) registrar(est, { tipo: "abriu", url: ativa.url });
       oferecerGuardar(est, ativa.url);
     }
@@ -810,7 +838,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   /** Depois de preencher: a trava do segredo (L3) e o pedido fechado com a frase para o bot (sem valor nenhum). */
   async function depoisDePreencher(est: Estado, decisaoId: string, url: string, r: { usuario: boolean; senha: boolean }): Promise<void> {
     const site = siteLegivel(hostDe(url));
-    if (r.senha) { est.urlDoSegredo = url; mudar(est, { segredoNaPagina: true }); }
+    if (r.senha) travarSegredo(est, url);
     await fecharPedido(est, decisaoId, r.senha ? LOGIN_PREENCHIDO(site) : SO_USUARIO(site));
   }
 
@@ -1445,8 +1473,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     /** L3: o nod pôs um segredo na página (cofre → campo); leitura, print e eval travam até a URL mudar. */
     marcarSegredo(escopo: Escopo, agenteId: string, url: string): void {
       const est = estadoDe(escopo, agenteId);
-      est.urlDoSegredo = url;
-      mudar(est, { segredoNaPagina: true });
+      travarSegredo(est, url);
     },
     /** A porta do WebSocket de quadros do Chrome do bot (a próxima etapa repassa à web); null sem Chrome vivo. */
     async portaDoStream(escopo: Escopo, agenteId: string): Promise<number | null> {
@@ -1759,8 +1786,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (!ehFalhaNavegador(e)) throw e;
         throw new ErroDeDominio("estado_invalido", { cause: "nao_preencheu" });
       }
-      est.urlDoSegredo = url;
-      mudar(est, { segredoNaPagina: true });
+      travarSegredo(est, url);
       await fecharPedido(est, decisaoId, CODIGO_ENVIADO);
       return est.vista;
     },

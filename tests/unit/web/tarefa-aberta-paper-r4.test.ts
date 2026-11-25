@@ -17,10 +17,12 @@ const run = (n: number, estado: RunDaTarefa["estado"]): RunDaTarefa => ({ turnoI
 const dados = (o: Partial<DadosDaLinha>): DadosDaLinha => ({ t, colunas: [{ id: "afazer", nome: "A fazer" }, { id: "fazendo", nome: "Fazendo" }] as never, comentarios: [], runs: [], agente, agora, nomes: ["Dante", "Gil"], respondendo: null, editando: null, abertos: new Set(), passos: () => null, chips: () => "", pendente: null, criadaPor: null, criadaEm: null, carga: "ok", ...o });
 
 describe("tela 18b do Paper (rodada 4)", () => {
-  it("Pedida por: quem pediu e o bot que criou ('Você, pela Ada'); sem quem pediu, nada", () => {
+  it("Pedida por: quem pediu e o bot que criou ('Você, via Ada'); sem quem pediu, nada", () => {
     expect(pedidaPor({ pedidoPorNome: "você" }, "Ada", ["Ada", "Dante"])).toEqual({ quem: "Você", via: "Ada", voce: true });
+    expect(pedidaPor({ pedidoPorNome: null }, "Você, via Ada", ["Ada"])).toEqual({ quem: "Você", via: "Ada", voce: true });
+    expect(pedidaPor({ pedidoPorNome: "Ana" }, "Ana, via Ada", [])).toEqual({ quem: "Ana", via: "Ada", voce: false });
+    // QA-185: o "pela" gravado antes da troca para "via" continua lido.
     expect(pedidaPor({ pedidoPorNome: null }, "Você, pela Ada", ["Ada"])).toEqual({ quem: "Você", via: "Ada", voce: true });
-    expect(pedidaPor({ pedidoPorNome: "Ana" }, "Ana, pela Ada", [])).toEqual({ quem: "Ana", via: "Ada", voce: false });
     // "Ana" criou pela tela: não é bot, não vira "pela Ana".
     expect(pedidaPor({ pedidoPorNome: "você" }, "Ana", ["Ada"])).toEqual({ quem: "Você", via: null, voce: true });
     expect(pedidaPor({ pedidoPorNome: null }, "Ada", ["Ada"])).toBeNull();
@@ -50,7 +52,7 @@ describe("tela 18b do Paper (rodada 4)", () => {
 
   it("a linha do tempo: 'Atividade N', o evento do quadro com 'acionou', a criação e o 'Você' com as iniciais", () => {
     const tt = { ...t, movimentos: [{ id: "m1", tarefaId: "t1", tipo: "mover", de: "afazer", para: "fazendo", agenteAntes: "dante", agenteDepois: "dante", autor: { tipo: "pessoa" }, motivo: null, loteId: "l", acionou: true, desfeitoEm: null, criadoEm: local(10, 2), autorNome: null, agenteAntesNome: "Dante", agenteDepoisNome: "Dante" }] } as unknown as TarefaDto;
-    const h = linhaDoTempo(dados({ t: tt, comentarios: [com("c1", { texto: "@Gil olha", acionados: ["gil"] })], criadaPor: "Você, pela Ada", criadaEm: local(9, 14, 1), criadaResumo: "criou a tarefa a partir das notas da call", voceIniciais: "MW" }));
+    const h = linhaDoTempo(dados({ t: tt, comentarios: [com("c1", { texto: "@Gil olha", acionados: ["gil"] })], criadaPor: "Você, via Ada", criadaEm: local(9, 14, 1), criadaResumo: "criou a tarefa a partir das notas da call", voceIniciais: "MW" }));
     expect(h).toContain('Atividade <span class="ta-sec-n">3</span>');
     expect(h).toContain('<p class="ta-ev-txt">Ada criou o card a partir das notas da call.</p>');
     expect(h).toContain('<p class="ta-ev-txt">Moveu de A fazer para Fazendo.</p><p class="ta-ev-sub">acionou Dante</p>');

@@ -172,7 +172,10 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
     }
     case "excluir_time": {
       // NOD-437: o card de "Excluir o time Produção?" aprovado roda o mesmo executor da tela (DELETE /times/:id).
-      const r = await EXECUTORES_TIMES["times.excluir"](deps, { timeId: a.time_id ?? "", ...(ctx.pelaPessoa ? {} : { autoria: autoriaDoAgente(deps.escopo, ctx.nodId) }) });
+      // QA r179: o time que saiu antes do ok (a tela, outro card) volta com a causa legível, não o nao_encontrado cru.
+      const r = await EXECUTORES_TIMES["times.excluir"](deps, { timeId: a.time_id ?? "", ...(ctx.pelaPessoa ? {} : { autoria: autoriaDoAgente(deps.escopo, ctx.nodId) }) }).catch((e: unknown) => {
+        throw ehErroDeDominio(e) && e.codigo === "nao_encontrado" && e.cause === "time" ? new ErroDeDominio("nao_encontrado", { cause: TIME_JA_EXCLUIDO }) : e;
+      });
       // Revisão 1 (M6): o recibo diz quem foi de verdade para Sem time agora, não quem estava quando o card abriu.
       return { botId: null, nome: r.data.time.nome, events: r.events ?? [], membros: r.data.bots.map((b) => b.nome) };
     }
@@ -240,6 +243,8 @@ async function executarEmOrdem(
       if (feito.loteId) a.lote_id = feito.loteId;
       // QA de 2026-10-07: no duplicar o card e o desfecho falam do ORIGINAL ("Duplicar Dev 1"); a cópia só vira alvo de "@ref".
       if (a.tipo === "criar") a.alvoNome = feito.nome;
+      // QA r179: o time renomeado antes do ok sai do recibo com o nome de agora (o card guardava o de quando abriu).
+      if (a.tipo === "excluir_time") a.alvoNome = feito.nome;
       events.push(...feito.events);
     } catch (e) {
       if (!ehErroDeDominio(e)) throw e;
@@ -265,9 +270,10 @@ async function linhaDoPedidoViaBot(deps: Deps, agenteId: string): Promise<string
 /** O que só outro bot põe no card (gerir_times, gerir_acessos): o recibo diz quem pediu e por qual bot. */
 const VEM_DE_OUTRO_BOT: ReadonlySet<AcaoNoLote["tipo"]> = new Set(["excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"]);
 
+const TIME_JA_EXCLUIDO = "o time já tinha sido excluído";
 const CAUSAS_DO_RESTAURAR: ReadonlySet<string> = new Set(["igual_a_atual", "versao_redigida", "perfil_mudou", "nome_repetido"]);
 /** QA-106: as causas dos executores de acesso que já são a frase de recuperação para a pessoa. */
-const CAUSAS_DO_ACESSO: ReadonlySet<string> = new Set(["conecte o app antes de dar acesso", "o app não tem ferramenta para esse nível", "o Desfazer vale por 24 horas", "lote já desfeito"]);
+const CAUSAS_DO_ACESSO: ReadonlySet<string> = new Set(["conecte o app antes de dar acesso", "o app não tem ferramenta para esse nível", "o Desfazer vale por 24 horas", "lote já desfeito", TIME_JA_EXCLUIDO]);
 
 /**
  * QA-119: a versão antiga traz de volta um nome que outro bot vivo pegou depois (Vera vira Lia, nasce outra Vera,
@@ -380,7 +386,7 @@ export const decidirLoteDeBots: CasoDeUso<{ decisaoId: string; recusar: boolean;
   const viaBot = feitas.some((a) => VEM_DE_OUTRO_BOT.has(a.tipo)) ? await linhaDoPedidoViaBot(deps, proposta.agenteId) : null;
   const texto = input.recusar
     ? `Recusado: ${recusadas.length} ${recusadas.length === 1 ? "mudança" : "mudanças"} nos seus bots.`
-    : [`${feitas.length} de ${daVez.length} ${daVez.length === 1 ? "mudança feita" : "mudanças feitas"}.`, ...feitas.map((a) => `✓ ${linhaDaAcao(a)}${a.aviso ? ` (${a.aviso})` : ""}`), ...falhas.map((a) => `✗ ${linhaDaAcao(a)} — não deu certo (${a.erro ?? "falhou"})`), ...recusadas.map((a) => `– ${linhaDaAcao(a)} (desmarcada)`), ...(viaBot ? [viaBot] : [])].join("\n");
+    : [`${feitas.length} de ${daVez.length} ${daVez.length === 1 ? "mudança feita" : "mudanças feitas"}.`, ...feitas.map((a) => `✓ ${linhaDaAcao(a)}${a.aviso ? ` (${a.aviso})` : ""}`), ...falhas.map((a) => `✗ ${a.tipo === "excluir_time" ? `Excluir o time ${a.alvoNome}` : linhaDaAcao(a)} — não deu certo (${a.erro ?? "falhou"})`), ...recusadas.map((a) => `– ${linhaDaAcao(a)} (desmarcada)`), ...(viaBot ? [viaBot] : [])].join("\n");
   const msg = await deps.repos.mensagens.criar({ conversaId: proposta.conversaId, autoria, kind: "sistema", assunto: "aprovacao.recibo", texto, confianca: "confiavel" });
   events.push(evento(deps.escopo, { kind: "decisao_decidida", autoria, agora, conversaId: proposta.conversaId, turnoId: decidida.turnoId, dados: { decisao_id: decidida.id, tipo: "lote_bots", recusada: input.recusar } }));
   if (msg) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: proposta.conversaId, dados: { mensagem_id: msg.id, kind: "sistema" } }));

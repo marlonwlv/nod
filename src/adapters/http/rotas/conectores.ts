@@ -91,6 +91,21 @@ export function rotasConectores(deps: DepsRotasConectores): Rota[] {
       },
     },
     {
+      /**
+       * ADR-196 §4: "Renomear" troca só o nome que aparece ("Gmail (Família)"). O slug fica: é o nome das ferramentas,
+       * das regras permanentes e do histórico. Uma linha, 1 a 80 caracteres visíveis; só a dona (o repositório confere).
+       */
+      metodo: "PATCH", acao: "apps.renomear_conta", padrao: /^\/conectores\/(?<id>[^/]+)\/nome$/,
+      async handler(ctx) {
+        const body = await ctx.corpo() as { nome?: unknown } | null;
+        const nome = typeof body?.nome === "string" ? body.nome.trim() : "";
+        if (nome.length < 1 || nome.length > 80 || /[\p{Cc}\p{Cf}]/u.test(nome)) throw new ErroDeDominio("entrada_invalida");
+        const conector = await deps.dentro(ctx.escopo, (d) => d.repos.conectores.renomear(ctx.params.id ?? "", nome));
+        if (!conector) throw new ErroDeDominio("nao_encontrado");
+        ctx.json(200, { ok: true, ids: { conector: conector.id }, conector: conectorPublico(conector) });
+      },
+    },
+    {
       metodo: "PATCH", acao: "apps.credenciais", padrao: /^\/conectores\/(?<id>[^/]+)\/credenciais$/,
       async handler(ctx) {
         const c = await ctx.corpo() as { env?: unknown } | null;

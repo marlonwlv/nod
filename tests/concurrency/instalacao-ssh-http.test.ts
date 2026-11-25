@@ -252,6 +252,74 @@ describeIntegracao("instalação por SSH pela tela e pela ponte (NOD-94, HTTP re
     });
   });
 
+  it("QA r211: a sucessão leva também o Desfazer das falas de antes e o esperar_comando em curso para a chave nova", async () => {
+    const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-com-desfazer" });
+    const nova = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-com-desfazer" });
+    const ids = await srv.db.begin(async (tx) => {
+      await vincularEscopo(tx, srv.pessoa);
+      const base = await agenteComConversa(tx, srv.pessoa, { nome: "Desfaz depois" });
+      const turno = async (estado: string) => (await tx<{ id: string }[]>`
+        insert into turnos (tenant_id, owner_id, conversa_id, agente_id, origem, estado, prazo_em, entrada_texto, entrada_confianca, modelo)
+        values (${srv.pessoa.tenantId}, ${srv.pessoa.pessoaId}, ${base.conversaId}, ${base.agenteId}, 'conversa', ${estado}, now() + interval '1 day', 'pedido', 'confiavel', 'sonnet')
+        returning id`)[0]!.id;
+      const tCheck = await turno("concluido");
+      const tEspera = await turno("despachando");
+      await base.repos.checkpoints.criar({ agenteId: base.agenteId, conversaId: base.conversaId, turnoId: tCheck, maquinaId: velha.dados.id, pastaDoBot: "Desfaz depois", mensagemId: null, arquivos: [{ caminho: "~/nod/Desfaz depois/a.md", acao: "mudado" as const }], total: 1 }, Date.now());
+      const e = await base.repos.esperas.criar({ agenteId: base.agenteId, conversaId: base.conversaId, trabalhoId: null, turnoId: tEspera, maquinaId: velha.dados.id, pasta: null, comando: "npm test", motivo: "esperar os testes" });
+      return { ...base, tCheck, tEspera, esperaId: e!.id };
+    });
+    try {
+      const r = await maquina("aposentar", { sucessora: nova.chave }, velha.chave);
+      expect(await r.json()).toEqual({ ok: true, revogou: true });
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, srv.pessoa);
+        const repos = criarRepos(tx, srv.pessoa);
+        // A pessoa pede o Desfazer de uma fala de antes do repareamento: quem puxa é a chave nova (o mesmo computador).
+        expect((await repos.checkpoints.pedirDesfazer(ids.tCheck, false, Date.now())).ok).toBe(true);
+        expect((await repos.checkpoints.paraAMaquina(nova.dados.id)).map((x) => x.turnoId)).toEqual([ids.tCheck]);
+        expect((await repos.esperas.paraAMaquina(nova.dados.id, Date.now())).map((x) => x.id)).toEqual([ids.esperaId]);
+      });
+    } finally {
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, srv.pessoa);
+        await tx`delete from checkpoints where agente_id = ${ids.agenteId}`;
+        await tx`delete from esperas where agente_id = ${ids.agenteId}`;
+        await tx`delete from turnos where agente_id = ${ids.agenteId}`;
+        await tx`delete from conversas where id = ${ids.conversaId}`;
+        await tx`delete from agentes where id = ${ids.agenteId}`;
+      });
+    }
+  });
+
+  it("QA r212: a sucessão leva o computador da pessoa (máquina, hospedeira e saída pendente) para a chave nova", async () => {
+    const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "linux-do-computador" });
+    const nova = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "linux-do-computador" });
+    const outra = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "outra-maquina" });
+    const pc = await srv.db.begin(async (tx) => {
+      await vincularEscopo(tx, srv.pessoa);
+      await tx`update computadores set arquivado_em = now() where owner_id = ${srv.pessoa.pessoaId} and modelo = 'por_pessoa' and arquivado_em is null`;
+      const c = await criarRepos(tx, srv.pessoa).computadores.obterDaPessoa(velha.dados.id);
+      await tx`update computadores set hospedeira_id = ${velha.dados.id}, saidas_pendentes_de = ${[outra.dados.id, velha.dados.id]}::uuid[] where id = ${c.id}`;
+      return c;
+    });
+    try {
+      const r = await maquina("aposentar", { sucessora: nova.chave }, velha.chave);
+      expect(await r.json()).toEqual({ ok: true, revogou: true });
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, srv.pessoa);
+        const depois = await criarRepos(tx, srv.pessoa).computadores.daPessoa();
+        // Na main ficava na chave revogada: escolherMaquina devolve a gravada e o computador dava "sem contato" para sempre.
+        expect(depois).toMatchObject({ id: pc.id, maquinaId: nova.dados.id, hospedeiraId: nova.dados.id, saidasPendentesDe: [outra.dados.id, nova.dados.id] });
+      });
+    } finally {
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, srv.pessoa);
+        await tx`delete from computadores where id = ${pc.id}`;
+        await tx`update maquina_tokens set revogado_em = now() where id = ${outra.dados.id}`;
+      });
+    }
+  });
+
   it("sucessão de chave: a nova de OUTRA pessoa (trocar de conta) é recusada e a antiga fica viva", async () => {
     const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-de-dois" });
     const ana = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_ANA };

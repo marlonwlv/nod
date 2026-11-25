@@ -127,7 +127,7 @@ export function autorDoComentario(c: ComentarioDto, agente: AgenteDoQuadro): { a
   // ADR-162: a explicação do próprio quadro (a espera que ele deixou com você).
   if (c.autor.tipo === "sistema") return { avatar: anel("Q", "Quadro", false), nome: "Quadro" };
   const a = agente(c.autor.agenteId) ?? { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Bot", false), nome: c.autorNome ?? "Bot" };
-  return c.pedidoPor ? { avatar: a.avatar, nome: `Você, pela ${a.nome}` } : a;
+  return c.pedidoPor ? { avatar: a.avatar, nome: `Você, via ${a.nome}` } : a;
 }
 
 type Item = { em: number; ordem: number; html: string };

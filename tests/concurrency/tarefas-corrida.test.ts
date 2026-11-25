@@ -144,4 +144,56 @@ describeIntegracao("Tarefa: corridas com duas conexões (ADR-192)", () => {
     expect(["arquivada", "em_andamento"]).toContain(final.estado);
     if (final.estado === "arquivada") expect(tipos.at(-1)).toBe("arquivada");
   });
+  it("QA-194: Resolver sem escolha concorrendo com uma fala ainda não commitada não deixa a Tarefa resolvida com turno vivo", async () => {
+    const { tarefaId, trabalhoId } = await entregue();
+    // A fala da pessoa entra numa transação que segura o commit: o Resolver chega no meio, sem escolha de turno vivo.
+    let soltar!: () => void;
+    const segura = new Promise<void>((r) => { soltar = r; });
+    let falou!: () => void;
+    const falouAntes = new Promise<void>((r) => { falou = r; });
+    const fala = escopado(async (trx) => {
+      const r = await continuarTarefa(depsDe(trx), { tarefaId, texto: "inclua o trimestre anterior" });
+      falou();
+      await segura;
+      return r;
+    });
+    await falouAntes;
+    const resolver = escopado((trx) => resolverTarefa(depsDe(trx), { tarefaId }));
+    await new Promise((r) => setTimeout(r, 300));
+    soltar();
+    const [c, r] = await Promise.allSettled([fala, resolver]);
+    expect(c.status).toBe("fulfilled");
+    const vivos = await escopado((trx) => trx<{ n: number }[]>`select count(*)::int as n from turnos where trabalho_id = ${trabalhoId} and estado in ('pendente', 'despachando')`);
+    const final = await estadoDe(tarefaId);
+    // Ou o Resolver recusa (a tela pergunta "parar ou deixar terminar"), ou, se resolveu, não sobrou execução viva.
+    if (final.estado === "resolvida") expect(vivos[0]!.n).toBe(0);
+    else expect(r.status === "rejected" && String(r.reason)).toContain("entrada_invalida");
+  });
+  it("QA-194: Resolver e parar concorrendo com uma fala ainda não commitada não deixa a Tarefa resolvida com turno vivo", async () => {
+    const { tarefaId, trabalhoId } = await entregue();
+    // A fala da pessoa entra numa transação que segura o commit: o Resolver chega no meio, sem escolha de turno vivo.
+    let soltar!: () => void;
+    const segura = new Promise<void>((r) => { soltar = r; });
+    let falou!: () => void;
+    const falouAntes = new Promise<void>((r) => { falou = r; });
+    const fala = escopado(async (trx) => {
+      const r = await continuarTarefa(depsDe(trx), { tarefaId, texto: "inclua o trimestre anterior" });
+      falou();
+      await segura;
+      return r;
+    });
+    await falouAntes;
+    const resolver = escopado((trx) => resolverTarefa(depsDe(trx), { tarefaId, turnoVivo: "parar" }));
+    await new Promise((r) => setTimeout(r, 300));
+    soltar();
+    const [c, r] = await Promise.allSettled([fala, resolver]);
+    expect(c.status).toBe("fulfilled");
+    const vivos = await escopado((trx) => trx<{ n: number }[]>`select count(*)::int as n from turnos where trabalho_id = ${trabalhoId} and estado in ('pendente', 'despachando')`);
+    const final = await estadoDe(tarefaId);
+    // Ou o Resolver recusa (a tela pergunta "parar ou deixar terminar"), ou, se resolveu, não sobrou execução viva.
+    expect(r.status).toBe("fulfilled");
+    expect(final.estado).toBe("resolvida");
+    expect(vivos[0]!.n).toBe(0);
+  });
 });
+

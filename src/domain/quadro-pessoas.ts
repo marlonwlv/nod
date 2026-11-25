@@ -2,7 +2,7 @@ import type { ModoConversa, OpQuadro } from "../contracts/quadro.ts";
 
 /**
  * O quadro com várias pessoas (definido em 2026-11-02, NOD-443, ADR-143). Puro: quem decide a pendência (D5), quem pode
- * desfazer (D9), o que cada um pode pedir em cada modo (D3, D7), a assinatura "Ana, pela Ada" (padrão da NOD-430) e o
+ * desfazer (D9), o que cada um pode pedir em cada modo (D3, D7), a assinatura "Ana, via Ada" (padrão da NOD-430) e o
  * mural de Atividade (D1, D8). Quem lê a participação e abre o escopo da dona é src/use-cases/quadro-pessoas.ts.
  */
 
@@ -44,10 +44,10 @@ export function podeDesfazer(i: { lotePedidoPor: string | null | undefined; quem
   return (i.lotePedidoPor ?? i.donaId) === i.quemPede;
 }
 
-/** "Ana, pela Ada" (pelo bot), "Ana" (pela tela); para quem lê, "Você". */
+/** "Ana, via Ada" (pelo bot), "Ana" (pela tela); para quem lê, "Você". */
 export function assinatura(i: { pessoaId: string; pessoaNome: string; botNome: string | null; quemLe: string }): string {
   const quem = i.pessoaId === i.quemLe ? "Você" : i.pessoaNome;
-  return i.botNome ? `${quem}, pela ${i.botNome}` : quem;
+  return i.botNome ? `${quem}, via ${i.botNome}` : quem;
 }
 
 /** O lote como o mural o lê (só o que importa para agrupar e assinar). */

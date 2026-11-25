@@ -130,12 +130,12 @@ export const gerirApps: CasoNod<Deps, "gerir_apps"> = async (deps, input) => {
       // ADA-9 (revisão 1 do #648, M2), definido em 2026-11-04: o quadro de outro bot se cria com quadro = o nome dele; sem isso, criar_quadro faria um no seu.
       const semQuadro = nomeDoAlvo === null
         ? "Nada mudou: se a pessoa quiser, crie o quadro com gerir_quadro criar_quadro e ordene de novo."
-        : `Nada mudou: se a pessoa quiser, crie o quadro do ${nomeDoAlvo} com gerir_quadro criar_quadro e quadro: "${nomeDoAlvo}" (não no seu) e ordene de novo.`;
+        : `Nada mudou: se a pessoa quiser, crie o quadro de ${nomeDoAlvo} com gerir_quadro criar_quadro e quadro: "${nomeDoAlvo}" (não no seu) e ordene de novo.`;
       const r = await ordenarPaginas(deps, { ...comum, ordem: input.ordem, pagina: input.pagina, posicao: input.posicao, antes_de: input.antes_de, depois_de: input.depois_de, semQuadro });
       if (!r.data.ok) return recusa(r.data, r.events);
       // ADA-9, definido em 2026-11-04: a pessoa pede a "view padrão"; o resultado diz qual página abre primeiro agora, para o bot contar sem adivinhar.
       const casa = nome(r.data.paginas, homeDoBot(r.data.paginas.ordem));
-      return { data: resumo(r.data.paginas, `Feito. Ao abrir ${nomeDoAlvo === null ? "o bot" : `o ${nomeDoAlvo}`}, ${casa} aparece primeiro (a tela inicial, a view padrão). Conte isso em uma frase.`), events: r.events };
+      return { data: resumo(r.data.paginas, `Feito. Ao abrir ${nomeDoAlvo === null ? "o bot" : nomeDoAlvo}, ${casa} aparece primeiro (a tela inicial, a view padrão). Conte isso em uma frase.`), events: r.events };
     }
     case "remover": {
       if (!conversa) return recusa({ ok: false, erro: "entrada_invalida", detalhe: SO_NA_CONVERSA });

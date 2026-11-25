@@ -97,6 +97,37 @@ describeIntegracao("rotas /tarefas (ADR-192, etapa 3)", () => {
     });
   });
 
+  it("QA-192: a frente que só espera a volta marcada também é viva — Resolver pede a escolha e 'parar' a cancela", async () => {
+    await noTeste(async (trx) => {
+      const ada = await agenteComConversa(trx, MARLON, { nome: "Ada" });
+      const s = await servidor.entrar("marlon");
+      const abrir = async (texto: string) => {
+        const c = (await (await servidor.chamar(s, "POST", `/agentes/${ada.agenteId}/tarefas`, { texto })).json()) as { tarefa: TarefaDto; turnoId: string };
+        // O turno vira a volta marcada para daqui a 1 h (me_chame_as dentro da frente): nada despachando nem na fila.
+        await trx`update turnos set acordar_em = now() + interval '1 hour' where id = ${c.turnoId}`;
+        return c;
+      };
+      const estadoDo = async (turnoId: string) => (await trx<{ estado: string }[]>`select estado from turnos where id = ${turnoId}`)[0]!.estado;
+
+      const a = await abrir("Me lembre amanhã do contrato");
+      // A tela mostra "Resolver e parar" / "deixar terminar": o servidor também exige a escolha.
+      expect((await servidor.chamar(s, "POST", `/tarefas/${a.tarefa.id}/resolver`, {})).status).toBe(400);
+      const parada = await servidor.chamar(s, "POST", `/tarefas/${a.tarefa.id}/resolver`, { turnoVivo: "parar" });
+      expect(parada.status).toBe(200);
+      expect(((await parada.json()) as { tarefa: TarefaDto }).tarefa.estado).toBe("resolvida");
+      // Antes: 200 e a volta seguia pendente — em 1 h o bot voltava a trabalhar na Tarefa já resolvida.
+      expect(await estadoDo(a.turnoId)).toBe("interrompido");
+
+      const b = await abrir("Me lembre na sexta");
+      expect((await servidor.chamar(s, "POST", `/tarefas/${b.tarefa.id}/arquivar`, { turnoVivo: "parar" })).status).toBe(200);
+      expect(await estadoDo(b.turnoId)).toBe("interrompido");
+
+      const c = await abrir("Me lembre no mês que vem");
+      expect((await servidor.chamar(s, "POST", `/tarefas/${c.tarefa.id}/resolver`, { turnoVivo: "manter" })).status).toBe(200);
+      expect(await estadoDo(c.turnoId)).toBe("pendente");
+    });
+  });
+
   it("Resolver com 'parar' para o turno; Reabrir volta a em andamento; Arquivar esconde e Desarquivar devolve", async () => {
     await noTeste(async (trx) => {
       const ada = await agenteComConversa(trx, MARLON, { nome: "Ada" });

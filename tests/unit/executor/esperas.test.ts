@@ -54,7 +54,7 @@ describe("esperas na máquina (ADR-099, parte 2)", () => {
     const { relatos, esperas } = ligar([{ id: "e1", comando: "sleep 1; pwd; echo ok", pasta: "Ada/ci", iniciada: false }]);
     expect(await esperarAte(() => relatos.some((r) => r.tipo === "terminou"))).toBe(true);
     esperas.parar();
-    expect(relatos[0]).toEqual({ id: "e1", tipo: "iniciou" });
+    expect(relatos[0]).toEqual({ id: "e1", tipo: "iniciou", relancada: false });
     const fim = relatos.find((r) => r.tipo === "terminou");
     expect(fim).toMatchObject({ id: "e1", tipo: "terminou", codigo: 0 });
     if (fim?.tipo === "terminou") {
@@ -62,6 +62,28 @@ describe("esperas na máquina (ADR-099, parte 2)", () => {
       expect(fim.saida).toContain(join("nod", "Ada", "ci"));
     }
     expect(esperasVivas()).toEqual([]);
+  });
+
+  it("QA-224: o \"iniciou\" sem resposta é repetido como repetição (relancada: false), não como outro relançamento", async () => {
+    for (const iniciada of [false, true]) {
+      const id = `e-qa224-${iniciada}`;
+      const home = casa();
+      casas.push(home);
+      const relatos: RelatoEspera[] = [];
+      let perder = true;
+      const ponte = {
+        async esperas(): Promise<EsperaParaRodar[] | null> { return [{ id, comando: "sleep 30", pasta: "Ada/ci", iniciada }]; },
+        // o servidor recebe o relato, mas a resposta se perde na primeira vez
+        async relatarEspera(_p: string, _m: string, r: RelatoEspera): Promise<RespostaRelatoEspera | null> { relatos.push(r); if (perder) { perder = false; return null; } return { seguir: true }; },
+      };
+      const esperas = iniciarEsperas({ ponte, pessoaId: "p", machineId: "m", home, env: { PATH: process.env.PATH ?? "/usr/bin:/bin" }, shell: "/bin/sh", intervaloMs: 60_000 });
+      expect(await esperarAte(() => relatos.length === 1)).toBe(true);
+      await esperas.passada();
+      esperas.parar();
+      expect(relatos).toEqual([{ id, tipo: "iniciou", relancada: iniciada }, { id, tipo: "iniciou", relancada: false }]);
+      expect(esperasVivas()).toContain(id);
+      await esquecerEsperasDoProcesso();
+    }
   });
 
   it("o código de saída do comando volta como veio", async () => {

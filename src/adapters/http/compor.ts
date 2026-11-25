@@ -1180,7 +1180,7 @@ export function comporApp(o: OpcoesCompor): App {
           const nova = await d.repos.maquinaTokens.buscarVivaPorHash(hash, d.agora());
           if (!nova || !casaHash(nova.hash, hash) || nova.id === chaveId) return "sucessora_invalida" as const;
           const t = await d.repos.maquinaTokens.transferirReferencias(chaveId, nova.id);
-          log("info", "maquina_sucedida", { tenant_id: escopo.tenantId, pessoa_id: escopo.pessoaId, machine_id: chaveId, sucessora_id: nova.id, bots: t.bots.length, padrao: t.padrao, sessoes: t.sessoes, turnos: t.turnos, navegador: t.navegador });
+          log("info", "maquina_sucedida", { tenant_id: escopo.tenantId, pessoa_id: escopo.pessoaId, machine_id: chaveId, sucessora_id: nova.id, bots: t.bots.length, padrao: t.padrao, sessoes: t.sessoes, turnos: t.turnos, navegador: t.navegador, checkpoints: t.checkpoints, esperas: t.esperas, computadores: t.computadores });
         }
         return (await removerMaquina(d, chaveId)).revogou;
       }),

@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { listen } from "../../../../src/adapters/http/server.ts";
 import type { Rota } from "../../../../src/adapters/http/roteador.ts";
 import { ErroDeDominio } from "../../../../src/domain/erro.ts";
+import { ACOES_FORA_DO_MCP } from "../../../../src/adapters/http/mcp/chamador-interno.ts";
+import { REGISTRO_DE_ACOES } from "../../../../src/domain/acoes/index.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "../../../helpers/ids.ts";
 
 const TOKEN = "nod_mcp_valido";
@@ -42,6 +44,15 @@ function rotasFalsas() {
     // Regression: ISSUE-003 — registrar um app leva segredo (o `env` sai cifrado) e, em stdio, um comando que o servidor
     // roda na sondagem e que sobrevive à revogação do token. Found by /qa on 2026-11-12
     { metodo: "POST", acao: "apps.criar", padrao: /^\/conectores$/, async handler(ctx) { await registrar(ctx, "POST", "/conectores"); ctx.json(201, { ok: true }); } },
+    // Regression: QA-221 — o cofre do nod e o navegador do bot (ADR-190) entraram depois da lista: guardar login (senha),
+    // escolher login, código, guardar no cofre, trazer do Chrome e as mãos da pessoa no navegador passavam pelo MCP.
+    { metodo: "GET", padrao: /^\/cofre\/logins$/, async handler(ctx) { await registrar(ctx, "GET", "/cofre/logins"); ctx.json(200, { logins: [] }); } },
+    { metodo: "POST", acao: "cofre.criar_login", padrao: /^\/cofre\/logins$/, async handler(ctx) { await registrar(ctx, "POST", "/cofre/logins"); ctx.json(200, { ok: true }); } },
+    ...([
+      ["navegador.login", "login"], ["navegador.codigo", "codigo"], ["navegador.guardar_login", "guardar-login"], ["navegador.trazer_do_chrome", "trazer-do-chrome"],
+      ["navegador.ir_para", "endereco"], ["navegador.trocar_aba", "aba"], ["navegador.ensinar", "ensinar"], ["navegador.lugar", "lugar"],
+    ] as const).map(([acao, fim]): Rota => ({ metodo: "POST", acao, padrao: new RegExp(`^/agentes/(?<id>[^/]+)/navegador/${fim}$`), async handler(ctx) { await registrar(ctx, "POST", `/agentes/${ctx.params.id}/navegador/${fim}`); ctx.json(200, { ok: true }); } })),
+    { metodo: "POST", acao: "navegador.operar", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador$/, async handler(ctx) { await registrar(ctx, "POST", `/agentes/${ctx.params.id}/navegador`); ctx.json(200, { ok: true }); } },
     // Regression: QA-179 — conectar um app do Marketplace com chave leva a chave de API da pessoa no corpo.
     { metodo: "POST", acao: "apps.conectar_com_chave", padrao: /^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar-com-chave$/, async handler(ctx) { await registrar(ctx, "POST", `/marketplace/${ctx.params.slug}/conectar-com-chave`); ctx.json(200, { conectado: true }); } },
     { metodo: "GET", publica: true, padrao: /^\/so-publica$/, async handler(ctx) { await registrar(ctx, "GET", "/so-publica"); ctx.json(200, { ok: true }); } },
@@ -209,6 +220,27 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
     const r = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "POST", caminho: "/conectores", corpo })).texto) as { status: number };
     expect(r.status).toBe(404);
     expect(falsas.chamadas.some((c) => c.caminho === "/conectores")).toBe(false);
+  });
+
+  // Regression: QA-221 — com o token MCP vazado, plantar um login no cofre ou abrir endereço no navegador do bot com as
+  // sessões da pessoa. Found by QA Nod on 2026-11-25
+  it("nod_chamar_rota não guarda login no cofre nem age no navegador do bot pelas mãos da pessoa; lugar e ligar seguem", async () => {
+    const chamar = async (metodo: string, caminho: string, corpo?: unknown) =>
+      (JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo, caminho, ...(corpo ? { corpo } : {}) })).texto) as { status: number }).status;
+    expect(await chamar("POST", "/cofre/logins", { site: "https://banco.com", usuario: "de-fora", senha: "segredo" })).toBe(404);
+    for (const fim of ["login", "codigo", "guardar-login", "trazer-do-chrome", "endereco", "aba", "ensinar"]) {
+      expect(await chamar("POST", `/agentes/${BOT}/navegador/${fim}`, { x: 1 }), fim).toBe(404);
+    }
+    expect(falsas.chamadas.some((c) => c.metodo === "POST" && (c.caminho === "/cofre/logins" || /\/navegador\/(?!lugar$)[a-z-]+$/.test(c.caminho)))).toBe(false);
+    expect(await chamar("GET", "/cofre/logins")).toBe(200);
+    expect(await chamar("POST", `/agentes/${BOT}/navegador/lugar`, { continuarSemMac: true })).toBe(200);
+    expect(await chamar("POST", `/agentes/${BOT}/navegador`, { operacao: "encerrar" })).toBe(200);
+  });
+
+  it("toda ação do cofre e do navegador que o registro fecha no chat fica fora do MCP", () => {
+    const fechadas = REGISTRO_DE_ACOES.filter((a) => /^(cofre|navegador)\./.test(a.id) && a.chat.estado === "nunca").map((a) => a.id);
+    expect(fechadas.length).toBeGreaterThan(0);
+    expect(fechadas.filter((id) => !ACOES_FORA_DO_MCP.has(id))).toEqual([]);
   });
 
   // Regression: QA-179 — apps.conectar_com_chave ficou fora da lista e o nod_chamar_rota levava a chave de API do app.

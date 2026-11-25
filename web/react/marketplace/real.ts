@@ -7,7 +7,8 @@ import type { AcessosDoApp } from "../../telas/acessos-do-app.ts";
 import { conectorDoApp, meusBots, nivelDoBot, situacaoDoApp, type SituacaoApp } from "../../telas/app-acesso.ts";
 import { fonteDoLogo } from "../../telas/marketplace.ts";
 import { notasGenericas, resultadoDoErro } from "./modelo.ts";
-import { ErroDoFormulario, type AcessosDoConector, type ApiDoMarketplace, type AppDaVitrine, type BotDaVitrine, type FotoDoMarketplace, type ReciboDoLote } from "./tipos.ts";
+import { aceitaContas, separarChave } from "./contas.ts";
+import { ErroDoFormulario, type AcessosDoConector, type ApiDoMarketplace, type AppDaVitrine, type BotDaVitrine, type ContaDaVitrine, type FotoDoMarketplace, type ReciboDoLote } from "./tipos.ts";
 
 /**
  * O adaptador real do Marketplace em modal: lê o estado do reducer com os MESMOS helpers da tela antiga
@@ -23,8 +24,12 @@ import { ErroDoFormulario, type AcessosDoConector, type ApiDoMarketplace, type A
 export type DepsDoMarketplaceReal = {
   estado: () => Estado;
   api: () => Api | null;
-  /** O "Conectar" de sempre (main.ts `iniciarConexao`): chamado dentro do clique. */
-  iniciarConexao: (slug: string) => void;
+  /** O "Conectar" de sempre (main.ts `iniciarConexao`): chamado dentro do clique. ADR-196: `rotulo` da conta a mais. */
+  iniciarConexao: (slug: string, rotulo?: string) => void;
+  /** ADR-196: PATCH conectores/:id/nome e a releitura dos conectores. */
+  renomear: (conectorId: string, nome: string) => Promise<void>;
+  /** ADR-196: DELETE marketplace/contas/:id e a releitura de conectores, frota e concessões. */
+  removerConta: (conectorId: string) => Promise<void>;
   cancelarConexao: (slug: string) => void;
   /** Carrega o padrão e o "segue o padrão" do conector (GET conectores/:id/acessos), como a gaveta fazia ao abrir. */
   garantirAcessos: (conectorId: string) => void;
@@ -56,10 +61,14 @@ const mesmosNiveis = (a: AppDaVitrine["niveis"], b: AppDaVitrine["niveis"]): boo
   const ka = Object.keys(a);
   return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
 };
+const mesmaConta = (a: ContaDaVitrine, b: ContaDaVitrine): boolean => a.chave === b.chave && a.conectorId === b.conectorId && a.nome === b.nome && a.principal === b.principal
+  && a.email === b.email && a.situacao === b.situacao && a.desligado === b.desligado && a.falha === b.falha && mesmoLogin(a.login, b.login) && mesmosNiveis(a.niveis, b.niveis);
+const mesmasContas = (a: AppDaVitrine["contas"], b: AppDaVitrine["contas"]): boolean =>
+  a === b || (!!a && !!b && a.length === b.length && a.every((c, i) => mesmaConta(c, b[i] as ContaDaVitrine)));
 export function mesmoApp(a: AppDaVitrine, b: AppDaVitrine): boolean {
   return a.slug === b.slug && a.nome === b.nome && a.descricao === b.descricao && a.categoria === b.categoria && a.chave === b.chave && a.logo === b.logo
     && a.situacao === b.situacao && a.conectorId === b.conectorId && a.desligado === b.desligado && a.falha === b.falha && a.recomendado === b.recomendado
-    && mesmoLogin(a.login, b.login) && mesmosNiveis(a.niveis, b.niveis);
+    && mesmoLogin(a.login, b.login) && mesmosNiveis(a.niveis, b.niveis) && a.multiconta === b.multiconta && mesmasContas(a.contas, b.contas);
 }
 const mesmoBot = (a: BotDaVitrine, b: BotDaVitrine): boolean => a.id === b.id && a.nome === b.nome && a.titulo === b.titulo && a.forma === b.forma && a.cor === b.cor;
 const mesmosAcessos = (a: AcessosDoConector | undefined, b: AcessosDoConector | undefined): boolean =>
@@ -82,6 +91,34 @@ export function reaproveitar(velha: FotoDoMarketplace | null, nova: FotoDoMarket
   const acessosIguais = [...chaves].every((k) => mesmosAcessos(velha.acessos[k], nova.acessos[k]));
   if (!acessosIguais) mudou = true;
   return mudou ? { ...nova, apps, bots, acessos: acessosIguais ? velha.acessos : nova.acessos } : velha;
+}
+
+/**
+ * ADR-196: as contas de um app multiconta já conectado. A primeira é o conector do app; as outras, os conectores
+ * `<app>--<conta>` da pessoa (ordem de criação), mais o login de uma conta nova que o servidor ainda não devolveu.
+ */
+function contasDoApp(e: Estado, app: Pick<AppDaVitrine, "slug" | "nome">, principal: Conector, bots: readonly BotDaVitrine[], acessos: (conectorId: string) => AcessosDoApp | null, porConector: Record<string, AcessosDoConector | undefined>): ContaDaVitrine[] {
+  const minhas = e.conectores.filter((c) => !e.sessao || c.ownerId === e.sessao.pessoaId);
+  const extras = minhas.filter((c) => { const p = separarChave(c.slug); return !!p?.conta && p.app === app.slug; }).sort((a, b) => a.criadoEm - b.criadoEm);
+  const conta = (c: Conector, ehPrincipal: boolean): ContaDaVitrine => {
+    const situacao = situacaoDoApp(e, c.slug);
+    const login = e.conectando[c.slug];
+    const a = acessos(c.id);
+    if (a) porConector[c.id] = { padrao: a.padrao, seguePadrao: a.seguePadrao };
+    return {
+      chave: c.slug, conectorId: c.id, nome: c.nome || app.nome, principal: ehPrincipal, email: c.contaEmail ?? null, situacao,
+      desligado: !c.habilitado && situacao === "nao_conectado",
+      falha: situacao === "atencao" ? motivoDaAtencao(c.nome || app.nome, false, c) : null,
+      login: login ? { url: login.url, falhou: login.falhou, semJanela: login.semJanela === true } : null,
+      niveis: Object.fromEntries(bots.map((b) => [b.id, nivelDoBot(e, b.id, c)])),
+    };
+  };
+  const novas = Object.entries(e.conectando).flatMap(([chave, login]): ContaDaVitrine[] => {
+    const p = separarChave(chave);
+    if (!login || !p?.conta || p.app !== app.slug || extras.some((c) => c.slug === chave)) return [];
+    return [{ chave, conectorId: null, nome: `${app.nome} (${p.conta})`, principal: false, email: null, situacao: login.falhou ? "nao_conectado" : "conectando", desligado: false, falha: null, login: { url: login.url, falhou: login.falhou, semJanela: login.semJanela === true }, niveis: SEM_NIVEIS }];
+  });
+  return [conta(principal, true), ...extras.map((c) => conta(c, false)), ...novas];
 }
 
 export function montarFoto(e: Estado, acessos: (conectorId: string) => AcessosDoApp | null): FotoDoMarketplace {
@@ -112,6 +149,8 @@ export function montarFoto(e: Estado, acessos: (conectorId: string) => AcessosDo
       niveis: c && (situacao !== "nao_conectado" || desligado) ? Object.fromEntries(bots.map((b) => [b.id, nivelDoBot(e, b.id, c)])) : SEM_NIVEIS,
       // A curadoria (APPS_MARKETPLACE) é o que o nod recomenda; o catálogo público do Composio fica para a busca.
       recomendado: app.doCatalogo !== true,
+      ...(aceitaContas(app.slug, chave) ? { multiconta: true } : {}),
+      ...(aceitaContas(app.slug, chave) && c && (situacao !== "nao_conectado" || desligado) ? { contas: contasDoApp(e, app, c, bots, acessos, porConector) } : {}),
     };
   });
   return { apps, total: e.marketplace.length, bots, acessos: porConector, composioConfigurado: e.composioConfigurado };
@@ -158,7 +197,9 @@ export function criarApiReal(deps: DepsDoMarketplaceReal): ApiDoMarketplace & { 
         return resultadoDoErro(e);
       }
     },
-    conectarLogin: (slug) => deps.iniciarConexao(slug),
+    conectarLogin: (slug, rotulo) => deps.iniciarConexao(slug, rotulo),
+    renomearConta: (conectorId, nome) => deps.renomear(conectorId, nome),
+    removerConta: (conectorId) => deps.removerConta(conectorId),
     cancelarLogin: (slug) => deps.cancelarConexao(slug),
     abrirAcessos: (conectorId) => deps.garantirAcessos(conectorId),
     definirNivel: (agenteId, conectorId, nivel) => deps.definirNivel(agenteId, conectorId, nivel),

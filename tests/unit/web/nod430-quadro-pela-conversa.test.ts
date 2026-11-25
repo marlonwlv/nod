@@ -8,7 +8,7 @@ import { renderSuaVez } from "../../../web/telas/sua-vez.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
 import type { SuaVezDto } from "../../../src/contracts/api.ts";
 
-/** NOD-430: o link da tarefa na resposta, o card de excluir o quadro e a assinatura "Você, pela Ada". */
+/** NOD-430: o link da tarefa na resposta, o card de excluir o quadro e a assinatura "Você, via Ada". */
 const ENG = "11111111-1111-4111-8111-111111111111";
 const T = "22222222-2222-4222-8222-222222222222";
 
@@ -26,11 +26,11 @@ const PAYLOAD: PayloadPropostaQuadroExclusao = { kind: "quadro_exclusao", quadro
 describe("card de excluir o quadro (NOD-430)", () => {
   it("aberto: o que sai, o que fica, sem Desfazer, Excluir e Agora não", () => {
     const h = renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, PAYLOAD, true);
-    expect(h).toContain("Excluir o quadro do EngApp");
-    // ADA-14: com N quadros, o card diz qual (o sem nome segue "o quadro do EngApp").
-    expect(renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, { ...PAYLOAD, quadroNome: "Site" }, true)).toContain("Excluir o quadro &quot;Site&quot; do EngApp");
+    expect(h).toContain("Excluir o quadro de EngApp");
+    // ADA-14: com N quadros, o card diz qual (o sem nome segue "o quadro de EngApp").
+    expect(renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, { ...PAYLOAD, quadroNome: "Site" }, true)).toContain("Excluir o quadro &quot;Site&quot; de EngApp");
     expect(h).toContain("Sai: 12 cards, 5 colunas, a meta e o histórico");
-    expect(h).toContain("Fica: a conversa e a memória do EngApp");
+    expect(h).toContain("Fica: a conversa e a memória de EngApp");
     expect(h).toContain("Não dá para desfazer.");
     expect(h).toMatch(/data-act="decidir-proposta"[^>]*>Excluir</);
     expect(h).toMatch(/data-act="recusar-decisao"[^>]*>Agora não</);
@@ -69,14 +69,14 @@ describe("assinatura na tarefa aberta (NOD-430)", () => {
     t: { id: T, quadroId: "q", titulo: "T", descricao: "", status: "fazendo", agenteId: "ada", movimentos: [], linhas: [] } as never, colunas: [], comentarios: lista, runs: [], agente, agora: Date.UTC(2026, 10, 2, 14), nomes: ["Ada"],
     respondendo: null, editando: null, abertos: new Set(), passos: () => null, chips: () => "", pendente: null, criadaPor: o.criadaPor ?? null, criadaEm: o.criadaEm ?? null, carga: "ok",
   });
-  it("comentário a pedido da pessoa assina Você, pela Ada; o do bot sozinho, Ada", () => {
+  it("comentário a pedido da pessoa assina Você, via Ada; o do bot sozinho, Ada", () => {
     const h = linha([com({ pedidoPor: "pessoa" }), com({ id: "c2", texto: "Sozinha" })]);
-    expect(h).toContain("Você, pela Ada");
-    expect(h.split("Você, pela Ada").length - 1).toBe(1);
+    expect(h).toContain("Você, via Ada");
+    expect(h.split("Você, via Ada").length - 1).toBe(1);
   });
   it("quem criou o card vem antes dos comentários", () => {
-    const h = linha([com({ criadoEm: 120_000 })], { criadaPor: "Você, pela Ada", criadaEm: 60_000 });
-    // Rodada 4 (tela 18b): a criação é um evento do quadro; quem criou é o bot quando foi "Você, pela Ada".
+    const h = linha([com({ criadoEm: 120_000 })], { criadaPor: "Você, via Ada", criadaEm: 60_000 });
+    // Rodada 4 (tela 18b): a criação é um evento do quadro; quem criou é o bot quando foi "Você, via Ada".
     expect(h).toContain('<p class="ta-ev-txt">Ada criou o card.</p>');
     expect(h.indexOf("criou o card")).toBeLessThan(h.indexOf("Olhei"));
   });

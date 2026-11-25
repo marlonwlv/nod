@@ -16,7 +16,11 @@ export function slugDoToolkit(toolkit: string): string {
   return toolkit.replace(/_/g, "-");
 }
 
-/** O slug remoto que a tradução consegue ida e volta. */
+/**
+ * O slug remoto que a tradução consegue ida e volta. ADR-196: também fora o que tem `__`, que viraria `--`, o
+ * separador da conta a mais (`gmail--pessoal`, src/domain/contas-do-app.ts). Catálogo de 2026-11-18: nenhum toolkit
+ * com `__`.
+ */
 export function toolkitAceito(toolkit: string): boolean {
-  return !toolkit.includes("-");
+  return !toolkit.includes("-") && !toolkit.includes("__");
 }

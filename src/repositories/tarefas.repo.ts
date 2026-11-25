@@ -185,7 +185,10 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
       const linhas = await conn<LinhaE[]>`
         select id, tarefa_id, tipo, autor_tipo, autor_id, turno_id, dados, criado_em from tarefa_eventos
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and tarefa_id = ${tarefaId}
-        order by criado_em, case tipo when 'criada' then 0 when 'thread_criada' then 1 else 2 end, id`;
+        -- QA-193 (2026-11-23): o backfill grava "criada", "thread_criada" e às vezes "entregue" com o mesmo criado_em (o da
+        -- Tarefa); só o id (uuid aleatório) desempatava e a trilha saía fora de ordem em metade das vezes. No empate, a
+        -- ordem do ciclo de vida.
+        order by criado_em, case tipo when 'criada' then 0 when 'thread_criada' then 1 when 'iniciada' then 2 when 'entregue' then 3 else 4 end, id`;
       return linhas.map(paraEvento);
     },
 
@@ -281,7 +284,9 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
 
     /**
      * ADR-192 (etapa 4): os trabalhos antigos da dona ainda sem Tarefa que o backfill considera — frente de pessoa/rede,
-     * trabalho de Card, filha de mãe já ligada —, em ordem de criação, depois do cursor (o backfill é retomável).
+     * trabalho de Card, filha de mãe já ligada —, em ordem de criação, depois do cursor (o backfill é retomável). A ordem
+     * e o cursor usam a mesma hora em milissegundos (a do cursor em JS): com os microssegundos do banco, o último do lote
+     * voltava no lote seguinte (QA-195).
      */
     async candidatosAoBackfill(depois: { criadoEm: number; id: string } | null, limite: number): Promise<CandidatoAoBackfill[]> {
       const linhas = await conn<LinhaC[]>`
@@ -289,8 +294,8 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
         from trabalhos w left join trabalhos m on m.tenant_id = w.tenant_id and m.id = w.trabalho_mae_id
         where w.tenant_id = ${escopo.tenantId} and w.owner_id = ${escopo.pessoaId} and w.tarefa_objetivo_id is null
           and ((w.forma = 'frente' and w.origem in ('pessoa', 'rede')) or w.tarefa_id is not null or (w.trabalho_mae_id is not null and m.tarefa_objetivo_id is not null))
-          ${depois ? conn`and (w.criado_em, w.id) > (${data(depois.criadoEm)}, ${depois.id})` : conn``}
-        order by w.criado_em, w.id limit ${Math.min(Math.max(limite, 1), 1000)}`;
+          ${depois ? conn`and (date_trunc('milliseconds', w.criado_em), w.id) > (${data(depois.criadoEm)}, ${depois.id})` : conn``}
+        order by date_trunc('milliseconds', w.criado_em), w.id limit ${Math.min(Math.max(limite, 1), 1000)}`;
       return linhas.map(paraCandidato);
     },
 

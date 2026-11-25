@@ -547,3 +547,97 @@
 .rx-mk-recibo .rx-mk-bt { flex-shrink: 0; }
 /* "Desconectar o X": ação que tira poder, em texto de perigo (sem caixa vermelha: não apaga nada). */
 .rx-mk-bt.rx-mk-perigo { color: var(--danger); }
+
+/* ADR-196 — as contas de um app (Paper "Apps com mais de uma conta", M1–M8, lidas por get_jsx em 2026-11-25). A linha
+   da conta tem as faixas fixas do Paper: logo 32, texto, quem usa (150, à direita) e o "⋯" (28), para alinhar entre
+   linhas. O menu é o de contexto do kit (K4-d) e a confirmação de remover é o modal pequeno (K5-c). */
+.rx-mk-logo.rx-mk-media { width: 32px; height: 32px; border-radius: var(--raio-8); font-size: 15px; line-height: 18px; }
+.rx-mk-contas { padding: 4px 0; }
+.rx-mk-conta { display: flex; flex-direction: column; border-top: 1px solid var(--divisoria); }
+.rx-mk-conta:first-child { border-top: 0; }
+.rx-mk-conta-linha { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.rx-mk-conta-texto { display: flex; flex-direction: column; flex: 1 1 auto; gap: 1px; min-width: 0; }
+.rx-mk-conta-texto > b { font-size: var(--fs-corpo-2); font-weight: 500; line-height: var(--lh-corpo-2); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rx-mk-conta-texto > span { display: block; min-width: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rx-mk-conta-texto > span.rx-mk-conta-estado { display: flex; align-items: center; gap: 6px; }
+.rx-mk-conta-texto > span b { color: var(--ink); font-weight: 500; }
+.rx-mk-conta-quem { flex-shrink: 0; width: 150px; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rx-mk-conta-mais { position: relative; flex-shrink: 0; width: 28px; height: 28px; }
+.rx-mk-mais-opcoes { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--raio-8); background: transparent; color: var(--icone-2); cursor: pointer; }
+.rx-mk-mais-opcoes:hover, .rx-mk-mais-opcoes[aria-expanded="true"] { background: var(--hover); color: var(--ink); }
+.rx-mk-conta-mais-ic { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: var(--raio-8); background: var(--hover); color: var(--ink); font-size: 16px; line-height: 18px; }
+.rx-mk-conta-adicionar { cursor: pointer; border-radius: 0 0 var(--raio-12) var(--raio-12); }
+.rx-mk-conta-adicionar:hover { background: var(--chat-pedido-fundo); }
+.rx-mk-conta-limite .rx-mk-conta-linha { opacity: .55; }
+.rx-mk-conta-acoes { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; gap: 4px; }
+.rx-mk-conta .rx-mk-bt.rx-mk-baixo { height: 28px; }
+.rx-mk-conta-falha { color: var(--danger); }
+.rx-mk-esmaecido { display: flex; flex-shrink: 0; opacity: .45; }
+.rx-mk-conta-nota { margin: 0; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: 17px; }
+.rx-mk-conta-nota b { color: var(--ink); font-weight: 500; }
+.rx-mk-conta-nota-fora { padding: 0 14px; }
+.rx-mk-conta-nova, .rx-mk-conta-editando { gap: 12px; padding-bottom: 14px; background: var(--chat-pedido-fundo); }
+.rx-mk-conta-nova:last-child, .rx-mk-conta-editando:last-child { border-radius: 0 0 var(--raio-12) var(--raio-12); }
+.rx-mk-conta-nova .rx-mk-conta-linha, .rx-mk-conta-editando .rx-mk-conta-linha { padding-bottom: 0; }
+.rx-mk-conta-recuo { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 0 58px; }
+.rx-mk-conta-recuo .rx-mk-conta-acoes { padding-top: 4px; }
+.rx-mk-conta-editando > .rx-mk-conta-nota, .rx-mk-conta-editando > .rx-mk-erro { margin: 0 14px 0 58px; }
+.rx-mk-conta-campo { flex: 1 1 auto; height: 36px; gap: 0; }
+.rx-mk-conta-campo input { padding: 0; }
+.rx-mk-conta-recuo .rx-mk-campo { height: 36px; }
+.rx-mk-sugestoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rx-mk-sugestao { height: 24px; padding: 0 10px; border: 0; border-radius: var(--raio-full); background: var(--chat-chip-fundo); color: var(--ink); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); cursor: pointer; }
+.rx-mk-sugestao:hover { background: var(--hover); }
+.rx-mk-sugestoes-dica { padding-left: 6px; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.rx-mk-sugestoes-erro { padding-left: 6px; color: var(--danger); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+/* O menu da linha: o menu de contexto do kit (K4-d) — raio 16, respiro 6, itens de 32 com texto 14. */
+.rx-mk-conta-menu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 232px;
+  padding: 6px;
+  border-radius: var(--raio-16);
+  background: var(--surface-elevated);
+  box-shadow: var(--sombra-menu);
+}
+.rx-mk-conta-item { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border: 0; border-radius: var(--raio-8); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-corpo); line-height: 18px; text-align: left; cursor: pointer; }
+.rx-mk-conta-item > svg { flex-shrink: 0; color: var(--icone-2); }
+.rx-mk-conta-item:hover, .rx-mk-conta-item:focus-visible { background: var(--hover); outline: none; }
+.rx-mk-conta-item.rx-mk-perigo, .rx-mk-conta-item.rx-mk-perigo > svg { color: var(--danger); }
+.rx-mk-conta-sep { height: 1px; margin: 6px 8px; background: var(--borda); }
+/* A confirmação de remover: o modal pequeno do kit (K5-c), com o véu sobre a janela inteira. */
+.rx-mk-veu { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: var(--veu-modal); }
+.rx-mk-alerta { display: flex; flex-direction: column; width: 440px; max-width: 100%; max-height: 100%; overflow: auto; border: 1px solid var(--borda); border-radius: var(--raio-14); background: var(--surface-elevated); box-shadow: var(--sombra-modal); }
+.rx-mk-alerta-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 8px 14px 16px; border-bottom: 1px solid var(--borda); }
+.rx-mk-alerta-topo h3 { margin: 0; font-size: var(--fs-corpo); font-weight: 600; line-height: 22px; color: var(--ink); }
+.rx-mk-alerta-corpo { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.rx-mk-alerta-corpo > p { margin: 0; color: var(--ink); font-size: var(--fs-corpo); line-height: 20px; }
+.rx-mk-alerta-lista { padding: 4px 0; }
+.rx-mk-alerta-bot { display: flex; align-items: center; gap: 10px; padding: 7px 12px; color: var(--ink); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.rx-mk-alerta-bot > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rx-mk-alerta-bot > small { color: var(--ink-2); font-size: var(--fs-rotulo); }
+.rx-mk-alerta-bot nod-mascote, .rx-mk-alerta-bot nod-mascote.icon.sm { flex-shrink: 0; width: 20px; height: 20px; min-width: 20px; --mascote-tam: 20px; }
+.rx-mk-alerta-mais { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--divisoria); color: var(--ink-2); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.rx-mk-alerta-corpo > .rx-mk-alerta-nota { margin: 0; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.rx-mk-alerta-corpo > p b { font-weight: 500; }
+.rx-mk-alerta-rodape { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 12px 12px 16px; border-top: 1px solid var(--borda); }
+.rx-mk-link { padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-rotulo); font-weight: 500; cursor: pointer; }
+.rx-mk-link:hover { text-decoration: underline; }
+.rx-mk-bt.rx-mk-sec { background: var(--hover); box-shadow: inset 0 0 0 .5px var(--borda-forte); text-decoration: none; }
+.rx-mk-bt.rx-mk-sec:hover { background: var(--borda); }
+.rx-mk-bt.rx-mk-remover { padding: 0 14px; background: var(--danger); color: var(--on-action); font-weight: 500; }
+.rx-mk-bt.rx-mk-remover:hover { background: color-mix(in srgb, var(--danger) 88%, var(--ink)); }
+.rx-mk-bt.rx-mk-remover:disabled, .rx-mk-bt.rx-mk-sec:disabled { cursor: default; opacity: .7; }
+/* "Quem pode usar" com dezenas de bots (Paper M4): a busca e o filtro em cima, o grupo de quem segue o padrão recolhido. */
+.rx-mk-filtros { display: flex; align-items: center; gap: 8px; }
+.rx-mk-busca.rx-mk-busca-bots { flex: 1 1 auto; height: 36px; }
+.rx-mk-filtro .seg { white-space: nowrap; }
+.rx-mk-recolhidos { width: 100%; border: 0; border-top: 1px solid var(--divisoria); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.rx-mk-recolhidos:hover { background: var(--chat-pedido-fundo); }
+.rx-mk-recolhidos-seta { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 16px; height: 16px; color: var(--icone-2); }
+.rx-mk-recolhidos-mostrar { flex-shrink: 0; color: var(--ink); font-size: var(--fs-rotulo); font-weight: 500; line-height: var(--lh-rotulo); }

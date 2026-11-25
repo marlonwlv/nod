@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ConectarComChave } from "./conectar-com-chave.tsx";
+import { ContasDoApp } from "./contas-do-app.tsx";
+import { separarChave } from "./contas.ts";
 import { IconeApps, IconeAvancado, IconeBots, IconePlugins } from "./pecas.tsx";
 import { QuemPodeUsar } from "./quem-pode-usar.tsx";
 import { Conectados, Inicio, type AcoesDaLinha } from "./vitrine.tsx";
-import type { ApiDoMarketplace, AppDaVitrine, InicialDoMarketplace, Vista } from "./tipos.ts";
+import type { ApiDoMarketplace, AppDaVitrine, ContaDaVitrine, InicialDoMarketplace, Vista } from "./tipos.ts";
 import "./marketplace.css";
 
 /**
@@ -68,6 +70,16 @@ export function Marketplace({ api, aoFechar, inicial, extra }: PropsDoMarketplac
     if (esperando.size === 0) return;
     let resto: Set<string> | null = null;
     for (const slug of esperando) {
+      // ADR-196: a conta a mais ("gmail--pessoal") espera o conector dela voltar do servidor; conectou → o "Quem pode usar" dela.
+      const partes = separarChave(slug);
+      if (partes?.conta) {
+        const conta = porSlug.get(partes.app)?.contas?.find((c) => c.chave === slug);
+        if (!conta || conta.situacao === "conectando" || (conta.login && !conta.login.falhou)) continue;
+        resto ??= new Set(esperando);
+        resto.delete(slug);
+        if (conta.situacao === "conectado" && (vista.tipo === "contas" || vista.tipo === "inicio")) setVista({ tipo: "acessos", slug: partes.app, conectorId: conta.conectorId, conectadoAgora: true, conta: slug });
+        continue;
+      }
       const app = porSlug.get(slug);
       if (!app || (app.login && !app.login.falhou)) continue;
       resto ??= new Set(esperando);
@@ -82,14 +94,22 @@ export function Marketplace({ api, aoFechar, inicial, extra }: PropsDoMarketplac
     setEsperando((s) => new Set(s).add(app.slug));
     api.conectarLogin(app.slug);
   }, [api]);
+  /** ADR-196: o login de uma conta (nova ou de novo) começado na tela "Contas". */
+  const conectarConta = useCallback((chave: string, rotulo?: string) => {
+    setEsperando((s) => new Set(s).add(chave));
+    api.conectarLogin(chave, rotulo);
+  }, [api]);
   const acoes = useMemo<AcoesDaLinha>(() => ({
     conectar: (app) => (app.chave ? setVista({ tipo: "chave", slug: app.slug }) : conectarLogin(app)),
-    abrir: (app) => setVista({ tipo: "acessos", slug: app.slug, conectorId: app.conectorId, conectadoAgora: false }),
+    abrir: (app) => setVista(app.contas ? { tipo: "contas", slug: app.slug } : { tipo: "acessos", slug: app.slug, conectorId: app.conectorId, conectadoAgora: false }),
     cancelar: (app) => api.cancelarLogin(app.slug),
   }), [api, conectarLogin]);
 
   let tela;
-  const app = vista.tipo === "chave" || vista.tipo === "acessos" ? porSlug.get(vista.slug) : undefined;
+  const app = vista.tipo === "chave" || vista.tipo === "acessos" || vista.tipo === "contas" ? porSlug.get(vista.slug) : undefined;
+  // ADR-196: o "Quem pode usar" de uma conta é o do app com o nome, o estado e os níveis dela.
+  const conta: ContaDaVitrine | undefined = vista.tipo === "acessos" && vista.conta ? app?.contas?.find((c) => c.chave === vista.conta) : undefined;
+  const voltarDoApp = app?.contas ? () => setVista({ tipo: "contas", slug: app.slug }) : irAoInicio;
   if (vista.tipo === "conectados") {
     tela = <Conectados foto={foto} acoes={acoes} aoVoltar={irAoInicio} aoFechar={aoFechar} />;
   } else if (vista.tipo === "chave" && app) {
@@ -98,10 +118,18 @@ export function Marketplace({ api, aoFechar, inicial, extra }: PropsDoMarketplac
         aoConectar={(conectorId) => setVista({ tipo: "acessos", slug: app.slug, conectorId, conectadoAgora: true })}
         preenchido={inicial?.vista === vista ? inicial.preenchido : undefined} envioInicial={inicial?.vista === vista ? inicial.envio : undefined} />
     );
-  } else if (vista.tipo === "acessos" && app) {
+  } else if (vista.tipo === "contas" && app?.contas) {
     tela = (
-      <QuemPodeUsar key={app.slug} app={app} conectorId={vista.conectorId ?? app.conectorId} conectadoAgora={vista.conectadoAgora} foto={foto} api={api}
-        aoVoltar={irAoInicio} aoFechar={aoFechar}
+      <ContasDoApp key={app.slug} app={app} foto={foto} api={api} aoVoltar={irAoInicio} aoFechar={aoFechar} adicionandoInicial={vista.adicionando}
+        aoAbrirAcessos={(c) => setVista({ tipo: "acessos", slug: app.slug, conectorId: c.conectorId, conectadoAgora: false, conta: c.chave })}
+        aoAdicionar={(chave, rotulo) => conectarConta(chave, rotulo)}
+        aoEntrarDeNovo={(c) => conectarConta(c.chave)} />
+    );
+  } else if (vista.tipo === "acessos" && app) {
+    const daTela: AppDaVitrine = conta ? { ...app, nome: conta.nome, situacao: conta.situacao, conectorId: conta.conectorId, desligado: conta.desligado, falha: conta.falha, niveis: conta.niveis, login: conta.login } : app;
+    tela = (
+      <QuemPodeUsar key={`${app.slug}:${vista.conta ?? ""}`} app={daTela} conta={conta} nomeDoApp={app.nome} conectorId={vista.conectorId ?? daTela.conectorId} conectadoAgora={vista.conectadoAgora} foto={foto} api={api}
+        aoVoltar={voltarDoApp} aoFechar={aoFechar}
         selecionadosIniciais={inicial?.vista === vista ? inicial.selecionados : undefined} confirmarEscrita={inicial?.vista === vista ? inicial.confirmarEscrita : undefined} />
     );
   } else {

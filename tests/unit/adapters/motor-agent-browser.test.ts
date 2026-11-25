@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, ARGS_CHROME_DO_BOT, cookieVale, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, ARGS_CHROME_DO_BOT, cookieVale, LIMITE_NOME_BYTES, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -107,6 +107,50 @@ describe("argv e ambiente", () => {
     expect(alvoDoMotor("button.pagar")).toBe("button.pagar");
     expect(nomeDeArquivo("../../etc/passwd")).toBe("passwd");
     expect(nomeDeArquivo(".bashrc")).toBe("bashrc");
+  });
+
+  it("QA-215: nome longo é cortado em bytes e mantém a extensão", () => {
+    // navegador_pdf aceita nome de até 200 caracteres e acrescenta ".pdf": o corte não pode comer a extensão.
+    const pdf = nomeDeArquivo(`${"Relatório de Faturamento ".repeat(8)}.pdf`);
+    expect(pdf.endsWith(".pdf")).toBe(true);
+    expect(Buffer.byteLength(pdf)).toBeLessThanOrEqual(LIMITE_NOME_BYTES);
+    // 150 "ç" = 300 bytes: passa do teto de 255 bytes por nome do ext4/APFS (ENAMETOOLONG).
+    const csv = nomeDeArquivo(`${"ç".repeat(150)}.csv`);
+    expect(csv.endsWith(".csv")).toBe(true);
+    expect(Buffer.byteLength(csv)).toBeLessThanOrEqual(LIMITE_NOME_BYTES);
+    expect(csv).not.toContain("�");
+    // Ponto longe do fim não é extensão; nome curto passa intacto.
+    expect(Buffer.byteLength(nomeDeArquivo(`a.${"b".repeat(300)}`))).toBeLessThanOrEqual(LIMITE_NOME_BYTES);
+    expect(nomeDeArquivo("nota fiscal 123.xml")).toBe("nota fiscal 123.xml");
+  });
+
+  it("QA-216: baixar/pdf com nome repetido não apaga o anterior; sem extensão, ela sai do conteúdo", async () => {
+    // O executor falso faz o que o agent-browser faz: grava o conteúdo no caminho pedido (sem devolver o nome sugerido).
+    const conteudos = [Buffer.from("%PDF-1.4 outubro"), Buffer.from("%PDF-1.4 novembro"), Buffer.from("%PDF-1.4 sem nome"), Buffer.from("texto puro")];
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => {
+      if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false };
+      const caminho = p.args[0] === "download" ? p.args[2]! : p.args[1]!;
+      if (p.args[0] === "download" || p.args[0] === "pdf") await writeFile(caminho, conteudos.shift() ?? Buffer.from("%PDF-1.4 pagina"));
+      return { codigo: 0, saida: ok({ path: caminho }), erro: "", estourou: false };
+    } });
+    const pasta = join(dados, pastaDoBot(A), "arquivos");
+    expect((await m.baixar(s, "e1", "fatura.pdf")).nome).toBe("fatura.pdf");
+    expect((await m.baixar(s, "e2", "fatura.pdf")).nome).toBe("fatura-2.pdf");
+    expect(await readFile(join(pasta, "fatura.pdf"), "utf8")).toBe("%PDF-1.4 outubro");
+    expect(await readFile(join(pasta, "fatura-2.pdf"), "utf8")).toBe("%PDF-1.4 novembro");
+    // Sem nome o nod manda "download-<ms>": a extensão vem da assinatura do PDF.
+    expect((await m.baixar(s, "e3", "download-1795584067399")).nome).toBe("download-1795584067399.pdf");
+    // Conteúdo sem assinatura conhecida fica com o nome que veio.
+    expect((await m.baixar(s, "e4", "notas")).nome).toBe("notas");
+    // navegador_pdf repetido também numera.
+    expect((await m.pdf(s, "fatura")).nome).toBe("fatura-3.pdf");
+    expect((await readdir(pasta)).sort()).toEqual(["download-1795584067399.pdf", "fatura-2.pdf", "fatura-3.pdf", "fatura.pdf", "notas"]);
+  });
+
+  it("QA-216: download que falha não deixa o arquivo reservado na pasta", async () => {
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE)) ? { codigo: 0, saida: ok({}), erro: "", estourou: false } : { codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "Element not found" }), erro: "", estourou: false }) });
+    await expect(m.baixar(s, "e9", "fatura.pdf")).rejects.toBeInstanceOf(FalhaNavegador);
+    expect(await readdir(join(dados, pastaDoBot(A), "arquivos"))).toEqual([]);
   });
 
   it("o binário do pacote npm desta plataforma existe", () => {

@@ -36,7 +36,10 @@ describe("ADR-099 (parte 2): as esperas pela ponte HTTP", () => {
     expect(relatoEspera({ id: ID, tipo: "terminou", codigo: 0, saida: "ok" })).toEqual({ id: ID, tipo: "terminou", codigo: 0, saida: "ok" });
     expect(relatoEspera({ id: ID, tipo: "terminou", codigo: null, saida: "" })).toMatchObject({ codigo: null });
     expect(relatoEspera({ id: ID, tipo: "caiu", motivo: "pasta_ausente" })).toEqual({ id: ID, tipo: "caiu", motivo: "pasta_ausente" });
-    for (const r of [{ id: "x", tipo: "iniciou" }, { id: ID, tipo: "sumiu" }, { id: ID, tipo: "caiu", motivo: "outro" }, { id: ID, tipo: "terminou", codigo: 1.5, saida: "" }, { id: ID, tipo: "terminou", codigo: 0, saida: "x".repeat(20_000) }]) {
+    // QA-224: o motor novo diz se o começo é relançamento; o antigo não manda o campo
+    expect(relatoEspera({ id: ID, tipo: "iniciou", relancada: false })).toEqual({ id: ID, tipo: "iniciou", relancada: false });
+    expect(relatoEspera({ id: ID, tipo: "iniciou" })).toEqual({ id: ID, tipo: "iniciou" });
+    for (const r of [{ id: "x", tipo: "iniciou" }, { id: ID, tipo: "iniciou", relancada: "sim" }, { id: ID, tipo: "sumiu" }, { id: ID, tipo: "caiu", motivo: "outro" }, { id: ID, tipo: "terminou", codigo: 1.5, saida: "" }, { id: ID, tipo: "terminou", codigo: 0, saida: "x".repeat(20_000) }]) {
       expect(() => relatoEspera(r)).toThrow();
     }
   });

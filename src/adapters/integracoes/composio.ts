@@ -60,6 +60,24 @@ const ID_COMPOSIO = /^[A-Za-z0-9_-]{1,80}$/;
 
 const HOSTS_LOGO = ["logos.composio.dev", "assets.composio.dev", "cdn.composio.dev"];
 
+/** Os nomes de campo que guardam o e-mail da conta nas respostas conhecidas do provedor (ADR-196). */
+const CAMPOS_DE_EMAIL = ["email", "user_email", "userEmail", "email_address", "emailAddress"] as const;
+const FORMA_DE_EMAIL = /^[^\s@<>()"',;:]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}$/;
+
+/** O e-mail da conta conectada, procurado em `data`, `params`, `state.val` e na raiz; null quando não há um com forma de e-mail. */
+export function emailDaConta(conta: Record<string, unknown>): string | null {
+  const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
+  const lugares = [obj(conta.data), obj(conta.params), obj(obj(conta.state)?.val), conta];
+  for (const l of lugares) {
+    if (!l) continue;
+    for (const campo of CAMPOS_DE_EMAIL) {
+      const v = l[campo];
+      if (typeof v === "string" && v.length <= 254 && FORMA_DE_EMAIL.test(v.trim())) return v.trim().toLowerCase();
+    }
+  }
+  return null;
+}
+
 /** O logo só passa com host da allowlist: o servidor é quem busca a imagem (ADR-041 §6). */
 function logoDoProvedor(bruto: unknown): string | null {
   if (typeof bruto !== "string") return null;
@@ -160,6 +178,18 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       if (e instanceof ErroDeDominio) throw e;
       throw new ErroDeDominio("conector_indisponivel");
     }
+  }
+  /**
+   * ADR-196: a conta está ativa e é desta pessoa e deste app, e o e-mail dela quando o provedor o diz (só para a tela:
+   * "Gmail (pessoal) · maria@…"). O e-mail sai SÓ de campos com nome de e-mail e com forma de e-mail; o resto do
+   * `state` (tokens do login) nunca é lido para fora daqui. Sem e-mail, null: a linha mostra só o nome da conta.
+   */
+  async function lerConta(contaId: string, userId: string, toolkit: string): Promise<{ ativo: boolean; email: string | null }> {
+    if (!ID_COMPOSIO.test(contaId)) return { ativo: false, email: null };
+    const r = await pedir(`/connected_accounts/${encodeURIComponent(contaId)}`);
+    const t = r.toolkit as { slug?: unknown } | undefined;
+    const ativo = r.status === "ACTIVE" && r.is_disabled !== true && r.user_id === userId && t?.slug === toolkitComposio(toolkit);
+    return { ativo, email: ativo ? emailDaConta(r) : null };
   }
   return {
     validar: () => pedir("/toolkits?limit=1"),
@@ -363,10 +393,9 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       return id;
     },
     async conectado(contaId: string, userId: string, toolkit: string) {
-      const r = await pedir(`/connected_accounts/${encodeURIComponent(contaId)}`);
-      const t = r.toolkit as { slug?: unknown } | undefined;
-      return r.status === "ACTIVE" && r.is_disabled !== true && r.user_id === userId && t?.slug === toolkitComposio(toolkit);
+      return (await lerConta(contaId, userId, toolkit)).ativo;
     },
+    lerConta,
     /**
      * NOD-212: a resposta do PATCH traz `tool_router_tools`, as ferramentas que a sessão expõe depois de fixar a conta.
      * `ferramentas` conta as concretas (sem COMPOSIO_*); null = o provedor não mandou a lista (resposta sem corpo ou

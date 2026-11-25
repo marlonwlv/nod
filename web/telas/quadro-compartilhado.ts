@@ -64,7 +64,7 @@ function topo(q: QuadroDto): string {
   const modo = soComenta(q) ? `<span class="qd-meta-falta">Só ${esc(dona)} conversa · você comenta</span>` : "";
   const meta = q.meta ? `<p class="qcp-meta">${esc(q.meta)}${q.prazo ? ` · até ${esc(q.prazo)}` : ""}</p>` : "";
   const gente = [dona, ...(q.membros ?? []).map((m) => (m.pessoaId === q.voce?.pessoaId ? "você" : m.nome))];
-  return `<header class="qcp-topo"><h1 class="qcp-tit">${esc(`Quadro do ${dona}`)} <span class="qcp-sub">· compartilhado com você</span></h1>${meta}` +
+  return `<header class="qcp-topo"><h1 class="qcp-tit">${esc(`Quadro de ${dona}`)} <span class="qcp-sub">· compartilhado com você</span></h1>${meta}` +
     `<p class="qcp-gente">${esc(`${q.agenteNome} · ${gente.join(", ")}`)} ${modo}</p></header>`;
 }
 
@@ -73,7 +73,7 @@ function comOBotDaDona(q: QuadroDto, agente: AgenteDoQuadro): AgenteDoQuadro {
   return (id) => agente(id) ?? (id === q.agenteId ? { avatar: anel((q.agenteNome.trim()[0] ?? "?").toUpperCase(), q.agenteNome), nome: q.agenteNome } : null);
 }
 
-/** O card assinado: "<pessoa>, pela <bot>" quando foi pedido por alguém. */
+/** O card assinado: "<pessoa>, via <bot>" quando foi pedido por alguém. */
 function cardAssinado(t: TarefaDto, agente: AgenteDoQuadro, m: readonly LinhaMuralDto[] | null): ReturnType<typeof cardDaTarefa> {
   const c = cardDaTarefa(t, agente);
   const a = assinaturaDoCard(t, m);
@@ -92,7 +92,7 @@ function grade(q: QuadroDto, v: VistaDoCompartilhado, agente: AgenteDoQuadro, m:
     status: c.id, nome: c.nome, grupo: c.grupo, icone: iconeDaColuna(c), pessoa: c.daPessoa, recolhida, recolhivel: true,
     n: ts.length, cards: ts.map((t) => card(cardAssinado(t, agente, m))),
   }));
-  const rotulo = `Quadro do ${nomeDaDona(q)}`;
+  const rotulo = `Quadro de ${nomeDaDona(q)}`;
   return quadro({ rotulo, classe: "qd-so-largo", colunas }) +
     `<div class="qd-so-estreito">${lista({ rotulo, grupos: cols.map(({ c, ts, recolhida }) => ({ status: c.id, nome: c.nome, icone: iconeDaColuna(c), pessoa: c.daPessoa, recolhido: recolhida, linhas: ts.map((t) => linha(cardAssinado(t, agente, m))) })) })}</div>`;
 }
@@ -135,7 +135,7 @@ function detalhe(q: QuadroDto, t: TarefaDto, v: VistaDoCompartilhado, agente: Ag
     `<input id="qcp-com" class="qd-meta-in" name="texto" maxlength="2000" required placeholder="Comentar" autocomplete="off">` +
     `<button type="submit" class="qd-link"${v.ocupado ? " disabled" : ""}>Comentar</button></form>`;
   return `<article class="qd-tarefa qcp-tarefa" aria-labelledby="qcp-t-tit" data-tarefa="${id}">` +
-    `<div class="qd-t-cab"><button type="button" class="qd-voltar" data-act="qcp-voltar">${ICONE.voltar}<span>${esc(`Quadro do ${nomeDaDona(q)}`)}</span></button><span class="qd-t-sep" aria-hidden="true">/</span><span class="qd-id">${esc(codigoDaTarefa(t))}</span></div>` +
+    `<div class="qd-t-cab"><button type="button" class="qd-voltar" data-act="qcp-voltar">${ICONE.voltar}<span>${esc(`Quadro de ${nomeDaDona(q)}`)}</span></button><span class="qd-t-sep" aria-hidden="true">/</span><span class="qd-id">${esc(codigoDaTarefa(t))}</span></div>` +
     `${corpo}${alheia ? `<p class="qcp-alheia">${esc(alheia)}</p>` : ""}${acoes}${recusaEm(v, t.id)}` +
     `<dl class="qd-props"><dt><label for="qcp-status">Status</label></dt><dd>${campoDoStatus(q, t, v.ocupado)}</dd><dt>Responsável</dt><dd>${esc(resp ?? "ninguém")}</dd></dl>` +
     `${pergunta}<h2 class="qd-t-sec">Comentários</h2>${lista}${comentar}</article>`;

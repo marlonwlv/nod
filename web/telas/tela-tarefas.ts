@@ -104,8 +104,20 @@ function diaEHora(ms: number): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${hora(ms)}`;
 }
 
+/**
+ * QA-171: o filtro "só este bot" de um bot que saiu (excluído em outra aba, pelo chat ou um link antigo) vale como
+ * "Todos os bots" — senão o chip dizia "Todos os bots" e a lista seguia filtrada por ele ("Este bot não está com nada
+ * agora"), sem item marcado no menu. Com a frota ainda carregando o filtro fica, para não piscar a lista inteira.
+ */
+export function semBotQueSaiu<T extends TelaTarefas>(estado: Estado, tela: T): T {
+  if (!tela.bot || !estado.frota || agente(estado, tela.bot)) return tela;
+  const { bot: _saiu, ...resto } = tela;
+  return resto as T;
+}
+
 /** O menu de "Todos os bots ▾": todos e cada bot com tarefa (ou da frota), o escolhido marcado. */
-export function htmlDoMenuDeBots(estado: Estado, atual: string | undefined): string {
+export function htmlDoMenuDeBots(estado: Estado, escolhido: string | undefined): string {
+  const atual = semBotQueSaiu(estado, { tipo: "trabalhos", bot: escolhido }).bot;
   const comTarefa = new Set((estado.trabalhos?.trabalhos ?? []).map((t) => t.agenteId));
   const bots = (estado.frota?.agentes ?? []).filter((a) => !a.excluidoEm && a.papel !== "nod" && (comTarefa.has(a.id) || a.ownerId === estado.sessao?.pessoaId));
   const item = (id: string, nome: string, av: string): string => `<button type="button" role="menuitemradio" class="tf-menu-item" data-bot="${esc(id)}" aria-checked="${(atual ?? "") === id}">${av}<span class="at-item-titulo">${esc(nome)}</span>${(atual ?? "") === id ? `<span class="tf-menu-ok">${IC_OK}</span>` : ""}</button>`;
@@ -127,7 +139,8 @@ function topo(estado: Estado, tela: TelaTarefas, porBot: boolean, abertas: numbe
  * A tela inteira. Por bot com o dono de cada bot no servidor e sem `filtro`; senão Por estado (o servidor anterior ao
  * dono só tem esta).
  */
-export function renderTelaTarefas(estado: Estado, tela: TelaTarefas = { tipo: "trabalhos" }): string {
+export function renderTelaTarefas(estado: Estado, telaPedida: TelaTarefas = { tipo: "trabalhos" }): string {
+  const tela = semBotQueSaiu(estado, telaPedida);
   if (!estado.trabalhos) return '<section class="tela-tarefas" aria-label="Tarefas"><p class="tf-vazio">carregando…</p></section>';
   const porBot = temDonos(estado) && !tela.filtro;
   const todos = trabalhosDaTela(estado).filter((t) => !tela.bot || t.agenteId === tela.bot);

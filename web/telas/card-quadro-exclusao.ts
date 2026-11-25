@@ -11,7 +11,7 @@ import { botao, esc } from "../lib/render.ts";
 export function renderCardQuadroExclusao(p: Pick<Proposta, "id" | "estado">, c: PayloadPropostaQuadroExclusao, aberto: boolean): string {
   const sai = [`${c.tarefas} ${c.tarefas === 1 ? "card" : "cards"}`, `${c.colunas} ${c.colunas === 1 ? "coluna" : "colunas"}`, ...(c.temMeta ? ["a meta"] : []), "o histórico"];
   const lista = `${sai.slice(0, -1).join(", ")} e ${sai.at(-1)}`;
-  const linhas = [esc(`Sai: ${lista}`), esc(`Fica: a conversa e a memória do ${c.anfitriaoNome}`)];
+  const linhas = [esc(`Sai: ${lista}`), esc(`Fica: a conversa e a memória de ${c.anfitriaoNome}`)];
   if (aberto) linhas.push("Não dá para desfazer.");
   const desfecho = p.estado === "confirmada" ? `<p class="cp-rodape">Quadro excluído. ${esc(c.anfitriaoNome)} voltou a ser um agente comum.</p>`
     : p.estado === "recusada" ? '<p class="cp-rodape">Quadro mantido.</p>' : "";
@@ -19,7 +19,7 @@ export function renderCardQuadroExclusao(p: Pick<Proposta, "id" | "estado">, c: 
     id: p.id,
     classe: "card-quadro-exclusao",
     // ADA-14: com N quadros, o título diz qual (o mesmo texto de tituloDaExclusaoDoQuadro, no domínio).
-    titulo: c.quadroNome ? `Excluir o quadro "${c.quadroNome}" do ${c.anfitriaoNome}` : `Excluir o quadro do ${c.anfitriaoNome}`,
+    titulo: c.quadroNome ? `Excluir o quadro "${c.quadroNome}" de ${c.anfitriaoNome}` : `Excluir o quadro de ${c.anfitriaoNome}`,
     linhas,
     acoes: aberto ? `${botao("decidir-proposta", "Excluir", { classe: "cp-sim cp-perigo", id: p.id })}${botao("recusar-decisao", "Agora não", { classe: "cp-nao", id: p.id })}` : "",
     rodape: desfecho,

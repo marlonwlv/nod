@@ -106,18 +106,24 @@ export const continuarTarefa: CasoDeUso<{ tarefaId: string; texto: string; anexo
 };
 
 /**
- * O turno vivo da Tarefa (despachando ou na fila) e a escolha da pessoa. Sem turno vivo, nada a escolher. Com turno vivo e
+ * O turno vivo da Tarefa (despachando, na fila ou a espera dela: volta marcada, comando, colega) e a escolha da pessoa. Sem turno vivo, nada a escolher. Com turno vivo e
  * sem escolha, recusa (`entrada_invalida`, causa `turno_vivo`): a tela pergunta antes. "parar" para o trabalho como o
  * Parar da tarefa; "manter" deixa rodar.
  */
 async function aplicarEscolha(deps: Deps, trabalhoId: string | null, escolha: EscolhaTurnoVivo | undefined): Promise<RuntimeEvent[]> {
   if (!trabalhoId) return [];
-  const f = (await deps.repos.trabalhos.fatosDeVarios([trabalhoId])).get(trabalhoId);
-  const vivo = f ? f.despachando + f.pendentes + (f.parando ?? 0) > 0 : false;
-  if (!vivo) return [];
+  if (!(await temTurnoVivo(deps, trabalhoId))) return [];
   if (escolha === undefined) throw new ErroDeDominio("entrada_invalida", { cause: "turno_vivo" });
   if (escolha === "manter") return [];
   return (await pararTrabalho(deps, { trabalhoId })).events ?? [];
+}
+
+async function temTurnoVivo(deps: Deps, trabalhoId: string): Promise<boolean> {
+  const f = (await deps.repos.trabalhos.fatosDeVarios([trabalhoId])).get(trabalhoId);
+  // QA-192 (2026-11-23): a frente que só espera — a volta marcada (me_chame_as), um comando (esperar_comando), um colega
+  // ou outra frente (depois_de) — também está viva: a tela já mostra "Resolver e parar" (tarefaComExecucaoViva, estado
+  // `rodando`/`na_fila`), e sem isto o "parar" não parava nada e a volta acordava o bot na Tarefa já resolvida.
+  return f ? f.despachando + f.pendentes + (f.parando ?? 0) > 0 || f.aguardandoDespertar === true || f.aguardandoComando === true || f.aguardandoColega === true || f.esperandoOutro === true : false;
 }
 
 async function comandoDaPessoa(deps: Deps, input: { tarefaId: string; versao?: number; turnoVivo?: EscolhaTurnoVivo }, comando: ComandoTarefa, comEscolha: boolean): Promise<{ data: { tarefa: TarefaDto; mudou: boolean }; events: RuntimeEvent[] }> {
@@ -125,10 +131,14 @@ async function comandoDaPessoa(deps: Deps, input: { tarefaId: string; versao?: n
   const [trabalhoId] = await deps.repos.tarefas.trabalhosDa(t.id);
   const antes = comEscolha ? await aplicarEscolha(deps, trabalhoId ?? null, input.turnoVivo) : [];
   const r = await transicionarTarefa(deps, t.id, comando, pessoaDoEscopo(deps), { ...(input.versao !== undefined ? { versaoEsperada: input.versao } : {}), trabalhoId: trabalhoId ?? null });
+  // QA-194: a escolha foi lida sem trava. Uma fala da pessoa que ainda não tinha commitado (ela trava a Tarefa no
+  // Continuar) cria um turno que a leitura não viu; com a Tarefa travada aqui, a fala já commitou: relê e decide de novo,
+  // para nunca resolver ou arquivar com uma execução viva que a pessoa não escolheu manter nem parar.
+  const depois = comEscolha && trabalhoId && r.mudou && input.turnoVivo !== "manter" && (await temTurnoVivo(deps, trabalhoId)) ? await aplicarEscolha(deps, trabalhoId, input.turnoVivo) : [];
   const fechadas = trabalhoId && r.mudou ? await fecharPerguntasQueSobraram(deps, trabalhoId, comando, input.turnoVivo) : [];
   // O frame legado também sai: a tela de antes relê a lista de trabalhos (o `tarefa` do DTO mudou).
   const trabalho = trabalhoId && r.mudou ? await deps.repos.trabalhos.buscar(trabalhoId) : null;
-  return { data: { tarefa: await umaDto(deps, (await deps.repos.tarefas.buscar(t.id)) ?? r.tarefa), mudou: r.mudou }, events: [...antes, ...r.events, ...fechadas, ...(trabalho ? [eventoTrabalhoMudou(deps, trabalho)] : [])] };
+  return { data: { tarefa: await umaDto(deps, (await deps.repos.tarefas.buscar(t.id)) ?? r.tarefa), mudou: r.mudou }, events: [...antes, ...depois, ...r.events, ...fechadas, ...(trabalho ? [eventoTrabalhoMudou(deps, trabalho)] : [])] };
 }
 
 /**

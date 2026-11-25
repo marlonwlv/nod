@@ -190,7 +190,7 @@ describeIntegracao("quadros do bot: caso de uso (ADA-14)", () => {
       const r = await proporExclusaoDoQuadro(m.deps, { ...ctx, executor: "catcher", quadro: `${m.nomeAna} / Site`, bot: m.nomeAna, naConversa: true, limpo: true });
       expect(r.data).toMatchObject({ ok: true, payload: { quadroNome: "Site" } });
       const id = r.data.ok ? r.data.propostaId : "";
-      expect((await m.repos.decisoes.buscar(id))?.frase).toContain(`Excluir o quadro "Site" do ${m.nomeAna}`);
+      expect((await m.repos.decisoes.buscar(id))?.frase).toContain(`Excluir o quadro "Site" de ${m.nomeAna}`);
     });
   });
 

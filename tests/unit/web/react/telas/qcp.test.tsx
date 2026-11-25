@@ -12,14 +12,14 @@ describe("o #qcp desenhado pelo React", () => {
   it("o mesmo DOM do HTML; o redesenho troca só o que mudou, e o campo com o texto e o foco é o mesmo nó", () => {
     document.body.innerHTML = '<div id="qcp" class="qcp-casco"></div>';
     const el = document.getElementById("qcp")!;
-    act(() => desenharHtmlNoNo(el, html("Quadro do Marlon")));
-    expect(el.querySelector(".qcp-tit")?.textContent).toBe("Quadro do Marlon");
+    act(() => desenharHtmlNoNo(el, html("Quadro de Marlon")));
+    expect(el.querySelector(".qcp-tit")?.textContent).toBe("Quadro de Marlon");
     expect(el.querySelector('form[data-form="qcp-comentar"][data-id="t1"]')).toBeTruthy();
     const campo = el.querySelector<HTMLInputElement>("#qcp-com")!;
     campo.focus();
     campo.value = "meu comentário";
-    act(() => desenharHtmlNoNo(el, html("Quadro do Marlon · meta nova")));
-    expect(el.querySelector(".qcp-tit")?.textContent).toBe("Quadro do Marlon · meta nova");
+    act(() => desenharHtmlNoNo(el, html("Quadro de Marlon · meta nova")));
+    expect(el.querySelector(".qcp-tit")?.textContent).toBe("Quadro de Marlon · meta nova");
     expect(el.querySelector("#qcp-com")).toBe(campo);
     expect(campo.value).toBe("meu comentário");
     expect(document.activeElement).toBe(campo);

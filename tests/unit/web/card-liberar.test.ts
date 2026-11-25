@@ -154,7 +154,7 @@ describe("o desenho do cartão na conversa", () => {
     const html = renderCardLiberar(conversa(), estado);
     expect(html).toContain('<div class="msg-sistema">Você conectou o Gmail e o Slack no Marketplace.</div>');
     expect(html).toContain('<section class="acesso-card liberar-card" data-liberar="a1" aria-label="Liberar apps para Assistente pessoal">');
-    expect(html).toContain("<b>O Assistente pessoal ainda não pode usar esses apps</b><small>Conectar o app é o primeiro passo. Falta dizer o que este bot pode fazer neles.</small>");
+    expect(html).toContain("<b>Assistente pessoal ainda não pode usar esses apps</b><small>Conectar o app é o primeiro passo. Falta dizer o que este bot pode fazer neles.</small>");
     expect(html.match(/class="lib-app"/g)).toHaveLength(2);
     expect(html).toContain('<input type="checkbox" checked data-liberar-app="k-gmail" data-slug="gmail" />');
     expect(html).toContain('<select class="lib-nivel" data-liberar-nivel="k-slack" aria-label="Nível de acesso ao Slack"><option value="leitura" selected>Ler</option><option value="escrita">Ler e alterar</option></select>');
@@ -172,7 +172,7 @@ describe("o desenho do cartão na conversa", () => {
     const soLeitura = conector("gmail", "Gmail", { catalogo: [cap("LISTAR", "ler")] });
     const html = renderCardLiberar(conversa(), { ...estado, conectores: [soLeitura] });
     expect(html).toContain("Você conectou o Gmail no Marketplace.");
-    expect(html).toContain("<b>O Assistente pessoal ainda não pode usar esse app</b><small>Conectar o app é o primeiro passo. Falta dizer o que este bot pode fazer nele.</small>");
+    expect(html).toContain("<b>Assistente pessoal ainda não pode usar esse app</b><small>Conectar o app é o primeiro passo. Falta dizer o que este bot pode fazer nele.</small>");
     expect(html).toContain('aria-label="Nível de acesso ao Gmail" disabled><option value="leitura" selected>Ler</option></select>');
     expect(html).toContain('data-act="liberar-apps" data-id="a1">Permitir leitura</button>');
     expect(html).toContain('data-conectores="k-gmail"');

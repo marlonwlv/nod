@@ -2976,7 +2976,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async salvarChave(c) { b.composioChaves.set(escopo.tenantId + escopo.pessoaId, c); },
       async salvarChaveSeAusente(c) { if (b.composioChaves.has(escopo.tenantId + escopo.pessoaId)) return false; b.composioChaves.set(escopo.tenantId + escopo.pessoaId, c); return true; },
       async sessao(t) { return b.composioSessoes.get(escopo.tenantId + escopo.pessoaId + t) ?? null; },
-      async salvarSessao(s) { b.composioSessoes.set(escopo.tenantId + escopo.pessoaId + s.toolkit, s); },
+      async sessoesDoApp(t) { return [...b.composioSessoes.entries()].filter(([k, s]) => k.startsWith(escopo.tenantId + escopo.pessoaId) && s.toolkit === t).map(([, s]) => s); },
+      async travarApp() { /* um processo só: nada corre junto */ },
+      async salvarSessao(s) { b.composioSessoes.set(escopo.tenantId + escopo.pessoaId + s.toolkit + (s.conta ? `--${s.conta}` : ""), { ...s, conta: s.conta ?? null, email: null }); },
+      async salvarEmail(conectorId, email) { for (const s of b.composioSessoes.values()) if (s.conectorId === conectorId) s.email = email; },
     },
     conectores: {
       async atualizarEndpoint(id, url, envCifrado, envChaves) {
@@ -3029,10 +3032,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return doTenant(b.conectores).find((c) => c.slug === slug) ?? null;
       },
       async listar() {
-        return doTenant(b.conectores);
+        return doTenant(b.conectores).filter((c) => !c.removidoEm).map((c) => {
+          const s = [...b.composioSessoes.values()].find((x) => x.conectorId === c.id);
+          return s?.email && c.ownerId === escopo.pessoaId ? { ...c, contaEmail: s.email } : c;
+        });
       },
       async listarHabilitados() {
-        return doTenant(b.conectores).filter((c) => c.habilitado);
+        return doTenant(b.conectores).filter((c) => c.habilitado && !c.removidoEm);
       },
       async registrarSonda(id, r) {
         const c = doTenant(b.conectores).find((x) => x.id === id);
@@ -3040,7 +3046,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         c.sondadoEm = r.agora;
         if (r.ok) {
           c.catalogo = r.catalogo;
-          c.habilitado = true;
+          c.habilitado = !c.removidoEm;
           Object.assign(c, { ultimaFalha: null, falhasSeguidas: 0, timeoutsSeguidos: 0, ultimoTimeoutEm: null, proximaSondaEm: null, foraDoArDesde: null });
         } else {
           c.ultimaFalha = { motivo: r.motivo, em: c.ultimaFalha?.em ?? r.agora, ...(r.causa ? { causa: r.causa } : {}) };
@@ -3051,8 +3057,31 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async habilitar(id, habilitado) {
         const c = doTenant(b.conectores).find((x) => x.id === id);
         if (!c) return null;
-        c.habilitado = habilitado;
+        c.habilitado = habilitado && !c.removidoEm;
         return c;
+      },
+      async renomear(id, nome) {
+        const c = doTenant(b.conectores).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.removidoEm);
+        if (!c) return null;
+        c.nome = nome;
+        return c;
+      },
+      // O mesmo que o real (ADR-196): a marca, os acessos fora e a sessão apagada; o conector fica.
+      async remover(id, agora) {
+        const c = doTenant(b.conectores).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.removidoEm);
+        if (!c) return false;
+        Object.assign(c, { habilitado: false, removidoEm: agora, ultimaFalha: null });
+        b.concessoes = b.concessoes.filter((g) => g.conectorId !== id);
+        let contaComposio: string | null = null;
+        for (const [k, s] of b.composioSessoes) if (s.conectorId === id) { contaComposio = s.contaId; b.composioSessoes.delete(k); }
+        return { contaComposio };
+      },
+      async limparAcessos(id) { b.concessoes = b.concessoes.filter((g) => g.conectorId !== id); },
+      async restaurar(id) {
+        const c = doTenant(b.conectores).find((x) => x.id === id && x.ownerId === escopo.pessoaId);
+        if (!c) return false;
+        delete c.removidoEm;
+        return true;
       },
       async atualizarEnv(id, p) {
         const c = doTenant(b.conectores).find((x) => x.id === id);
@@ -3580,7 +3609,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           if (t.ownerId !== escopo.pessoaId || t.estado !== "pendente" || b.maquinaDestaVez.get(t.id) !== de) continue;
           b.maquinaDestaVez.set(t.id, para); t.maquinaDestaVez = para; turnos++;
         }
-        return { bots: bots.map((a) => a.id), padrao, sessoes: 0, turnos, navegador: 0 };
+        return { bots: bots.map((a) => a.id), padrao, sessoes: 0, turnos, navegador: 0, checkpoints: 0, esperas: 0, computadores: 0 };
       },
       async criar(e) {
         const papel = e.papel ?? "motor";
