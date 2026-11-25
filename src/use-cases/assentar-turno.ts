@@ -395,6 +395,12 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
       events.push(...(await fecharRetomarDoTurno(deps, promovido, REGRA_ENTREGA_TARDIA, agora)));
       events.push(...(await fecharRetomarSuperados(deps, promovido, agora)));
       events.push(evento(deps.escopo, { kind: "turno_encerrado", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { estado: "concluido", custo_usd: custoUsd, ferramentas: resultado.ferramentasChamadas.length, regra: REGRA_ENTREGA_TARDIA } }));
+      // QA-228 (2026-11-25): o turno promovido concluiu de verdade — o que ele deixou marcado (me_chame_as, esperar_comando,
+      // a saída da tarefa) vale como no assentamento na hora. Antes a volta sumia junto com a retomada absorvida, e o bot
+      // que disse "volto às 16h" não voltava (e o comando que terminou durante a queda não acordava ninguém).
+      await gravarSaidaDoTrabalho(deps, promovido, true);
+      events.push(...(await voltaMarcadaAoAssentar(deps, promovido, true)));
+      events.push(...(await esperaAoAssentar(deps, promovido, true)));
       events.push(...(await sincronizarDoTurno(deps, promovido)));
       return { data: { turno: promovido, mensagem, duplicada: false, tardia: true }, events };
     }
