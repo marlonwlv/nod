@@ -5,8 +5,8 @@ import { esc } from "./escape.ts";
 
 /**
  * "Ada", "Nina" → feminino; "Milton", "Nod" → masculino. Sem o gênero no DTO, a terminação decide. revisto em
- * 2026-11-25 (QA do Windows): decide a primeira palavra, o substantivo que manda no gênero ("Testador QA" é ele; pela
- * última, o "A" da sigla dava "A Testador QA precisa de você").
+ * 2026-11-25 (QA do Windows): decide a primeira palavra, o substantivo que manda no gênero ("Leitor QA" é ele; pela
+ * última, o "A" da sigla dava "A Leitor QA precisa de você").
  */
 export function feminino(nome: string): boolean {
   const primeira = nome.trim().split(/\s+/u)[0] ?? "";

@@ -71,7 +71,7 @@ export function resolverLugar(e: EntradaLugar): ResolucaoLugar {
  */
 export function sujeitoDoBot(nome: string): string {
   const n = nome.trim();
-  // A primeira palavra decide (2026-11-25): "Testador QA" é "O Testador QA".
+  // A primeira palavra decide (2026-11-25): "Leitor QA" é "O Leitor QA".
   return `${/a$/u.test((n.split(/\s+/u)[0] ?? "").toLowerCase()) ? "A" : "O"} ${n}`;
 }
 

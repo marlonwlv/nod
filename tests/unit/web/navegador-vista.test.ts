@@ -247,7 +247,7 @@ describe("o painel (D5, D6)", () => {
       expect(htmlPilula("Nina", "controle")).toContain('title="A Nina espera · Ctrl+Shift+A devolve"');
       expect(textosDoAparelhoNaWeb(undefined).nome).toBe("PC");
       expect(textosDoAparelhoNaWeb("mac").nome).toBe("Mac");
-      expect(htmlPilula("Testador QA", "controle")).toContain("O Testador QA espera");
+      expect(htmlPilula("Leitor QA", "controle")).toContain("O Leitor QA espera");
     } finally {
       definirTecladoDoMac(true);
     }
