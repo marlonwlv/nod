@@ -190,4 +190,5 @@ export type ArgsExecutarRotina = { rotina_id: string };
 /** `aplicada: true` (ADR-059): o modo do bot confirmou na hora — a mudança JÁ vale, sem card. */
 export type ResultadoPropostaRotina = { proposta_id: string; resumo: string; aplicada?: true } | { erro: CodigoErro };
 /** `endereco`: só na rotina webhook já ativa, MASCARADO (o bot nunca vê o endereço inteiro; a pessoa copia na tela). */
-export type ResultadoCriarRotina = { proposta_id: string; proxima_execucao: number; resumo: string; aplicada?: true; endereco?: string } | { erro: CodigoErro };
+/** `proxima_execucao_local` (PR #333): a mesma próxima execução por extenso no fuso da rotina, para o bot citar sem fazer conta. */
+export type ResultadoCriarRotina = { proposta_id: string; proxima_execucao: number; proxima_execucao_local?: string; resumo: string; aplicada?: true; endereco?: string } | { erro: CodigoErro };

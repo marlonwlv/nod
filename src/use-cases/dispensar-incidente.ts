@@ -4,7 +4,6 @@ import { ErroDeDominio } from "../domain/erro.ts";
 import { INCIDENTE_VISIVEL_MS, incidenteVisivel } from "../domain/incidente.ts";
 import type { Repos } from "../repositories/tipos.ts";
 import type { Deps } from "./tipos.ts";
-import { ehMaquinaDoMotor } from "../domain/plataforma-maquina.ts";
 
 /**
  * "Entendi" no aviso de queda (ADR-045): some da tela. Fechado e dispensado, não recebe queda nova — a
@@ -25,11 +24,12 @@ export async function incidentesVisiveis(repos: Repos, agora: number): Promise<I
   const visiveis = (await repos.incidentes.visiveis(agora - INCIDENTE_VISIVEL_MS)).filter((i) => incidenteVisivel(i, agora));
   const nomes = new Map<string, string>();
   for (const id of new Set(visiveis.flatMap((i) => i.agentes))) nomes.set(id, (await repos.agentes.buscar(id, true))?.nome ?? "agente");
-  // definido em 2026-10-09: a VM que caiu é nomeada; o Mac (e a chave que ainda não disse o sistema) fica sem o campo.
+  // definido em 2026-10-09: a VM que caiu é nomeada. Revisto em 2026-11-22 (lote B, desvio 12): toda máquina com nome
+  // vai pelo nome (ADR-187: nunca "seu Mac" para o que não é); sem a máquina (chave antiga), o aviso diz "Seu Mac".
   const linux = new Map<string, string>();
   for (const id of new Set(visiveis.flatMap((i) => (i.machineId ? [i.machineId] : [])))) {
     const m = await repos.maquinaTokens.identificar(id);
-    if (m && ehMaquinaDoMotor(m.plataforma)) linux.set(id, m.nome);
+    if (m?.nome.trim()) linux.set(id, m.nome.trim());
   }
   return visiveis.map((i) => ({
     id: i.id,

@@ -99,7 +99,9 @@ const CATALOGO: Record<ChaveRedacao, string> = {
   passe: "{agente} passou a vez ({motivo}).",
   // definido em 2026-09-24 (ADR-044): {escopo} é a lista `slug.capacidade` do lote; com uma só, o texto é o de antes.
   consentimento: "Concedido por {pessoa} em {quando}: {escopo}; não inclui: {naoInclui}.",
-  "executor-indisponivel": "Nenhum trabalho começa: executor indisponível ({motivo}) desde {desde}.",
+  // Lote B das Jornadas da IA (desvios 6 e 8, 2026-11-22): sem "executor" nem ids crus; diz que a mensagem espera (ela
+  // espera: repetir-barrados-por-ia a reenvia quando uma IA fica pronta).
+  "executor-indisponivel": "Nenhum trabalho começou: {motivo} (desde {desde}). A mensagem fica guardada e sai sozinha quando uma IA ficar pronta.",
   // NOD-285 (revisão do Gil no #345): a IA está pronta e só não lê o arquivo; nada de "executor indisponível… desde".
   "anexo-nao-lido": "Nenhum trabalho começa: {motivo}.",
   // definido em 2026-10-05: o bot em automático repetiu o pedido na outra IA (assentar-turno.ts, aposContaSemAcesso).

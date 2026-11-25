@@ -1,5 +1,6 @@
 import type { ModoAprovacao } from "../../src/contracts/agente.ts";
 import { esc } from "../lib/escape.ts";
+import { subtituloDeEnsinar } from "../lib/navegador-vista.ts";
 import { MODOS } from "./aprovacoes.ts";
 
 /**
@@ -119,3 +120,18 @@ export function travarToqueDuploEm(d: { addEventListener(tipo: "click", f: (e: C
     e.stopImmediatePropagation();
   }, { capture: true });
 }
+
+/**
+ * ADR-190 (T1; Paper Y27-0): no computador, com o navegador do bot à mão, o + abre um menu pequeno — "Foto ou arquivo",
+ * "Nova tarefa ⌘N" e "Ensinar uma tarefa / Mostre no navegador da Ada; ela aprende". Sem o navegador, o + segue abrindo
+ * o seletor de arquivo direto (validação de 2026-11-18). Nunca no celular: um passo a passo longo não cabe ali.
+ */
+export function htmlMenuDoMais(o: { anexar: boolean; novaTarefa: { texto: string; aria: string } | null; ensinar: { agenteId: string; nome: string } | null }): string {
+  const itens = [
+    o.anexar ? '<button type="button" role="menuitem" class="mm-item" data-mais-pc="anexar">Foto ou arquivo</button>' : "",
+    o.novaTarefa ? `<button type="button" role="menuitem" class="mm-item" data-mais-pc="nova-tarefa" aria-keyshortcuts="${esc(o.novaTarefa.aria)}">Nova tarefa<span class="mm-atalho">${esc(o.novaTarefa.texto)}</span></button>` : "",
+    o.ensinar ? `<button type="button" role="menuitem" class="mm-item mm-ensinar" data-mais-pc="ensinar" data-agente="${esc(o.ensinar.agenteId)}"><span>Ensinar uma tarefa</span><small>${esc(subtituloDeEnsinar(o.ensinar.nome))}</small></button>` : "",
+  ].join("");
+  return `<div role="menu" class="menu-do-mais" aria-label="Anexar, tarefa e ensinar">${itens}</div>`;
+}
+

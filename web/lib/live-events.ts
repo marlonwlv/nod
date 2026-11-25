@@ -114,6 +114,7 @@ const TIPOS: Record<TipoFrame, true> = {
   "relato.criado": true,
   "ligacao.mudou": true,
   "trabalho.mudou": true,
+  "tarefa.mudou": true,
   "memoria.mudou": true,
   "reacao.mudou": true,
   "checkpoint.mudou": true,
@@ -125,6 +126,7 @@ const TIPOS: Record<TipoFrame, true> = {
   "agente.estado": true,
   "computador.cursor": true,
   "computador.estado": true,
+  "navegador.mudou": true,
   resumed: true,
 };
 

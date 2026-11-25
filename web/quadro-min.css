@@ -67,7 +67,7 @@
 
 /* ---------- A barra ---------- */
 .qm-barra { gap: 8px; }
-.qm-esq { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.qm-esq { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; row-gap: 4px; min-width: 0; }
 .qm-barra .qd-barra-dir { gap: 4px; }
 .qm-fil-l, .qm-op-l, .qm-ativos-l { position: relative; display: inline-flex; }
 .qm-icbt { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 32px; height: 32px; padding: 0 7px; border: 0; border-radius: 9px;
@@ -238,8 +238,10 @@
 .qd-vista:has(.qm-barra) .qd-card-resp-in { min-height: 30px; height: 30px; padding: 5px 8px; border-radius: 8px; resize: none; }
 .qd-vista:has(.qm-barra) .qd-card-resp-in:focus { height: 64px; }
 
-/* A barra numa linha só, também no celular: a busca encolhe; os ícones e a pílula ficam à direita. */
-.qd-barra-q.qm-barra { flex-wrap: nowrap; }
+/* Se o nome e as pessoas não cabem ao lado das ferramentas (janela estreita, zoom de 200%), as ferramentas descem para a
+ * linha de baixo, à direita, em vez de espremer o filtro por pessoa até esconder quem não coube. */
+.qd-barra-q.qm-barra { flex-wrap: wrap; row-gap: 6px; }
+.qm-barra .qd-barra-dir { margin-left: auto; }
 .qm-barra .qm-esq { flex: 1 1 auto; }
 .qm-barra .qd-busca-l { flex: 0 1 auto; }
 .qm-barra .qd-busca { width: 168px; max-width: 100%; }
@@ -276,7 +278,9 @@
 .qm-cab-sep { font-weight: 400; color: var(--ink-4); }
 .qm-cab-bt .qm-cab-chev { width: 12px; height: 12px; }
 
-.qm-pes { display: inline-flex; align-items: center; gap: 2px; min-width: 0; padding: 2px; border-radius: 999px; background: var(--hover); overflow: hidden; }
+/* Sem largura para todos na linha do nome (de ~640 a ~1100 px, ou zoom de 200%), o grupo desce para a linha de baixo e,
+ * se ainda não couber, quebra em mais linhas: ninguém fica escondido atrás do corte (nada rola de lado, ADA-6). */
+.qm-pes { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; max-width: 100%; padding: 2px; border-radius: 15px; background: var(--hover); overflow: hidden; }
 .qm-pes-bt { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 4px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--ink-2); font: 400 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; }
 .qm-pes-todas { padding: 0 10px; }
 .qm-pes-bt:hover { color: var(--ink); }

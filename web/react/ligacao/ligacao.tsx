@@ -2,7 +2,7 @@ import { StrictMode, useLayoutEffect, useRef, useSyncExternalStore, type ReactNo
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { IaDaLigacao } from "../../../src/contracts/voz.ts";
-import { iconeDoAviso, type TomDoAviso } from "../../lib/aviso-estado.ts";
+import { pontoDoAviso, type TomDoAviso } from "../../lib/aviso-estado.ts";
 import type { MotivoAvaliacaoLigacao } from "../../lib/ligacao-protocolo.ts";
 import { plataformaDaTela } from "../../lib/plataforma-da-tela.ts";
 import { duracaoRelogio } from "../../lib/relogio.ts";
@@ -50,10 +50,13 @@ type Html = (h: string) => ReactNode;
 
 function AvisoDeEstado({ html, tom, titulo, texto, papel, classe, acao, extra }: { html: Html; tom: TomDoAviso; titulo?: string; texto: string; papel?: "alert" | "status"; classe?: string; acao?: ReactNode; extra?: ReactNode }) {
   return (
+    // A mesma marcação de avisoDeEstado (web/lib/aviso-estado.ts): cabeça com o ponto, texto, extra e a linha de botões.
     <div className={`aviso-estado tom-${tom}${classe ? ` ${classe}` : ""}`} role={papel}>
-      {html(iconeDoAviso(tom))}
-      <div className="aviso-estado-txt">{titulo && <><b>{titulo}</b>{" "}</>}{texto}{extra}</div>
-      {acao}
+      {titulo
+        ? <><div className="aviso-estado-cab">{html(pontoDoAviso(tom))}<b className="aviso-estado-tit">{titulo}</b></div><p className="aviso-estado-txt">{texto}</p></>
+        : <div className="aviso-estado-cab">{html(pontoDoAviso(tom))}<p className="aviso-estado-txt">{texto}</p></div>}
+      {extra}
+      {acao && <div className="aviso-estado-acoes">{acao}</div>}
     </div>
   );
 }
@@ -122,8 +125,10 @@ function Aviso({ t, acoes, html }: { t: EstadoTelaLigacao; acoes: AcoesDaLigacao
     <>
       {v && (
         <div className="aviso-estado tom-info aviso-compacto lig-ia-voltou" role="status">
-          {v.ia && <span className="lsi-logo" aria-hidden="true">{html(logoDaIa(v.ia))}</span>}
-          <div className="aviso-estado-txt">{textoIaVoltou(v, botDoAviso(t))}</div>
+          <div className="aviso-estado-cab">
+            {v.ia && <span className="lsi-logo" aria-hidden="true">{html(logoDaIa(v.ia))}</span>}
+            <p className="aviso-estado-txt">{textoIaVoltou(v, botDoAviso(t))}</p>
+          </div>
         </div>
       )}
       {t.aviso && (

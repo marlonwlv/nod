@@ -71,6 +71,8 @@ export const FRAME_POR_EVENTO: Record<KindEvento, TipoFrame> = {
   ligacao_mudou: "ligacao.mudou",
   // definido em 2026-10-07 (ADR-083): o frame diz "os trabalhos deste bot mudaram"; a web relê por REST.
   trabalho_mudou: "trabalho.mudou",
+  // ADR-192 (2026-11-22): o frame diz "esta Tarefa mudou" {tarefaId, agenteId, estado, motivo}; o cliente relê por REST.
+  tarefa_mudou: "tarefa.mudou",
   pressao_memoria: "memoria.mudou",
   // definido em 2026-10-18 (ADR-113): o frame diz "as reações desta fala mudaram"; a web relê a conversa por REST.
   reacao_mudou: "reacao.mudou",

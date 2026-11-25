@@ -54,6 +54,9 @@ afterEach(async () => {
     await trx`delete from turnos where id in ${trx(criados.turnos)}`;
     // ADR-083 (0060): os trabalhos apontam para a conversa (e a rotina) — saem antes dela.
     await trx`delete from trabalhos where conversa_id in ${trx(criados.conversas)}`;
+    // ADR-192: a frente nasce com Tarefa + Thread (emenda 5); saem antes da conversa.
+    await trx`delete from tarefa_eventos where tarefa_id in (select tarefa_id from threads where conversa_id in ${trx(criados.conversas)})`;
+    await trx`with t as (delete from threads where conversa_id in ${trx(criados.conversas)} returning tarefa_id) delete from tarefas where id in (select tarefa_id from t)`;
     await trx`delete from conversas where id in ${trx(criados.conversas)}`;
     await trx`delete from agentes where id in ${trx(criados.agentes)}`;
   });

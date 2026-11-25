@@ -3,6 +3,7 @@ import { IAS_COM_CONTA } from "../contracts/contas-ia.ts";
 import type { IdHarness } from "../contracts/harness.ts";
 import type { EpochMs } from "../contracts/ids.ts";
 import { PRAZO_SEM_HORARIO_MS } from "./contas-da-ia.ts";
+import { noNa } from "./desvios-da-conversa.ts";
 
 /**
  * As contas de IA da pessoa em todas as máquinas (definido em 2026-10-13, ADR-102). Puro: `agora` por parâmetro, o
@@ -227,7 +228,8 @@ export function fraseDoLimiteDaConta(
   d: DecisaoDoLimiteDaConta,
   p: { maquina: string | null; quando: (t: EpochMs) => string; quandoVolta: (t: EpochMs) => string; voltaEm: EpochMs | null; origem?: string; acabouEm?: EpochMs },
 ): string {
-  const onde = p.maquina ? ` na ${p.maquina}` : "";
+  // Lote B (2026-11-22): o artigo pela máquina ("no MacBook", "na VM"), não sempre "na".
+  const onde = p.maquina ? ` ${noNa(p.maquina)}` : "";
   const noLimite = `${nomeDaConta(de)} no limite${onde}${p.voltaEm !== null ? ` até ${p.quando(p.voltaEm)}` : ""}.`;
   // NOD-284 (suposição da NOD-230, 2026-10-15): a sala não refaz sozinha a fala cortada — nunca "Seguindo com" ali.
   if ((d.tipo === "trocou" || d.tipo === "outra_ia") && p.origem === "sala") return `${noLimite} Fale de novo para seguir com ${nomeDaConta(d.para)}.`;
@@ -237,7 +239,7 @@ export function fraseDoLimiteDaConta(
     const aqui = d.livres.filter((c) => c.naMaquina);
     if (aqui.length > 0) return `${noLimite} Seguir com ${aqui.length === 1 ? nomeDaConta(aqui[0]!) : "outra conta"}?`;
     const [primeira] = d.livres;
-    return `${noLimite} ${nomeDaConta(primeira!)} está livre, mas ${p.maquina ? `não está na ${p.maquina}` : "não está nesta máquina"}.`;
+    return `${noLimite} ${nomeDaConta(primeira!)} está livre, mas ${p.maquina ? `não está ${noNa(p.maquina)}` : "não está nesta máquina"}.`;
   }
   return `Todas as suas contas estão no limite${d.voltaEm !== null ? `. A primeira volta ${p.quandoVolta(d.voltaEm)}` : ""}.`;
 }

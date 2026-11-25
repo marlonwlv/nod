@@ -56,6 +56,8 @@ export type KindEvento =
   | "ligacao_mudou"
   /** definido em 2026-10-07 (ADR-083): trabalho criado ou mudou de estado (só ids e estado). */
   | "trabalho_mudou"
+  /** definido em 2026-11-22 (ADR-192): a Tarefa (objetivo) nasceu ou mudou de estado/atividade (só ids, estado e motivo). */
+  | "tarefa_mudou"
   /** ADR-083 (#191): telemetria das linhas do chat — a web mostrou / a pessoa abriu (tipo, agente, chave). */
   | "linha_mostrada"
   | "linha_aberta"

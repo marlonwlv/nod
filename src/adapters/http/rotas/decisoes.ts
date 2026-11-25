@@ -15,7 +15,7 @@ import { erroPerfilMudou } from "../../../use-cases/confirmar-perfil.ts";
 import { confirmarProposta } from "../../../use-cases/confirmar-proposta.ts";
 import { decidirAcesso } from "../../../use-cases/decidir-acesso.ts";
 import { decidirPropostaDeBot } from "../../../use-cases/onboarding.ts";
-import { assentarAprovacao, executarItens, marcarEDecidir, retomarPorDecisao, type DesfechoExecutado, type MarcacaoItem } from "../../../use-cases/decidir.ts";
+import { assentarAprovacao, comLembrarNoNavegador, executarItens, marcarEDecidir, retomarPorDecisao, type DesfechoExecutado, type MarcacaoItem } from "../../../use-cases/decidir.ts";
 import { liberarNaTarefa } from "../../../use-cases/liberar-na-tarefa.ts";
 import { permitirSempre } from "../../../use-cases/permitir-sempre.ts";
 import { reciboDaPropostaConfirmada } from "../../../use-cases/proposta-decidida.ts";
@@ -147,7 +147,10 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
             // Liberar ANTES de executar: a próxima ação da tarefa pode chegar enquanto esta ainda roda.
             if (restoDaTarefa(corpo)) await comoDona(ctx.escopo, atual, (deps) => executar(deps, liberarNaTarefa, { decisao: fase1.decisao }));
             // A chamada ao conector roda FORA de qualquer transação (não segura conexão do banco).
-            const desfechos: DesfechoExecutado[] = await executarItens(d.services, fase1.aExecutar);
+            // ADR-190 (A3): no navegador, o terceiro botão (`sempre`) é o "Não perguntar de novo para <destino>" do envio; o
+            // portão só o grava quando a ação tinha um destino visto na página (dinheiro nunca).
+            const aExecutar = sempre(corpo) ? comLembrarNoNavegador(fase1.aExecutar) : fase1.aExecutar;
+            const desfechos: DesfechoExecutado[] = await executarItens(d.services, aExecutar);
             const fase2 = await comoDona(ctx.escopo, atual, (deps) => executar(deps, assentarAprovacao, { decisaoId, desfechos }));
             if (fase2.mensagemId) ids.mensagem = fase2.mensagemId;
             if (fase2.turnoRetomadaId) ids.turnoRetomada = fase2.turnoRetomadaId;
