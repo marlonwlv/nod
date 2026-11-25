@@ -7,12 +7,14 @@ import { conversaViva, esperaNaTela, grupoDaLinha, linhaDoDono, quemPediu, temDo
 import { avatarDoBot } from "../lib/mascote.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
 import { esc, hora, horaSemZero, iconeAgente } from "../lib/render.ts";
-import { aberto, agrupar, dicaSemContato, emEspera, filtrar, meiaNoiteDe, naFilaDaCota, pilulaDaCota, situacaoDe, tempoDe, textoNaFilaDaCota, tituloCurto, type GruposTrabalhos } from "../lib/trabalhos.ts";
+import { aberto, agrupar, trabalhosDaTela, dicaSemContato, emEspera, filtrar, meiaNoiteDe, naFilaDaCota, pilulaDaCota, situacaoDe, tempoDe, textoNaFilaDaCota, tituloCurto, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { iconeDaAba } from "./abas-de-tarefa.ts";
 import { botAceitaTarefa } from "./nova-tarefa.ts";
 import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
+
+export { trabalhosDaTela };
 
 /**
  * A tela Tarefas (ADR-187 §8, lote B, passo 5, definido em 2026-11-18; Paper 5a "Por bot (abre nesta)", 5b "Por estado"
@@ -338,15 +340,6 @@ export const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; m
 ];
 
 /** O passo da linha ("rodando os testes de unidade", "esperando a CI"); a terminada diz como acabou. */
-/**
- * ADR-192 (etapa 5): as tarefas que a tela Tarefas mostra. Com a leitura nova (`leituraNovaDasTarefas`, a virada depois da
- * sombra), quem decide é a Tarefa: a arquivada sai da lista padrão (ela segue aberta pela linha da conversa, com
- * Desarquivar). Sem a leitura nova, a lista de trabalhos de antes.
- */
-export function trabalhosDaTela(estado: Pick<Estado, "trabalhos">): TrabalhoDto[] {
-  const todos = estado.trabalhos?.trabalhos ?? [];
-  return estado.trabalhos?.leituraNovaDasTarefas ? todos.filter((t) => t.tarefa?.estado !== "arquivada") : [...todos];
-}
 
 export function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
   // ADR-192 (etapa 3): com a Tarefa ligada, a linha diz o estado do objetivo ("Entregue · precisa de você", "Resolvida") —

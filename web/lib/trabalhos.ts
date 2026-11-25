@@ -18,6 +18,17 @@ import { botao, esc, hora } from "./render.ts";
  */
 export const ESTADOS_ABERTOS: readonly EstadoTrabalho[] = ["na_fila", "rodando", "precisa_de_voce", "fechado_ocioso"];
 
+/**
+ * ADR-192 (etapa 5): as tarefas que a tela Tarefas mostra. Com a leitura nova (`leituraNovaDasTarefas`, a virada depois da
+ * sombra), quem decide é a Tarefa: a arquivada sai da lista padrão (ela segue aberta pela linha da conversa, com
+ * Desarquivar). Sem a leitura nova, a lista de trabalhos de antes. Todo contador que leva à tela Tarefas conta por aqui,
+ * senão a barra diz "1" e a tela abre vazia (QA-222: "Arquivar e deixar terminar" deixa o trabalho aberto).
+ */
+export function trabalhosDaTela(estado: Pick<Estado, "trabalhos">): TrabalhoDto[] {
+  const todos = estado.trabalhos?.trabalhos ?? [];
+  return estado.trabalhos?.leituraNovaDasTarefas ? todos.filter((t) => t.tarefa?.estado !== "arquivada") : [...todos];
+}
+
 export const aberto = (t: Pick<TrabalhoDto, "estado">): boolean => ESTADOS_ABERTOS.includes(t.estado);
 
 /**

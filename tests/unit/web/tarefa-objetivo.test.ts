@@ -3,6 +3,8 @@ import type { TarefaNoTrabalho } from "../../../src/contracts/tarefa.ts";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
 import { comArquivadas, htmlDasArquivadas, passoDaTarefa, prontas, trabalhosDaTela } from "../../../web/telas/tela-tarefas.ts";
+import { renderIconeTrabalhos } from "../../../web/telas/trabalhos.ts";
+import { readFileSync } from "node:fs";
 import { campoDaTarefa, htmlObjetivoDaTarefa, htmlSaidaDaParada, linhaDoFim, rotuloDoObjetivo } from "../../../web/telas/tarefa-detalhada.ts";
 
 /**
@@ -94,6 +96,18 @@ describe("a virada da leitura (etapa 5, NOD_TAREFAS_LEITURA_NOVA)", () => {
   });
   it("ligada: a Tarefa decide — a arquivada sai da lista padrão; trabalho sem Tarefa segue", () => {
     expect(trabalhosDaTela(dto(true)).map((t) => t.id)).toEqual(["a", "c"]);
+  });
+  // QA-222: "Arquivar e deixar terminar" deixa o trabalho aberto com a Tarefa arquivada; o contador que leva à tela
+  // Tarefas dizia "1" e a tela abria vazia.
+  it("ligada: o contador que leva à tela Tarefas não conta a arquivada que segue rodando", () => {
+    const viva = trabalho({ id: "v", estado: "rodando", terminadoEm: null, tarefa: objetivo({ estado: "arquivada", atividade: "trabalhando" }) });
+    const com = (leituraNova: boolean): Estado => ({ ...estadoInicial, agora: AGORA, trabalhos: { trabalhos: [viva], pressao: null, memoriaTotalMb: null, ...(leituraNova ? { leituraNovaDasTarefas: true as const } : {}) } } as Estado);
+    expect(renderIconeTrabalhos(com(false))).toContain("Tarefas: 1 aberta");
+    expect(renderIconeTrabalhos(com(true))).toBe("");
+  });
+  it("a linha Tarefas da barra conta pela mesma lista da tela", () => {
+    const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/const nAbertos = trabalhosDaTela\(estado\)\.filter\(aberto\)\.length/);
   });
 });
 

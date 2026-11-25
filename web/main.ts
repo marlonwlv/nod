@@ -281,7 +281,7 @@ import { criarPaleta, type DepsPaleta } from "./lib/paleta-na-tela.ts";
 import { itensDaPaleta, type ItemPaleta } from "./lib/paleta.ts";
 import { aguardandoPorAgente, contadorDosTrabalhos, rotuloDosTrabalhos, textoAguardando } from "./lib/aguardando.ts";
 import { pedidosAbertos } from "./lib/avisos.ts";
-import { aberto, abertosDoBot, acoesDeFazer, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos, trabalhosDaTela } from "./lib/trabalhos.ts";
 import type { EventoTrilhaQuadro } from "../src/contracts/trilha-quadro.ts";
 import { criarTelemetria } from "./lib/telemetria-linhas.ts";
 import { chaveDaAtividade, criarVigiaDaAtividade, diaLocal, ehFiltroAtividade, fusoLocal, rotuloDoDia } from "./lib/atividade-do-bot.ts";
@@ -3497,7 +3497,7 @@ function renderSidebar(estado: Estado): string {
   // ADR-167 (tela 16): "Trabalhos" vira linha fixa da barra, abaixo dos fixados, com o contador discreto ("N aguardando" em
   // laranja quando algo pede a pessoa). O sino e o ícone de Trabalhos do topo saíram: o que eles diziam mora aqui e na
   // linha de cada bot. "N aguardando" é um botão à parte que leva ao pedido (um só: a conversa no cartão; vários: Sua vez).
-  const nAbertos = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
+  const nAbertos = trabalhosDaTela(estado).filter(aberto).length; // QA-222: o mesmo número que a tela Tarefas mostra
   const contTrab = contadorDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length });
   const primeiroPedido = pedidos[0]?.decisao;
   const irAoPedido = pedidos.length === 1 && primeiroPedido
