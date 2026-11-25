@@ -231,6 +231,25 @@ Pedido do dono: o navegador do bot funciona no Windows com as mesmas coisas do M
   stream e o relay do cofre), o "Trazer do meu Chrome" (a cópia lê o v10; no perfil padrão, o v20 vira a recusa com o motivo), o op.exe oficial e o bw reais, o npm instalando
   o agent-browser como o motor faria, o WinRT do Windows Hello carregando e a conferência do Authenticode.
 
+## Revisão de 2026-11-25: no Mac e no Windows, só o navegador
+
+Pedido do dono: o computador do bot (ADR-122) fica desligado no Mac e no Windows até a reestruturação do computador e da
+experiência; nessas máquinas o bot trabalha só com o navegador desta ADR.
+
+- **Por quê.** Em 24/11 a Micherlaine (só um PC Windows) pediu ao bot para abrir o WhatsApp Web. O computador dela estava
+  "fora do ar" desde 19/11 (`maquina_sem_contato`: o Windows anuncia `sem_suporte`, ADR-147, e ela não tem outra máquina).
+  O plano saía sem `computador_*` e com "Seu computador está fora do ar… Não tente contornar", e o bot recusou três vezes,
+  embora as `navegador_*` estivessem no plano. Medido em produção nos 14 dias até 25/11: 1.450 ações do computador
+  concluídas em máquinas Linux (o motor de teste do Marlon e a "Linux - Bots" do Bruno) e nenhuma fora delas.
+- **Como ficou.** No modo motor (`NOD_COMPUTADORES=motor`), o computador só mora numa máquina Linux da pessoa
+  (`COMPUTADOR_NO_MAC = false` em `src/domain/computador-canal.ts`: o Mac não entra em `escolherMaquina`, `lugarPadrao`
+  nem `opcoesDeLugar`). Quem não tem máquina Linux viva (`maquinaTokens.temLinuxViva`) fica sem computador
+  (`src/use-cases/computador-tem-lugar.ts`): o plano sai sem `computador_*` e sem a frase do fora do ar, a frota não
+  acende o fora do ar e marca `semComputador` (a web esconde o bloco Computador do painel e a linha do perfil no celular),
+  e `GET /computador` responde 404 (a vista do navegador mostra só o lugar Navegador). Com máquina Linux, nada muda.
+- **Reverter.** `COMPUTADOR_NO_MAC = true` religa o Mac (ADR-127 §5) para quem tem a VM local; o Windows continua
+  `sem_suporte` até existir o computador no Windows.
+
 ## Gatilhos de reversão
 
 - O agent-browser não aguenta (quadro ao vivo pior que 5 por segundo no Mac, ou queda de sessão mais de uma vez por

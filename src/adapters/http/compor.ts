@@ -882,6 +882,8 @@ export function comporApp(o: OpcoesCompor): App {
   })();
   const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual,
     porPessoa: computadorNoMotor || provedoresComputador !== null,
+    // 2026-11-25: no motor, o computador só mora numa máquina Linux da pessoa (Mac e Windows ficam só com o navegador).
+    soNoLinux: computadorNoMotor,
     ...(sessoesVivo ? { vivo: sessoesVivo } : {}),
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),

@@ -3593,6 +3593,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           .sort((x, y) => y.criadaEm - x.criadaEm)
           .map((l) => ({ id: l.id, nome: l.nome, plataforma: l.plataforma ?? null }));
       },
+      async temLinuxViva() {
+        return b.maquinaTokens.some((l) => l.tenantId === escopo.tenantId && l.ownerId === escopo.pessoaId && l.plataforma === "linux" && l.revogadaEm === null && (l.expiraEm === null || l.expiraEm > Date.now()));
+      },
       async revogar(id, em) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
         if (!l) return false;

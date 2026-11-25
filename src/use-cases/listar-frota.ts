@@ -5,6 +5,7 @@ import { abertaPorTimeouts, falhaVisivel } from "../domain/disjuntor-conector.ts
 import type { Negacao } from "../contracts/negacao.ts";
 import { descricaoEstado, previaDaMensagem } from "../domain/descricao-agente.ts";
 import { modeloDoModo } from "../domain/computador.ts";
+import { computadorTemLugar } from "./computador-tem-lugar.ts";
 import { inventarioAusente } from "./autoria-evento.ts";
 import type { CasoDeUso } from "./tipos.ts";
 
@@ -22,10 +23,12 @@ import type { CasoDeUso } from "./tipos.ts";
 export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, FrotaDto> = async (deps, input) => {
   const agora = deps.agora();
   // Leva 2 (ADR-183): o que não depende da lista de agentes sai junto com ela (eram 6 idas ao banco em fila).
-  const [agentes, foraDoAr, resumo, motores, todosConectores, times] = await Promise.all([
+  const [agentes, foraDoAr, temComputador, resumo, motores, todosConectores, times] = await Promise.all([
     deps.repos.agentes.listar(input.gerenciar ? { incluirOcultos: true, incluirExcluidos: true } : {}),
     // definido em 2026-09-24 (emenda da ADR-037): uma consulta para a frota inteira, não uma por agente.
     deps.repos.computadores.foraDoAr(modeloDoModo(deps.services.computadores?.porPessoa)),
+    // 2026-11-25: sem máquina Linux, o computador some da tela (sem o fora do ar e sem o bloco do painel).
+    computadorTemLugar(deps),
     // definido em 2026-09-29 (0039): "não lido" sai do "lido até" da conversa, não da coluna agentes.nao_lido.
     deps.repos.leituras.resumo(),
     deps.repos.inventario.listar(),
@@ -52,7 +55,8 @@ export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, Fro
       naoLido: conversa ? comNovas.has(conversa.id) : false,
       conversaId: conversa?.id ?? "",
       descricaoEstado: descricaoEstado(agente, { concessoes: concessoes.get(agente.id) ?? 0, execucoes: conversa ? (execucoes.get(conversa.id) ?? 0) : 0 }),
-      computadorForaDoAr: foraDoAr.get(agente.id) ?? null,
+      computadorForaDoAr: temComputador ? foraDoAr.get(agente.id) ?? null : null,
+      ...(deps.services.computadores && !temComputador ? { semComputador: true as const } : {}),
       ultimaMensagem: ultima && previa ? { previa, em: ultima.criadoEm } : null,
     };
   });

@@ -71,6 +71,19 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
         order by criado_em desc`.then((ls) => ls.map((l) => ({ id: l.id, nome: l.nome, plataforma: l.plataforma ?? null })));
     },
 
+    /**
+     * definido em 2026-11-25: a pessoa tem uma máquina Linux viva (motor, só-computador ou na nuvem), o único lugar onde o
+     * computador do bot roda agora (COMPUTADOR_NO_MAC, src/domain/computador-canal.ts). Conta mesmo desconectada: o
+     * computador dela fica "fora do ar" e volta quando a máquina volta, em vez de sumir da tela.
+     */
+    async temLinuxViva(): Promise<boolean> {
+      const [l] = await conn<{ tem: boolean }[]>`
+        select exists (select 1 from maquina_tokens
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and plataforma = 'linux'
+            and revogado_em is null and (expira_em is null or expira_em > now())) as tem`;
+      return l?.tem === true;
+    },
+
     /** Revogar é idempotente: a primeira data fica. false = a chave não existe (ou é de outra pessoa). */
     async revogar(id: string, agora: number): Promise<boolean> {
       const linhas = await conn`
