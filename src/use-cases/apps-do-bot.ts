@@ -41,14 +41,23 @@ async function experimentoLigado(deps: Deps): Promise<boolean> {
 
 const autoriaDe = (deps: Deps, autor: Autor): Autoria => (autor.tipo === "agente" ? autoriaDoAgente(deps.escopo, autor.agenteId) : autoriaPessoa(deps.escopo));
 
-/** O bot da pessoa: o id ou o nome exato. Bot de outra pessoa (ou excluído) = não encontrado. */
-async function botDaPessoa(deps: Deps, ref: string): Promise<{ id: string; nome: string } | null> {
+/**
+ * O bot da pessoa: o id ou o nome exato (sem caixa). Bot de outra pessoa (ou excluído) = não encontrado. QA-237: o nome
+ * olha só os bots dela (antes a busca pegava o mais antigo do tenant, e o bot da empresa de outra pessoa com o mesmo
+ * nome escondia o dela: "a pessoa não tem um bot chamado"); dois bots dela com o mesmo nome pedem o id, como o resto do
+ * chat (resolverBot, gerir_times, gerir_acessos), em vez de cair calado no mais antigo.
+ */
+export async function botDaPessoa(deps: Deps, ref: string): Promise<{ ok: true; id: string; nome: string } | Falha> {
   const r = ref.trim();
-  if (!r) return null;
+  const naoTem = falha("nao_encontrado", `a pessoa não tem um bot chamado ${ref}`);
+  if (!r) return naoTem;
   const porId = /^[0-9a-f-]{36}$/i.test(r) ? await deps.repos.agentes.buscar(r) : null;
-  const a = porId ?? (await deps.repos.agentes.buscarPorNome(r));
-  if (!a || a.ownerId !== deps.escopo.pessoaId) return null;
-  return { id: a.id, nome: a.nome };
+  if (porId) return porId.ownerId === deps.escopo.pessoaId ? { ok: true, id: porId.id, nome: porId.nome } : naoTem;
+  const chave = r.toLowerCase();
+  const iguais = (await deps.repos.agentes.listar({ incluirOcultos: true })).filter((a) => a.ownerId === deps.escopo.pessoaId && a.excluidoEm == null && a.nome.trim().toLowerCase() === chave);
+  if (iguais.length > 1) return falha("entrada_invalida", `há mais de um bot chamado "${r}": use o id (${iguais.map((a) => a.id).join(", ")})`);
+  const a = iguais[0];
+  return a ? { ok: true, id: a.id, nome: a.nome } : naoTem;
 }
 
 /**
@@ -372,7 +381,7 @@ export async function proporApp(deps: Deps, p: PedidoApp): Promise<{ data: Resul
   if (p.bot !== undefined && p.bot !== null) {
     if (typeof p.bot !== "string") return { data: falha("entrada_invalida", "bot: o id ou o nome"), events: [] };
     const b = await botDaPessoa(deps, p.bot);
-    if (!b) return { data: falha("nao_encontrado", `a pessoa não tem um bot chamado ${p.bot}`), events: [] };
+    if (!b.ok) return { data: b, events: [] };
     alvoId = b.id;
   }
   const v = await validarCriacao(deps, { alvoId, nome: p.nome, icone: p.icone, fonte: p.fonte, fonte_ref: p.fonte_ref, forma: p.forma, regra_pede: p.regra_pede, pede_quando: p.pede_quando });

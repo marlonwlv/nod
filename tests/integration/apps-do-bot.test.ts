@@ -528,6 +528,38 @@ describeIntegracao("apps do bot (NOD-445)", () => {
     });
   });
 
+  it("QA-237: o bot pelo nome olha só os da pessoa; o da empresa de outra pessoa com o mesmo nome não esconde o dela, e dois dela pedem o id", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const { d, bot } = await montar(trx);
+      const nome = `Vera ${Math.random().toString(36).slice(2, 7)}`;
+      // A Ana cria antes um bot da empresa (que o Marlon vê) com o mesmo nome do bot do Marlon.
+      await trx.savepoint(async (sp) => {
+        await vincularEscopo(sp, ANA);
+        const daAna = await agenteComConversa(sp, ANA, { nome, dono: "empresa" });
+        await sp`update agentes set criado_em = criado_em - interval '1 day' where id = ${daAna.agenteId}`;
+      });
+      await vincularEscopo(trx, MARLON);
+      const minha = await agenteComConversa(trx, MARLON, { nome });
+      await criarDireto(d, minha.agenteId, "Vagas");
+      const naConversa = await turno(d, bot);
+      const r = await executar(d, gerirApps, { ...naConversa, op: "listar", bot: nome.toUpperCase() });
+      expect(r.data).toMatchObject({ ok: true });
+      expect(JSON.stringify(r.data)).toContain("Vagas");
+      // Dois bots do Marlon com o mesmo nome: o pedido pelo nome não cai calado no mais antigo; a recusa traz os ids.
+      const gemea = await agenteComConversa(trx, MARLON, { nome });
+      const dupla = await executar(d, gerirApps, { ...naConversa, op: "listar", bot: nome });
+      expect(dupla.data).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      if (dupla.data.ok) return;
+      expect(dupla.data.instrucao).toContain(minha.agenteId);
+      expect(dupla.data.instrucao).toContain(gemea.agenteId);
+      const proposta = await executar(d, gerirApps, { ...naConversa, op: "propor", bot: nome, nome: "Leads", icone: "app", fonte: "bot", forma: "lista" });
+      expect(proposta.data).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      // Pelo id, segue valendo.
+      expect((await executar(d, gerirApps, { ...naConversa, op: "listar", bot: gemea.agenteId })).data).toMatchObject({ ok: true });
+    });
+  });
+
   it("bot de outra pessoa é 404 (RLS) e o experimento desligado é 403", async () => {
     await withRollback(MARLON, async (trx) => {
       trxAtual = trx;

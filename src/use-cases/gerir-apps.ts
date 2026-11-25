@@ -3,7 +3,7 @@ import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { CasoNod } from "../contracts/servicos.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { appDaPagina, homeDoBot, PAGINA_CONVERSA, PAGINA_TAREFAS } from "../domain/apps-do-bot.ts";
-import { editarApp, listarPaginas, ordenarPaginas, proporApp, removerApp, restaurarApp, type Autor, type Falha } from "./apps-do-bot.ts";
+import { botDaPessoa, editarApp, listarPaginas, ordenarPaginas, proporApp, removerApp, restaurarApp, type Autor, type Falha } from "./apps-do-bot.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
@@ -86,9 +86,8 @@ export const gerirApps: CasoNod<Deps, "gerir_apps"> = async (deps, input) => {
   let agenteId = input.agenteId;
   let nomeDoAlvo: string | null = null;
   if (input.bot !== undefined && input.op !== "propor") {
-    const l = await deps.repos.agentes.buscar(/^[0-9a-f-]{36}$/i.test(input.bot) ? input.bot : "00000000-0000-0000-0000-000000000000");
-    const a = l ?? (await deps.repos.agentes.buscarPorNome(input.bot));
-    if (!a || a.ownerId !== deps.escopo.pessoaId) return recusa({ ok: false, erro: "nao_encontrado", detalhe: `a pessoa não tem um bot chamado ${input.bot}` });
+    const a = await botDaPessoa(deps, input.bot);
+    if (!a.ok) return recusa(a);
     agenteId = a.id;
     if (a.id !== input.agenteId) nomeDoAlvo = a.nome;
   }
