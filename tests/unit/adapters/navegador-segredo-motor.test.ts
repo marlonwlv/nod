@@ -82,3 +82,61 @@ describe("o segredo vai pelo relay, nunca pelo argv", () => {
     expect(relays).toHaveLength(1);
   });
 });
+
+/**
+ * QA-209 (r208): o daemon do agent-browser nasce com o stream ligado num WebSocket de 127.0.0.1 sem token, que aceita
+ * qualquer Origin de loopback (o relay só confere o cabeçalho Origin, que um processo forja). Medido no Chromium real: com
+ * o stream ligado, um processo local ouvia o `insertText` da senha e rodava `evaluate` pelo relay. O motor desliga o
+ * stream do daemon novo e só o liga durante o relay e a vista ao vivo.
+ */
+describe("QA-209: o stream só fica ligado enquanto alguém precisa dele", () => {
+  let ligado: boolean;
+  let novo: boolean;
+  const exec: ExecutorProcesso = async (p) => {
+    if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false };
+    argvs.push([...p.args]);
+    const vidaAgora = { lifecycle: { launched: novo, reused: !novo } };
+    novo = false;
+    const resp = (data: Record<string, unknown>) => ({ codigo: 0, saida: JSON.stringify({ success: true, data: { ...vidaAgora, ...data }, error: null }), erro: "", estourou: false });
+    const [cmd, sub] = p.args;
+    if (cmd === "stream" && sub === "status") return resp(ligado ? { enabled: true, port: 51234 } : { enabled: false, port: null });
+    if (cmd === "stream" && sub === "enable") { ligado = true; return resp({}); }
+    if (cmd === "stream" && sub === "disable") { ligado = false; return resp({ disabled: true }); }
+    if (cmd === "eval") return resp({ result: campos });
+    return resp({ url: "https://banco.example/login", title: "Login" });
+  };
+  const m = () => criarMotorAgentBrowser({ dados, segredo: Buffer.alloc(32, 1), binario: "/bin/agent-browser-falso", executor: exec, relay: async (porta, comando) => { relays.push({ porta, comando: { ...comando } }); expect(ligado).toBe(true); return relayResponde; } });
+  beforeEach(() => { ligado = true; novo = true; });
+
+  it("o daemon que acabou de subir tem o stream desligado logo no primeiro comando", async () => {
+    await m().abrir(s, "https://banco.example/login");
+    expect(argvs.map((a) => a.slice(0, 2).join(" "))).toEqual(["open https://banco.example/login", "stream disable"]);
+    expect(ligado).toBe(false);
+    // daemon já de pé: nenhum disable a mais
+    await m().url(s);
+    expect(argvs.filter((a) => a[1] === "disable")).toHaveLength(1);
+  });
+
+  it("o cofre liga o stream só para digitar a senha e desliga no fim, mesmo quando o relay falha", async () => {
+    const motor1 = m();
+    await motor1.abrir(s, "https://banco.example/login");
+    expect(await preencherLogin(motor1, s, { usuario: "ana@x.com", senha: SENHA })).toEqual({ usuario: true, senha: true });
+    expect(relays.map((r) => r.comando.action)).toEqual(["focus", "keyboard"]);
+    expect(ligado).toBe(false);
+    relayResponde = false;
+    await expect(motor1.inserirTexto(s, SELETOR_CAMPO.senha, SENHA)).rejects.toMatchObject({ motivo: "alvo_invalido" });
+    expect(ligado).toBe(false);
+    relayResponde = true;
+    await motor1.definirCookies(s, [{ name: "s", value: "v", domain: ".banco.example", path: "/", expires: 2_000_000_000, secure: true, httpOnly: true, sameSite: "Lax" }]);
+    expect(ligado).toBe(false);
+  });
+
+  it("com a vista ao vivo aberta (stream já ligado), o cofre não desliga o stream de quem assiste", async () => {
+    const motor1 = m();
+    await motor1.abrir(s, "https://banco.example/login");
+    expect(await motor1.portaDoStream(s)).toBe(51234);
+    await motor1.inserirTexto(s, SELETOR_CAMPO.senha, SENHA);
+    expect(ligado).toBe(true);
+    expect(argvs.filter((a) => a[1] === "disable")).toHaveLength(1);
+  });
+});

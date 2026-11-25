@@ -342,6 +342,12 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
  * A resposta de um comando: `data` no sucesso; senão a falha tipada. Saída que não é JSON é falha do motor (o CLI
  * mudou ou caiu antes de responder).
  */
+/** QA-209: a resposta veio de um daemon que acabou de subir (o stream dele nasce ligado). */
+export function daemonNovo(data: Record<string, unknown>): boolean {
+  const l = obj(data.lifecycle);
+  return l.launched === true || l.restartedBackground === true;
+}
+
 export function lerResposta(saida: string, codigo: number | null): Record<string, unknown> {
   const linha = saida.trim().split("\n").filter(Boolean).at(-1) ?? "";
   let r: unknown;
@@ -498,7 +504,13 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     await mkdir(join(pasta(s), "arquivos"), { recursive: true });
     const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome(), await socketPronto()), prazoMs, limiteSaida: LIMITE_SAIDA });
     if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
-    return lerResposta(r.saida, r.codigo);
+    const d = lerResposta(r.saida, r.codigo);
+    // revisto em 2026-11-25 (QA-209): o daemon nasce com o stream ligado num WebSocket de 127.0.0.1 sem token (agent-browser
+    // 0.43.0: aceita qualquer Origin de loopback e o relay só confere o cabeçalho Origin, que um processo forja). Por ele
+    // passam os quadros, o JS e os resultados do bot e o `insertText` do cofre com a senha. Daemon novo → desliga; só a
+    // vista ao vivo e o relay (por um instante) o religam.
+    if (args[0] !== "stream" && args[0] !== "close" && daemonNovo(d)) await rodar(s, ["stream", "disable"]).catch(() => undefined);
+    return d;
   }
   const alvoOuFalha = (alvo: string) => {
     const a = alvoDoMotor(alvo);
@@ -512,6 +524,21 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       d = await rodar(s, ["stream", "status"]);
     }
     return typeof d.port === "number" ? d.port : null;
+  }
+  /**
+   * QA-209: o relay precisa do stream ligado; ligado só para este comando, ele volta a desligar no fim — a não ser que já
+   * estivesse ligado (a vista ao vivo aberta), que aí fica como estava.
+   */
+  async function comRelay<T>(s: SessaoNavegador, fn: (porta: number) => Promise<T>): Promise<T> {
+    const antes = await rodar(s, ["stream", "status"]);
+    if (antes.enabled === true && typeof antes.port === "number") return fn(antes.port);
+    const porta = await portaDoStream(s);
+    try {
+      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
+      return await fn(porta);
+    } finally {
+      await rodar(s, ["stream", "disable"]).catch(() => undefined);
+    }
   }
   async function arquivoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
     const n = nomeDeArquivo(nome);
@@ -623,18 +650,19 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     // (ref `@e1` ou CSS) e `{action:"keyboard", subaction:"insertText", text}`; o texto entra inteiro no campo focado,
     // inclusive num type=password. O comando sai pelo corpo do POST local, nunca pelo argv.
     async inserirTexto(s, alvo, texto) {
-      const porta = await portaDoStream(s);
-      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
-      if (alvo !== null && !(await relay(porta, { action: "focus", selector: alvoOuFalha(alvo) }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
-      if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+      const seletor = alvo === null ? null : alvoOuFalha(alvo);
+      await comRelay(s, async (porta) => {
+        if (seletor !== null && !(await relay(porta, { action: "focus", selector: seletor }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
+        if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+      });
     },
     // medido em 2026-11-20 (mesma bancada): `{action:"cookies_set", cookies:[{name,value,domain,path,secure,httpOnly,
     // sameSite,expires}]}` grava com os atributos (o Chrome corta a validade em ~400 dias).
     async definirCookies(s, cookies) {
       if (!cookies.length) return;
-      const porta = await portaDoStream(s);
-      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
-      if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+      await comRelay(s, async (porta) => {
+        if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+      });
     },
     portaDoStream,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
