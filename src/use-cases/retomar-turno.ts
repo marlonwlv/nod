@@ -44,6 +44,8 @@ export const retomarTurno: CasoDeUso<EntradaRetomarTurno, SaidaRetomarTurno> = a
   const original = await deps.repos.turnos.buscar(turnoId);
   if (!original) throw new ErroDeDominio("nao_encontrado");
   if (original.estado !== "interrompido") throw new ErroDeDominio("estado_invalido", { cause: `turno ${original.estado}` });
+  // QA-199 (r198): o Retomar de um bot que saiu (a linha ficou na outra aba) é não encontrado, não o 500 do gatilho do banco.
+  if (!(await deps.repos.agentes.buscar(original.agenteId))) throw new ErroDeDominio("nao_encontrado", { cause: "bot excluído" });
   // Revisão 3 do PR #625 (NOD-418): a cadeia de um trabalho do quadro já substituído (nova tentativa, Repetir, Cancelar)
   // ou tratado de vez (Bloqueado) não volta a rodar ao lado do trabalho novo ou com o card parado.
   const encerrada = await cadeiaDoQuadroEncerrada(deps, original.id);

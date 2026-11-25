@@ -35,6 +35,15 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * QA-178: a vaga da máquina só-computador da pessoa, travada até o fim da transação. `computadorVivo` + `criar` sem
+     * ela deixavam dois pareamentos ao mesmo tempo verem a vaga livre, e o segundo batia no índice da 0105 (23505, 500).
+     * Com a trava, o segundo espera, relê a vaga e recebe a recusa do domínio (ou, no Substituir, revoga a do primeiro).
+     */
+    async travarVagaDoComputador(): Promise<void> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`maquina-computador:${escopo.tenantId}:${escopo.pessoaId}`}, 0))`;
+    },
+
+    /**
      * NOD-94 (0105): a máquina só-computador viva da pessoa, depois de revogar (na data em que venceu) a que venceu sem
      * confirmação — ela ainda seguraria a vaga do índice único. null = a vaga está livre.
      */
@@ -69,6 +78,19 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
           and revogado_em is null and (expira_em is null or expira_em > now()) and papel = 'motor'
         order by criado_em desc`.then((ls) => ls.map((l) => ({ id: l.id, nome: l.nome, plataforma: l.plataforma ?? null })));
+    },
+
+    /**
+     * definido em 2026-11-25: a pessoa tem uma máquina Linux viva (motor, só-computador ou na nuvem), o único lugar onde o
+     * computador do bot roda agora (COMPUTADOR_NO_MAC, src/domain/computador-canal.ts). Conta mesmo desconectada: o
+     * computador dela fica "fora do ar" e volta quando a máquina volta, em vez de sumir da tela.
+     */
+    async temLinuxViva(): Promise<boolean> {
+      const [l] = await conn<{ tem: boolean }[]>`
+        select exists (select 1 from maquina_tokens
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and plataforma = 'linux'
+            and revogado_em is null and (expira_em is null or expira_em > now())) as tem`;
+      return l?.tem === true;
     },
 
     /** Revogar é idempotente: a primeira data fica. false = a chave não existe (ou é de outra pessoa). */
@@ -148,6 +170,29 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}
           and (ultimo_uso_em is null or ultimo_uso_em < ${data(agora - MARCAR_USO_A_CADA_MS)}) returning id`;
       return r.length > 0;
+    },
+
+    /**
+     * definido em 2026-11-24 (sucessão de chave): o mesmo computador pareou de novo e ganhou a chave `para`; tudo o que
+     * apontava para a chave `de` passa a apontar para ela, ANTES de `de` ser revogada. Sem isto os bots presos a `de`
+     * (`agentes.maquina_id`) e as sessões do CLI nascidas nela (`trabalhos`/`conversas.sessao_maquina_id`, o nível da
+     * sessão em alvo-da-maquina.ts) esperavam "sem contato" uma chave que ninguém mais usa — com o computador ligado e
+     * puxando com a nova. Medido em produção em 24/11: o Dev Local e o Mr Mime presos assim; o Comunidade Nod desde 16/11.
+     * A sessão segue retomável: é o mesmo computador, as pastas das contas são as mesmas. Só da dona (filtro por owner).
+     * Devolve os bots que mudaram (o chamador avisa a tela).
+     */
+    async transferirReferencias(de: string, para: string): Promise<{ bots: string[]; padrao: boolean; sessoes: number; turnos: number; navegador: number }> {
+      const dono = conn`tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}`;
+      const bots = await conn<{ id: string }[]>`update agentes set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning id`;
+      const padrao = await conn`update preferencias set maquina_padrao_id = ${para} where ${dono} and maquina_padrao_id = ${de} returning 1`;
+      // sessao_maquina_id é text (0079): compara pelo texto.
+      const trabalhos = await conn`update trabalhos set sessao_maquina_id = ${para} where ${dono} and sessao_maquina_id = ${de} returning 1`;
+      const conversas = await conn`update conversas set sessao_maquina_id = ${para} where ${dono} and sessao_maquina_id = ${de} returning 1`;
+      // O "desta vez" só importa no turno que ainda vai sair; o histórico fica como foi.
+      const turnos = await conn`update turnos set maquina_desta_vez = ${para} where ${dono} and maquina_desta_vez = ${de} and estado = 'pendente' returning 1`;
+      // ADR-190: o navegador escolhido nesta máquina segue nela (senão o revogar o devolveria ao nod com aviso).
+      const navegador = await conn`update navegador_preferencias set maquina_id = ${para} where ${dono} and maquina_id = ${de} returning 1`;
+      return { bots: bots.map((b) => b.id), padrao: padrao.length > 0, sessoes: trabalhos.length + conversas.length, turnos: turnos.length, navegador: navegador.length };
     },
   };
 }

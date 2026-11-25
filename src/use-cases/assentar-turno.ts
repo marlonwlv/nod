@@ -432,7 +432,9 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   const voltaDoLimite = ehLimite ? (desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null) ?? horaDeVoltaNoTexto(resultado.erroCru, agora) ?? voltaPelaLeituraDaCota(resultado.usoDoPlano, agora) : null;
   // Lote B das Jornadas da IA (2026-11-22): o desvio do momento B que este fim de turno é (tabela única). Só no assentamento
   // da entrega na hora: a tardia já teve o desvio decidido por quem a interrompeu.
-  const desvio = tardia ? null : reconhecerDesvio({ estado: desfecho.estado, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru, causaSemIa: resultado.causaSemIa ?? null, queda: motivoDaQuedaNaEntrega, botFixo: harnessFixado(turno.harness, turno.modelo) !== null });
+  // PR #327 (achado 4): a recusa antes do início sem sessão para retomar é a IA que não abriu, não a sessão que sumiu.
+  const semSessao = !tardia && desfecho.motivoInterrupcao === "sessao_rejeitada" ? !(await tinhaSessaoParaRetomar(deps, turno)) : false;
+  const desvio = tardia ? null : reconhecerDesvio({ estado: desfecho.estado, motivoInterrupcao: desfecho.motivoInterrupcao, motivoFalha: desfecho.motivoFalha, erroCru: resultado.erroCru, causaSemIa: resultado.causaSemIa ?? null, queda: motivoDaQuedaNaEntrega, botFixo: harnessFixado(turno.harness, turno.modelo) !== null, semSessao });
   // NOD-309: o erro transitório do provedor (sobrecarga, 5xx, rede) — o fundo tenta de novo em vez de falhar. Nunca o limite
   // (ehLimite vem antes) nem a conta sem acesso.
   const transitorio = desfecho.estado === "interrompido" && !quedaDaMaquina && !resultado.causaSemIa && !ehLimite && desfecho.motivoFalha !== null && ehErroTransitorio(resultado.erroCru);
@@ -986,6 +988,19 @@ async function linhaDaContaQueSaiu(deps: Deps, p: { turno: Turno; contaId: strin
   const botoes = p.desvio === "login_vencido" ? [{ acao: "entrar_de_novo" as const, rotulo: "Entrar de novo", dados: { contaId: p.contaId, maquinaId: p.machineId } }] : [];
   const m = await deps.repos.mensagens.criar({ conversaId: p.turno.conversaId, turnoId: p.turno.id, autoria: p.autoria, kind: "sistema", texto: payload.texto, payload: { ...payload, botoes }, confianca: "confiavel" });
   return m ? [evento(deps.escopo, { kind: "mensagem_criada", autoria: p.autoria, agora: p.agora, conversaId: p.turno.conversaId, turnoId: p.turno.id, dados: { mensagem_id: m.id, kind: "sistema" } })] : [];
+}
+
+/**
+ * PR #327 (achado 4): havia uma sessão que este turno pode ter retomado — a do trabalho, a do turno da cadeia (retomada)
+ * ou a da conversa. Lida antes de `aposSessaoRejeitada` largar a sessão. A repetição de uma sessão recusada também conta:
+ * a sessão já foi largada, mas ela é a 2ª tentativa daquela sessão (o cartão "não conseguiu recomeçar"); toda repetição
+ * fica com a leitura de antes — o achado era só a 1ª tentativa.
+ */
+async function tinhaSessaoParaRetomar(deps: Deps, turno: Turno): Promise<boolean> {
+  if (turno.motivoRecomeco === "sessao_recusada" || turno.reenvios >= 1) return true;
+  if (turno.trabalhoId) return !!(await deps.repos.trabalhos.buscar(turno.trabalhoId))?.sessaoCli;
+  if (turno.origem === "retomada" && turno.retomaTurnoId) return !!(await deps.repos.turnos.sessaoDoTurno(turno.retomaTurnoId));
+  return !!(await deps.repos.conversas.buscar(turno.conversaId))?.sessaoCli;
 }
 
 /**

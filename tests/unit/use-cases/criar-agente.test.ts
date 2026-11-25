@@ -118,6 +118,15 @@ describe("boas-vindas do bot interativo (spec do botão +, tela 5)", () => {
     expect(linha?.ultimaMensagem?.previa).toBe("Para que você quer minha ajuda?");
   });
 
+  it("pedido dispensado na última fala: a prévia mostra a frase do pedido, não a linha que o bot lê (QA do Windows)", async () => {
+    const { deps } = depsEmMemoria();
+    const { agente } = (await criarAgente(deps, { dono: "pessoa", interativo: true })).data;
+    const conversaId = (await listarFrota(deps, {})).data.agentes.find((a) => a.id === agente.id)!.conversaId;
+    await deps.repos.mensagens.criar({ conversaId, autoria: { autor_tipo: "sistema", autor_id: null, sob_procuracao_de: null, conta_de_execucao: deps.escopo.pessoaId, executor: "local", locality: "local", locality_reason: "tudo_local_nesta_rodada", machine_id: null, decidido_por: "sistema", regra_versao: 1 }, kind: "sistema", texto: "A pessoa seguiu sem responder ao seu pedido: entrar em mercadolivre.com.br. Nada foi feito com ele.", confianca: "confiavel", payload: { kind: "pedido_dispensado", decisaoId: "d1", tipo: "navegador_login", frase: "Entrar em mercadolivre.com.br", motivo: "seguiu_conversando", turnoId: null, agenteId: agente.id } } as unknown as Parameters<typeof deps.repos.mensagens.criar>[0]);
+    const linha = (await listarFrota(deps, {})).data.agentes.find((a) => a.id === agente.id);
+    expect(linha?.ultimaMensagem?.previa).toBe("Entrar em mercadolivre.com.br · você seguiu sem responder");
+  });
+
   it("o bot criado sem interativo não pergunta nada (a fala de sistema de sempre)", async () => {
     const { deps } = depsEmMemoria();
     const { mensagem } = (await criarAgente(deps, { dono: "pessoa" })).data;

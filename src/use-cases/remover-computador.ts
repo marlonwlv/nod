@@ -31,6 +31,22 @@ const falha = (erro: ErroRemoverComputador, opcoes?: string[], instrucao?: strin
 const naConversa = (t: Pick<Turno, "profundidade">, modo: string | null): boolean => !!modo && MODOS.has(modo) && t.profundidade === 0;
 const chave = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").trim().toLocaleLowerCase("pt-BR");
 
+/**
+ * QA r139: o card "Remover o nod de X?" ainda clicável desta conversa com o mesmo computador e as mesmas opções. Antes,
+ * o bot repetir a chamada (retry, chamada duplicada) abria outro card; aprovar os dois removia duas vezes e o segundo
+ * recibo dizia "✓ Remover o nod de X (sem bots)".
+ */
+async function cardIgualAberto(deps: Deps, conversaId: string, agenteId: string, acao: AcaoNoLote): Promise<{ id: string; acao: AcaoNoLote } | null> {
+  for (const p of await deps.repos.propostas.pendentesDaConversa(conversaId)) {
+    if (p.agenteId !== agenteId || p.payload.kind !== "lote_bots" || p.payload.acoes.length !== 1) continue;
+    const a = p.payload.acoes[0]!;
+    if (a.tipo !== "remover_computador" || a.maquina_id !== acao.maquina_id || a.manter_ias !== acao.manter_ias || a.manter_conexao !== acao.manter_conexao) continue;
+    const decisao = await deps.repos.decisoes.buscar(p.id);
+    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { id: p.id, acao: a };
+  }
+  return null;
+}
+
 export const removerComputadorPeloChat: CasoNod<Deps, "remover_computador"> = async (deps, input) => {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
   const modo = input.plano?.modoTurno ?? turno?.origem ?? null;
@@ -59,6 +75,11 @@ export const removerComputadorPeloChat: CasoNod<Deps, "remover_computador"> = as
   const agora = deps.agora();
   const resumo = input.resumo.trim();
   const acao: AcaoNoLote = { tipo: "remover_computador", maquina_id: alvo.id, manter_ias: manterIas, manter_conexao: manterConexao, membros: previa.bots, assume_nome: previa.assume?.nome ?? null, i: 0, estado: "esperando", motivo: "ligar_total", alvoNome: alvo.nome, botId: null, alvoDaAcao: null };
+  const quem = previa.assume ? `passam para ${previa.assume.nome}` : "esperam um computador";
+  const bots = previa.bots.length ? `${listaFalada(previa.bots)} ${quem}` : "nenhum bot roda lá";
+  const instrucao = `Remover o nod de ${alvo.nome} espera a pessoa no card desta conversa (${bots}${manterConexao ? "; ele continua ligado à conta" : "; ele sai da conta"}). Diga isso em uma frase e encerre o turno.`;
+  const aberto = await cardIgualAberto(deps, input.conversaId, agente.id, acao);
+  if (aberto) return { data: { ok: true, decisao_id: aberto.id, computador: alvo.nome, bots: previa.bots, assume: previa.assume?.nome ?? null, instrucao } };
   const payload: PayloadPropostaLoteBots = { kind: "lote_bots", resumo, acoes: [acao], turnoId: input.turnoId };
   const proposta = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: agente.id, payload });
   if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
@@ -66,9 +87,5 @@ export const removerComputadorPeloChat: CasoNod<Deps, "remover_computador"> = as
   const events = [evento(deps.escopo, { kind: "proposta_criada", autoria, agora, conversaId: input.conversaId, turnoId: input.turnoId, dados: { proposta_id: proposta.id, kind: "lote_bots", acoes: 1 } })];
   if (decisao) events.push(evento(deps.escopo, { kind: "decisao_criada", autoria, agora, conversaId: input.conversaId, turnoId: input.turnoId, dados: { decisao_id: decisao.id, tipo: "lote_bots" } }));
   log("info", "remover_computador", { bots: previa.bots.length, manter_ias: manterIas, manter_conexao: manterConexao });
-
-  const quem = previa.assume ? `passam para ${previa.assume.nome}` : "esperam um computador";
-  const bots = previa.bots.length ? `${listaFalada(previa.bots)} ${quem}` : "nenhum bot roda lá";
-  const instrucao = `Remover o nod de ${alvo.nome} espera a pessoa no card desta conversa (${bots}${manterConexao ? "; ele continua ligado à conta" : "; ele sai da conta"}). Diga isso em uma frase e encerre o turno.`;
   return { data: { ok: true, decisao_id: proposta.id, computador: alvo.nome, bots: previa.bots, assume: previa.assume?.nome ?? null, instrucao }, events };
 };

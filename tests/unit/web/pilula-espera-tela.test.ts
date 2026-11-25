@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { criarRolagem } from "../../../web/lib/rolagem-na-tela.ts";
 
 /**
- * ADR-191 (definido em 2026-11-20, item E): a pílula "A Ada espera você" ligada à timeline. Os cartões marcados com
+ * ADR-191 (definido em 2026-11-20, item E): a pílula "Ada espera você" ligada à timeline. Os cartões marcados com
  * `data-pedido-espera` fora da janela fazem a pílula aparecer; um à vista a tira; com vários, o alvo é o mais antigo.
  * O happy-dom não faz layout: cada elemento diz onde está pelo getBoundingClientRect.
  */
@@ -30,9 +30,9 @@ function montar(cartoes: { id: string; nome: string; frase: string; topo: number
 describe("a pílula na tela", () => {
   afterEach(() => { document.body.innerHTML = ""; });
 
-  it("o cartão acima da janela (a pessoa rolou, o bot escreveu muito depois): 'A Ada espera você: entrar no Drive'", () => {
+  it("o cartão acima da janela (a pessoa rolou, o bot escreveu muito depois): 'Ada espera você: entrar no Drive'", () => {
     const lugar = montar([{ id: "d1", nome: "Ada", frase: "entrar no Drive", topo: -900 }]);
-    expect(lugar.innerHTML).toContain("A Ada espera você: <b>entrar no Drive</b>");
+    expect(lugar.innerHTML).toContain("Ada espera você: <b>entrar no Drive</b>");
     expect(lugar.querySelector("[data-act='ver-decisao']")?.getAttribute("data-id")).toBe("d1");
   });
 

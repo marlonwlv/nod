@@ -182,8 +182,11 @@ export function criarPonteHttpServidor(d: {
      * NOD-344: a máquina revoga a PRÓPRIA chave (prova de posse: só quem tem o Bearer chega aqui). O `nod-motor parear
      * --convite` chama com a chave antiga do `conexao.json` depois de parear a nova, para a reinstalação não deixar a
      * antiga viva no servidor. true = revogou agora; "nuvem" = a VM ligada à nuvem (ADR-121), que não perde a chave por aqui.
+     * Definido em 2026-11-24 (sucessão de chave): com `sucessora` (a chave NOVA crua, prova de posse das duas), o que
+     * apontava para a antiga passa para a nova antes de revogar; "sucessora_invalida" = a nova não é uma chave viva desta
+     * pessoa (outra conta, revogada, a mesma) e nada muda.
      */
-    aposentar(escopo: Escopo, chaveId: string): Promise<boolean | "nuvem">;
+    aposentar(escopo: Escopo, chaveId: string, sucessora?: string): Promise<boolean | "nuvem" | "sucessora_invalida">;
   };
 }) {
   const conexoes = new Map<string, Conexao>();
@@ -695,11 +698,15 @@ export function criarPonteHttpServidor(d: {
       ctx.json(200, r ?? { ok: false });
     }),
     /** NOD-344: a reinstalação aposenta a chave antiga (a própria do Bearer). Não exige conexão: o motor antigo já parou. */
-    rota("aposentar", async (ctx) => {
+    rota("aposentar", async (ctx, b) => {
       if (!d.instalacoes) { ctx.json(404, { codigo: "sem_instalacoes" }); return; }
       const id = ctx.params.chaveId!;
-      const r = await d.instalacoes.aposentar(ctx.escopo, id);
+      // Definido em 2026-11-24: o app do Mac e o motor mandam a chave nova (o repareamento do mesmo computador).
+      exigir(b.sucessora === undefined || (typeof b.sucessora === "string" && b.sucessora.length > 0 && b.sucessora.length <= 1024));
+      const sucessora = typeof b.sucessora === "string" ? b.sucessora : undefined;
+      const r = await d.instalacoes.aposentar(ctx.escopo, id, sucessora);
       if (r === "nuvem") { log("aviso", "maquina_aposentar_recusada", { pessoa_id: ctx.escopo.pessoaId, machine_id: id, motivo: "nuvem" }); ctx.json(409, { codigo: "maquina_na_nuvem" }); return; }
+      if (r === "sucessora_invalida") { log("aviso", "maquina_aposentar_recusada", { pessoa_id: ctx.escopo.pessoaId, machine_id: id, motivo: "sucessora_invalida" }); ctx.json(409, { codigo: "sucessora_invalida" }); return; }
       const revogou = r;
       const c = conexoes.get(id);
       if (c && c.escopo.pessoaId === ctx.escopo.pessoaId && c.escopo.tenantId === ctx.escopo.tenantId) {
@@ -714,7 +721,9 @@ export function criarPonteHttpServidor(d: {
         avisarSeMudou(ctx.escopo, antes);
         if (estava?.viva) d.inventarioMudou?.(c.escopo, "presenca");
       }
-      log("info", "maquina_aposentada", { pessoa_id: ctx.escopo.pessoaId, tenant_id: ctx.escopo.tenantId, machine_id: id, revogou });
+      // Sucessão: os bots e a padrão mudaram de máquina; a tela relê mesmo que a antiga já estivesse sem contato.
+      if (sucessora !== undefined) d.inventarioMudou?.(ctx.escopo, "presenca");
+      log("info", "maquina_aposentada", { pessoa_id: ctx.escopo.pessoaId, tenant_id: ctx.escopo.tenantId, machine_id: id, revogou, sucessao: sucessora !== undefined });
       ctx.json(200, { ok: true, revogou });
     }),
     rota("desconectar", async (ctx) => {

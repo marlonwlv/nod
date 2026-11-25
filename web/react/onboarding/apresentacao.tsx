@@ -219,7 +219,7 @@ export function Apresentacao({ e, emailGoogle, ligacao, executar }: { e: EstadoA
       corpo = <>{personagem("xxl")}<h1 id="ap-titulo" tabIndex={-1}>Este é o nod</h1><p className="ap-sub">Ele ouve, pensa e faz. Você aprova o que sai daqui.</p></>;
       break;
     case "computador":
-      corpo = <><CenaComputador /><h1 id="ap-titulo" tabIndex={-1}>Ele tem o próprio computador</h1><p className="ap-sub">Roda no seu Mac, numa VM sua ou numa VM do nod.</p></>;
+      corpo = <><CenaComputador /><h1 id="ap-titulo" tabIndex={-1}>Ele tem o próprio computador</h1><p className="ap-sub">Roda neste computador, numa VM sua ou numa VM do nod.</p></>;
       break;
     case "trabalho":
       corpo = <><Desfile /><h1 id="ap-titulo" tabIndex={-1}>Dê um trabalho a cada bot</h1><p className="ap-sub">Um bot, uma função. Eles se ajudam entre si.</p></>;

@@ -31,6 +31,8 @@ import type { MacDaPessoa } from "../navegador/mac-da-pessoa.ts";
 import { inserirCodigo, preencherLogin } from "../navegador/preencher-login.ts";
 import { turnoPermitido } from "./computadores.ts";
 import { retomarAposDevolverNavegador } from "../../use-cases/retomar-apos-devolver.ts";
+import { enderecoMalformado, enderecoPermitido } from "../navegador/endereco.ts";
+export { enderecoMalformado, enderecoPermitido } from "../navegador/endereco.ts";
 
 /**
  * O portão do navegador do bot (ADR-190), no molde de `computadores.chamar`: catálogo, validade do plano, parada,
@@ -204,27 +206,6 @@ const LEEM_A_PAGINA: ReadonlySet<string> = new Set(["navegador_ler", "navegador_
 /** O que pode mudar de página: as referências antigas deixam de valer. */
 const NAVEGAM: ReadonlySet<string> = new Set(["navegador_abrir", "navegador_historico", "navegador_abas", "navegador_quadro"]);
 
-/**
- * definido em 2026-11-20: o Chrome no servidor alcança a rede de dentro (o próprio nod, o metadata da nuvem). `abrir` e
- * a aba nova recusam endereço que não seja http(s) público. TODO(2026-11-20): bloquear também na rede (proxy ou
- * firewall do processo) — um link clicado ou um redirect ainda chegam à rede de dentro, e DNS que aponta para dentro
- * passa pelo nome.
- */
-export function enderecoPermitido(url: string): boolean {
-  let u: URL;
-  try { u = new URL(url); } catch { return false; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
-  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (!h || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h === "metadata.google.internal") return false;
-  if (h === "::1" || h === "::" || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe80:/.test(h)) return false;
-  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224) return false;
-  }
-  if (/^\d+$/.test(h)) return false;
-  return true;
-}
 
 /**
  * definido em 2026-11-20: `navegador_avaliar` não lê campo protegido, cookie nem armazenamento, e não manda nada para
@@ -281,6 +262,12 @@ export const MS_DESAFIO_CONFERIR = 2500;
 const CONFEREM_DESAFIO: ReadonlySet<string> = new Set(["navegador_abrir", "navegador_ler", "navegador_ver", "navegador_clicar", "navegador_tecla", "navegador_procurar", "navegador_historico"]);
 export const INSTRUCAO_DO_DESAFIO = "A página mostra uma verificação de humano (CAPTCHA). O nod já passou o navegador para a pessoa, com o pedido na conversa: não peça no chat nem tente resolver. Encerre o turno; ela devolve e você continua.";
 /** As ferramentas cujo alvo a pessoa vê na imagem: o passo leva a caixa dele (o cursor com o nome e o anel, D2 C). */
+/**
+ * O que baixar e PDF devolvem ao bot (QA-205): o arquivo fica na pasta do navegador, fora dos Arquivos do bot e da
+ * conversa, até o TODO de levar o arquivo aos Arquivos sair. Sem isso o bot conta à pessoa que guardou onde ela não vê.
+ */
+export const ARQUIVO_SO_NO_NAVEGADOR = "O arquivo ficou na pasta do navegador do bot: dá para enviá-lo a um site com navegador_enviar_arquivo, mas ele ainda não aparece nos Arquivos do bot nem dá para anexá-lo na conversa. Não diga à pessoa que ele está nos Arquivos.";
+
 const FERRAMENTAS_COM_ALVO_NA_TELA: ReadonlySet<string> = new Set(["navegador_clicar", "navegador_preencher", "navegador_digitar", "navegador_selecionar", "navegador_marcar", "navegador_passar_mouse", "navegador_baixar", "navegador_enviar_arquivo", "navegador_rolar"]);
 
 function tipoDoPasso(ferramenta: string): PassoNavegador["tipo"] {
@@ -343,6 +330,7 @@ const ERRO_LOGIN: Readonly<Record<string, string>> = {
   acao_falhou: "Não deu para preencher agora. Tente de novo.",
   site_mudou: "A página mudou de site. Peça o login de novo.",
   sem_cookies: "O seu Chrome não tem uma sessão deste site.",
+  login_saiu: "Esse login saiu do cofre. Escolha outro ou entre você mesmo.",
 };
 const PESSOA_FAZ = { erro: "a_pessoa_faz", instrucao: "Trocar senha, e-mail ou a segurança da conta é sempre a pessoa que faz. Nada foi executado. Chame navegador_pedir_ajuda com o motivo e encerre o turno." };
 
@@ -373,7 +361,15 @@ function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; i
 export function tarefasParaOBot(tarefas: readonly TarefaEnsinada[], nome: unknown): Record<string, unknown> {
   if (!tarefas.length) return { tarefas: [], instrucao: "Nenhuma tarefa foi ensinada a você no navegador ainda." };
   const pedido = typeof nome === "string" ? nome.trim().toLowerCase() : "";
-  const achada = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) ?? tarefas.find((t) => t.nome.toLowerCase().includes(pedido)) : undefined;
+  const exata = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) : undefined;
+  // Pedaço que bate em tarefas de nomes diferentes não escolhe calado (QA-238); o mesmo nome ensinado de novo vale a mais nova.
+  const parciais = pedido && !exata ? tarefas.filter((t) => t.nome.toLowerCase().includes(pedido)) : [];
+  const vistas = new Set<string>();
+  const candidatas = parciais.filter((t) => !vistas.has(t.nome.toLowerCase()) && Boolean(vistas.add(t.nome.toLowerCase())));
+  if (candidatas.length > 1) {
+    return { tarefas: candidatas.map((t) => ({ nome: t.nome, passos: t.passos.length })), erro: "nome_ambiguo", instrucao: "Mais de uma tarefa tem esse pedaço no nome. Chame de novo com o nome inteiro da que a pessoa pediu; se não der para saber qual, pergunte a ela." };
+  }
+  const achada = exata ?? candidatas[0];
   if (achada) return { nome: achada.nome, passos: achada.passos, instrucao: "Estes são os passos que a pessoa fez com as próprias mãos. Repita-os no navegador, lendo a página antes de cada passo; os campos marcados como não gravados você pede a ela (navegador_entrar ou navegador_pedir_ajuda)." };
   return { tarefas: tarefas.map((t) => ({ nome: t.nome, passos: t.passos.length })), ...(pedido ? { erro: "tarefa_inexistente" } : {}), instrucao: "Chame de novo com o nome de uma destas tarefas para ver os passos." };
 }
@@ -954,6 +950,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     switch (ferramenta) {
       case "navegador_abrir": {
         const url = String(args.url);
+        // QA do Windows (2026-11-25): "htps//g1 globo com" levava a mesma recusa do localhost e o bot explicava rede interna.
+        if (enderecoMalformado(url)) return { conteudo: { erro: "endereco_malformado", instrucao: "Isto não é um endereço válido. Corrija para a forma https://site.com.br (com https:// e pontos, sem espaços) se a intenção for clara; senão, pergunte à pessoa." }, isError: true };
         if (!enderecoPermitido(url)) return { conteudo: { erro: "endereco_recusado", instrucao: "Só endereços http(s) da internet abrem no navegador do bot (nada de localhost, rede interna ou file:)." }, isError: true };
         const r = await m.abrir(s, url, args.nova_aba === true);
         c.est.url = r.url;
@@ -1028,12 +1026,12 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       case "navegador_baixar": {
         const r = await m.baixar(s, alvo, typeof args.nome === "string" && args.nome ? args.nome : `download-${agora()}`);
         // TODO(2026-11-20): levar o arquivo aos Arquivos do bot (hoje fica na pasta do navegador no servidor).
-        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes } };
+        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes, instrucao: ARQUIVO_SO_NO_NAVEGADOR } };
       }
       case "navegador_enviar_arquivo": await m.enviarArquivo(s, alvo, (args.arquivos as string[]) ?? []); break;
       case "navegador_pdf": {
         const r = await m.pdf(s, typeof args.nome === "string" && args.nome ? args.nome : `pagina-${agora()}`);
-        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes } };
+        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes, instrucao: ARQUIVO_SO_NO_NAVEGADOR } };
       }
       case "navegador_procurar": await m.procurar(s, { por: args.por as "texto", valor: String(args.valor), acao: args.acao as "clicar", ...(typeof args.texto === "string" ? { texto: args.texto } : {}), ...(typeof args.nome === "string" ? { nome: args.nome } : {}) }); break;
       case "navegador_avaliar": {
@@ -1664,6 +1662,13 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const s = sessao(agenteId);
       if (escolha !== "chrome" && escolha.fonte === "nod") {
         const item = await o.dentro(escopo, (d) => d.repos.cofreLogins.paraPreencher(escolha.ref));
+        const noCartao = (x: OpcaoLogin) => x.fonte === "nod" && x.ref === escolha.ref;
+        if (!item && pedido.opcoes.some(noCartao)) {
+          // QA-203: o login saiu do cofre (apagado na tela Cofre, noutra aba) depois que o cartão montou as opções. O cartão
+          // perde a opção que sumiu e diz por quê, em vez de um "não encontrado" solto que se repete a cada clique.
+          mudar(est, { pedido: { ...pedido, opcoes: pedido.opcoes.filter((x) => !noCartao(x)), etapa: "escolher", erro: ERRO_LOGIN.login_saiu! } });
+          throw new ErroDeDominio("estado_invalido", { cause: "login_saiu" });
+        }
         if (!item || !itemCasaComHost(item.site, host)) throw new ErroDeDominio("nao_encontrado", { cause: "login" });
         let r: { usuario: boolean; senha: boolean };
         try {

@@ -103,10 +103,9 @@ export async function renomeDoLote(deps: Deps, q: Quadro, ops: readonly OpQuadro
   if (nome === undefined && projeto === undefined) return null;
   const r: { nome?: string | null; projetoId?: string | null } = {};
   if (nome !== undefined) {
-    const chave = chaveDoNome(nomeDoQuadro({ nome }));
-    const outros = (await deps.repos.quadros.vinculadosAo(q.agenteId)).filter((x) => x.id !== q.id);
-    const igual = outros.find((x) => chaveDoNome(nomeDoQuadro(x)) === chave);
-    if (igual) return recusa("entrada_invalida", `este bot já tem outro quadro "${nomeDoQuadro(igual)}": escolha outro nome`);
+    // QA-191: o nome não repete em nenhum bot do quadro (o dono e os vinculados), senão o outro bot fica com dois iguais.
+    const igual = await nomeEmUsoNosBots(deps, q.id, nome, await botsDoQuadro(deps, q));
+    if (igual) return recusa("entrada_invalida", igual.agenteId === q.agenteId ? `este bot já tem outro quadro "${igual.nome}": escolha outro nome` : `${igual.bot} já tem outro quadro "${igual.nome}" (este quadro também está nele): escolha outro nome`);
     r.nome = nome;
   }
   if (projeto !== undefined) {
@@ -115,6 +114,23 @@ export async function renomeDoLote(deps: Deps, q: Quadro, ops: readonly OpQuadro
     r.projetoId = p.projetoId ?? null;
   }
   return r;
+}
+
+/** Os bots em que o quadro está (o quadro de antes, sem linha em quadro_bots, só no dono). */
+async function botsDoQuadro(deps: Deps, q: Pick<Quadro, "id" | "agenteId">): Promise<string[]> {
+  const ids = (await deps.repos.quadros.vinculos(q.id)).map((v) => v.agenteId);
+  return ids.length ? ids : [q.agenteId];
+}
+
+/** QA-191: outro quadro com o mesmo nome (a chave do nome) em algum destes bots; null = livre. */
+async function nomeEmUsoNosBots(deps: Deps, quadroId: string, nome: string | null, bots: readonly string[]): Promise<{ agenteId: string; bot: string; nome: string } | null> {
+  const chave = chaveDoNome(nomeDoQuadro({ nome }));
+  const agentes = await agentesDaPessoa(deps);
+  for (const agenteId of bots) {
+    const igual = (await deps.repos.quadros.vinculadosAo(agenteId)).find((x) => x.id !== quadroId && chaveDoNome(nomeDoQuadro(x)) === chave);
+    if (igual) return { agenteId, bot: agentes.find((a) => a.id === agenteId)?.nome ?? "o outro bot", nome: nomeDoQuadro(igual) };
+  }
+  return null;
 }
 
 /** O seletor do app Quadro: os quadros do bot (com os bots de cada um), os projetos e qual abre. */
@@ -248,6 +264,9 @@ async function aplicarVinculoOuProjeto(deps: Deps, p: PedidoQuadrosDoBot, agente
       if (!q) return nao(recusa("sem_quadro", "o quadro sumiu"));
       if (await repo.doBot(bot.id, q.id)) return ok(`${bot.nome} já estava no quadro "${nomeDoQuadro(q)}". Nada mudou.`, { quadroId: q.id });
       if ((await repo.vinculadosAo(bot.id)).length >= LIMITES_QUADROS.quadrosPorBot) return nao(recusa("entrada_invalida", `${bot.nome} já tem ${LIMITES_QUADROS.quadrosPorBot} quadros (o teto)`));
+      // QA-191: com dois quadros de mesmo nome no bot, "Site" e "Bot / Site" ficariam ambíguos.
+      const igual = await nomeEmUsoNosBots(deps, q.id, q.nome, [bot.id]);
+      if (igual) return nao(recusa("entrada_invalida", `${bot.nome} já tem um quadro "${igual.nome}": renomeie um dos dois (editar_quadro com nome) antes de vincular`));
       await repo.vincular(q.id, bot.id);
       return { data: { ok: true, instrucao: `${bot.nome} agora vê e trabalha no quadro "${rotuloDoQuadro(q, agentes)}" (o dono segue ${agentes.find((a) => a.id === q.agenteId)?.nome ?? "o mesmo"}). Desfaz com desvincular_bot.`, quadroId: q.id }, events: [evento(q)] };
     }
