@@ -6618,7 +6618,8 @@ function cancelarDaFila(turnoId: string, doCartao: { conversaId: string; mensage
     invalidar: (conversaId) => dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] }),
     mostrarErro,
     focarDesfazer: (id) => focarQuandoAparecer(seletorDaLinha("desfazer-cancelamento", id), origem),
-    focarTentarDeNovo: (id) => focarQuandoAparecer(seletorDaLinha("cancelar-turno", id), origem),
+    // QA-226: o Cancelar do cartão do desvio não fica numa `.fila-linha`; o foco volta ao botão onde ele estiver.
+    focarTentarDeNovo: (id) => focarQuandoAparecer(doCartao ? `[data-act="cancelar-turno"][data-id="${CSS.escape(id)}"]` : seletorDaLinha("cancelar-turno", id), origem),
     focarCampoSeSaiu: (id) => window.setTimeout(() => {
       const ativo = document.activeElement as HTMLElement | null;
       const perdeu = !ativo || ativo === document.body || !ativo.isConnected || ativo.matches(seletorDaLinha("desfazer-cancelamento", id));
