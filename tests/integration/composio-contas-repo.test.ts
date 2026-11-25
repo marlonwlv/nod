@@ -18,7 +18,7 @@ async function conector(tx: Conn, slug: string, nome: string): Promise<string> {
   return c!.id;
 }
 
-/** ADR-196 (0185): uma sessão do Composio por pessoa, app e conta; a conta tirada sai das listas e volta. */
+/** ADR-196 (0186): uma sessão do Composio por pessoa, app e conta (a chave da conta no toolkit); a conta tirada sai das listas e volta. */
 describeIntegracao("contas do mesmo app no banco", () => {
   it("cada conta tem a sua sessão; a mesma conta de novo troca a sessão, não duplica", async () => {
     await withRollback(marlon, async (tx) => {
