@@ -80,3 +80,25 @@ Electron limpa pelo `motor/desinstalar.ts` em modo "app" (o `nod-motor` roda de 
 desinstalador do app chama `nod-motor desinstalar` no `customUnInstall` (fora da atualização). A puxada leva `remover`
 ao motor ligado que foi removido por outro lugar. Gatilho de reversão: o Defender barrando a limpeza destacada, ou a VM
 de QA (ADA-233) mostrando sobra depois do Fim.
+
+## Emenda de 2026-11-25: o motor do Windows se atualiza sozinho
+
+Até aqui o motor do Windows só mudava quando a pessoa rodava de novo `irm https://nodbot.ai/windows | iex`: a troca do
+root + systemd (ADR-100) não existe no Windows (ADA-11, ADR-147), e a atualização do app não toca no motor. Medido em
+25/11: a Micherlaine (motor de 09/11) pediu o navegador três vezes em 24/11 e o bot respondeu que não havia navegador. O
+navegador do Windows entrou no motor em 23/11 (#243), e quem não é técnico não roda comando.
+
+Agora, como o motor mora na pasta do usuário, o próprio script desta ADR faz a troca (sha256 do manifesto, troca
+atômica, religa a tarefa, a conexão fica), disparado num PowerShell solto (`Start-Process`, fora da árvore que o
+`PararMotor` derruba com `taskkill /T`), com a saída em `%LOCALAPPDATA%\nod\atualizacao-motor.log`
+(`motor/atualizacao-no-windows.ts`):
+
+- **O motor** usa o mesmo `iniciarAtualizacao` do Linux, com `pedir` no lugar do pedido ao root: espera os turnos da
+  pessoa (ADR-100, ADR-131). O 426 do servidor também dispara a troca.
+- **O app** cobre o motor antigo, que não sabe se atualizar: na primeira conferência depois de abrir, troca na hora se o
+  motor difere do manifesto; depois, a cada 30 min, só se seguir diferente por mais de 1 h.
+- **A marca `%LOCALAPPDATA%\nod\atualizando-motor`** (20 min de validade) diz que uma troca está em curso: o vigia do app
+  não religa o motor no meio dela, e nenhum dos dois dispara outra. O script a apaga no fim, dê certo ou não.
+
+`NOD_ATUALIZAR_SOZINHO=0` desliga nos dois. Gatilho de reversão: a troca solta interrompendo turnos da pessoa com
+frequência, o Defender barrando o PowerShell solto, ou o log mostrando a troca falhando em laço.

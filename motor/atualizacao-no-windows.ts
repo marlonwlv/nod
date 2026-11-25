@@ -1,0 +1,123 @@
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { ARQUIVOS_DO_MOTOR, motorDiferente } from "../src/domain/atualizacao-do-motor.ts";
+
+/**
+ * Definido em 2026-11-25: o motor do Windows se atualiza sozinho. Até aqui ele só mudava quando a pessoa rodava de novo
+ * `irm https://nodbot.ai/windows | iex` (ADA-11, ADR-147: a troca do root + systemd não existe no Windows). Medido em
+ * 25/11: a Micherlaine (Windows, motor de 09/11) pediu o navegador três vezes em 24/11 e o bot respondeu que não havia
+ * navegador — o navegador do Windows entrou no motor em 23/11 (#243) e o motor dela nunca recebeu.
+ *
+ * No Windows o motor mora na pasta do usuário (%LOCALAPPDATA%\nod), sem admin: o próprio script da instalação
+ * (ADR-151) troca os arquivos, conferindo o sha256 do manifesto, e religa a tarefa; a conexão fica. Quem pede:
+ *
+ *   - o motor (`iniciarAtualizacao` com `pedir`): espera os turnos da pessoa como no Linux (ADR-100, ADR-131) e dispara
+ *     o script num PowerShell solto (fora da árvore do motor, que o script derruba com `taskkill /T`);
+ *   - o app do Windows: para o motor antigo, que não sabe se atualizar (a Micherlaine), na abertura do app e, depois,
+ *     se o motor seguir diferente além de `CARENCIA_DO_APP_MS` (o motor novo cuida antes).
+ *
+ * A marca `atualizando-motor` diz que uma troca está em curso: o vigia do app não religa o motor no meio dela, e nenhum
+ * dos dois dispara outra enquanto ela vale. O script a apaga no fim, dê certo ou não.
+ */
+
+export type Comando = { arquivo: string; args: string[] };
+type Env = Readonly<Record<string, string | undefined>>;
+
+export const MARCA_ATUALIZANDO = "atualizando-motor";
+/** A troca leva de segundos a poucos minutos (o npm das IAs é o mais lento); passou disso, a marca é de uma troca que caiu. */
+export const VALIDADE_DA_MARCA_MS = 20 * 60_000;
+/** O motor novo pede em até ~35 min (JANELA_OCIOSA_MS + o intervalo); o app só entra depois disso. */
+export const CARENCIA_DO_APP_MS = 60 * 60_000;
+/** De quanto em quanto tempo o app confere o motor com o manifesto. */
+export const INTERVALO_DO_APP_MS = 30 * 60_000;
+
+/** A pasta do nod no Windows, como o script da instalação a calcula (`$Pasta`). */
+export const pastaDoNodNoWindows = (env: Env): string => env.NOD_PASTA || join(env.LOCALAPPDATA ?? "", "nod");
+export const arquivoDaMarca = (env: Env): string => join(pastaDoNodNoWindows(env), MARCA_ATUALIZANDO);
+export const pastaDosArquivosDoMotor = (env: Env): string => join(pastaDoNodNoWindows(env), "motor", "app");
+
+/** Só https://host (ou http em loopback, na CI): o endereço entra entre aspas simples no PowerShell. */
+export function servidorValido(servidor: string): boolean {
+  return /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$/.test(servidor) || /^http:\/\/(127\.0\.0\.1|localhost)(:[0-9]{1,5})?$/.test(servidor);
+}
+
+/**
+ * O script que roda solto: grava a marca, roda a instalação (que para o motor, troca, e o religa) com a saída no log
+ * `atualizacao-motor.log` e apaga a marca no fim. Os caminhos saem do ambiente dentro do PowerShell: o nome do usuário
+ * pode ter aspas e nunca entra no texto.
+ */
+export function scriptDaAtualizacao(servidor: string): string {
+  if (!servidorValido(servidor)) throw new Error("servidor_invalido");
+  return [
+    "$ProgressPreference = 'SilentlyContinue'",
+    "$pasta = if ($env:NOD_PASTA) { $env:NOD_PASTA } else { Join-Path $env:LOCALAPPDATA 'nod' }",
+    "New-Item -ItemType Directory -Path $pasta -Force | Out-Null",
+    `$marca = Join-Path $pasta '${MARCA_ATUALIZANDO}'`,
+    "Set-Content -LiteralPath $marca -Value ([DateTime]::UtcNow.ToString('o'))",
+    `try { & { irm '${servidor}/windows' | iex } *> (Join-Path $pasta 'atualizacao-motor.log') } finally { Remove-Item -LiteralPath $marca -Force -ErrorAction SilentlyContinue }`,
+  ].join("; ");
+}
+
+/** `-EncodedCommand`: UTF-16LE em base64, sem aspas nem `|` para outro shell interpretar. */
+export const codificar = (script: string): string => Buffer.from(script, "utf16le").toString("base64");
+
+const POWERSHELL = (systemRoot: string) => `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+const OCULTO = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden"];
+
+/**
+ * Um PowerShell curto que abre outro com `Start-Process` e sai na hora: o de verdade fica órfão, fora da árvore de quem
+ * chamou. Do motor isso é obrigatório (o `PararMotor` do script mata a árvore do node.exe com `taskkill /T`).
+ */
+export function comandoDeAtualizarSolto(servidor: string, systemRoot = "C:\\Windows"): Comando {
+  const interno = [...OCULTO, "-EncodedCommand", codificar(scriptDaAtualizacao(servidor))].map((a) => `'${a}'`).join(",");
+  return { arquivo: POWERSHELL(systemRoot), args: [...OCULTO, "-Command", `Start-Process -FilePath '${POWERSHELL(systemRoot)}' -WindowStyle Hidden -ArgumentList ${interno}`] };
+}
+
+/** A marca vale (troca em curso) se existe e é mais nova que VALIDADE_DA_MARCA_MS. */
+export const marcaValida = (modificadaEm: number | null, agora: number): boolean => modificadaEm !== null && agora - modificadaEm < VALIDADE_DA_MARCA_MS;
+
+export async function atualizandoAgora(env: Env, agora = Date.now()): Promise<boolean> {
+  const m = await stat(arquivoDaMarca(env)).then((s) => s.mtimeMs, () => null);
+  return marcaValida(m, agora);
+}
+
+/** O sha256 dos arquivos do motor instalado (o que falta vem null). */
+export async function shaDoMotorInstalado(env: Env): Promise<Record<string, string | null>> {
+  const r: Record<string, string | null> = {};
+  for (const nome of ARQUIVOS_DO_MOTOR) r[nome] = await readFile(join(pastaDosArquivosDoMotor(env), nome)).then((b) => createHash("sha256").update(b).digest("hex"), () => null);
+  return r;
+}
+
+/** Os arquivos do manifesto que o Windows instala (o computador não roda no Windows: #337). */
+export function manifestoDoWindows(arquivos: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(ARQUIVOS_DO_MOTOR.filter((n) => typeof arquivos[n] === "string").map((n) => [n, arquivos[n]!]));
+}
+
+/** O motor instalado difere do servidor? null = não deu para saber (servidor fora, rota antiga): não faz nada. */
+export async function motorDoWindowsDiferente(o: { servidor: string; env: Env; buscar?: typeof fetch }): Promise<boolean | null> {
+  const r = await (o.buscar ?? fetch)(`${o.servidor}/api/motor/manifesto`, { redirect: "error", signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  if (!r?.ok) return null;
+  const m = (await r.json().catch(() => null)) as { arquivos?: Record<string, string> } | null;
+  if (!m?.arquivos) return null;
+  const manifesto = manifestoDoWindows(m.arquivos);
+  if (Object.keys(manifesto).length === 0) return null;
+  return motorDiferente(await shaDoMotorInstalado(o.env), manifesto);
+}
+
+export type EstadoDoApp = { diferenteDesde: number | null; jaConferiu: boolean };
+export const APP_PARADO: EstadoDoApp = { diferenteDesde: null, jaConferiu: false };
+
+/**
+ * O app decide se atualiza o motor. A primeira conferência depois de abrir atualiza na hora (é o caminho do motor antigo,
+ * e o app recém-aberto quase nunca tem turno no meio); depois, só se o motor seguir diferente além da carência — o motor
+ * novo pede sozinho, esperando os turnos da pessoa. Troca em curso (marca) ou sem resposta do servidor: nada.
+ */
+export function appDeveAtualizar(e: EstadoDoApp, o: { agora: number; diferente: boolean | null; atualizando: boolean }): { estado: EstadoDoApp; atualizar: boolean } {
+  if (o.diferente === null) return { estado: e, atualizar: false };
+  if (!o.diferente) return { estado: { diferenteDesde: null, jaConferiu: true }, atualizar: false };
+  const desde = e.diferenteDesde ?? o.agora;
+  if (o.atualizando) return { estado: { diferenteDesde: desde, jaConferiu: true }, atualizar: false };
+  const atualizar = !e.jaConferiu || o.agora - desde >= CARENCIA_DO_APP_MS;
+  return { estado: { diferenteDesde: atualizar ? null : desde, jaConferiu: true }, atualizar };
+}

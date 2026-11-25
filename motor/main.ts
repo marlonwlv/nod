@@ -53,6 +53,7 @@ import { iniciarContasDoMotor, lerIdentidadeNoCli, logoutNoCli, type ClisDoMotor
 import { depsDeVerdade, desinstalar } from "./desinstalar.ts";
 import type { OpcoesRemover } from "../src/contracts/remover-computador.ts";
 import { arquivoDoPedido, atualizacaoLigada, iniciarAtualizacao, MARCA_DA_ATUALIZACAO, type Atualizador } from "./atualizacao.ts";
+import { atualizandoAgora, comandoDeAtualizarSolto } from "./atualizacao-no-windows.ts";
 import { anuncioDoComputador, sondaLocal } from "./computador.ts";
 import { arquivoDasAtualizacoes, arquivoDoEstadoDeIa, arquivoDoPedidoDeIa, ESPERA_DA_RESPOSTA_MS, ESPERA_DO_SERVICO_MS, gravarJson, IA_DO_TERMINAL, lerEstadoDoPedido, passoNpmLocal, vigiarPedidosDoTerminal } from "./atualizar-ias.ts";
 import { criarPreparoNoMotor } from "./preparo-do-login.ts";
@@ -346,7 +347,12 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
         void vigiaAtual.reprovar(ia, r.causaSemIa).catch(() => undefined);
       } }), ponteHttp.ponte);
     log("info", "motor_laco_no_ar", { machine_id: dados.machineId });
-    // ADA-11 (ADR-147): a atualização automática do motor (root + systemd) não existe no Windows nesta fase.
+    // 2026-11-25: no Windows o motor se atualiza pelo script da instalação, disparado solto (atualizacao-no-windows.ts).
+    // A mesma espera dos turnos da pessoa do Linux (ADR-100, ADR-131); NOD_ATUALIZAR_SOZINHO=0 desliga.
+    if (import.meta.url.endsWith(".mjs") && NO_WINDOWS && process.env.NOD_ATUALIZAR_SOZINHO !== "0" && !atualizador) {
+      const ia = () => (iasAtualizando() ? 1 : 0);
+      atualizador = iniciarAtualizacao({ url: c.url, dir, pastaDoMotor: pasta, turnosRodando: () => (laco?.turnosAtuais().length ?? 0) + ia(), turnosDaPessoa: () => (laco?.turnosDaPessoa() ?? 0) + ia(), drenar: (nivel) => laco?.drenar(nivel), pedir: () => atualizarNoWindows(c.url) });
+    }
     if (import.meta.url.endsWith(".mjs") && !NO_WINDOWS) {
       void atualizacaoLigada({ url: c.url }).then((ligada) => {
         if (!ligada || encerrado || atualizador) return;
@@ -492,11 +498,27 @@ function sairPor(codigo: "chave_invalida" | "atualize_app", url: string): number
 }
 
 /**
+ * 2026-11-25: dispara a troca do motor no Windows, solta (fora da árvore deste processo, que o script derruba). Com uma
+ * troca já em curso (a marca), não dispara outra.
+ */
+async function atualizarNoWindows(url: string): Promise<void> {
+  if (await atualizandoAgora(process.env)) { log("info", "motor_atualizacao", { motivo: "troca_em_curso" }); return; }
+  const c = comandoDeAtualizarSolto(url, process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows");
+  spawn(c.arquivo, c.args, { detached: true, windowsHide: true, stdio: "ignore" }).on("error", (e) => log("aviso", "motor_atualizacao_falhou", { erro: e.name })).unref();
+  log("info", "motor_atualizacao", { motivo: "script_disparado" });
+}
+
+/**
  * ADR-100: o servidor pede um motor mais novo (426). Com a atualização automática, o motor grava o pedido e sai com o
  * código 2: o systemd não o reinicia sozinho, mas o atualizador troca os arquivos e o reinicia. Nenhum turno roda aqui:
  * a sessão já foi recusada.
  */
 async function sairPorVersao(url: string, pasta: string): Promise<number> {
+  if (NO_WINDOWS && import.meta.url.endsWith(".mjs") && process.env.NOD_ATUALIZAR_SOZINHO !== "0") {
+    await atualizarNoWindows(url).catch(() => undefined);
+    process.stderr.write("O servidor pede um motor mais novo: a atualização automática foi pedida.\n");
+    return 2;
+  }
   if (NO_WINDOWS || !import.meta.url.endsWith(".mjs") || !(await atualizacaoLigada({ url }))) return sairPor("atualize_app", url);
   await writeFile(arquivoDoPedido(pasta), `${JSON.stringify({ versao: null, em: Date.now(), motivo: "atualize_app" })}\n`, { mode: 0o600 }).catch(() => undefined);
   log("info", "motor_atualizacao", { motivo: "atualize_app" });

@@ -28,6 +28,7 @@ import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio } from "
 import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../../src/contracts/desktop-atualizacao.ts";
 import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
+import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
 import { FalhaPareamentoWindows, linkDePareamento, parearPorDispositivo } from "./pareamento.ts";
 import { abrirSessao, cookieDaJanela, PARTITION_DA_JANELA } from "./sessao.ts";
@@ -139,7 +140,8 @@ async function lerMotor(): Promise<EstadoDoMotor> {
   const saida = await new Promise<string>((r) => execFile(arquivo, args, { windowsHide: true, timeout: 20_000 }, (_e, out) => r(String(out ?? ""))));
   const v = vigiar(saida);
   const estado = v.estado;
-  if (v.religar) {
+  // 2026-11-25: com a troca do motor em curso (a marca), o script religa no fim; religar no meio subiria o motor velho.
+  if (v.religar && !(await atualizandoAgora(process.env))) {
     const c = comandoDeReligar(systemRoot);
     execFile(c.arquivo, c.args, { windowsHide: true, timeout: 20_000 }, () => undefined);
     registrar("motor_religado", { tarefa: v.tarefa });
@@ -172,6 +174,28 @@ async function instalar() {
   if (conexao) await entrar(conexao);
 }
 
+/**
+ * 2026-11-25 (motor/atualizacao-no-windows.ts): o app confere o motor instalado com o manifesto do servidor. Na primeira
+ * conferência depois de abrir atualiza na hora (o motor antigo não sabe se atualizar); depois, só se seguir diferente
+ * além da carência, porque o motor novo se atualiza sozinho esperando os turnos da pessoa.
+ */
+let estadoDoMotorNoApp: EstadoDoApp = APP_PARADO;
+let conferindoMotor = false;
+async function conferirMotor(): Promise<void> {
+  const c = conexao;
+  if (!c || removido || conferindoMotor || process.env.NOD_ATUALIZAR_SOZINHO === "0") return;
+  conferindoMotor = true;
+  try {
+    const diferente = await motorDoWindowsDiferente({ servidor: c.url, env: process.env });
+    const d = appDeveAtualizar(estadoDoMotorNoApp, { agora: Date.now(), diferente, atualizando: await atualizandoAgora(process.env) });
+    estadoDoMotorNoApp = d.estado;
+    if (!d.atualizar) return;
+    const cmd = comandoDeAtualizarSolto(c.url, systemRoot);
+    spawn(cmd.arquivo, cmd.args, { detached: true, windowsHide: true, stdio: "ignore" }).on("error", () => registrar("motor_atualizacao_pelo_app_falhou", {})).unref();
+    registrar("motor_atualizacao_pelo_app", {});
+  } catch { registrar("motor_atualizacao_pelo_app_falhou", {}); } finally { conferindoMotor = false; }
+}
+
 async function entrar(c: ConexaoMotor) {
   const passo = passoDaSessao(await abrirSessao(c, app.getVersion()));
   if (!("abrir" in passo)) {
@@ -186,6 +210,7 @@ async function entrar(c: ConexaoMotor) {
   abrirJanela(c.url);
   setup?.close();
   atualizacao?.conectado();
+  void conferirMotor();
 }
 
 /**
@@ -489,6 +514,7 @@ else {
     lembrarVersao();
     atualizarBandeja();
     setInterval(() => { if (conexao && !removido) void lerMotor(); }, INTERVALO_DO_VIGIA_MS).unref();
+    setInterval(() => void conferirMotor(), INTERVALO_DO_APP_MS).unref();
     registrar("app_aberto", { versao: app.getVersion() });
     void abrir();
   });
