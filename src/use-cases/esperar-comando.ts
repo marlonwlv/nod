@@ -105,6 +105,8 @@ export async function relatarEspera(deps: DepsEspera, p: { maquinaId: string; re
       await deps.repos.esperas.marcarIniciada(espera.id, agora);
       return { data: { seguir: true }, events: [] };
     }
+    // QA-224: a repetição de um "iniciou" que ficou sem resposta (servidor reiniciando, rede) não é a máquina caindo.
+    if (r.relancada === false) return { data: { seguir: true }, events: [] };
     const q = decidirQuedaDaEspera(espera.quedas);
     if (q.tipo === "desistir") {
       await deps.repos.esperas.gravarQuedas(espera.id, q.quedas, agora);

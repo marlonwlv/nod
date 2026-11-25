@@ -216,6 +216,23 @@ describeIntegracao("esperar_comando (ADR-099, parte 2)", () => {
     });
   });
 
+  it("QA-224: o \"iniciou\" repetido porque a resposta se perdeu não conta queda; só o relançamento de verdade conta", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const id = await m.pedir();
+      await m.assentar();
+      expect((await m.relatar({ id, tipo: "iniciou", relancada: false })).data).toEqual({ seguir: true });
+      // a resposta se perdeu (deploy, rede): o motor repete o mesmo começo, 3 vezes
+      for (let i = 0; i < 3; i++) expect((await m.relatar({ id, tipo: "iniciou", relancada: false })).data).toEqual({ seguir: true });
+      expect(await m.repos.esperas.buscar(id)).toMatchObject({ estado: "rodando", quedas: 0 });
+      // o motor reiniciou e subiu o comando de novo: uma queda, e a repetição desse relançamento não soma outra
+      expect((await m.relatar({ id, tipo: "iniciou", relancada: true })).data).toEqual({ seguir: true });
+      expect((await m.relatar({ id, tipo: "iniciou", relancada: false })).data).toEqual({ seguir: true });
+      expect(await m.repos.esperas.buscar(id)).toMatchObject({ estado: "rodando", quedas: 1 });
+      expect(await m.voltas()).toEqual([]);
+    });
+  });
+
   it("a máquina relança o comando (reiniciou): cada relançamento é uma queda; na 3ª a espera cai e o bot é acordado para perguntar", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);

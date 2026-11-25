@@ -46,7 +46,12 @@ export type EsperaParaRodar = { id: string; comando: string; pasta: string | nul
  * ou que não deu para rodar (`pasta_ausente`: a pasta do turno não existe mais; `nao_iniciou`: o shell não subiu).
  */
 export type RelatoEspera =
-  | { id: string; tipo: "iniciou" }
+  /**
+   * QA-224 (definido em 2026-11-25): `relancada` diz se este começo é um relançamento de verdade (o motor recebeu a espera
+   * já `iniciada` e subiu o comando de novo) ou a repetição de um "iniciou" cuja resposta se perdeu. Só `true` conta
+   * queda; `false` é idempotente. Ausente (motor antigo) = a regra anterior: todo "iniciou" depois do primeiro é queda.
+   */
+  | { id: string; tipo: "iniciou"; relancada?: boolean }
   | { id: string; tipo: "terminou"; codigo: number | null; saida: string }
   | { id: string; tipo: "caiu"; motivo: "pasta_ausente" | "nao_iniciou" };
 

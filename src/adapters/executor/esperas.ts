@@ -30,7 +30,12 @@ export const INTERVALO_ESPERAS_MS = 5_000;
 /** O que se guarda da saída enquanto o comando roda: o dobro do que vai ao servidor, para cortar numa linha inteira. */
 const CAUDA_MAX = 2 * SAIDA_ESPERA_MAX;
 
-type Viva = { dono: string; proc: Processo; iniciouConfirmado: boolean };
+/**
+ * `relancada` (QA-224): o servidor já tinha a espera como iniciada quando este processo subiu o comando. Vai só no
+ * primeiro "iniciou" deste lançamento; as repetições (resposta perdida) vão com `false`, para não contarem queda. Se a
+ * primeira se perdeu de fato, a queda deixa de ser contada uma vez — contar a menos é melhor que derrubar a espera viva.
+ */
+type Viva = { dono: string; proc: Processo; iniciouConfirmado: boolean; relancada: boolean };
 const vivas = new Map<string, Viva>();
 const relatosPendentes = new Map<string, { dono: string; machineId: string; relato: RelatoEspera }>();
 
@@ -122,7 +127,7 @@ export function iniciarEsperas(o: OpcoesEsperas): Esperas {
       if (cauda.length > CAUDA_MAX) cauda = cauda.slice(cauda.length - CAUDA_MAX);
     };
     const proc = iniciar({ bin: shell.bin, args: shell.args(e.comando), env: o.env, cwd, stdin: "ignore", aoLinha: (l) => guardar(`${l}\n`), aoStderr: guardar });
-    const viva: Viva = { dono: o.pessoaId, proc, iniciouConfirmado: false };
+    const viva: Viva = { dono: o.pessoaId, proc, iniciouConfirmado: false, relancada: e.iniciada };
     vivas.set(e.id, viva);
     log("info", "espera_comecou", { espera_id: e.id, relancada: e.iniciada });
     void proc.fim.then(async (fim) => {
@@ -137,7 +142,9 @@ export function iniciarEsperas(o: OpcoesEsperas): Esperas {
 
   /** O "iniciou" vai até o servidor aceitar; `seguir: false` (cancelada, quedas demais) mata o grupo na hora. */
   async function confirmarInicio(id: string, viva: Viva): Promise<void> {
-    const r = await relatar({ id, tipo: "iniciou" });
+    const relancada = viva.relancada;
+    viva.relancada = false;
+    const r = await relatar({ id, tipo: "iniciou", relancada });
     if (!r || vivas.get(id) !== viva) return;
     viva.iniciouConfirmado = true;
     if (!r.seguir) matar(id, "servidor_recusou");
