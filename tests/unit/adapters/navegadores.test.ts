@@ -696,6 +696,22 @@ describe("liberações e tarefas guardadas (0180)", () => {
     expect(tarefasParaOBot(tarefas, "outra")).toMatchObject({ erro: "tarefa_inexistente" });
     expect(chamadas).toEqual([]);
   });
+
+  it("pedaço de nome que bate em duas tarefas diferentes não escolhe calado: devolve as candidatas (QA-238)", () => {
+    const lista = [
+      { id: "t2", nome: "Baixar nota", passos: ["Abriu b.com"], criadaEm: T0 + 1 },
+      { id: "t1", nome: "Emitir nota", passos: ["Abriu e.com", "Clicou"], criadaEm: T0 },
+    ];
+    const r = tarefasParaOBot(lista, "nota");
+    expect(r).toMatchObject({ erro: "nome_ambiguo", tarefas: [{ nome: "Baixar nota", passos: 1 }, { nome: "Emitir nota", passos: 2 }] });
+    expect(r).not.toHaveProperty("passos", expect.any(Array));
+    // nome inteiro ainda acha a certa, e um pedaço único também
+    expect(tarefasParaOBot(lista, "emitir nota")).toMatchObject({ nome: "Emitir nota", passos: ["Abriu e.com", "Clicou"] });
+    expect(tarefasParaOBot(lista, "emitir")).toMatchObject({ nome: "Emitir nota" });
+    // a mesma tarefa ensinada de novo com o mesmo nome: vale a mais nova, sem ambiguidade
+    const repetida = [{ id: "t3", nome: "Emitir nota", passos: ["novo"], criadaEm: T0 + 2 }, ...lista];
+    expect(tarefasParaOBot(repetida, "emitir")).toMatchObject({ nome: "Emitir nota", passos: ["novo"] });
+  });
 });
 
 describe("operações da pessoa (POST /agentes/:id/navegador)", () => {
