@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, ARGS_CHROME_DO_BOT, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, ARGS_CHROME_DO_BOT, LIMITE_NOME_BYTES, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -107,6 +107,21 @@ describe("argv e ambiente", () => {
     expect(alvoDoMotor("button.pagar")).toBe("button.pagar");
     expect(nomeDeArquivo("../../etc/passwd")).toBe("passwd");
     expect(nomeDeArquivo(".bashrc")).toBe("bashrc");
+  });
+
+  it("QA-215: nome longo é cortado em bytes e mantém a extensão", () => {
+    // navegador_pdf aceita nome de até 200 caracteres e acrescenta ".pdf": o corte não pode comer a extensão.
+    const pdf = nomeDeArquivo(`${"Relatório de Faturamento ".repeat(8)}.pdf`);
+    expect(pdf.endsWith(".pdf")).toBe(true);
+    expect(Buffer.byteLength(pdf)).toBeLessThanOrEqual(LIMITE_NOME_BYTES);
+    // 150 "ç" = 300 bytes: passa do teto de 255 bytes por nome do ext4/APFS (ENAMETOOLONG).
+    const csv = nomeDeArquivo(`${"ç".repeat(150)}.csv`);
+    expect(csv.endsWith(".csv")).toBe(true);
+    expect(Buffer.byteLength(csv)).toBeLessThanOrEqual(LIMITE_NOME_BYTES);
+    expect(csv).not.toContain("�");
+    // Ponto longe do fim não é extensão; nome curto passa intacto.
+    expect(Buffer.byteLength(nomeDeArquivo(`a.${"b".repeat(300)}`))).toBeLessThanOrEqual(LIMITE_NOME_BYTES);
+    expect(nomeDeArquivo("nota fiscal 123.xml")).toBe("nota fiscal 123.xml");
   });
 
   it("o binário do pacote npm desta plataforma existe", () => {

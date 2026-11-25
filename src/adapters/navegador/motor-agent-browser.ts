@@ -328,11 +328,36 @@ export function chaveDoBot(segredo: Buffer, agenteId: string): string {
   return Buffer.from(hkdfSync("sha256", segredo, Buffer.alloc(0), `nod-navegador:${agenteId}`, 32)).toString("hex");
 }
 
-/** Nome de arquivo seguro dentro da pasta do bot: sem caminho, sem começar por ponto. */
+/**
+ * revisto em 2026-11-25 (QA-215): o teto do nome é em BYTES (o ext4/APFS aceitam 255 bytes por nome; 200 deixa folga),
+ * não em caracteres — 150 "ç" são 300 bytes e o download caía em ENAMETOOLONG. E o corte sai do meio do nome, nunca da
+ * extensão: um `navegador_pdf` de 198 caracteres virava "….p", sem ".pdf".
+ */
+export const LIMITE_NOME_BYTES = 200;
+
+/** Corta `s` em até `bytes` de UTF-8 sem partir um caractere. */
+function cortarEmBytes(s: string, bytes: number): string {
+  let out = "";
+  let usados = 0;
+  for (const ch of s) {
+    const n = Buffer.byteLength(ch);
+    if (usados + n > bytes) break;
+    out += ch;
+    usados += n;
+  }
+  return out;
+}
+
+/** Nome de arquivo seguro dentro da pasta do bot: sem caminho, sem começar por ponto, até 200 bytes com a extensão inteira. */
 export function nomeDeArquivo(nome: string): string {
-  const b = basename(nome.replace(/\\/g, "/")).replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/^\.+/, "").slice(0, 200);
+  const b = basename(nome.replace(/\\/g, "/")).replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/^\.+/, "");
   if (!b) throw new FalhaNavegador("alvo_invalido", "nome de arquivo vazio");
-  return b;
+  if (Buffer.byteLength(b) <= LIMITE_NOME_BYTES) return b;
+  const ponto = b.lastIndexOf(".");
+  // Extensão é o trecho curto depois do último ponto (até 16 bytes); mais que isso é parte do nome.
+  const ext = ponto > 0 && Buffer.byteLength(b.slice(ponto)) <= 16 ? b.slice(ponto) : "";
+  const base = cortarEmBytes(ext ? b.slice(0, ponto) : b, LIMITE_NOME_BYTES - Buffer.byteLength(ext));
+  return base + ext;
 }
 
 const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
