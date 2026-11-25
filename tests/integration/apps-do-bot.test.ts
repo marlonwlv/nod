@@ -789,7 +789,7 @@ describeIntegracao("apps do bot (NOD-445)", () => {
       const ok = await executar(d, gerirApps, { ...(await turno(d, bot)), op: "ordenar", bot: ze.nome, pagina: "quadro", posicao: 1 });
       expect(ok.data).toMatchObject({ ok: true, tela_inicial: "Tarefas" });
       if (!ok.data.ok) throw new Error("ordenar");
-      expect(ok.data.instrucao).toContain(`Ao abrir o ${ze.nome}, Tarefas aparece primeiro`);
+      expect(ok.data.instrucao).toContain(`Ao abrir ${ze.nome}, Tarefas aparece primeiro`);
       expect(homeDoBot((await paginas(d, ze.agenteId)).ordem)).toBe(PAGINA_TAREFAS);
       expect(homeDoBot((await paginas(d, bot.agenteId)).ordem)).toBe(PAGINA_CONVERSA);
     });
