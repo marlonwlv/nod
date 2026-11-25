@@ -35,15 +35,19 @@ function estadoCom(bot: { nome: string; titulo: string }): Estado {
 const ABAS = ["Voltar do quadro para a conversa mantém o scroll", "Seletor de IA no composer não abre o menu"]
   .map((t, i) => `<div class="at-aba" data-aba="t${i}"><button type="button" class="at-ir"><span class="at-titulo">${t}</span></button><span class="at-acoes"><button type="button" class="at-fechar">×</button></span></div>`).join("");
 
-/** O cabeçalho no modo abas (a pílula começa a fileira) e no modo pílula (a pílula sozinha, no centro). */
-function cabecalho(bot: { nome: string; titulo: string }, modo: "abas" | "pilula"): string {
+/**
+ * O cabeçalho no modo abas da conversa (a pílula começa a fileira), numa tarefa (a mesma fileira, num cabeçalho sem
+ * `.cabecalho-pilula`: foi onde o vídeo pegou o nome cortado) e no modo pílula (a pílula sozinha, no centro).
+ */
+function cabecalho(bot: { nome: string; titulo: string }, modo: "abas" | "tarefa" | "pilula"): string {
   const estado = estadoCom(bot);
   if (modo === "pilula") return `<header class="cabecalho cabecalho-pilula" id="cabecalho">${renderCabecalhoConversa(estado, "a", { painel: false })}</header>`;
   const fileira = renderFileiraDeAbas(estado, {
     agenteId: "a", ativa: null, abas: [], renomeando: null, novaTarefa: { texto: "⌘T", aria: "Meta+T" },
-    pilula: { html: renderCabecalhoConversa(estado, "a", { painel: false }), conversaAtiva: true },
+    pilula: { html: renderCabecalhoConversa(estado, "a", modo === "tarefa" ? { painel: false, irParaConversa: true } : { painel: false }), conversaAtiva: modo === "abas" },
   }).replace('<span class="at-traco" aria-hidden="true"></span>', `<span class="at-traco" aria-hidden="true"></span>${ABAS}`);
-  return `<header class="cabecalho cabecalho-pilula cabecalho-abas" id="cabecalho">${fileira}</header>`;
+  const classes = modo === "tarefa" ? "cabecalho cabecalho-task cabecalho-abas" : "cabecalho cabecalho-pilula cabecalho-abas";
+  return `<header class="${classes}" id="cabecalho"><div class="tk-topo tk-topo-abas">${fileira}</div></header>`;
 }
 
 type Medida = {
@@ -121,6 +125,14 @@ descrever("XUM-3: o nome do bot fica dentro da pílula (Chrome real)", () => {
       expect(m.title).toContain(`${LONGO.nome} · ${LONGO.titulo}`);
     });
 
+    it(`na fileira de uma tarefa a ${largura} px: o nome continua inteiro e o título trunca`, async () => {
+      const m = await medir(cabecalho(LONGO, "tarefa"), largura);
+      expect(m.textoDir).toBeLessThanOrEqual(m.pilula.dir);
+      expect(m.nome.visivel && !m.nome.cortado).toBe(true);
+      expect(m.titulo).toMatchObject({ cortado: true, reticencias: "ellipsis" });
+      expect(m.pilula.largura).toBeLessThanOrEqual(320);
+    });
+
     it(`no modo pílula a ${largura} px: o texto longo fica dentro e o nome inteiro`, async () => {
       const m = await medir(cabecalho(LONGO, "pilula"), largura);
       expect(m.textoDir).toBeLessThanOrEqual(m.pilula.dir);
@@ -131,7 +143,7 @@ descrever("XUM-3: o nome do bot fica dentro da pílula (Chrome real)", () => {
   }
 
   it("no celular (390 px) o texto fica dentro da pílula, nas abas e no modo pílula", async () => {
-    for (const modo of ["abas", "pilula"] as const) {
+    for (const modo of ["abas", "tarefa", "pilula"] as const) {
       const m = await medir(cabecalho(LONGO, modo), 390, true);
       expect(m.textoDir, modo).toBeLessThanOrEqual(m.pilula.dir);
       expect(m.nome.visivel, modo).toBe(true);
@@ -147,7 +159,7 @@ descrever("XUM-3: o nome do bot fica dentro da pílula (Chrome real)", () => {
   });
 
   it("nome curto continua inteiro, sem corte, nos dois modos", async () => {
-    for (const modo of ["abas", "pilula"] as const) {
+    for (const modo of ["abas", "tarefa", "pilula"] as const) {
       const m = await medir(cabecalho(CURTO, modo), 1024);
       expect(m.nome.cortado, modo).toBe(false);
       expect(m.titulo?.cortado, modo).toBe(false);

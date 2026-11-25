@@ -137,7 +137,7 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
    "…") quando sozinho não cabe; o texto inteiro vai no title. */
 .pilula-bot { min-width: 0; }
 .cabecalho-pilula .pilula-txt { min-width: 0; overflow: hidden; }
-.cabecalho-pilula .pilula-txt > .pilula-nome { flex: none; max-width: 100%; }
+.pilula-txt > .pilula-nome { flex: none; max-width: 100%; }
 .pilula-titulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cabecalho-pilula .pilula-frentes { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: var(--fs-rotulo); font-weight: var(--peso-regular); color: var(--ink-3); }
 .cabecalho-pilula .pilula-frentes .ponto-aguardando { width: 6px; height: 6px; }
