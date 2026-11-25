@@ -68,6 +68,9 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
   for (const b of bots) if (b.excluidoEm === null) nomes.set(chaveDoNome(b.nome), b.id);
   const liberar = (dono: string) => { for (const [n, d] of nomes) if (d === dono) nomes.delete(n); };
   const resolvidas: AcaoResolvida[] = [];
+  // QA r137: quem uma ação anterior do lote exclui (id ou "ref:i"); mexer nele depois só falharia ao rodar, com o
+  // código cru no recibo ("nao_encontrado"). Restaurar volta a liberar.
+  const excluidosNoLote = new Set<string>();
 
   acoes.forEach((a, i) => {
     const erro = (motivo: string) => problemas.push({ i, motivo });
@@ -161,6 +164,12 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
       default:
         break;
     }
+    const alvoDoLote = alvoId ?? (alvoDaAcao !== null ? `ref:${alvoDaAcao}` : null);
+    if (alvoDoLote !== null && excluidosNoLote.has(alvoDoLote) && a.tipo !== "restaurar") {
+      erro(`"${alvoNome || a.bot}" é excluído antes neste pedido${alvoDaAcao === null ? "; se é o bot novo, use o @ref dele" : ""}`);
+    }
+    if (alvoDoLote !== null && a.tipo === "excluir") excluidosNoLote.add(alvoDoLote);
+    else if (alvoDoLote !== null && a.tipo === "restaurar") excluidosNoLote.delete(alvoDoLote);
     // QA-118: o nome que entra não pode ser de outro bot (o chat passaria a cair em "há mais de um bot chamado").
     const dono = alvoId ?? (alvoDaAcao !== null ? `ref:${alvoDaAcao}` : null);
     const nomeNovo = a.tipo === "criar" || a.tipo === "editar" ? (a.nome ?? "").trim() : "";

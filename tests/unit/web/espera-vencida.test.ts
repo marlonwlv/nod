@@ -98,6 +98,24 @@ describe("as ações", () => {
     expect(deps.anunciar).not.toHaveBeenCalled();
   });
 
+  it("QA-154: Cobrar recusado porque outra aba já cobrou: relê, e o servidor com a cobrança tira o erro da tela", async () => {
+    const { local, deps, acoes } = montar(vi.fn(async () => { throw new Error("estado_invalido"); }));
+    await acoes["espera-cobrar"]!(el);
+    expect(local.fase("t1")).toEqual({ fase: "erro" });
+    // A recusa pode vir de um estado que a tela não viu (cobrado em outra aba, commit antes do timeout): relê.
+    expect(deps.invalidar).toHaveBeenCalled();
+    const doServidor = espera(colega({ vencida: false, podeCobrar: false, cobradoEm: Date.now() }));
+    expect(comAcaoLocal(doServidor, local)).toBe(doServidor);
+    // Sem o Cobrar, o "Não deu para cobrar agora." não fica preso ao lado do Desistir.
+    expect(local.fase("t1")).toBeUndefined();
+  });
+
+  it("Desistir recusado (já fechado em outro lugar): relê para a espera sumir", async () => {
+    const { deps, acoes } = montar(undefined, vi.fn(async () => { throw new Error("nao_encontrado"); }));
+    await acoes["espera-desistir"]!(el);
+    expect(deps.invalidar).toHaveBeenCalled();
+  });
+
   it("Cobrar duas vezes seguidas: uma chamada só", async () => {
     let soltar: () => void = () => undefined;
     const cobrar = vi.fn(() => new Promise<object>((r) => { soltar = () => r({}); }));

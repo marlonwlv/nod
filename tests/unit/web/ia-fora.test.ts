@@ -30,44 +30,28 @@ const noApp = (sim: boolean) => { if (sim) (globalThis as Record<string, unknown
 afterEach(() => noApp(false));
 
 describe("aviso: a conta da IA entrou e não serve", () => {
-  it("no app do Mac, com tudo fora: diz o que houve em português, que a mensagem fica guardada, e traz os dois botões com logo", () => {
+  it("lote B (desvio 8, Paper B-8): o cartão da tabela única, com a causa no título e 'Conectar outra conta'", () => {
     noApp(true);
     const html = renderMensagem(negacao(), com({ claude: SEM_ACESSO, codex: AUSENTE }));
-    expect(html).toContain("tom-alerta");
-    expect(html).toContain("aviso-ia-fora");
-    expect(html).toContain("a conta do Claude Code deste Mac está sem acesso (a organização dela desativou o uso por assinatura)");
-    expect(html).toContain("Sua mensagem fica guardada");
-    expect(html).toContain('data-act="ia-entrar"');
-    expect(html).toContain("Entrar com outra conta");
-    expect(html).toContain('data-act="ia-conectar"');
-    expect(html).toContain("Instalar o Codex");
-    expect(html.match(/class="ia-logo"/g)).toHaveLength(2);
-    // A frase técnica fica atrás de "Detalhes técnicos"; nada em inglês do fornecedor na frente.
-    expect(html).toContain("<summary>Detalhes técnicos</summary>");
+    expect(html).toContain('class="aviso-estado tom-info aviso-desvio desvio-sem_acesso"');
+    expect(html).toContain("A sua organização desligou o Claude por assinatura");
+    expect(html).toContain("Conecte outra e a mensagem sai em seguida.");
+    expect(html).toMatch(/data-act="secao-espaco"[^>]*>Conectar outra conta</);
+    // A frase técnica fica em "Ver o erro"; nada em inglês do fornecedor na frente.
+    expect(html).toContain("<summary>Ver o erro</summary>");
     expect(html).not.toContain("subscription");
   });
 
-  it("cada botão leva a IA certa: entrar de novo na que falhou, conectar a outra", () => {
-    noApp(true);
-    const html = renderMensagem(negacao(), com({ claude: SEM_ACESSO, codex: AUSENTE }));
-    const botoes = [...html.matchAll(/<button[^>]*>/g)].map((b) => b[0]);
-    expect(botoes.find((b) => b.includes('data-act="ia-entrar"'))).toContain('data-ia="claude-cli"');
-    expect(botoes.find((b) => b.includes('data-act="ia-conectar"'))).toContain('data-ia="codex-cli"');
-  });
-
-  it("a outra IA instalada e sem login: o botão é 'Conectar o ChatGPT', não 'Instalar'", () => {
-    noApp(true);
-    const html = renderMensagem(negacao(), com({ claude: SEM_ACESSO, codex: { estado: "nao_autenticado", motivo: "x", em: 0 } }));
-    expect(html).toContain("Conectar o ChatGPT");
-    expect(html).not.toContain("Instalar o Codex");
-  });
-
-  it("fora do app (navegador): um botão só, para a seção Conexão; nada que dependa do app", () => {
-    const html = renderMensagem(negacao(), com({ claude: SEM_ACESSO, codex: AUSENTE }));
-    expect(html).toContain('data-act="secao-espaco"');
-    expect(html).toContain("Conectar IA");
-    expect(html).not.toContain("ia-entrar");
-    expect(html).not.toContain("ia-conectar");
+  it("o cartão é o mesmo no app e no navegador: um botão só, para Provedores de IA, e nunca 'Instalar'", () => {
+    for (const app of [true, false]) {
+      noApp(app);
+      for (const codex of [AUSENTE, { estado: "nao_autenticado" as const, motivo: "x", em: 0 }]) {
+        const html = renderMensagem(negacao(), com({ claude: SEM_ACESSO, codex }));
+        expect(html.match(/<button type="button" class="bt pri" data-act="secao-espaco"/g)).toHaveLength(1);
+        expect(html).toContain("Conectar outra conta");
+        expect(html).not.toMatch(/ia-entrar|ia-conectar|Instalar/);
+      }
+    }
   });
 
   it("já há uma IA pronta: aviso neutro, sem botão, e sem prometer o que não sabe", () => {
@@ -85,8 +69,8 @@ describe("aviso: a conta da IA entrou e não serve", () => {
     noApp(true);
     const lento: Inventario = { estado: "ausente", causa: "sonda_lenta", motivo: "O Codex demorou para responder; o Mac está carregado. Tente de novo em instantes.", em: 0 };
     const html = renderMensagem(negacao(), com({ claude: SEM_ACESSO, codex: lento }));
-    expect(html).toContain('data-act="ia-conectar"');
-    expect(html).toContain("Conectar o ChatGPT");
+    // Lote B (desvio 8): o cartão não oferece a outra IA direto; Provedores de IA mostra o passo certo de cada uma.
+    expect(html).toContain("Conectar outra conta");
     expect(html).not.toContain("Instalar");
     expect(pedeInstalar(lento)).toBe(false);
     expect(pedeInstalar(AUSENTE)).toBe(true);

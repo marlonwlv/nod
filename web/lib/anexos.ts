@@ -96,7 +96,8 @@ export function tamanhoHumano(bytes: number): string {
 }
 
 const ehImagem = (mime: string) => (MIMES_IMAGEM as readonly string[]).includes(mime);
-const rotuloTipo = (mime: string) => (mime === MIME_PDF ? "PDF" : ehImagem(mime) ? "IMG" : "TXT");
+// PR #333 (achado 16): o CSV com o selo dele, não "TXT".
+const rotuloTipo = (mime: string) => (mime === MIME_PDF ? "PDF" : ehImagem(mime) ? "IMG" : mime === "text/csv" ? "CSV" : mime === "application/json" ? "JSON" : mime === "text/markdown" ? "MD" : "TXT");
 const X = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
 /** "captura-2026-11-12-102400.png" (desktop/captura-mac.ts) vira "Captura de região"; os outros perdem só a extensão. */

@@ -43,9 +43,20 @@ export interface ServicesNod<Trx> extends ServicosLinear {
   computadores?: {
     /** NOD-96 (ADR-122): true = o computador da pessoa no motor; false = o docker por bot (só o vínculo 'por_bot' vale). */
     porPessoa?: boolean;
+    /** definido em 2026-11-25: o computador só roda numa máquina Linux da pessoa (o motor; src/use-cases/computador-tem-lugar.ts). */
+    soNoLinux?: boolean;
     executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string }): Promise<void>;
     /** ADR-083 (S5): o título do trabalho (ou "a conversa") que segura o computador que este turno pediu; null = não espera. */
     esperandoPor?(turnoId: string): string | null;
+  };
+  /**
+   * ADR-190 (2026-11-20): o navegador do bot (adapters/fundo/navegadores.ts). `disponivel` = algum lugar roda o Chrome
+   * agora (o plano oferece as navegador_*); `executarAprovado` roda a ação cifrada no item da decisão.
+   */
+  navegadores?: {
+    disponivel(): boolean;
+    /** `lembrar` (A3): a pessoa deixou marcado "Não perguntar de novo para …" (o `sempre` do cartão). */
+    executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void>;
   };
   /**
    * definido em 2026-10-07 (ADR-083): o que só o processo sabe dos trabalhos — a última ferramenta de cada turno vivo

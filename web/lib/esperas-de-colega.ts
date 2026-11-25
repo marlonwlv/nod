@@ -35,6 +35,12 @@ export function comAcaoLocal(e: EsperaDoDonoDto, local: Pick<AcaoLocal, "fase" |
   const f = local.fase(c.tarefaId);
   if (!f) return e;
   if (f.fase === "desistido") return null;
+  // QA-154: o erro do Cobrar só vale enquanto o servidor ainda oferece o Cobrar; cobrado em outra aba (ou commit antes do
+  // timeout), a releitura chega sem o Cobrar e o "Não deu para cobrar agora." sai junto.
+  if (f.fase === "erro" && !c.podeCobrar) {
+    local.marcar(c.tarefaId, null);
+    return e;
+  }
   if (f.fase !== "cobrado") return e;
   // Revisão 7 do PR #544 (L4): uma cobrança só por pedido (MAX_COBRANCAS) — qualquer `cobradoEm` do servidor é esta, sem
   // comparar com o relógio do navegador (adiantado, a marca nunca saía).
@@ -100,6 +106,8 @@ export function criarAcoesDaEspera(deps: DepsDasAcoes): Record<string, (el: ComD
         deps.invalidar();
       } catch {
         local.marcar(tarefaId, { fase: "erro" });
+        // QA-154: a recusa pode vir de um estado que a tela não viu (cobrado em outra aba, fechado pelo prazo): relê.
+        deps.invalidar();
       }
       deps.render();
     },
@@ -119,6 +127,8 @@ export function criarAcoesDaEspera(deps: DepsDasAcoes): Record<string, (el: ComD
         local.marcar(tarefaId, antes ?? null);
         deps.anunciar(`Não deu para encerrar o pedido ${aoColega(colega)}`);
         deps.render();
+        // QA-154: já fechado em outro lugar (outra aba, o prazo), a releitura tira a espera da tela.
+        deps.invalidar();
       }
     },
   };

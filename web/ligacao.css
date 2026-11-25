@@ -98,10 +98,8 @@
    O aviso é o componente de estado do design system (tom alerta); aqui só o que a ligação acrescenta: o título numa
    linha própria, o texto em tinta, a linha de botões e os cards de IA. O botão principal é a ação da tela (--action),
    não a cor do alerta: continuar é o caminho, não o problema. */
-.aviso-estado.lig-sem-ia { align-items: flex-start; padding: 14px 16px; font-size: var(--fs-corpo); line-height: 21px; }
-.lig-sem-ia .aviso-estado-ic { margin-top: 2px; }
+.aviso-estado.lig-sem-ia { align-items: flex-start; width: auto; max-width: none; padding: 14px 16px; font-size: var(--fs-corpo); line-height: 21px; }
 .lig-sem-ia .aviso-estado-txt { color: var(--ink); }
-.lig-sem-ia .aviso-estado-txt > b { display: block; }
 .lsi-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .lsi-acoes .bt, .lsi-card .bt { height: 36px; padding: 0 14px; border-radius: var(--raio-8); font-size: var(--fs-corpo-2); font-weight: 500; }
 .lsi-acoes .bt:not(.pri):not(.link), .lsi-card .bt { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }

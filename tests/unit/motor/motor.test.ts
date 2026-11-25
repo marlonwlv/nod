@@ -50,14 +50,15 @@ describe("motor sem janela (ADR-090)", () => {
   });
 
   it("NOD-344: aposentarChaveAntiga manda a chave ANTIGA no Bearer, só no mesmo servidor e se a chave mudou; erro não derruba", async () => {
-    const chamadas: { url: string; auth: string | null }[] = [];
+    const chamadas: { url: string; auth: string | null; corpo: unknown }[] = [];
     const f = (async (url: string, init: RequestInit) => {
-      chamadas.push({ url, auth: new Headers(init.headers).get("authorization") });
+      chamadas.push({ url, auth: new Headers(init.headers).get("authorization"), corpo: JSON.parse(String(init.body)) });
       return new Response("{}", { status: 200 });
     }) as unknown as typeof fetch;
     const nova = { url: "https://nod.exemplo.com", chave: "nova.k" };
     expect(await aposentarChaveAntiga({ url: "https://nod.exemplo.com", chave: "velha.k" }, nova, "1.0.0", f)).toBe(true);
-    expect(chamadas).toEqual([{ url: "https://nod.exemplo.com/api/maquina/aposentar", auth: "Bearer velha.k" }]);
+    // Sucessão de chave (2026-11-24): a nova vai no corpo, para o servidor passar os bots e as sessões antes de revogar.
+    expect(chamadas).toEqual([{ url: "https://nod.exemplo.com/api/maquina/aposentar", auth: "Bearer velha.k", corpo: { sucessora: "nova.k" } }]);
     expect(await aposentarChaveAntiga(null, nova, "1.0.0", f)).toBe(false);
     expect(await aposentarChaveAntiga({ url: "https://outro.exemplo.com", chave: "velha.k" }, nova, "1.0.0", f)).toBe(false);
     expect(await aposentarChaveAntiga(nova, nova, "1.0.0", f)).toBe(false);
@@ -184,6 +185,16 @@ describe("motor sem janela (ADR-090)", () => {
     expect(script).toContain("zram-tools");
     expect(script).toContain("printf 'ALGO=zstd\\nSIZE=%s\\nPRIORITY=100\\n'");
     expect(script).toContain("/swapfile-nod none swap sw 0 0");
+  });
+
+  it("em dev (node motor/main.ts), o proxy e o hook apontam para fontes que rodam o main sozinhos (prova real: o proxy saía calado)", async () => {
+    const fonte = await readFile(join(process.cwd(), "motor/main.ts"), "utf8");
+    const pares = [...fonte.matchAll(/caminhoAoLado\("([^"]+)", "([^"]+)"\)/g)].map((m) => m[2]!);
+    expect(pares.length).toBeGreaterThanOrEqual(3);
+    for (const arquivo of new Set(pares)) {
+      const codigo = await readFile(join(process.cwd(), arquivo), "utf8");
+      expect(codigo, arquivo).toContain("ehPontoDeEntrada(import.meta.url)");
+    }
   });
 
   it("QA NOD-199: o motor reanuncia pela rota só de inventário, como o app do Mac — nunca pelo conectar direto", async () => {

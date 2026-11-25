@@ -76,8 +76,12 @@ export function criarRotasTrabalhos(d: DepsRotas): Rota[] {
         // Validação de 2026-11-18: os anexos do clipe do campo da tarefa nova (ids soltos da conversa do bot).
         const anexos = Array.isArray(corpo.anexos) ? corpo.anexos.filter((a): a is string => typeof a === "string" && UUID.test(a)) : [];
         if (Array.isArray(corpo.anexos) && anexos.length !== corpo.anexos.length) throw new ErroDeDominio("entrada_invalida", { cause: "anexos" });
-        const r = await executar(ctx.escopo, abrirTarefaDaPessoa, { agenteId, texto: texto(corpo.texto), levarConversa: corpo.levarConversa === true, anexos });
-        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho } = { ok: true, ids: { trabalho: r.trabalho.id, turno: r.turnoId }, trabalho: r.trabalho };
+        // ADR-192 (etapa 2): a chave de idempotência (cabeçalho Idempotency-Key ou `chave` no corpo) faz o pedido repetido
+        // devolver a mesma tarefa. A resposta segue a de antes; `ids.tarefa` e `ids.thread` são a mais (cliente antigo ignora).
+        const cabecalho = ctx.req.headers["idempotency-key"];
+        const chaveIdempotencia = typeof corpo.chave === "string" ? corpo.chave : typeof cabecalho === "string" ? cabecalho : null;
+        const r = await executar(ctx.escopo, abrirTarefaDaPessoa, { agenteId, texto: texto(corpo.texto), levarConversa: corpo.levarConversa === true, anexos, chaveIdempotencia });
+        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho } = { ok: true, ids: { trabalho: r.trabalho.id, turno: r.turnoId, ...(r.tarefaId ? { tarefa: r.tarefaId } : {}), ...(r.threadId ? { thread: r.threadId } : {}) }, trabalho: r.trabalho };
         ctx.json(201, resposta);
       },
     },

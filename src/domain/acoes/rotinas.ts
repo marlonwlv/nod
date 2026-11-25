@@ -41,6 +41,10 @@ export const ACOES_ROTINAS = [
   // (src/use-cases/pausa-em-lote.ts). Aplicam direto, como pausar e ativar uma (ADR-043): reversíveis em um passo.
   { id: "rotinas.pausar_todas", titulo: "Pausar todas as rotinas", schema: FERRAMENTAS_ROTINA_LOTE.pausar_todas_rotinas, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "pausar_todas_rotinas" }, contrato: "tests/integration/paridade-pausa-em-lote.test.ts" }, casoDeUso: "rotinas.pausar_todas" },
   { id: "rotinas.reativar_lote", titulo: "Reativar as rotinas pausadas juntas", schema: FERRAMENTAS_ROTINA_LOTE.reativar_lote_rotinas, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "reativar_lote_rotinas" }, contrato: "tests/integration/paridade-pausa-em-lote.test.ts" }, casoDeUso: "rotinas.reativar_lote" },
+  // PR #333 (achado 4, QA do rc.10 no Windows): o Excluir da tela (POST rotinas/:id/excluir) aplica direto depois da
+  // confirmação no diálogo. O chat chega pela excluir_rotina, que propõe o card "Excluir rotina" (aplicarExclusaoRotina):
+  // mesmo efeito, outro executor.
+  { id: "rotinas.excluir", titulo: "Excluir uma rotina", schema: FERRAMENTAS_ROTINA.excluir_rotina, risco: "arriscada", cartaoNoChat: true, chat: { estado: "parcial", via: { ferramenta: "excluir_rotina" }, falta: "o chat propõe o card (aplicarExclusaoRotina); a tela aplica direto pelo excluirRotina, sem teste de contrato comum" } },
   { id: "rotinas.mudar_ritmo", titulo: "Mudar o ritmo de uma rotina", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "rotinas.gerar_endereco", titulo: "Gerar novo endereço do webhook", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "rotinas.enviar_teste", titulo: "Enviar teste ao webhook", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },

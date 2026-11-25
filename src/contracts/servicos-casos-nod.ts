@@ -67,4 +67,6 @@ export interface UseCasesNod<Deps> {
   gerirCanvas: CasoNod<Deps, "gerir_canvas">;
   gerirMaquinas: CasoNod<Deps, "gerir_maquinas">;
   removerComputador: CasoNod<Deps, "remover_computador">;
+  /** ADR-190 (N): onde o navegador do bot roda com o Mac desligado, a pedido da pessoa. */
+  ajustarNavegador: CasoNod<Deps, "ajustar_navegador">;
 }

@@ -3,6 +3,7 @@ import { TIPOS_DISPENSADOS_AO_SEGUIR, type TipoDecisao } from "../../../src/cont
 import { fraseCurtaDoPedido, linhaDoPedidoDispensado } from "../../../src/domain/pedido-dispensado.ts";
 import { textoPedidoDeTela } from "../../../src/domain/computador.ts";
 import { enviarMensagem } from "../../../src/use-cases/enviar-mensagem.ts";
+import { FALA_DA_AJUDA, FALA_DO_CODIGO, FALA_DO_LOGIN } from "../../../src/adapters/fundo/navegadores.ts";
 import { FECHA_AO_SEGUIR } from "../../../web/lib/pedidos-que-esperam.ts";
 import { depsMemoria } from "../../helpers/deps-l7.ts";
 import { PESSOA_ANA } from "../../helpers/ids.ts";
@@ -129,6 +130,23 @@ describe("a mensagem nova dispensa os pedidos abertos de antes dela (ADR-191)", 
     expect(recibo?.payload).toMatchObject({ ajuda: true, frase: "entrar no Drive", agenteId: c.agenteId });
   });
 
+  it("os pedidos do navegador (ajuda, login, código) fecham e a vista do bot solta o pedido depois do commit (cenários 22/11, ponto 02)", async () => {
+    const c = await cena();
+    const falas = [FALA_DA_AJUDA("google.com pede para provar que é gente (CAPTCHA). Resolva na tela e devolva para mim."), FALA_DO_LOGIN("saucedemo.com", "para montar o carrinho"), FALA_DO_CODIGO("o Itaú mandou um SMS")];
+    const ids: string[] = [];
+    for (const f of falas) {
+      const p = await c.decidir("pergunta", f);
+      ids.push(p?.id ?? "");
+      await c.d.deps.repos.mensagens.criar({ conversaId: c.conversaId, turnoId: c.turnoId, autoria: { autor_tipo: "agente", autor_id: c.agenteId } as never, kind: "texto", texto: f, payload: { kind: "pedido_a_pessoa", decisaoId: p?.id ?? "" }, confianca: "confiavel" });
+    }
+    const efeitos: unknown[] = [];
+    (c.d.deps as { aposCommit?: (e: unknown) => void }).aposCommit = (e) => void efeitos.push(e);
+    await c.enviar("Deixa pra lá, não precisa mais.");
+    for (const id of ids) expect(c.d.banco.decisoes.find((x) => x.id === id)?.desfecho).toMatchObject({ tipo: "dispensada" });
+    expect(efeitos).toEqual([{ tipo: "pedidos_dispensados", decisaoIds: expect.arrayContaining(ids) }]);
+    expect(c.d.banco.turnos.filter((t) => t.origem === "retomada")).toHaveLength(0);
+  });
+
   it("o bot fica sabendo: uma linha fixa por pedido, gravada antes do turno da mensagem nova", async () => {
     const c = await cena();
     await c.decidir("acesso", "Frida quer ler seu Google Drive.");
@@ -161,6 +179,12 @@ describe("a frase do pedido e a linha do bot", () => {
     const longa = fraseCurtaDoPedido("a".repeat(400));
     expect([...longa]).toHaveLength(160);
     expect(longa.endsWith("…")).toBe(true);
+  });
+
+  it("os pedidos do navegador ficam só com o motivo (cenários 22/11)", () => {
+    expect(fraseCurtaDoPedido(FALA_DA_AJUDA("www.google.com pede para provar que é gente (CAPTCHA). Resolva na tela e devolva para mim."))).toBe("www.google.com pede para provar que é gente (CAPTCHA)");
+    expect(fraseCurtaDoPedido(FALA_DO_LOGIN("saucedemo.com", "para montar o carrinho"))).toBe("entrar em saucedemo.com: para montar o carrinho");
+    expect(fraseCurtaDoPedido(FALA_DO_CODIGO("o Itaú mandou um SMS"))).toBe("o Itaú mandou um SMS");
   });
 
   it("a linha diz que nada foi feito e pede para seguir com a mensagem nova", () => {
