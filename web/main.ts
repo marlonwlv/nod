@@ -4940,6 +4940,9 @@ function marcarBordasDaLista(lista: HTMLElement): void {
 // Sessão, SSE e relógio.
 
 async function iniciarSessao(escopo: Escopo): Promise<void> {
+  conexoes.cancelarTodas();
+  // NOD-106: outra pessoa ou outro tenant, a leitura da sessão velha para (o reducer zera o estado, o som ia seguir).
+  if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) tocador.parar("saiu");
   // ADR-194: quem chegou pelo /backoffice sem sessão entrou por aqui com `?volta=`; com a sessão aberta, volta para lá.
   // A promessa não resolve: a página já está indo embora, e nada do app (SSE, leituras) precisa começar.
   const volta = tirarVoltaDoBackoffice();
@@ -4947,9 +4950,6 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
     window.location.assign(volta);
     return new Promise<void>(() => undefined);
   }
-  conexoes.cancelarTodas();
-  // NOD-106: outra pessoa ou outro tenant, a leitura da sessão velha para (o reducer zera o estado, o som ia seguir).
-  if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) tocador.parar("saiu");
   // NOD-407: o retry do Acordar é da sessão que clicou; nunca acorda o computador de outra pessoa.
   cancelarRetryDoComputador();
   // Os rascunhos são da pessoa: outra sessão, outros rascunhos.

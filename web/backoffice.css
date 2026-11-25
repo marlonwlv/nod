@@ -29,10 +29,12 @@ body.bko-pagina { margin: 0; min-height: 100vh; background: var(--surface); colo
 .bko-chip:focus-visible, .bko a:focus-visible, .bko summary:focus-visible, .bko-conta:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .bko-menu-pos { z-index: 20; }
+/* foco-ok: o popup recebe o foco pelo Base UI ao abrir; quem mostra o foco são os itens (.bko-menu-it:focus-visible). */
 .bko-menu { min-inline-size: 220px; padding: 6px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-menu); color: var(--ink); font-family: var(--font-sans); outline: none; }
 .bko-menu-cabeca { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; font-size: var(--fs-corpo-2); }
 .bko-menu-sep { block-size: 1px; margin: 4px 0; background: var(--divisoria); }
-.bko-menu-it { display: flex; align-items: center; min-block-size: 40px; padding: 0 10px; border-radius: var(--raio-8); color: var(--ink); font-size: var(--fs-corpo-2); text-decoration: none; cursor: pointer; outline: none; }
+.bko-menu-it { display: flex; align-items: center; min-block-size: 40px; padding: 0 10px; border-radius: var(--raio-8); color: var(--ink); font-size: var(--fs-corpo-2); text-decoration: none; cursor: pointer; }
+.bko-menu-it:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .bko-menu-it[data-highlighted] { background: var(--hover); }
 .bko-rolagem-interna { overflow-x: auto; }
 .bko-tabela-pessoas tbody th { text-align: start; font-weight: inherit; padding: 8px 10px; border-block-end: 1px solid var(--borda-sutil); white-space: nowrap; }
