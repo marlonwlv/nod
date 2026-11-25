@@ -86,20 +86,24 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
   }
 
   /**
-   * Os cartões de aprovação abertos (item 10, rodada 2): procurados a cada medida (são poucos e somem quando decididos, sem
-   * o histórico mudar). Um à vista basta para não haver pílula; fora, o mais perto por baixo, senão o mais perto por cima.
+   * Os cartões que esperam a pessoa (item 10, rodada 2; revisto em 2026-11-20, ADR-191): os marcados com
+   * `data-pedido-espera` (web/lib/pedidos-que-esperam.ts) e as aprovações abertas fora deles. Procurados a cada medida (são
+   * poucos e somem quando decididos, sem o histórico mudar). Um à vista basta para não haver pílula; fora, o alvo é o mais
+   * antigo (o primeiro na ordem da conversa).
    */
   function pedidosNaJanela(): PedidosNaJanela | null {
-    const cartoes = [...caixa.querySelectorAll<HTMLElement>("li.aprov-card[data-decisao]")];
+    const marcados = [...caixa.querySelectorAll<HTMLElement>("[data-pedido-espera]")];
+    const soltas = [...caixa.querySelectorAll<HTMLElement>("li.aprov-card[data-decisao]")].filter((el) => !el.parentElement?.closest("[data-pedido-espera]"));
+    const cartoes = [...marcados, ...soltas].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
     if (cartoes.length === 0) return null;
     const c = caixa.getBoundingClientRect();
     const medidos = cartoes.map((el) => ({ el, r: el.getBoundingClientRect() }));
     const base = { total: cartoes.length, nome: "" };
     if (medidos.some(({ r }) => r.bottom > c.top && r.top < c.bottom)) return { ...base, decisaoId: "", posicao: "visivel" };
-    const abaixo = medidos.find(({ r }) => r.top >= c.bottom);
-    const alvo = abaixo ?? medidos.filter(({ r }) => r.bottom <= c.top).at(-1);
+    const alvo = medidos[0];
     if (!alvo) return null;
-    return { ...base, decisaoId: alvo.el.dataset.decisao ?? "", nome: alvo.el.dataset.nome ?? "O bot", posicao: abaixo ? "abaixo" : "acima" };
+    const id = alvo.el.dataset.pedidoEspera ?? alvo.el.dataset.decisao ?? "";
+    return { ...base, decisaoId: id, nome: alvo.el.dataset.nome ?? "O bot", frase: alvo.el.dataset.frase ?? "", posicao: alvo.r.top >= c.bottom ? "abaixo" : "acima" };
   }
 
   /** O bloco que o lugar mostra agora (`.progresso[data-frentes]`, o filho dele); null com o lugar vazio. */

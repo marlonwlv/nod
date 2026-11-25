@@ -113,7 +113,7 @@ export function semRevisorNoApp(d: DecisaoDoApp): DecisaoAutomatica {
  * (`revisor_falhou`) nunca oferece a regra (o repositório grava falso nele).
  */
 export function sempreServe(item: { destino: DestinoItem; arriscada: boolean }, contaminado: boolean): boolean {
-  if (item.destino.conector === "terminal" || item.destino.conector === "computador") return false;
+  if (item.destino.conector === "terminal" || item.destino.conector === "computador" || item.destino.conector === "navegador") return false;
   return item.arriscada && !contaminado;
 }
 
@@ -182,7 +182,8 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   const { plano } = entrada;
   if (!plano) return { automatico: false, motivo: "sem_plano" };
   if (entrada.origemSensivel) return { automatico: false, motivo: "origem_sensivel" };
-  if (entrada.destino.conector === "computador") return { automatico: false, motivo: "destino_computador" };
+  // ADR-190 (2026-11-20): o navegador do bot decide no portão dele; o item que chega aqui já é o cartão (motivo do computador, o lugar do bot).
+  if (entrada.destino.conector === "computador" || entrada.destino.conector === "navegador") return { automatico: false, motivo: "destino_computador" };
   // ADR-055: comando no terminal do Mac se decide por autorizar-comando.ts, nunca por regra de conector.
   if (entrada.destino.conector === "terminal") return { automatico: false, motivo: "destino_terminal" };
 

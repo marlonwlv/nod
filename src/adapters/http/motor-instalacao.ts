@@ -20,7 +20,7 @@
  * byte a byte.
  */
 import { CONVITE } from "../../shared/convite.ts";
-import { ARQUIVOS_DO_MOTOR } from "../../domain/atualizacao-do-motor.ts";
+import { ARQUIVOS_DO_COMPUTADOR, ARQUIVOS_DO_MOTOR, DESTINOS_DO_COMPUTADOR } from "../../domain/atualizacao-do-motor.ts";
 import { blocoDoComputador } from "./computador-instalacao.ts";
 import { PISO_CLI } from "../executor/flag-floors.ts";
 
@@ -28,6 +28,8 @@ export { ARQUIVOS_DO_MOTOR, type ArquivoDoMotor } from "../../domain/atualizacao
 
 /** O Node que o motor usa (o mesmo do .mise.toml e do Dockerfile). */
 export const NODE_DO_MOTOR = "24.19.0";
+/** ADR-190: o agent-browser do navegador do bot na máquina (a mesma versão fixa do package.json; um teste confere). */
+export const AGENT_BROWSER_DO_MOTOR = "0.43.0";
 
 /** Só https (ou http em loopback, dev) e um host sem nada que o shell interprete. */
 export function servidorParaScript(proto: string, host: string): string | null {
@@ -63,6 +65,7 @@ export function scriptDeInstalacao(o: { servidor: string; versao: string; convit
   if (!/^https?:\/\/[a-z0-9.:-]+$/.test(o.servidor) || !/^[0-9A-Za-z.+-]+$/.test(o.versao)) throw new Error("servidor_ou_versao_invalida");
   const convite = o.convite && CONVITE_NO_SCRIPT.test(o.convite) ? o.convite : "";
   const comp = o.papel === "computador";
+  const atualizaveis = o.computador ? [...ARQUIVOS_DO_MOTOR, ...ARQUIVOS_DO_COMPUTADOR] : ARQUIVOS_DO_MOTOR;
   /** A linha de etapa (só no modo computador; no de sempre, nada muda). */
   const etapa = (id: EtapaDoScript) => (comp ? `etapa ${id}\n` : "");
   /** O motivo de uma falha conhecida (só no modo computador). */
@@ -170,6 +173,17 @@ done
 rm -rf "$BAIXADOS"
 passo "motor $NOD_VERSAO"
 ${o.computador ? blocoDoComputador() : ""}
+# ADR-190 (definido em 2026-11-20): o navegador do bot nesta máquina, o agent-browser fixo em $PASTA/navegador (o motor o
+# acha lá, agentBrowserDoLinux). O Chrome é o Chromium do computador quando ele está instalado (chromeDoLinux). Falhar
+# aqui não derruba a instalação: o bot diz que o navegador não está nesta máquina.
+if [ ! -f "$PASTA/navegador/node_modules/agent-browser/package.json" ] || ! grep -q '"version": "${AGENT_BROWSER_DO_MOTOR}"' "$PASTA/navegador/node_modules/agent-browser/package.json"; then
+  $SUDO mkdir -p "$PASTA/navegador"
+  echo '{"name":"nod-navegador","private":true}' | $SUDO tee "$PASTA/navegador/package.json" >/dev/null
+  if $SUDO env PATH="$PASTA/node/bin:$PATH" "$PASTA/node/bin/npm" install --prefix "$PASTA/navegador" --no-fund --no-audit --ignore-scripts --loglevel=error agent-browser@${AGENT_BROWSER_DO_MOTOR} >/dev/null; then
+    $SUDO chmod -R a+rX "$PASTA/navegador"
+  else printf 'Aviso: o navegador do bot não instalou agora. Rode a instalação de novo depois para tentar outra vez.\n'; fi
+fi
+[ -f "$PASTA/navegador/node_modules/agent-browser/package.json" ] && passo "navegador do bot (agent-browser ${AGENT_BROWSER_DO_MOTOR})"
 # ADR-097 (fase 0b): sem swap, um pico de memória trava a máquina por minutos (medido na VM dos bots em 11/10: ~20 min
 # trocando páginas). Swap comprimido em memória (zram), o padrão do Fedora: metade da memória, até 8 GB. Sem o módulo
 # zram no kernel, um arquivo de swap de 4 GB no disco, se sobra espaço. Só quando não há swap nenhum: quem já tem o seu
@@ -282,10 +296,10 @@ case "$SERVIDOR" in
   *) echo "servidor inválido em /etc/nod-motor/servidor" >&2; exit 1 ;;
 esac
 curl -fsS --max-time 60 "$SERVIDOR/api/motor/manifesto" -o "$TMP/manifesto.json"
-for ARQUIVO in ${ARQUIVOS_DO_MOTOR.join(" ")}; do
+for ARQUIVO in ${atualizaveis.join(" ")}; do
   curl -fsS --max-time 300 "$SERVIDOR/api/motor/arquivos/$ARQUIVO" -o "$TMP/$ARQUIVO"
 done
-VERSAO=$("$NODE" -e 'const fs=require("fs"),c=require("crypto");const d=process.argv[1];const m=JSON.parse(fs.readFileSync(d+"/manifesto.json","utf8"));for(const n of process.argv.slice(2)){const h=c.createHash("sha256").update(fs.readFileSync(d+"/"+n)).digest("hex");if(!m.arquivos||m.arquivos[n]!==h){console.error("o arquivo "+n+" não bate com o manifesto");process.exit(1)}}process.stdout.write(String(m.versao||"?"))' "$TMP" ${ARQUIVOS_DO_MOTOR.join(" ")})
+VERSAO=$("$NODE" -e 'const fs=require("fs"),c=require("crypto");const d=process.argv[1];const m=JSON.parse(fs.readFileSync(d+"/manifesto.json","utf8"));for(const n of process.argv.slice(2)){const h=c.createHash("sha256").update(fs.readFileSync(d+"/"+n)).digest("hex");if(!m.arquivos||m.arquivos[n]!==h){console.error("o arquivo "+n+" não bate com o manifesto");process.exit(1)}}process.stdout.write(String(m.versao||"?"))' "$TMP" ${atualizaveis.join(" ")})
 rm -rf "$APP.novo"
 mkdir -p "$APP.novo"
 for ARQUIVO in ${ARQUIVOS_DO_MOTOR.join(" ")}; do
@@ -296,7 +310,9 @@ rm -rf "$APP.anterior"
 mv "$APP" "$APP.anterior"
 # Se a segunda troca falhar, a anterior volta: a máquina nunca fica sem motor.
 mv "$APP.novo" "$APP" || { mv "$APP.anterior" "$APP"; exit 1; }
-systemctl restart nod-motor
+${o.computador ? `${ARQUIVOS_DO_COMPUTADOR.map((nome) => `install -o root -g root -m 644 "$TMP/${nome}" "/opt/nod-motor/computador/${DESTINOS_DO_COMPUTADOR[nome]}"`).join("\n")}
+systemctl try-restart nod-computador.service nod-computador-terminal.service >/dev/null 2>&1 || true
+` : ""}systemctl restart nod-motor
 echo "motor atualizado: $VERSAO"
 NODATUALIZAR
 $SUDO chmod 755 /usr/local/sbin/nod-motor-atualizar

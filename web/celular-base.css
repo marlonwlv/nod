@@ -15,7 +15,7 @@
   .cabecalho.cabecalho-pilula.topo-encolhido:has(.pg-pontos) { height: calc(env(safe-area-inset-top) + 72px); }
   .stage.qd-no-quadro .cabecalho.cabecalho-pilula.topo-encolhido { background: color-mix(in srgb, var(--qd-fundo) 72%, transparent); }
   /* Com a tarefa aberta a página é --surface: o vidro segue a página. */
-  .stage.qd-no-quadro:has(.qd-tarefa) .cabecalho.cabecalho-pilula.topo-encolhido { background: color-mix(in srgb, var(--surface) 72%, transparent); }
+  .stage.qd-no-quadro.palco-tarefa .cabecalho.cabecalho-pilula.topo-encolhido { background: color-mix(in srgb, var(--surface) 72%, transparent); }
 
   /* ---------- Quadro: nada passa de 390 ---------- */
   /* A meta volta a quebrar linha (o nowrap de paginas.css somava 755 px a 390): objetivo com reticências na 1ª linha, o
@@ -153,8 +153,8 @@
   .qd-cel-enviar { flex: none; display: inline-grid; place-items: center; width: var(--cel-alvo); height: var(--cel-alvo); padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink); }
   .qd-cel-enviar svg { width: 22px; height: 22px; }
   /* O topo encolhido mostra "VER-1 · título" numa linha, abaixo da pílula (web/lib/quadro-na-tela.ts, marcarTopo). */
-  .stage.qd-no-quadro:has(.qd-tarefa-cel) .cabecalho.topo-encolhido[data-titulo] { height: calc(env(safe-area-inset-top) + 80px); }
-  .stage.qd-no-quadro:has(.qd-tarefa-cel) .cabecalho.topo-encolhido[data-titulo]::after { content: attr(data-titulo); position: absolute; left: 56px; right: 56px; bottom: 6px;
+  .stage.qd-no-quadro.palco-tarefa-cel .cabecalho.topo-encolhido[data-titulo] { height: calc(env(safe-area-inset-top) + 80px); }
+  .stage.qd-no-quadro.palco-tarefa-cel .cabecalho.topo-encolhido[data-titulo]::after { content: attr(data-titulo); position: absolute; left: 56px; right: 56px; bottom: 6px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--ink); font-size: 13px; font-weight: 600; pointer-events: none; }
   /* A folha das propriedades: no body, acima do teclado, altura pela área visível (nunca vh). */
   .qd-folha.qd-folha-cel { bottom: var(--teclado, 0px); max-height: calc(100dvh - var(--teclado, 0px) - env(safe-area-inset-top) - 12px); gap: 8px; padding-inline: 16px; overscroll-behavior: contain; }

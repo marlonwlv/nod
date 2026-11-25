@@ -6,8 +6,8 @@
 /* ---------- A página: o canvas ocupa a vista inteira; a pílula encosta à esquerda ---------- */
 .qd-vista[data-pagina="canvas"] { overflow: hidden; padding: 0; }
 .qd-vista > .cv-host { position: absolute; inset: 0; display: flex; width: auto; max-width: none; margin: 0; }
-.stage:has(> .qd-vista[data-pagina="canvas"]:not([hidden])) > .cabecalho-pilula { align-items: flex-start; padding-left: 20px; }
-.stage:has(> .qd-vista[data-pagina="canvas"]:not([hidden])) > .cabecalho-pilula::before { display: none; }
+.stage.palco-canvas > .cabecalho-pilula { align-items: flex-start; padding-left: 20px; }
+.stage.palco-canvas > .cabecalho-pilula::before { display: none; }
 .cv { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .cv-link { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
 .cv-link:hover { color: var(--ink); }

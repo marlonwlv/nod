@@ -135,6 +135,9 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .cabecalho-pilula .pilula-frentes { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: var(--fs-rotulo); font-weight: var(--peso-regular); color: var(--ink-3); }
 .cabecalho-pilula .pilula-frentes .ponto-aguardando { width: 6px; height: 6px; }
 .cabecalho-pilula :is(.abrir-bots, .buscar-celular, .pilula-sub, .pilula-presenca) { display: none; }
+/* A legenda da pílula (o modo do bot, que o hover do quadro.css mostra) flutua embaixo dela, fora do fluxo: o cabeçalho é
+   uma coluna centrada, e no fluxo ela empurrava a pílula 10 px para cima a cada passada do mouse (e saía cortada). */
+.stage > .cabecalho-pilula > .pilula-sub { position: absolute; top: calc(50% + 24px); left: 50%; transform: translateX(-50%); margin-top: 0; z-index: 1; pointer-events: none; }
 /* O botão do painel à direita (Paper: 32 px, sem fundo com o painel aberto; flutuante com ele fechado). */
 .cabecalho-pilula .painel-alternar {
   position: absolute; right: 16px; top: 12px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; margin: 0;
@@ -160,8 +163,10 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .timeline .message.bot .bubble + .bubble { margin-top: 10px; }
 /* Item 10, rodada 2 (2026-11-16): os cartões da conversa seguem a coluna do bot. O recuo de 52 px era o do mascote ao lado
    da fala, que saiu daqui (regra de cima); sem ele o cartão começava 52 px para dentro e grudava no balão de quem pediu
-   (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala. */
-.timeline .decisoes-ancoradas { margin: 16px 0 18px; width: min(560px, 100%); }
+   (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala.
+   revisto em 2026-11-21 (teste do dono): o cartão segue a mesma regra de um balão — 16 px de margem e 2 px de folga, como
+   `.message[data-group-start]` (chat.css); a fala que vem depois já traz os 16 dela. */
+.timeline .decisoes-ancoradas { margin: 16px 0 0; padding: 2px 0; width: min(560px, 100%); }
 .timeline :is(.cp, .cp-linha, .cp-erro) { --cp-recuo: 0px; }
 /* O recibo do pedido decidido ("Permitido uma vez · …") tinha margem de cima negativa (-6) e entrava 4 px no balão da
    fala de cima, que aqui tem fundo. Agora: 10 px abaixo do balão, e um recibo logo abaixo do outro a 10 px (as falas
@@ -256,13 +261,12 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .detalhes .gvn-id :is(.icon.mascote.xl, .gvn-avatar .icon) { width: 72px; height: 72px; }
 .detalhes .gvn-avatar { padding: 0; margin: 0 0 10px; border: 0; background: none; }
 .detalhes .gvn-id :is(.gvn-nome, .gvn-nome-fixo) {
-  margin: 0; padding: 0; height: 24px; border: 0; background: none; text-align: center; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3);
+  margin: 0; padding: 0; height: 24px; border: 0; text-align: center; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3);
   letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); color: var(--ink);
 }
 .detalhes .gvn-id :is(.gvn-sub, .gvn-sub-fixo) {
-  margin: 2px 0 0; padding: 0; height: 18px; border: 0; background: none; text-align: center; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-3);
+  margin: 2px 0 0; padding: 0; height: 18px; border: 0; text-align: center; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-3);
 }
-.detalhes .gvn-id :is(.gvn-nome, .gvn-sub):hover { background: var(--hover); border-radius: var(--raio-6); }
 .detalhes .gv-abas { display: flex; justify-content: center; gap: 4px; margin: -4px 0 0; padding: 0 0 14px; border: 0; }
 .detalhes .gv-aba {
   height: 26px; padding: 0 10px; border-radius: var(--raio-8); border: 0; background: transparent; box-shadow: none;
@@ -441,12 +445,16 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 
 /* ---- Configurações como modal sobre o app (Paper 07): 960 px, 18 px de margem em cima e embaixo, raio 20, a coluna de
    seções com a busca no topo (208 px) e o ✕ no canto; o app continua à vista atrás do véu ---- */
-#espaco:has(> .cfg-modal) { background: var(--veu-modal); display: grid; place-items: start center; padding: 18px 0; box-sizing: border-box; }
+/* Jornadas da IA (Paper "Configurações · teto de altura", 2026-11-20): a janela tem teto e fica centrada, a mesma altura
+   em todas as seções. Revisão do mesmo dia (referência: Grok, 900 × 700 num 1080p): 900 × 700, proporção 9:7 — mais
+   larga que alta, sem virar um quadrado na tela; o que passa da altura rola dentro, e o rodapé fixo da Nova conta
+   mantém o botão principal à vista. */
+#espaco:has(> .cfg-modal) { background: var(--veu-modal); display: grid; place-items: center; padding: 18px 0; box-sizing: border-box; }
 .espaco.cfg-modal {
-  position: relative; width: min(960px, calc(100vw - 48px)); height: calc(100vh - 36px); box-sizing: border-box; overflow: hidden;
+  position: relative; width: min(900px, calc(100vw - 48px)); height: min(700px, calc(100vh - 80px)); box-sizing: border-box; overflow: hidden;
   border-radius: var(--raio-20); background: var(--surface); border: 1px solid var(--divisoria); box-shadow: var(--sombra-modal);
 }
-.cfg-modal .espaco-nav { width: 208px; flex: none; box-sizing: border-box; padding: 16px 10px; gap: 0; background: var(--surface); border-right: 1px solid var(--divisoria); }
+.cfg-modal .espaco-nav { width: 200px; flex: none; box-sizing: border-box; padding: 16px 10px; gap: 0; background: var(--surface); border-right: 1px solid var(--divisoria); }
 .cfg-modal .cfg-busca { height: 32px; margin: 0 0 14px; padding: 0 10px; gap: 8px; border-radius: var(--raio-10); background: var(--surface); border: 1px solid var(--borda); color: var(--ink-3); }
 .cfg-modal .cfg-busca input { font-size: var(--fs-corpo-2); }
 .cfg-modal .espaco-itens { margin: 0; display: flex; flex-direction: column; gap: 0; }
@@ -455,6 +463,27 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .cfg-modal .espaco-item:hover { background: var(--hover); }
 .cfg-modal .espaco-item[aria-current="page"] { background: var(--ativo); font-weight: var(--peso-regular); }
 .cfg-modal .espaco-nav-sep { height: 1px; margin: 8px 10px; background: var(--divisoria); }
+/* Jornadas da IA (Paper M): grupos do menu e a marca do item IA — logos (tudo certo), contagem (precisa de você), Conectar (sem IA). */
+.cfg-modal .espaco-nav-espaco { display: block; height: 8px; }
+.cfg-modal .espaco-item > span:not(.ia-marca):not(.ia-brilho) { flex: 1; min-width: 0; }
+.cfg-modal .ia-marca { flex: none; display: inline-flex; align-items: center; }
+.cfg-modal .ia-marca-provs { gap: 3px; }
+.cfg-modal .ia-marca-prov { width: 16px; height: 16px; border-radius: 5px; overflow: hidden; display: grid; place-items: center; }
+.cfg-modal .ia-marca-prov > svg { width: 10px; height: 10px; }
+/* Paper M: o logo num quadradinho da cor da marca (Claude laranja, ChatGPT preto), o símbolo branco. */
+.cfg-modal .ia-marca-prov { color: var(--marca-simbolo); }
+.cfg-modal .ia-marca-prov[data-logo-ia="claude"] { background: var(--marca-claude); }
+.cfg-modal .ia-marca-prov[data-logo-ia="chatgpt"] { background: var(--marca-chatgpt); }
+.cfg-modal .ia-marca-prov svg :is(path, circle) { fill: currentColor; }
+.cfg-modal .ia-marca-n { min-width: 20px; height: 20px; padding: 0 7px; gap: 5px; border-radius: var(--raio-full); background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 600; }
+.cfg-modal .ia-marca-n::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cfg-modal .espaco-item-ia-sem { position: relative; overflow: hidden; background: color-mix(in srgb, var(--acento) 9%, transparent); color: var(--acento); font-weight: 600; padding-right: 6px; }
+.cfg-modal .espaco-item-ia-sem > svg { color: var(--acento); }
+.cfg-modal .espaco-item-ia-sem:hover { background: color-mix(in srgb, var(--acento) 14%, transparent); }
+.cfg-modal .ia-marca-conectar { height: 22px; padding: 0 9px; border-radius: var(--raio-full); background: var(--acento); color: #fff; font-size: 12px; font-weight: 500; } /* cor-fixa: texto branco sobre o acento, igual nos dois temas */
+.cfg-modal .ia-brilho { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, #fff 70%, transparent) 50%, transparent 70%); transform: translateX(-100%); animation: ia-brilho 1.6s ease-out .3s 1 both; } /* cor-fixa: o reflexo do brilho é branco nos dois temas */
+@keyframes ia-brilho { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .cfg-modal .ia-brilho { display: none; } }
 .cfg-modal .espaco-conteudo { position: relative; flex: 1; min-width: 0; overflow: auto; padding: 21px 30px 30px 29px; }
 .cfg-modal .cfg-modal-topo { position: sticky; top: 0; height: 0; z-index: 3; display: flex; justify-content: flex-end; }
 .cfg-modal .cfg-fechar { width: 28px; height: 28px; margin-top: 2px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); background: var(--surface); color: var(--ink-2); }
@@ -608,7 +637,7 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 /* Painel fechado (Paper 15c, pad 180): a coluna da conversa vai a 808 px; o campo e a pílula ficam em 680, centrados. */
 .app.detalhes-ocultos .stage > .timeline-wrap > .timeline { max-width: 808px; }
 /* A pílula aberta já está no fluxo: a conversa não precisa da folga da pílula fechada. */
-.stage.com-pilula-frentes:has(.pilula-frentes[data-estado="aberta"]) > .timeline-wrap { padding-bottom: 16px; }
+.stage.com-pilula-frentes.palco-frentes-abertas > .timeline-wrap { padding-bottom: 16px; }
 }
 
 /* =====================================================================================
@@ -726,9 +755,9 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 @media not ((hover: none) and (pointer: coarse)) {
 /* Paper 17b: a página do app no fundo da conversa (branco), com 64 px dos lados, e o campo da conversa por cima, embaixo,
    com 760 (o pedido vai para a conversa do bot). */
-.stage:has(> #quadro:not([hidden]) .pg-app) > #quadro { background: var(--surface); padding-bottom: 80px; box-sizing: border-box; }
-.stage:has(> #quadro:not([hidden]) .pg-app) > .composer-wrap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: transparent; }
-.stage:has(> #quadro:not([hidden]) .pg-app) > .composer-wrap .composer { max-width: 760px; }
+.stage.palco-app > #quadro { background: var(--surface); padding-bottom: 80px; box-sizing: border-box; }
+.stage.palco-app > .composer-wrap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: transparent; }
+.stage.palco-app > .composer-wrap .composer { max-width: 760px; }
 .qd-vista .pg-app { padding: 0 40px; box-sizing: border-box; }
 }
 @media not ((hover: none) and (pointer: coarse)) {
@@ -803,12 +832,15 @@ nod-mascote[data-estado="aguardando"]:not([data-aviso="pergunta"], [data-aviso="
 .pg-menu-ic { flex: none; color: var(--ink-2); }
 .pg-menu-traco { height: 1px; margin: 4px 6px; border: 0; background: var(--divisoria); }
 .pg-menu-it.pg-menu-perigo, .pg-menu-it.pg-menu-perigo .pg-menu-ic { color: var(--danger); }
-body:has(#pg-menu) .cabecalho-pilula .pg-tip { opacity: 0 !important; }
+html.pg-menu-aberto .cabecalho-pilula .pg-tip { opacity: 0 !important; }
 /* Paper 17/17b (rodada 3): o ponto da página que pede você fica laranja também quando é a atual (o traço largo). */
 .pg-pt.pg-pt-atual.pg-pt-pede { background: var(--aguardando); }
 .pg-pt.pg-pt-pede { background: var(--aguardando); }
 /* Paper 07 (rodada 3): o × dos Ajustes na altura do título (centro a 50 do topo do modal na janela), 4 px mais para a borda. */
 .cfg-modal .cfg-fechar { margin-top: -4px; position: relative; left: 4px; }
+/* PR 333 (achado 5, QA do rc.10 no Windows): o × é sticky por cima do conteúdo; o cabeçalho que tem botão à direita
+   ("Nova rotina" em Rotinas, "Enviar feedback" em Feedback) reserva a faixa dele, senão o × corta o botão. */
+.cfg-modal .ag-cab, .cfg-modal .cfg-fb-cab { padding-right: 36px; }
 
 /* =====================================================================================
    ADR-179: a anatomia da barra redimensionável (340 px no padrão; 240–400 arrastando; 88 compacta). Vem por último para

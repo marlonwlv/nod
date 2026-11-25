@@ -12,7 +12,7 @@ import type { SubagenteVivo, TarefaDoBot } from "../../../contracts/turno.ts";
 import type { ContaAnunciada, ProgressoDoLogin, PuxadaDeContas } from "../../../contracts/contas-ia.ts";
 import type { PedidoDeInstalacao, ProgressoDeInstalacao } from "../../../contracts/instalacoes-ssh.ts";
 import type { Escopo } from "../../../shared/types.ts";
-import { ErroDeDominio } from "../../../domain/erro.ts";
+import { ErroDeDominio, ehErroDeDominio } from "../../../domain/erro.ts";
 import { estadoDaMaquina } from "../../../domain/harness.ts";
 import { codigosDaMaquina } from "../../../domain/limpeza-das-tasks.ts";
 import { log } from "../../../obs/log.ts";
@@ -22,11 +22,15 @@ import type { Ctx, Rota } from "../roteador.ts";
 import { CORPO_MAX_RESULTADO_COMPUTADOR } from "../util.ts";
 import { cabecalhoCookieSessao } from "../sessao-cookie.ts";
 import type { CanalComputador } from "../../computador/canal.ts";
+import type { CanalNavegador } from "../../navegador/canal-maquina.ts";
+import { MOTIVOS_FALHA_NAVEGADOR, type MotivoFalhaNavegador, type ResultadoComandoNavegador } from "../../../contracts/navegador-maquina.ts";
 import type { EstadoComputadorRelatado } from "../../../contracts/computador-motor.ts";
 import type { MaquinaDaPessoa } from "../../computador/motor.ts";
 import { anuncioComputador, anuncioVmLocal, estadoComputadorRelatado, resultadoComandoComputador, capacidadesAnunciadas, contasAnunciadas, entrega, impressoes, progressoDoLogin, progressoDeInstalacao, exigir, falas, idsDeMensagens, inventario, memoria, objeto, relatoDesfazer, relatoEspera, sessaoDaRenovacao, sinais, texto, trechos, turnosEmAndamento, uuid } from "./ponte-validacao.ts";
 import { versaoAceita } from "../../../domain/versao-app.ts";
 import { relatoValido } from "../../../use-cases/limpeza-das-tasks.ts";
+import { ouvirOutbox } from "../../../shared/sinal-outbox.ts";
+import { RECHECAGEM_PUXAR_MS, REFORCO_AVISO_PUXAR_MS } from "../../../shared/constantes.ts";
 
 /**
  * `planos`: os turnos que esta máquina está rodando AGORA (definido em 2026-09-24). Com o pool de laços
@@ -84,6 +88,14 @@ export type DesfechoLocal = "executado" | "falhou_na_execucao";
  * resultado que chegar depois ainda é aceito uma vez: o desfecho só é gravado se estava aberto).
  */
 const RESERVA_ITEM_MS = 120_000;
+
+/** ADR-190: a resposta da máquina a um comando do navegador, conferida (forma estranha = 400). */
+function resultadoNavegador(b: Record<string, unknown>): ResultadoComandoNavegador {
+  const id = uuid(b.id);
+  if (b.ok === true) return { id, ok: true, ...(b.valor === undefined ? {} : { valor: b.valor }) };
+  exigir(b.ok === false && typeof b.motivo === "string" && (MOTIVOS_FALHA_NAVEGADOR as readonly string[]).includes(b.motivo) && texto(b.detalhe, 2000));
+  return { id, ok: false, motivo: b.motivo as MotivoFalhaNavegador, detalhe: b.detalhe as string };
+}
 const RECEBIDAS_GUARDADAS = 64;
 export function criarPonteHttpServidor(d: {
   criar(escopo: Escopo): PonteInternaNod;
@@ -110,6 +122,8 @@ export function criarPonteHttpServidor(d: {
   /** NOD-73: o vigia do turno avisou (só nome e números) — publica turno.vigia e registra no log. */
   vigia?(plano: PlanoTurno, aviso: VigiaVivo): void;
   longpollMs?: number;
+  /** Rede de segurança do `puxar` sem aviso do outbox. Default: RECHECAGEM_PUXAR_MS, no máximo um quarto do long-poll. */
+  rechecagemMs?: number;
   /** ADR-048: itens aprovados que esperam o gh do Mac desta pessoa, e o desfecho que o Mac relata. */
   itensLocais?(escopo: Escopo): Promise<ItemLocal[]>;
   concluirItemLocal?(escopo: Escopo, itemId: string, desfecho: DesfechoLocal): Promise<void>;
@@ -153,6 +167,11 @@ export function criarPonteHttpServidor(d: {
    */
   computador?: { canal: CanalComputador; reconciliar?(escopo: Escopo, maquinaId: string, relato: EstadoComputadorRelatado): Promise<void> };
   /**
+   * ADR-190 (definido em 2026-11-20): o canal do navegador do bot na máquina da pessoa. Ausente = o servidor não leva o
+   * navegador às máquinas: as rotas `navegador/*` respondem 404 e a máquina não insiste (tenta de novo em 10 min).
+   */
+  navegador?: { canal: CanalNavegador };
+  /**
    * NOD-94 (emenda 11 da ADR-090): a máquina como instaladora por SSH — a puxada (com a chave pública do par que ela
    * gerou ao subir; a credencial vem cifrada com ela, uma vez) e o progresso. Ausente = modo local: 404 e a máquina segue.
    */
@@ -163,8 +182,11 @@ export function criarPonteHttpServidor(d: {
      * NOD-344: a máquina revoga a PRÓPRIA chave (prova de posse: só quem tem o Bearer chega aqui). O `nod-motor parear
      * --convite` chama com a chave antiga do `conexao.json` depois de parear a nova, para a reinstalação não deixar a
      * antiga viva no servidor. true = revogou agora; "nuvem" = a VM ligada à nuvem (ADR-121), que não perde a chave por aqui.
+     * Definido em 2026-11-24 (sucessão de chave): com `sucessora` (a chave NOVA crua, prova de posse das duas), o que
+     * apontava para a antiga passa para a nova antes de revogar; "sucessora_invalida" = a nova não é uma chave viva desta
+     * pessoa (outra conta, revogada, a mesma) e nada muda.
      */
-    aposentar(escopo: Escopo, chaveId: string): Promise<boolean | "nuvem">;
+    aposentar(escopo: Escopo, chaveId: string, sucessora?: string): Promise<boolean | "nuvem" | "sucessora_invalida">;
   };
 }) {
   const conexoes = new Map<string, Conexao>();
@@ -178,6 +200,8 @@ export function criarPonteHttpServidor(d: {
   const reservas = new Map<string, { machineId: string; ate: number }>();
   /** NOD-96 PR 3: máquinas com o long-poll do computador em curso (um por máquina, separado do `puxar` dos turnos). */
   const puxandoComputador = new Set<string>();
+  /** ADR-190: máquinas com o long-poll do navegador em curso (um por máquina). */
+  const puxandoNavegador = new Set<string>();
   /** Revisão do #209: um aviso por máquina para a leitura com defeito no puxar (ela chega a cada pedido). */
   const leiturasInvalidas = new Set<string>();
   /**
@@ -246,7 +270,16 @@ export function criarPonteHttpServidor(d: {
     return { metodo: "POST", padrao: new RegExp(`^/${nome}$`), maquina: true, ...(o.corpoMax ? { corpoMax: o.corpoMax } : {}), async handler(ctx) {
       ctx.res.setHeader("x-nod-versao-minima", VERSAO_MINIMA_APP);
       if (!versaoAceita(ctx.req.headers["x-nod-versao"], VERSAO_MINIMA_APP)) { ctx.json(426, { codigo: "atualize_app", versaoMinimaApp: VERSAO_MINIMA_APP }); return; }
-      await fn(ctx, objeto(await ctx.corpo()));
+      try {
+        await fn(ctx, objeto(await ctx.corpo()));
+      } catch (e) {
+        // definido em 2026-11-23: o 400 de corpo diz no log QUAL máquina (e o campo, quando o validador o nomeia). Em
+        // produção uma máquina mandou 4 corpos inválidos por segundo por horas e o log não deixava achar qual.
+        if (ehErroDeDominio(e) && e.codigo === "entrada_invalida" && !(e.cause instanceof SyntaxError)) {
+          throw new ErroDeDominio("entrada_invalida", { cause: `maquina ${ctx.params.chaveId ?? "?"}${typeof e.cause === "string" ? `: ${e.cause}` : ""}` });
+        }
+        throw e;
+      }
     } };
   }
   const rotas = [
@@ -389,17 +422,43 @@ export function criarPonteHttpServidor(d: {
       if (c.rebaixada) throw new ErroDeDominio("estado_invalido");
       if (c.puxando) throw new ErroDeDominio("estado_invalido");
       c.puxando = true;
+      // definido em 2026-11-23 (medido em produção: o Cloud SQL a 85–99% de CPU, a reivindicação era 26% das consultas
+      // ativas): o long-poll segue de 20 s com a volta de 250 ms (drenagem e conexão fechada cortam na hora), mas só
+      // pergunta ao banco (autorizar + reivindicar) na entrada, quando o outbox desta pessoa ganha linha (e de novo
+      // REFORCO_AVISO_PUXAR_MS depois, porque o aviso sai antes do commit), quando a máquina fica pronta, e a cada
+      // `rechecagem` sem aviso. Antes eram 4 perguntas por segundo por máquina.
+      const longpoll = d.longpollMs ?? 20_000;
+      const rechecagem = d.rechecagemMs ?? Math.min(RECHECAGEM_PUXAR_MS, longpoll / 4);
+      let avisado = false;
+      let reforcoEm = Number.POSITIVE_INFINITY;
+      const pararDeOuvir = ouvirOutbox((pessoas) => {
+        if (pessoas && !pessoas.includes(ctx.escopo.pessoaId)) return;
+        avisado = true;
+        reforcoEm = d.agora() + REFORCO_AVISO_PUXAR_MS;
+      });
       try {
-        const ate = d.agora() + (d.longpollMs ?? 20_000);
+        const ate = d.agora() + longpoll;
         let plano: PlanoTurno | null = null;
+        let proximaEm = Number.NEGATIVE_INFINITY;
+        let podiaReservar = false;
         do {
           if (ctx.res.destroyed) return;
-          const identidade = await d.autorizar((ctx.req.headers.authorization ?? "").slice(7));
-          if (!identidade) { ctx.json(401, { codigo: "nao_permitido" }); return; }
-          c.ultimo = d.agora();
-          if (drenando) break;
+          const agora = d.agora();
           // NOD-94: a máquina só-computador espera o longpoll e volta `{plano:null}` (o motor dela nem sobe o laço).
-          if (c.inv.estado === "pronto" && c.papel === "motor") {
+          const podeReservar = c.inv.estado === "pronto" && c.papel === "motor";
+          const perguntar = avisado || agora >= proximaEm || agora >= reforcoEm || (podeReservar && !podiaReservar);
+          podiaReservar = podeReservar;
+          c.ultimo = agora;
+          if (perguntar) {
+            avisado = false;
+            if (agora >= reforcoEm) reforcoEm = Number.POSITIVE_INFINITY;
+            proximaEm = agora + rechecagem;
+            const identidade = await d.autorizar((ctx.req.headers.authorization ?? "").slice(7));
+            if (!identidade) { ctx.json(401, { codigo: "nao_permitido" }); return; }
+            c.ultimo = d.agora();
+          }
+          if (drenando) break;
+          if (perguntar && podeReservar) {
             reservando++;
             // Revisão do #209: a leitura entra uma vez por pedido. Repetida a cada 250 ms durante a espera de até 20 s,
             // ela passava por cima da mais nova que a renovação trouxe e o nível ia e voltava na tela.
@@ -411,7 +470,7 @@ export function criarPonteHttpServidor(d: {
           await esperar(250);
         } while (d.agora() < ate);
         ctx.json(200, { plano });
-      } finally { c.puxando = false; }
+      } finally { pararDeOuvir(); c.puxando = false; }
     }),
     rota("renovar", async (ctx, b) => {
       const c = conexao(ctx), turnoId = uuid(b.turnoId);
@@ -533,6 +592,37 @@ export function criarPonteHttpServidor(d: {
       await d.computador.reconciliar?.(ctx.escopo, ctx.params.chaveId!, relato).catch((e) => log("aviso", "computador_reconciliar_falhou", { machine_id: ctx.params.chaveId, erro: e instanceof Error ? e.name : "desconhecido" }));
       ctx.json(200, { ok: true });
     }),
+    /**
+     * ADR-190 (definido em 2026-11-20): a máquina PUXA os comandos do navegador do bot (o servidor nunca disca, ADR-021).
+     * Long-poll como o do computador; cada puxada também é a presença do navegador desta máquina (o lugar a vê "ligada").
+     */
+    rota("navegador/puxar", async (ctx) => {
+      const c = conexao(ctx);
+      if (!d.navegador) { ctx.json(404, { codigo: "sem_navegador" }); return; }
+      const id = ctx.params.chaveId!;
+      if (puxandoNavegador.has(id)) throw new ErroDeDominio("estado_invalido");
+      puxandoNavegador.add(id);
+      const canal = d.navegador.canal;
+      try {
+        const ate = d.agora() + (d.longpollMs ?? 20_000);
+        do {
+          if (ctx.res.destroyed) return;
+          c.ultimo = d.agora();
+          canal.presenca(ctx.escopo, id, { plataforma: c.plataforma, nome: c.nome });
+          if (drenando) break;
+          if (canal.temPara(ctx.escopo, id)) { ctx.json(200, { comandos: canal.puxar(ctx.escopo, id) }); return; }
+          await esperar(250);
+        } while (d.agora() < ate);
+        ctx.json(200, { comandos: [] });
+      } finally { puxandoNavegador.delete(id); }
+    }),
+    /** A resposta da máquina a um comando do navegador. Id desconhecido ou de outra máquina/pessoa: ignorado (`aceito: false`). */
+    rota("navegador/resultado", async (ctx, b) => {
+      const c = conexao(ctx);
+      if (!d.navegador) { ctx.json(404, { codigo: "sem_navegador" }); return; }
+      c.ultimo = d.agora();
+      ctx.json(200, { aceito: d.navegador.canal.resultado(ctx.escopo, ctx.params.chaveId!, resultadoNavegador(b)) });
+    }, { corpoMax: CORPO_MAX_RESULTADO_COMPUTADOR }),
     rota("itens-locais", async (ctx) => {
       const c = conexao(ctx);
       c.ultimo = d.agora();
@@ -608,11 +698,15 @@ export function criarPonteHttpServidor(d: {
       ctx.json(200, r ?? { ok: false });
     }),
     /** NOD-344: a reinstalação aposenta a chave antiga (a própria do Bearer). Não exige conexão: o motor antigo já parou. */
-    rota("aposentar", async (ctx) => {
+    rota("aposentar", async (ctx, b) => {
       if (!d.instalacoes) { ctx.json(404, { codigo: "sem_instalacoes" }); return; }
       const id = ctx.params.chaveId!;
-      const r = await d.instalacoes.aposentar(ctx.escopo, id);
+      // Definido em 2026-11-24: o app do Mac e o motor mandam a chave nova (o repareamento do mesmo computador).
+      exigir(b.sucessora === undefined || (typeof b.sucessora === "string" && b.sucessora.length > 0 && b.sucessora.length <= 1024));
+      const sucessora = typeof b.sucessora === "string" ? b.sucessora : undefined;
+      const r = await d.instalacoes.aposentar(ctx.escopo, id, sucessora);
       if (r === "nuvem") { log("aviso", "maquina_aposentar_recusada", { pessoa_id: ctx.escopo.pessoaId, machine_id: id, motivo: "nuvem" }); ctx.json(409, { codigo: "maquina_na_nuvem" }); return; }
+      if (r === "sucessora_invalida") { log("aviso", "maquina_aposentar_recusada", { pessoa_id: ctx.escopo.pessoaId, machine_id: id, motivo: "sucessora_invalida" }); ctx.json(409, { codigo: "sucessora_invalida" }); return; }
       const revogou = r;
       const c = conexoes.get(id);
       if (c && c.escopo.pessoaId === ctx.escopo.pessoaId && c.escopo.tenantId === ctx.escopo.tenantId) {
@@ -627,7 +721,9 @@ export function criarPonteHttpServidor(d: {
         avisarSeMudou(ctx.escopo, antes);
         if (estava?.viva) d.inventarioMudou?.(c.escopo, "presenca");
       }
-      log("info", "maquina_aposentada", { pessoa_id: ctx.escopo.pessoaId, tenant_id: ctx.escopo.tenantId, machine_id: id, revogou });
+      // Sucessão: os bots e a padrão mudaram de máquina; a tela relê mesmo que a antiga já estivesse sem contato.
+      if (sucessora !== undefined) d.inventarioMudou?.(ctx.escopo, "presenca");
+      log("info", "maquina_aposentada", { pessoa_id: ctx.escopo.pessoaId, tenant_id: ctx.escopo.tenantId, machine_id: id, revogou, sucessao: sucessora !== undefined });
       ctx.json(200, { ok: true, revogou });
     }),
     rota("desconectar", async (ctx) => {
@@ -637,6 +733,8 @@ export function criarPonteHttpServidor(d: {
       conexoes.delete(ctx.params.chaveId!);
       // NOD-96 PR 3: a foto do computador desta máquina deixa de valer (o despachante não a escolhe mais).
       d.computador?.canal.esquecerMaquina(ctx.params.chaveId!);
+      // ADR-190: o navegador desta máquina também (quem esperava um comando dela recebe `indisponivel` na hora).
+      d.navegador?.canal.esquecerMaquina(ctx.params.chaveId!);
       // NOD-300: a máquina que sai avisa a presença (a barra do dono relê na hora).
       const estava = presencaAvisada.get(ctx.params.chaveId!);
       presencaAvisada.set(ctx.params.chaveId!, { escopo: c.escopo, viva: false });

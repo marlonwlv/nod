@@ -161,8 +161,10 @@
   --borda-sutil: #1c1c1c14;
   --divisoria: #1c1c1c0f;
   --surface-elevated: #ffffff;
-  /* ADR-167 (Paper): o fundo do painel do bot, um tom acima da conversa. */
-  --surface-chrome: #ffffff;
+  /* ADR-167 (Paper): o fundo do painel do bot. Desde 2026-11-20 (referência: Grok) é o mesmo #fcfcfc da conversa, para os
+     cartões do painel (--surface-elevated, branco) se destacarem um tom acima do fundo; no escuro o painel já era mais
+     escuro que os cartões. */
+  --surface-chrome: #fcfcfc;
   /* ADR-167 (Paper 07/08): o véu do modal (Configurações, criar bot) e o da paleta ⌘K, mais leve. */
   --veu-modal: #00000080;
   --veu-paleta: rgba(0, 0, 0, .22);
@@ -276,6 +278,24 @@
   --chat-cartao-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 6px #1c1c1c0a;
   --chat-barra-andando: #1c1c1c40;
   --chat-barra-vazia: #1c1c1c14;
+  /* ADR-190 (Paper "Navegador, computador e seu Mac"): o navegador do bot. Verde ao vivo, o laranja de "Aguardando você"
+     no "precisa de você" (2026-11-22: o DS do nod x Grok Bot deixa o azul só para o que é novo), o roxo do
+     cursor do bot, o lilás do "ligando", a faixa clara do letterbox (nunca preta) e a barra do Chrome. */
+  --nv-vivo: #16835b;
+  --nv-vivo-soft: #f2faf6;
+  --nv-precisa: var(--aguardando);
+  --nv-precisa-soft: var(--aguardando-soft);
+  --nv-cursor: #7b5cfa;
+  --nv-cursor-tinta: #ffffff;
+  --nv-letterbox: #f1f1f1;
+  --nv-lilas: #ece8f8;
+  --nv-barra-fundo: #f7f7f7;
+  --nv-endereco: #f5f5f7;
+  /* ADR-191 (2026-11-20; Paper "Pedidos pendentes · seguir conversando"): a linha do pedido que a pessoa deixou para trás —
+     o fundo (#FAFAFA) e o "· você seguiu…" (62 %: 4,7:1 no #FAFAFA; os 50 % do Paper davam 3,3:1, abaixo do AA — QA r176). A borda é a --chat-pedido-contorno; o texto, a --chat-tinta-2; o link,
+     a --chat-aba-precisa. */
+  --pedido-dispensado-fundo: #fafafa;
+  --pedido-dispensado-sufixo: #1c1c1c9e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -432,6 +452,19 @@
     --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
     --chat-barra-andando: #f5f5f540;
     --chat-barra-vazia: #f5f5f514;
+    --nv-vivo: #3fbf8a;
+    --nv-vivo-soft: #12271e;
+    --nv-precisa: var(--aguardando);
+    --nv-precisa-soft: var(--aguardando-soft);
+    --nv-cursor: #9d86ff;
+    /* definido em 2026-11-20 (achado 3 do crítico): o nome do cursor no lilás do escuro com tinta escura, 6,3:1 pela fórmula da WCAG (a branca dava 2,9:1). */
+    --nv-cursor-tinta: #161616;
+    --nv-letterbox: #2a2a2a;
+    --nv-lilas: #262036;
+    --nv-barra-fundo: #1a1a1a;
+    --nv-endereco: #232323;
+    --pedido-dispensado-fundo: #f5f5f505;
+    --pedido-dispensado-sufixo: #f5f5f580;
   }
 }
 
@@ -589,6 +622,19 @@
   --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
   --chat-barra-andando: #f5f5f540;
   --chat-barra-vazia: #f5f5f514;
+  --nv-vivo: #3fbf8a;
+  --nv-vivo-soft: #12271e;
+  --nv-precisa: var(--aguardando);
+  --nv-precisa-soft: var(--aguardando-soft);
+  --nv-cursor: #9d86ff;
+  /* definido em 2026-11-20 (achado 3 do crítico): o nome do cursor no lilás do escuro com tinta escura, 6,3:1 pela fórmula da WCAG (a branca dava 2,9:1). */
+  --nv-cursor-tinta: #161616;
+  --nv-letterbox: #2a2a2a;
+  --nv-lilas: #262036;
+  --nv-barra-fundo: #1a1a1a;
+  --nv-endereco: #232323;
+  --pedido-dispensado-fundo: #f5f5f505;
+  --pedido-dispensado-sufixo: #f5f5f580;
 }
 
 /* =====================================================================================

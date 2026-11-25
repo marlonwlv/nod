@@ -26,6 +26,7 @@ import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
 import { caminhoAumentado, resolverBinario } from "../caminho.ts";
 import { compararVersoes, conferirFloors, conferirPisoCli, FLAG_FLOORS, inventarioAbaixoDoPiso, type FlagComPiso } from "../flag-floors.ts";
 import { escreverMcpConfig } from "../mcp-config.ts";
+import { trazerSessaoDeOutraConta } from "../sessao-entre-contas.ts";
 import { iniciarProcesso, executarColetando, type Processo } from "../processo.ts";
 import { lerFlagsDoHelp, lerVersao, PRAZO_SONDA_PADRAO_MS, sondarDetalhado } from "../sonda.ts";
 import { motivoSemNode } from "../../../domain/saida-do-cli.ts";
@@ -795,6 +796,13 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                   log("info", "claude_cli_args_em_arquivo", { turno_id: plano.turnoId, caracteres: tamanhoDaLinha, depois: tamanhoNaLinhaDeComando(args) });
                 }
                 const env = montarEnvDoFilho(cfg.env, home, plano.politicaExecucao.prazoMs, { claudeMdDasPastas: Boolean(terminal), orcamento: plano.orcamento });
+                // 2026-11-20: a sessão retomada pode morar na pasta de outra conta desta máquina (sessao-entre-contas.ts);
+                // sem ela na pasta da conta do turno, o --resume morre antes de chamar a IA.
+                if (plano.entrada.sessaoCli) {
+                  const trazida = await trazerSessaoDeOutraConta({ sessao: plano.entrada.sessaoCli, configDir: env.CLAUDE_CONFIG_DIR, home: env.HOME ?? home }).catch(() => null);
+                  if (trazida?.trouxe) log("info", "sessao_trazida_de_outra_conta", { turno_id: plano.turnoId, de: trazida.de });
+                  else if (trazida && trazida.motivo === "nao_achou") log("aviso", "sessao_nao_achada", { turno_id: plano.turnoId });
+                }
 
                 const pendentes: Promise<void>[] = [];
                 // ADR-067: o que segura a sessão viva aberta — comandos em segundo plano ainda rodando — e as voltas
@@ -927,6 +935,9 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 const classificado = classificarSessao({ eventos, exitCode, signal, stderr: fim.stderr, sinais, interrompidoPeloDriver: proc.interrompido(), driver: "claude-cli", rodadasJaFaladas: rodadasFaladas, falaDoMeio: meio });
                 // NOD-264 (C20): sem result, o log da máquina guarda a causa e o fim do stderr (redigido); a ponte só leva a causa.
                 if (classificado.desfecho === "interrompido") log("aviso", "turno_sem_result", { turno_id: plano.turnoId, causa: classificado.causa ?? null, stderr: fimDoStderr(fim.stderr) });
+                // 2026-11-20: a falha também guarda o fim do stderr — sem ele, o `--resume` de uma sessão ausente virava
+                // `erro_execucao` com `erro_cru: null` e nenhum rastro na máquina.
+                else if (classificado.desfecho === "falha") log("aviso", "turno_falhou_no_cli", { turno_id: plano.turnoId, motivo: classificado.motivoFalha ?? null, exit_code: exitCode, stderr: fimDoStderr(fim.stderr) });
                 return finalizar(classificado);
               } finally {
                 processo = null;

@@ -1,16 +1,21 @@
 import { memo } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useDraggable } from "@dnd-kit/core";
 import { Menu } from "@base-ui/react/menu";
 import type { Html } from "../../telas/quadro.ts";
 
 /**
  * ADR-180 (fase 2 do React): um card da grade. O corpo é o mesmo HTML do card por string (web/telas/quadro.ts,
  * `partesDoCard`): os botões de dentro (abrir, prioridade, Responder) seguem na delegação do quadro-na-tela. O que é do
- * React: o `li` arrastável (dnd-kit) e o "Mover para…" (Menu do Base UI).
+ * React: o `li` arrastável (dnd-kit) e o botão do "Mover para…".
  *
- * `memo`: o card só redesenha quando o corpo, a classe ou os destinos mudam (comparados por valor) — um frame que mexe
- * em outra tarefa não toca neste. A key é o id da tarefa (quem chama).
+ * Fase 5 da ADR-179 (medido em 2026-11-19): o card é só arrastável (`useDraggable`), não ordenável — sem ordem manual não
+ * há o que abrir espaço, e o `useSortable` media os 160 cards a cada arrasto e redesenhava todos a cada coluna sob o
+ * ponteiro. O "Mover para…" é um `Menu.Trigger` destacado (o `handle` do Base UI): o menu é um só, na grade, aberto pelo
+ * trigger do card com a tarefa como `payload` — um `Menu.Root` por card custava ~70 ms por desenho com 160 cards. O
+ * trigger cuida do foco e do teclado (Enter entra no menu, Esc devolve ao botão), como o menu por card fazia.
+ *
+ * `memo`: o card só redesenha quando o corpo, a classe, o menu aberto ou o arrastável mudam (comparados por valor) — um
+ * frame que mexe em outra tarefa não toca neste. A key é o id da tarefa (quem chama).
  */
 export interface DestinoDoMover { id: string; nome: string; nota: string | null; icone: Html }
 
@@ -19,33 +24,35 @@ export interface DadosDoCard {
   titulo: string;
   classe: string;
   corpo: Html;
-  /** O menu por string que segue aberto no card (o de prioridade); o "Mover para…" é o Menu daqui. */
+  /** O menu por string que segue aberto no card (o de prioridade); o "Mover para…" é o Menu da grade. */
   menu?: Html;
   arrastavel: boolean;
 }
 
+/** O menu único da grade (Menu.createHandle): o trigger do card o abre com o id da tarefa. */
+export type MenuDoMover = Menu.Handle<string>;
+
 export interface PropsDoCard {
   card: DadosDoCard;
   coluna: string;
-  /** Para onde o card pode ir, com a nota de cada coluna. Lido só com o menu aberto (o Popup monta ao abrir). */
-  destinos: (tarefa: string) => readonly DestinoDoMover[];
-  aoMover: (tarefa: string, coluna: string) => void;
+  /** O "Mover para…" da grade (estável: criado uma vez na grade). */
+  menu: MenuDoMover;
 }
 
-function CardDaGradeBase({ card, coluna, destinos, aoMover }: PropsDoCard) {
-  const s = useSortable({ id: card.id, data: { coluna, tipo: "card" }, disabled: !card.arrastavel });
-  const estilo = { transform: CSS.Translate.toString(s.transform), transition: s.transition };
+function CardDaGradeBase({ card, coluna, menu }: PropsDoCard) {
+  const d = useDraggable({ id: card.id, data: { coluna, tipo: "card" }, disabled: !card.arrastavel });
   return (
     <li
-      ref={s.setNodeRef}
-      className={`${card.classe}${s.isDragging ? " qd-arrastando" : ""}`}
+      ref={d.setNodeRef}
+      className={`${card.classe}${d.isDragging ? " qd-arrastando" : ""}`}
       data-tarefa={card.id}
       data-rx-arrasta={card.arrastavel ? "1" : undefined}
-      style={estilo}
-      {...(card.arrastavel ? s.listeners : {})}
+      {...(card.arrastavel ? d.listeners : {})}
     >
       <CorpoDoCard corpo={card.corpo} />
-      {card.arrastavel && <MoverPara titulo={card.titulo} tarefa={card.id} destinos={destinos} aoMover={aoMover} />}
+      {card.arrastavel && (
+        <Menu.Trigger handle={menu} payload={card.id} className="qd-card-mover rx-qd-mover" aria-label={`Mover ${card.titulo} para…`}>Mover para…</Menu.Trigger>
+      )}
       {card.menu && <CorpoDoCard corpo={card.menu} />}
     </li>
   );
@@ -56,31 +63,12 @@ const CorpoDoCard = memo(function CorpoDoCard({ corpo }: { corpo: Html }) {
   return <div className="rx-qd-corpo" dangerouslySetInnerHTML={{ __html: corpo }} />;
 });
 
-function MoverPara({ titulo, tarefa, destinos, aoMover }: { titulo: string; tarefa: string; destinos: PropsDoCard["destinos"]; aoMover: PropsDoCard["aoMover"] }) {
-  return (
-    <Menu.Root>
-      <Menu.Trigger className="qd-card-mover rx-qd-mover" aria-label={`Mover ${titulo} para…`}>Mover para…</Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner className="rx-qd-menu-pos" sideOffset={4} align="start">
-          <Menu.Popup className="qd-menu qd-menu-mover rx-qd-menu" aria-label={`Mover ${titulo} para`}>
-            {destinos(tarefa).map((d) => (
-              <Menu.Item key={d.id} className="qd-menu-it" onClick={() => aoMover(tarefa, d.id)}>
-                <span className="rx-qd-ic" dangerouslySetInnerHTML={{ __html: d.icone }} />
-                <span>{d.nome}</span>
-                {d.nota && <small className="qd-menu-porque">{d.nota}</small>}
-              </Menu.Item>
-            ))}
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
-  );
-}
+/** O mesmo card, por valor (o que muda o que se vê ou o que o arrasto lê). */
+export const mesmoCard = (a: DadosDoCard, b: DadosDoCard): boolean =>
+  a === b || (a.id === b.id && a.classe === b.classe && a.corpo === b.corpo && a.menu === b.menu && a.arrastavel === b.arrastavel && a.titulo === b.titulo);
 
 export const CardDaGrade = memo(CardDaGradeBase, (a, b) =>
-  a.coluna === b.coluna && a.aoMover === b.aoMover && a.destinos === b.destinos &&
-  a.card.id === b.card.id && a.card.classe === b.card.classe && a.card.corpo === b.card.corpo && a.card.menu === b.card.menu &&
-  a.card.arrastavel === b.card.arrastavel && a.card.titulo === b.card.titulo);
+  a.coluna === b.coluna && a.menu === b.menu && mesmoCard(a.card, b.card));
 
 /** O card no DragOverlay: só o arrastado, sem dnd-kit nem menu (não é a lista desenhada de novo). */
 export const CardFlutuante = memo(function CardFlutuante({ card }: { card: DadosDoCard }) {

@@ -9,9 +9,9 @@ import { falhaVisivel } from "../lib/fora-do-ar.ts";
  * definido em 2026-09-24 (ADR-048): o que o GitHub nativo sabe fazer, para dizer o que o jeito de
  * conectar em uso NÃO cumpre (o Composio não tem diff nem checks). Record: faltar um nome não compila.
  */
-const CAPACIDADES_GITHUB: Record<NomeCapacidadeGithub, true> = { pr_ver: true, pr_diff: true, pr_arquivos: true, pr_comentarios: true, pr_checks: true, arquivo_ler: true, issue_ver: true, pr_comentar: true, pr_revisar: true };
+export const CAPACIDADES_GITHUB: Record<NomeCapacidadeGithub, true> = { pr_ver: true, pr_diff: true, pr_arquivos: true, pr_comentarios: true, pr_checks: true, arquivo_ler: true, issue_ver: true, pr_comentar: true, pr_revisar: true };
 
-function nativo(c: { comando: string | null }): boolean {
+export function nativo(c: { comando: string | null }): boolean {
   return c.comando?.startsWith("nod:") === true;
 }
 

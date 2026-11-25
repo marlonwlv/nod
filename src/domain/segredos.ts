@@ -45,7 +45,13 @@ const PREFIXOS: RegExp[] = [
   /\beyJ[A-Za-z0-9_-]{8,256}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, // jwt
   // Chave de máquina do nod (services/token-maquina.ts): base64url(JSON) "." base64url(32 bytes). Duas
   // partes, não as três do JWT; roda depois dele para nunca morder as duas primeiras partes de um JWT.
-  /\beyJ[A-Za-z0-9_-]{8,256}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
+  // Sem \b: o token MCP é `nod_mcp_` + a chave (services/token-mcp.ts), e o `_` antes do `eyJ` não é
+  // fronteira de palavra — ele passava cru (QA-184). O lookbehind segura o `eyJ` no meio de base64.
+  /(?<![A-Za-z0-9-])(?:nod_mcp_)?eyJ[A-Za-z0-9_-]{8,256}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g,
+  // Token de turno do nod (services/token-turno.ts): base64url(JSON{t, p}) "." base64url(24 bytes) = 32.
+  // Vai no ambiente do harness (`NOD_TOKEN_TURNO`) e no `x-nod-token-turno`; um `env` no terminal levava
+  // ele cru ao diagnóstico (QA-184). Só o JSON que começa por `{"t":"` (eyJ0Ijoi), para não pegar outra coisa.
+  /\beyJ0Ijoi[A-Za-z0-9_-]{8,256}\.[A-Za-z0-9_-]{32}(?![A-Za-z0-9_-])/g,
   // Composio: `ak_` é o prefixo da chave de projeto (docs.composio.dev/reference/authentication e o
   // `startsWith("ak_")` do OpenMausBot/electron/main.mjs). O piso de 20 é suposição: a doc não fixa o
   // tamanho, e uma chave curta ainda cai em `COMPOSIO_API_KEY=` ou `x-api-key:`.

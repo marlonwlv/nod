@@ -130,8 +130,8 @@ em `tests/unit/use-cases/acoes-executores.test.ts` (que compara as chaves com o 
 `EXECUTORES_BOTS` pela união das tabelas. Hoje a união é `EXECUTORES` (`src/use-cases/acoes/index.ts`: `bots.*` e
 `quadro.*`); domínio novo entra nela.
 Efeito fora do banco vai em `Deps.aposCommit` (ADR-135 §4); efeito de tipo novo entra na união `EfeitoAposCommit` e
-ganha o seu ramo em `rodarAposCommit` (`src/adapters/http/compor.ts`), que hoje desliga o computador, limpa o computador removido e traz a
-importação do Linear em segundo plano. Tabela de
+ganha o seu ramo em `rodarAposCommit` (`src/adapters/http/compor.ts`), que hoje desliga o computador, limpa o computador removido, traz a
+importação do Linear em segundo plano e solta os pedidos dispensados do navegador do bot. Tabela de
 executores ou efeito novo também atualizam o "hoje" desta skill e o teste dela (`tests/unit/skills/acao-no-chat.test.ts`).
 Ação que fica `falta` não sobe o piso e diz a onda. Ação `parcial` ou `nunca` leva registro e rota, e a linha diz a
 divergência ou o motivo.

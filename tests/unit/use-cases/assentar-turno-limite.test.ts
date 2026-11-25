@@ -1,3 +1,4 @@
+import { TETO_REENVIOS } from "../../../src/domain/inteligencia.ts";
 import { randomBytes, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { IdHarness } from "../../../src/contracts/harness.ts";
@@ -69,6 +70,12 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
     await c.entregar(limiteDoCodex, "codex-cli");
     expect((await c.deps.repos.preferencias.buscar()).iasNoLimite).toEqual({ "codex-cli": { renovaEm: T0 + PRAZO_LIMITE_SEM_HORARIO_MS, desde: T0 } });
     expect(c.banco.mensagens.slice(c.antes)[0]?.payload).toMatchObject({ kind: "ia_trocada", de: "codex-cli", para: "claude-cli", causa: "limite" });
+  });
+
+  it("Jornadas da IA: o limite que chega só em texto com a duração ('try again in 2 hours') grava a hora certa, não o palpite de 1 h", async () => {
+    const c = await cenario();
+    await c.entregar({ ...limiteDoCodex, erroCru: "You've hit your usage limit. Try again in 2 hours." }, "codex-cli");
+    expect((await c.deps.repos.preferencias.buscar()).iasNoLimite).toEqual({ "codex-cli": { renovaEm: T0 + 2 * 3_600_000, desde: T0 } });
   });
 
   it("sem outra IA pronta fora do limite: o aviso do limite de sempre (com a hora) e nada repetido; o limite fica gravado", async () => {
@@ -173,20 +180,20 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
 
     it("no teto (a fala já foi reenviada uma vez): não troca de novo — espera a hora do limite com UMA linha", async () => {
       const c = await cenario();
-      c.turno().reenvios = 1;
+      c.turno().reenvios = TETO_REENVIOS;
       const r = await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
       const novas = c.banco.mensagens.slice(c.antes);
       expect(novas).toHaveLength(1);
       expect(novas[0]).toMatchObject({ kind: "sistema", payload: null });
       expect(novas[0]?.texto).toMatch(ESPERA);
       const adiado = c.banco.turnos.filter((t) => t.id !== c.turnoId);
-      expect(adiado).toMatchObject([{ estado: "pendente", harness: "auto", reenvios: 2, acordarEm: T0 + DUAS_HORAS, mensagemOrigemId: c.turno().mensagemOrigemId }]);
+      expect(adiado).toMatchObject([{ estado: "pendente", harness: "auto", reenvios: TETO_REENVIOS + 1, acordarEm: T0 + DUAS_HORAS, mensagemOrigemId: c.turno().mensagemOrigemId }]);
       expect(r.events.map((e) => e.kind)).toEqual(["turno_interrompido", "turno_criado", "mensagem_criada"]);
     });
 
     it("a fala que já esperou a hora e bate de novo no limite não espera outra vez: o aviso de sempre, nada na fila", async () => {
       const c = await cenario();
-      c.turno().reenvios = 2;
+      c.turno().reenvios = TETO_REENVIOS + 1;
       c.turno().acordarEm = T0 - 1;
       await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
       expect(c.banco.mensagens.slice(c.antes).map((m) => m.payload?.kind)).toEqual(["limite_do_plano"]);
@@ -235,7 +242,7 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
 
     it("Parar pedido: nada espera nem repete", async () => {
       const c = await cenario();
-      c.turno().reenvios = 1;
+      c.turno().reenvios = TETO_REENVIOS;
       c.turno().pararSolicitadoEm = T0;
       await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
       expect(c.banco.turnos).toHaveLength(1);

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Rota } from "../roteador.ts";
 import { ARQUIVOS_DO_COMPUTADOR } from "../computador-instalacao.ts";
+import { ARQUIVOS_DO_COMPUTADOR as CODIGO_DO_COMPUTADOR } from "../../../domain/atualizacao-do-motor.ts";
 import { ARQUIVOS_DO_MOTOR, papelDoScript, scriptDeInstalacao, servidorParaScript } from "../motor-instalacao.ts";
 import { scriptDeInstalacaoWindows, servidorDoWindowsValido } from "../motor-instalacao-windows.ts";
 
@@ -60,7 +61,10 @@ export function rotasMotor(o: { pasta: string; versao: string; urlPublica?: stri
       async handler(ctx) {
         const arquivos: Record<string, string> = {};
         try {
-          for (const nome of ARQUIVOS_DO_MOTOR) arquivos[nome] = createHash("sha256").update(await readFile(join(o.pasta, nome))).digest("hex");
+          // Só o código do computador entra no manifesto: o motor compara esses hashes com /opt/nod-motor/computador e
+          // atualiza junto. O shell visual vem por versão na pasta (shell-visual/<versão>) e fica fora da comparação.
+          const nomes = o.computador ? [...ARQUIVOS_DO_MOTOR, ...CODIGO_DO_COMPUTADOR] : ARQUIVOS_DO_MOTOR;
+          for (const nome of nomes) arquivos[nome] = createHash("sha256").update(await readFile(join(o.pasta, nome))).digest("hex");
         } catch {
           ctx.json(404, { codigo: "nao_encontrado", mensagem: "Este servidor não tem o motor empacotado (npm run motor:build)." });
           return;

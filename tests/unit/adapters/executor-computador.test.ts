@@ -228,6 +228,36 @@ describe("laço do computador no motor", () => {
     expect(p.resultados.map((r) => r.id)).toEqual(["c1"]);
   });
 
+  it("2026-11-23: o 400 (recusado) é definitivo — o relato não volta à fila nem sai de novo no batimento", async () => {
+    const p = ponteFalsa([[comando("c1")]]);
+    const tentativas: string[] = [];
+    p.canal.resultado = async (r) => { tentativas.push(r.id); return "recusado"; };
+    const l = laco(iniciarComputador({ canal: p.canal, socket: pasta(), batimentoMs: 60_000, dormir: async () => undefined }));
+    await esperarAte(() => tentativas.length === 1);
+    await l.batimento();
+    await l.batimento();
+    expect(tentativas).toEqual(["c1"]);
+  });
+
+  it("2026-11-23: com o servidor fora, da foto de um computador só a mais nova fica guardada", async () => {
+    const sock = pasta();
+    let n = 0;
+    await supervisorFalso(sock, (m, s) => {
+      if (s.listenerCount("error") === 0) s.on("error", () => undefined); // o laço parado na limpeza fecha o socket
+      if (m.tipo === "pedir_estado" && s.writable) s.write(`${JSON.stringify({ tipo: "estado", computadorId: "00000000-0000-4000-8000-0000000000c1", ligado: false, supervisorPub: `p${++n}`, telas: [] })}\n`);
+    });
+    const p = ponteFalsa([]);
+    p.recusar(true);
+    const l = laco(iniciarComputador({ canal: p.canal, socket: sock, batimentoMs: 60_000, dormir: async () => undefined }));
+    for (let i = 0; i < 4; i++) { await l.batimento(); await esperarAte(() => n >= i + 2); }
+    await new Promise((r) => setTimeout(r, 50));
+    const ultimaGuardada = n;
+    p.recusar(false);
+    await l.batimento();
+    // Das fotos tiradas com o servidor fora, sobe só a última (a que este batimento pede é mais nova e fica de fora).
+    expect(p.estados.filter((e) => Number(e.supervisorPub.slice(1)) <= ultimaGuardada).map((e) => e.supervisorPub)).toEqual([`p${ultimaGuardada}`]);
+  });
+
   it("servidor sem a flag (404): dorme 10 min antes de puxar de novo", async () => {
     const sonos: number[] = [];
     const p = ponteFalsa(["sem_rota"]);

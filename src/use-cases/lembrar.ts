@@ -1,4 +1,4 @@
-import type { Memoria, TipoMemoria } from "../contracts/memoria.ts";
+import { TEXTO_MEMORIA_MAX, type Memoria, type TipoMemoria } from "../contracts/memoria.ts";
 import type { Mensagem } from "../contracts/mensagem.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { falaDeCapacidadeDoTurno, RECUSA_CAPACIDADE_DO_TURNO } from "../domain/memoria-de-capacidade.ts";
@@ -28,6 +28,7 @@ export const registrarMemoria: CasoDeUso<EntradaRegistrarMemoria, { memoria: Mem
   if (!TIPOS.includes(input.tipo)) throw new ErroDeDominio("entrada_invalida", { cause: "tipo" });
   const texto = typeof input.texto === "string" ? input.texto.trim() : "";
   if (texto === "") throw new ErroDeDominio("texto_vazio");
+  if ([...texto].length > TEXTO_MEMORIA_MAX) throw new ErroDeDominio("entrada_invalida", { cause: `texto da memória acima de ${TEXTO_MEMORIA_MAX} caracteres` });
   const agente = await deps.repos.agentes.buscar(input.agenteId);
   if (!agente) throw new ErroDeDominio("nao_encontrado");
 

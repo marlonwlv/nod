@@ -11,6 +11,7 @@ import {
 } from "../../../src/adapters/http/computador-instalacao.ts";
 import { RESOLV_DO_STUB as RESOLV_DO_BWRAP } from "../../../infra/computador/isolamento.mjs";
 import { scriptDeInstalacao } from "../../../src/adapters/http/motor-instalacao.ts";
+import { ARQUIVOS_DO_COMPUTADOR as CODIGO_DO_COMPUTADOR } from "../../../src/domain/atualizacao-do-motor.ts";
 import { rotasMotor } from "../../../src/adapters/http/rotas/motor.ts";
 import {
   anuncioDoComputador, BINARIOS_DO_COMPUTADOR, PASTA_DO_COMPUTADOR, RESOLV_DO_COMPUTADOR, SOCKET_DO_COMPUTADOR, type SondaComputador,
@@ -20,12 +21,15 @@ import { servidorDeTeste } from "../../helpers/servidor-de-teste.ts";
 const base = { servidor: "https://nod.exemplo.com", versao: "0.9.0" };
 
 describe("instalação do computador da pessoa (ADR-122)", () => {
-  it("sem a flag o script não muda; com ela entra o bloco, depois dos arquivos do motor", () => {
+  it("sem a flag o script não muda; com ela instala e mantém os processos do computador atualizáveis", () => {
     const sem = scriptDeInstalacao(base);
     expect(scriptDeInstalacao({ ...base, computador: false })).toBe(sem);
     expect(sem).not.toContain("nod-computador");
     const com = scriptDeInstalacao({ ...base, computador: true });
-    expect(com).toBe(sem.replace('passo "motor $NOD_VERSAO"\n', `passo "motor $NOD_VERSAO"\n${blocoDoComputador()}`));
+    expect(com).toContain(`passo "motor $NOD_VERSAO"\n${blocoDoComputador()}`);
+    expect(com).toContain('"$SERVIDOR/api/motor/arquivos/$ARQUIVO"');
+    for (const nome of CODIGO_DO_COMPUTADOR) expect(com).toContain(`$TMP/${nome}`);
+    expect(com).toContain("systemctl try-restart nod-computador.service nod-computador-terminal.service");
     expect(com.indexOf("nod-computador")).toBeGreaterThan(com.indexOf('passo "motor $NOD_VERSAO"'));
     // O shell aceita o script inteiro.
     expect(spawnSync("sh", ["-n"], { input: com }).status).toBe(0);

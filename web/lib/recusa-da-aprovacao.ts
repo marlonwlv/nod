@@ -27,3 +27,14 @@ export function aprovacoesAbertasDaConversa<T extends AprovacaoAberta>(itens: re
 
 /** O placeholder do campo com aprovação aberta: diz o que mandar mensagem faz agora. Sem nome (a tela não sabe o gênero). */
 export const PLACEHOLDER_COM_APROVACAO = "Ou diga o que fazer em vez disso";
+
+/**
+ * ADR-190 (conferência final com o Paper, 2026-11-20): com o navegador do bot aberto ao lado (painel ou aba de lugar), a
+ * conversa fica estreita e o placeholder inteiro quebrava no campo ("Ou diga o que fazer em vez"). Só nesse estado vale
+ * o curto; o leitor de tela continua ouvindo o completo (o aria-label do campo).
+ */
+export const PLACEHOLDER_COM_APROVACAO_CURTO = "Ou diga o que fazer";
+
+export function placeholderComAprovacao(navegadorAberto: boolean): string {
+  return navegadorAberto ? PLACEHOLDER_COM_APROVACAO_CURTO : PLACEHOLDER_COM_APROVACAO;
+}

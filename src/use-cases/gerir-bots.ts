@@ -246,7 +246,12 @@ async function executarEmOrdem(
       a.estado = "falhou";
       // NOD-20 (revisão 3 M2): no restaurar_versao a causa diz ao Nod o que fazer (igual_a_atual, versao_redigida =
       // um segredo sumiria e só a pessoa aceita isso, pelo Histórico). Só as causas da lista branca; o resto é o código.
-      a.erro = a.tipo === "restaurar_versao" && typeof e.cause === "string" && CAUSAS_DO_RESTAURAR.has(e.cause) ? e.cause : e.codigo;
+      // QA-106: no acesso, a causa que diz à pessoa o que fazer ("conecte o app antes de dar acesso") vai ao recibo no
+      // lugar do código cru (estado_invalido).
+      const causa = typeof e.cause === "string" ? e.cause : null;
+      a.erro = causa && ((a.tipo === "restaurar_versao" && CAUSAS_DO_RESTAURAR.has(causa)) || (VEM_DE_OUTRO_BOT.has(a.tipo) && CAUSAS_DO_ACESSO.has(causa))) ? causa : e.codigo;
+      // QA r139: o card de remover aprovado depois que o computador já saiu da conta (pela tela ou por outro card).
+      if (a.tipo === "remover_computador" && e.codigo === "nao_encontrado") a.erro = "o computador já tinha saído da conta";
     }
   }
   return events;
@@ -261,6 +266,8 @@ async function linhaDoPedidoViaBot(deps: Deps, agenteId: string): Promise<string
 const VEM_DE_OUTRO_BOT: ReadonlySet<AcaoNoLote["tipo"]> = new Set(["excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"]);
 
 const CAUSAS_DO_RESTAURAR: ReadonlySet<string> = new Set(["igual_a_atual", "versao_redigida", "perfil_mudou", "nome_repetido"]);
+/** QA-106: as causas dos executores de acesso que já são a frase de recuperação para a pessoa. */
+const CAUSAS_DO_ACESSO: ReadonlySet<string> = new Set(["conecte o app antes de dar acesso", "o app não tem ferramenta para esse nível", "o Desfazer vale por 24 horas", "lote já desfeito"]);
 
 /**
  * QA-119: a versão antiga traz de volta um nome que outro bot vivo pegou depois (Vera vira Lia, nasce outra Vera,
@@ -287,11 +294,13 @@ export async function gerirBots(deps: Deps, input: ContextoFerramenta & { resumo
   const ctx = await turnoDoNodComAPessoa(deps, input);
   if (!ctx) return { data: { ok: false, erro: "fora_da_conversa", problemas: [], instrucao: "Só o Nod, na conversa com a pessoa, muda os bots dela." } };
   const pessoaId = deps.escopo.pessoaId;
-  // QA-119: o restaurar_versao confere o nome da versão contra os outros bots; a trava dos nomes (a do criar_bots) vem
-  // antes de ler, para outro pedido não pegar o mesmo nome no meio.
-  if (Array.isArray(input.acoes) && input.acoes.some((a) => a?.tipo === "restaurar_versao")) await deps.repos.agentes.travarNomesDeBots();
-  const bots = (await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true })).filter((b) => b.ownerId === pessoaId);
-  const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo);
+  // QA-118: com criar ou renomear no lote, a trava dos nomes (a do criar_bots) vem antes de ler: dois pedidos juntos não
+  // saem com o mesmo nome. QA-119: o restaurar_versao confere o nome da versão contra os outros bots, sob a mesma trava.
+  if (Array.isArray(input.acoes) && input.acoes.some((a) => a?.tipo === "criar" || a?.tipo === "restaurar_versao" || (a?.tipo === "editar" && a.nome !== undefined))) await deps.repos.agentes.travarNomesDeBots();
+  const todos = await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true });
+  const bots = todos.filter((b) => b.ownerId === pessoaId);
+  const nomesDeFora = todos.filter((b) => b.ownerId !== pessoaId && b.excluidoEm == null).map((b) => b.nome);
+  const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo, nomesDeFora);
   if (!validado.ok) return { data: { ok: false, erro: "entrada_invalida", problemas: validado.problemas, instrucao: "Nada foi feito. Corrija os problemas e chame gerir_bots de novo com o lote inteiro." } };
 
   // Cerca 3: dar acesso (e duplicar um bot com acessos) depois de ler conteúdo de fora vira card também no automático.

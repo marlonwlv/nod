@@ -142,6 +142,18 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(htmlDoMenuDasOutras(outrasDaFileira(e, abas, "b1", "t1"))).toContain('data-id="t5"');
   });
 
+  it("5e: o lugar fechado com o bot vivo entra em \"1 outra\" com o ponto verde; o menu traz a seção Lugares primeiro", () => {
+    const e = estadoCom([tarefa("t1")]);
+    const html = renderFileiraDeAbas(e, { agenteId: "b1", ativa: "t1", abas: [aba("t1")], renomeando: null, novaTarefa: null, lugaresFechados: { quantos: 1, ponto: "vivo" } });
+    expect(html).toContain('<i class="nv-aba-lugar-ponto" data-ponto="vivo" aria-hidden="true"></i>1 outra');
+    const precisa = renderFileiraDeAbas(e, { agenteId: "b1", ativa: "t1", abas: [aba("t1")], renomeando: null, novaTarefa: null, lugaresFechados: { quantos: 1, ponto: "precisa" } });
+    expect(precisa).toContain('class="at-outras precisa"');
+    const menu = htmlDoMenuDasOutras([], 0, '<p class="menu-nome">Lugares</p><button data-lugar-agente="b1"></button>');
+    expect(menu).toContain('aria-label="Lugares fechados"');
+    expect(menu).not.toContain("Outras tarefas");
+    expect(htmlDoMenuDasOutras([tarefa("t2")], 0, "<p>Lugares</p>")).toMatch(/Lugares.*<hr>.*Outras tarefas/);
+  });
+
   it("na tarefa nova, a aba \"Nova tarefa\" é a ativa; a tarefa que a tela não conhece não vira aba", () => {
     const html = renderFileiraDeAbas(estadoCom([tarefa("t1")]), { agenteId: "b1", ativa: null, abas: [aba("t1"), aba("sumiu")], renomeando: null, novaTarefa: NOVA });
     expect(html).toContain('<div class="at-aba ativa at-nova">');
@@ -215,6 +227,21 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(html).toContain('aria-label="Mostrar as tarefas em abas, 2 tarefas, uma precisa de você"');
     expect(html).toContain('<span class="ba-num" aria-hidden="true">2</span>');
     expect(botaoDeAbas(estadoCom([tarefa("t1", { estado: "terminado" })]), [aba("t1")], "b1")).toContain('class="botao-abas"');
+  });
+
+  it("ADR-190 (Paper 5c, 2): o botão de abas conta também os lugares; o ponto verde com algum ao vivo, o azul vence", () => {
+    const soLugar = botaoDeAbas(estadoCom([]), [], "b1", [{ ponto: "vivo" }]) ?? "";
+    expect(soLugar).toContain('class="botao-abas vivo" data-act="mostrar-em-abas" data-agente="b1"');
+    expect(soLugar).toContain('aria-label="Mostrar em abas, 1 lugar ao vivo"');
+    expect(soLugar).toContain('<span class="ba-num" aria-hidden="true">1</span>');
+    const comTarefa = botaoDeAbas(estadoCom([tarefa("t1")]), [aba("t1")], "b1", [{ ponto: "vivo" }]) ?? "";
+    expect(comTarefa).toContain('aria-label="Mostrar em abas, 1 tarefa e 1 lugar ao vivo"');
+    expect(comTarefa).toContain('<span class="ba-num" aria-hidden="true">2</span>');
+    const precisa = botaoDeAbas(estadoCom([tarefa("t1")]), [aba("t1")], "b1", [{ ponto: "precisa" }]) ?? "";
+    expect(precisa).toContain('class="botao-abas precisa"');
+    expect(precisa).toContain(", o navegador precisa de você");
+    expect(botaoDeAbas(estadoCom([tarefa("t1", { estado: "precisa_de_voce" })]), [], "b1", [{ ponto: "vivo" }])).toContain('class="botao-abas precisa"');
+    expect(botaoDeAbas(estadoCom([]), [], "b1", [])).toBeNull();
   });
 
   it("\"Tirar as feitas das abas\" aparece com feitas na fileira e diz quantas", () => {

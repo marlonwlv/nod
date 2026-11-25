@@ -76,7 +76,14 @@ type Janela = { rotulo: string; nome: string; janela: JanelaDoPlano | null; reno
 function blocoDaJanela(j: Janela, agora: number): string {
   if (!j.janela) {
     if (j.renovou === null) return "";
-    return `<div class="cu-jan f-renovado"><div class="cu-cab"><span>${esc(j.rotulo)}</span></div><p class="cu-sub">renovou ${esc(quandoRenova(j.renovou, agora))} · o número volta no próximo trabalho</p></div>`;
+    // Revisão de 2026-11-20: a janela que renovou fica como a das outras, com a barra vazia (o texto longo ia em três
+    // linhas na coluna da direita); que o número volta no próximo trabalho vai no title e no texto falado.
+    const quando = quandoRenova(j.renovou, agora);
+    const falado = `${j.nome}: renovou ${quando}, o número volta no próximo trabalho`;
+    return `<div class="cu-jan f-renovado" role="meter" aria-label="${esc(j.nome)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="${esc(falado)}" title="O número volta no próximo trabalho">`
+      + `<div class="cu-cab" aria-hidden="true"><span>${esc(j.rotulo)}</span><b>0%</b></div>`
+      + '<div class="cu-barra" aria-hidden="true"><span style="width:0%"></span></div>'
+      + `<p class="cu-sub" aria-hidden="true">renovou ${esc(quando)}</p></div>`;
   }
   const faixa = faixaDaJanela(j.janela.utilizacao);
   const pct = pctUsado(j.janela.utilizacao);
@@ -129,4 +136,29 @@ export function usoDaConta(c: ContaIa, x: ContextoDoUso): string {
   // medido vão no title da linha (e no texto falado de cada barra), não em linhas embaixo.
   const dica = [q.cincoHoras?.renovaEm ? `5 h: renova ${quandoRenova(q.cincoHoras.renovaEm, x.agora)}` : "", q.semana?.renovaEm ? `Semana: renova ${quandoRenova(q.semana.renovaEm, x.agora)}` : "", `medido ${ha(q.medidoEm, x.agora)}${onde ? ` no ${onde}` : ""}${velho ? " · pode ter mudado" : ""}`].filter(Boolean).join(" · ");
   return `<div class="cl-uso cl-uso-linha" title="${esc(dica)}">${janelas}</div>${velho ? pe : ""}${fila}`;
+}
+
+/**
+ * Jornadas da IA (Paper G1, 2026-11-19): o uso na linha da conta, enxuto para qualquer número de limites. O rótulo diz só
+ * o limite mais apertado ("semana 51%"); cada limite vira uma linha fina embaixo, sem texto, a mais apertada primeiro
+ * (a que renovou desde a leitura fica vazia, não some).
+ * Os detalhes (quando renova, quando foi medido) ficam na conta aberta. `cota` ausente ou nula = nada.
+ */
+export function usoCompacto(c: ContaIa): string {
+  const q = c.cota;
+  if (!q) return "";
+  // A janela que renovou desde a leitura continua na linha, vazia: o limite existe, só não foi usado de novo ainda.
+  const renovada = (t: number | null | undefined): JanelaDoPlano | null => (t ? { utilizacao: 0, renovaEm: null } : null);
+  const janelas = [
+    { nome: "5 h", falado: "5 horas", j: q.cincoHoras ?? renovada(q.renovou?.cincoHoras) },
+    { nome: "semana", falado: "semana", j: q.semana ?? renovada(q.renovou?.semana) },
+  ]
+    .filter((x): x is { nome: string; falado: string; j: JanelaDoPlano } => x.j !== null)
+    .sort((a, b) => b.j.utilizacao - a.j.utilizacao);
+  const [topo] = janelas;
+  if (!topo) return "";
+  const faixa = faixaDaJanela(topo.j.utilizacao);
+  const falado = janelas.map((x) => `${x.falado}: ${pctUsado(x.j.utilizacao)}% usado`).join("; ");
+  const barras = janelas.map((x, i) => `<span class="cl-uso-fio${i === 0 ? " topo" : ""} f-${faixaDaJanela(x.j.utilizacao)}"><span style="width:${pctUsado(x.j.utilizacao)}%"></span></span>`).join("");
+  return `<div class="cl-uso-pilha f-${faixa}" role="img" aria-label="${esc(falado)}"><span class="cl-uso-rot" aria-hidden="true">${esc(topo.nome)} <b>${pctUsado(topo.j.utilizacao)}%</b></span><span class="cl-uso-fios" aria-hidden="true">${barras}</span></div>`;
 }

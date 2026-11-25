@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACORDADA_APOS_ACAO_MS, escolherMaquina, formaCanonica, type LugarCandidato, lugarPadrao, type MaquinaCandidata, motivoParaFicarAcordada, opcoesDeLugar } from "../../../src/domain/computador-canal.ts";
+import { ACORDADA_APOS_ACAO_MS, COMPUTADOR_NO_MAC, escolherMaquina, formaCanonica, type LugarCandidato, lugarPadrao, type MaquinaCandidata, motivoParaFicarAcordada, opcoesDeLugar } from "../../../src/domain/computador-canal.ts";
 
 describe("formaCanonica", () => {
   it("ordena chaves, tira undefined e não depende da ordem de inserção", () => {
@@ -28,14 +28,14 @@ describe("escolherMaquina", () => {
     expect(escolherMaquina({ ...base, conectadas: [m("a", { computador: "faltam_pacotes" })] })).toBe("a");
     expect(escolherMaquina({ ...base, conectadas: [m("mac", { plataforma: "darwin", computador: null })] })).toBeNull();
   });
-  it("ADR-127 §5: sem Linux anunciando, o Mac que anuncia a VM local; com Linux, o Mac não entra", () => {
+  it("2026-11-25 (COMPUTADOR_NO_MAC desligado): sem Linux anunciando, o Mac também não entra", () => {
+    expect(COMPUTADOR_NO_MAC).toBe(false);
     const mac = m("mac", { plataforma: "darwin", ultimoContato: 50 });
-    expect(escolherMaquina({ ...base, conectadas: [mac, m("velho", { computador: null })] })).toBe("mac");
+    expect(escolherMaquina({ ...base, conectadas: [mac, m("velho", { computador: null })] })).toBeNull();
     expect(escolherMaquina({ ...base, conectadas: [mac, m("a", { computador: "faltam_pacotes" })] })).toBe("a");
     const macs = [m("m1", { plataforma: "darwin", ultimoContato: 10 }), m("m2", { plataforma: "darwin", ultimoContato: 20 })];
-    expect(escolherMaquina({ ...base, padraoId: "m1", conectadas: macs })).toBe("m1");
-    expect(escolherMaquina({ ...base, conectadas: macs })).toBe("m2");
-    expect(escolherMaquina({ ...base, conectadas: [m("m3", { plataforma: "darwin", computador: "faltam_pacotes" })] })).toBe("m3");
+    expect(escolherMaquina({ ...base, padraoId: "m1", conectadas: macs })).toBeNull();
+    expect(escolherMaquina({ ...base, conectadas: [m("pc", { plataforma: "win32", computador: "sem_suporte" })] })).toBeNull();
   });
 });
 
@@ -65,8 +65,8 @@ describe("lugarPadrao (NOD-365)", () => {
   it("Linux pronta e Mac com VM local: a Linux", () => {
     expect(lugarPadrao([m("mac", { plataforma: "darwin", vmLocal: {}, ultimoContato: 99 }), m("a")])).toBe("a");
   });
-  it("só Mac com VM local (Linux sem pronto não conta): o Mac", () => {
-    expect(lugarPadrao([m("mac", { plataforma: "darwin", vmLocal: {} }), m("a", { computador: "faltam_pacotes" })])).toBe("mac");
+  it("2026-11-25: só Mac com VM local (Linux sem pronto não conta) dá null; o computador não nasce no Mac", () => {
+    expect(lugarPadrao([m("mac", { plataforma: "darwin", vmLocal: {} }), m("a", { computador: "faltam_pacotes" })])).toBeNull();
   });
   it("nenhuma serve: Mac sem VM local, sem suporte ou sem anúncio dá null", () => {
     expect(lugarPadrao([])).toBeNull();
@@ -78,11 +78,10 @@ describe("lugarPadrao (NOD-365)", () => {
 
 describe("opcoesDeLugar (NOD-365)", () => {
   const c = (machineId: string, o: Partial<LugarCandidato> = {}): LugarCandidato => ({ machineId, nome: machineId, papel: "motor", plataforma: "linux", computador: "pronto", ultimoContato: 0, ...o });
-  it("classifica, pula quem não anuncia ou não está pronta e ordena por tipo e nome", () => {
+  it("classifica, pula quem não anuncia ou não está pronta e ordena por tipo e nome; o Mac não vira opção (2026-11-25)", () => {
     const r = opcoesDeLugar([c("vm-b", { papel: "computador" }), c("mac", { plataforma: "darwin" }), c("mac-velho", { plataforma: "darwin", computador: "faltam_pacotes" }), c("sem", { computador: "sem_suporte" }), c("velho", { computador: null }), c("motor")], { maquinaId: "motor", nome: "motor", papel: "motor", plataforma: "linux" });
     expect(r).toEqual([
       { maquinaId: "motor", nome: "motor", tipo: "onde_o_nod_roda", atual: true, pronta: true, conectada: true },
-      { maquinaId: "mac", nome: "mac", tipo: "este_mac", atual: false, pronta: true, conectada: true },
       { maquinaId: "vm-b", nome: "vm-b", tipo: "outra_maquina", atual: false, pronta: true, conectada: true },
     ]);
   });

@@ -39,6 +39,10 @@ afterEach(async () => {
     await trx`delete from mensagens where owner_id = ${p}`;
     await trx`delete from turnos where owner_id = ${p}`;
     await trx`delete from trabalhos where owner_id = ${p}`;
+    // ADR-192: a frente nasce com Tarefa + Thread (emenda 5); saem antes da conversa.
+    await trx`delete from threads where owner_id = ${p}`;
+    await trx`delete from tarefa_eventos where owner_id = ${p}`;
+    await trx`delete from tarefas where owner_id = ${p}`;
     if (criados.conversas.length) await trx`delete from conversas where id in ${trx(criados.conversas)}`;
     if (criados.agentes.length) await trx`delete from agentes where id in ${trx(criados.agentes)}`;
     await trx`delete from events_outbox where owner_id = ${p}`;

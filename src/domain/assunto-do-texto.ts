@@ -145,6 +145,8 @@ export const MOLDES_ANTIGOS: readonly Molde[] = [
   { nome: "conta-no-limite-espera-17-11", molde: "A conta {de} do {ia} chegou ao limite. Esta task espera e volta sozinha {quando}, de onde parou.", assunto: "cota.espera" },
   { nome: "task-fechada-17-11", molde: "Fechei a task \"{titulo}\", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.", assunto: "memoria.task_fechada" },
   { nome: "sem-ia-para-levar-17-11", molde: "Nenhuma IA está pronta agora na máquina do {bot}: as tasks em andamento ficaram onde estavam. Daqui em diante ele usa o Automático.", assunto: "inteligencia" },
+  // QA r176 (2026-11-21): sem artigo antes do nome do bot (o gênero não se sabe).
+  { nome: "sem-ia-para-levar-21-11", molde: "Nenhuma IA está pronta agora na máquina de {bot}: as tarefas em andamento ficaram onde estavam. Daqui em diante, o bot usa o Automático.", assunto: "inteligencia" },
 ];
 
 const escapar = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

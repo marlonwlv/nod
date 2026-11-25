@@ -14,12 +14,15 @@ import type { CatalogoDeComandos } from "../../src/contracts/comandos.ts";
 import type { UsoDoPlano } from "../../src/contracts/uso-do-plano.ts";
 import { ESTADO_MAX_BYTES_ARTEFATO, type Artefato, type EstadoArtefato, type VersaoArtefato } from "../../src/contracts/artefato.ts";
 import { randomUUID } from "node:crypto";
+import type { TarefaEnsinada } from "../../src/contracts/navegador-do-bot.ts";
+import { lerLiberacoes, SEM_LIBERACOES } from "../../src/domain/navegador-aprovacao.ts";
+import type { PreferenciasNavegador } from "../../src/repositories/navegador.repo.ts";
 import { MARCAR_USO_A_CADA_MS } from "../../src/repositories/maquina-tokens.repo.ts";
 import type { Agente } from "../../src/contracts/agente.ts";
 import type { PermissaoPermanente } from "../../src/contracts/permissao-permanente.ts";
 import type { Concessao, Procuracao } from "../../src/contracts/concessao.ts";
 import type { Conversa, Proposta } from "../../src/contracts/conversa.ts";
-import { TIPOS_DISPENSAVEIS_ABERTOS, type Decisao } from "../../src/contracts/decisao.ts";
+import { TIPOS_DISPENSADOS_AO_SEGUIR, TIPOS_DISPENSAVEIS_ABERTOS, type Decisao } from "../../src/contracts/decisao.ts";
 import type { Incidente } from "../../src/contracts/incidente.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { ItemAprovacao } from "../../src/contracts/item-aprovacao.ts";
@@ -745,6 +748,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return m ?? null;
       },
       async travar() {},
+      async travarConteudo() {},
+      async existeIgual(agenteId, tipo, texto) {
+        return doTenant(b.memorias).some((m) => m.agenteId === agenteId && m.tipo === tipo && m.texto === texto);
+      },
     },
 
     // NOD-58: o diário da memória só existe no Postgres (CTE na escrita); aqui, vazio.
@@ -1220,6 +1227,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         // Espelha `buscar`; sem concorrência na memória, sem lock.
         return doTenant(b.propostas).find((p) => p.id === id) ?? null;
       },
+      async travarSeLivre(id) {
+        // Sem concorrência na memória: nunca está travada; espelha `buscarParaAtualizar`.
+        return doTenant(b.propostas).find((p) => p.id === id) ?? null;
+      },
       async pendentesDaConversa(conversaId) {
         return doTenant(b.propostas).filter((p) => p.conversaId === conversaId && p.estado === "pendente");
       },
@@ -1617,6 +1628,15 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const t = doTenant(b.trabalhos).filter((x) => x.conversaId === conversaId && x.origem === "rede" && x.sessaoCli === sessaoCli).sort((x, y) => y.criadoEm - x.criadoEm)[0];
         return t ? semDonoTrabalho(t) : null;
       },
+      // ADR-192 (etapa 3): a versão em lote dos fatos é a mesma regra, um por id.
+      async fatosDeVarios(ids) {
+        const m = new Map<string, NonNullable<Awaited<ReturnType<Repos["trabalhos"]["fatos"]>>>>();
+        for (const id of ids) {
+          const f = await this.fatos(id);
+          if (f) m.set(id, f);
+        }
+        return m;
+      },
       async fatos(id) {
         const dele = doTenant(b.turnos).filter((t) => t.trabalhoId === id);
         const ids = new Set(dele.map((t) => t.id));
@@ -1762,6 +1782,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         }
         return alvo.length;
       },
+      async anteciparFalasEsperando(ia: string) {
+        const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && t.origem === "conversa" && (t.acordarEm ?? null) !== null && t.mensagemOrigemId
+          && (harnessFixado(t.harness, t.modelo) === null || harnessFixado(t.harness, t.modelo) === ia));
+        for (const t of alvo) t.acordarEm = null;
+        return alvo.map((t) => t.id);
+      },
       async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}) {
         const iaDe = (t: Turno): string | null => harnessFixado(t.harness, t.modelo);
         const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && (t.acordarEm ?? null) !== null && t.entradaTexto.startsWith(ENTRADA_DA_VOLTA_DA_COTA)
@@ -1890,6 +1916,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       // NOD-312: sem sessão do CLI em memória (acima), nunca há o que perder.
       async ultimaSessaoDaConversa() {
         return null;
+      },
+      async anteciparReinstaladas(ia) {
+        const doTurno = (x: Turno) => x.harness === "auto" || x.harness === ia;
+        const acordadas = doTenant(b.turnos).filter((x) => x.estado === "pendente" && x.origem === "conversa" && (x.acordarEm ?? null) !== null && x.mensagemOrigemId && doTurno(x)
+          && doTenant(b.turnos).some((o) => o.id !== x.id && o.mensagemOrigemId === x.mensagemOrigemId && o.estado === "interrompido" && o.motivoInterrupcao === "lancamento_falhou"));
+        for (const x of acordadas) x.acordarEm = null;
+        return acordadas.map((x) => x.id);
+      },
+      async repeticoesDaMensagem(mensagemOrigemId, motivo) {
+        return mensagemOrigemId ? doTenant(b.turnos).filter((x) => x.mensagemOrigemId === mensagemOrigemId && x.motivoRecomeco === motivo).length : 0;
       },
       async registrarMotivoRecomeco(id, motivo) {
         const t = doTenant(b.turnos).find((x) => x.id === id);
@@ -2423,6 +2459,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async dispensar(id, p) {
         const d = doTenant(b.decisoes).find((x) => x.id === id && x.estado === p.antes && (x.estado === "vencida" || (TIPOS_DISPENSAVEIS_ABERTOS as readonly string[]).includes(x.tipo)));
+        if (!d) return null;
+        d.estado = "decidida";
+        d.desfecho = { tipo: "dispensada", por: p.por, em: iso(p.agora), antes: p.antes };
+        d.decididaEm = p.agora;
+        return d;
+      },
+      async dispensarAoSeguir(id, p) {
+        const d = doTenant(b.decisoes).find((x) => x.id === id && x.ownerId === escopo.pessoaId && x.decisorId === escopo.pessoaId && x.estado === p.antes && (TIPOS_DISPENSADOS_AO_SEGUIR as readonly string[]).includes(x.tipo) && x.tarefaId === undefined);
         if (!d) return null;
         d.estado = "decidida";
         d.desfecho = { tipo: "dispensada", por: p.por, em: iso(p.agora), antes: p.antes };
@@ -3469,6 +3513,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
     },
     mcpTokens: {
+      async contarVivosTravando() {
+        return b.mcpTokens.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.revogadoEm === null).length;
+      },
       async criar(e) {
         const l = { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), nome: e.nome, prefixo: e.prefixo, hash: e.hash, cliente: null as string | null, criadoEm: agora(), ultimoUsoEm: null as number | null, revogadoEm: null as number | null };
         b.mcpTokens.push(l);
@@ -3515,6 +3562,22 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
     },
     maquinaTokens: {
+      // Sucessão de chave (24/11): o bot, a padrão e o "desta vez" pendente. As sessões e o navegador o Postgres cobre
+      // (tests/concurrency/instalacao-ssh-http.test.ts); aqui ficam em 0.
+      async transferirReferencias(de, para) {
+        const bots = doTenant(b.agentes).filter((x) => x.ownerId === escopo.pessoaId && x.maquinaId === de);
+        for (const a of bots) a.maquinaId = para;
+        const chave = `${escopo.tenantId}:${escopo.pessoaId}`;
+        const pref = b.preferencias.get(chave);
+        const padrao = pref?.maquinaPadraoId === de;
+        if (pref && padrao) b.preferencias.set(chave, { ...pref, maquinaPadraoId: para });
+        let turnos = 0;
+        for (const t of doTenant(b.turnos)) {
+          if (t.ownerId !== escopo.pessoaId || t.estado !== "pendente" || b.maquinaDestaVez.get(t.id) !== de) continue;
+          b.maquinaDestaVez.set(t.id, para); t.maquinaDestaVez = para; turnos++;
+        }
+        return { bots: bots.map((a) => a.id), padrao, sessoes: 0, turnos, navegador: 0 };
+      },
       async criar(e) {
         const papel = e.papel ?? "motor";
         // O índice único parcial da 0105 (maquina_tokens_um_computador), como no Postgres.
@@ -3523,6 +3586,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.maquinaTokens.push(l);
         return { id: l.id, nome: l.nome, prefixo: l.prefixo, criadaEm: l.criadaEm, ultimoUsoEm: null, revogadaEm: null, papel };
       },
+      async travarVagaDoComputador() {},
       async computadorVivo(em) {
         const dela = b.maquinaTokens.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.papel === "computador" && x.revogadaEm === null);
         for (const x of dela) if (x.expiraEm !== null && x.expiraEm <= em) x.revogadaEm = x.expiraEm;
@@ -3540,6 +3604,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           .filter((l) => l.tenantId === escopo.tenantId && l.ownerId === escopo.pessoaId && l.revogadaEm === null && (l.expiraEm === null || l.expiraEm > Date.now()) && (l.papel ?? "motor") === "motor")
           .sort((x, y) => y.criadaEm - x.criadaEm)
           .map((l) => ({ id: l.id, nome: l.nome, plataforma: l.plataforma ?? null }));
+      },
+      async temLinuxViva() {
+        return b.maquinaTokens.some((l) => l.tenantId === escopo.tenantId && l.ownerId === escopo.pessoaId && l.plataforma === "linux" && l.revogadaEm === null && (l.expiraEm === null || l.expiraEm > Date.now()));
       },
       async revogar(id, em) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
@@ -3573,7 +3640,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async registrarPlataforma(id, plataforma) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
-        if (l) l.plataforma = plataforma;
+        if (!l || l.plataforma === plataforma) return false;
+        l.plataforma = plataforma;
+        return true;
       },
       async removida(id, em) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
@@ -4418,6 +4487,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // ADR-166: as regras do revisor, os níveis e o teto em memória (o Postgres é provado em tests/integration/ajustes-aprovacao.test.ts).
     ajustesAprovacao: ajustesEmMemoria(b, escopo),
     // 0174: VM do Nod, vez na sala, memória de time e passkey são só do Postgres (tests/integration/vm-sala-memoria-passkey.test.ts).
+    // 0180 (ADR-190): o navegador do bot em memória (o Postgres é provado em tests/integration/navegador-repos.test.ts);
+    // o cofre do nod só existe no Postgres.
+    ...navegadorEmMemoria(b, escopo),
+    cofreLogins: reposSoNoPostgres("cofreLogins"),
     vmsDoNod: reposSoNoPostgres("vmsDoNod"),
     vezNaSala: reposSoNoPostgres("vezNaSala"),
     memoriaDeTime: reposSoNoPostgres("memoriaDeTime"),
@@ -4430,6 +4503,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       foto: async () => null,
       definirFoto: soNoPostgres,
     },
+    // ADR-192 (0180): Tarefa e Thread só existem no Postgres (tests/integration/tarefas-*.test.ts). Em memória nenhum trabalho
+    // tem Tarefa ligada (as leituras voltam vazias, como num banco de antes da etapa 2); escrever é erro do teste.
+    tarefas: new Proxy<object>({
+      doTrabalho: async () => null,
+      buscar: async () => null,
+      primariasDe: async () => new Map(),
+      vinculosDe: async () => new Map(),
+      deTrabalhos: async () => new Map(),
+      listar: async () => [],
+    }, { get: (alvo, m) => (m in alvo ? Reflect.get(alvo, m) : () => { throw new Error(`tarefas.${String(m)} só existe no Postgres`); }) }) as Repos["tarefas"],
     // ADR-165 (0170): os passos do run só existem no Postgres (tests/integration/turno-passos.test.ts); aqui nada grava.
     turnoPassos: {
       gravar: async () => [],
@@ -4447,8 +4530,45 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
 /** ADR-166: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */
 const AJUSTES_EM_MEMORIA = new WeakMap<object, { regras: RegraRevisor[]; niveis: (NivelDeFerramenta & { ownerId: string })[]; tetos: { ownerId: string; teto: TetoModo }[] }>();
 /** Repo que só existe no Postgres: qualquer chamada em memória é erro do teste, nunca um vazio silencioso. */
-function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys">(nome: K): Repos[K] {
+function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys" | "cofreLogins">(nome: K): Repos[K] {
   return new Proxy({}, { get: (_, m) => () => { throw new Error(`${nome}.${String(m)} só existe no Postgres`); } }) as Repos[K];
+}
+
+/** 0180: as preferências e as tarefas do navegador do bot, por banco de mentira. */
+type NavegadorEmMemoria = { prefs: Map<string, PreferenciasNavegador>; tarefas: (TarefaEnsinada & { chave: string })[] };
+const NAVEGADOR_EM_MEMORIA = new WeakMap<object, NavegadorEmMemoria>();
+function navegadorEmMemoria(b: object, escopo: Escopo): Pick<Repos, "navegadorPreferencias" | "navegadorTarefas"> {
+  const st: NavegadorEmMemoria = NAVEGADOR_EM_MEMORIA.get(b) ?? { prefs: new Map(), tarefas: [] };
+  NAVEGADOR_EM_MEMORIA.set(b, st);
+  const chave = (agenteId: string) => `${escopo.tenantId}:${escopo.pessoaId}:${agenteId}`;
+  return {
+    navegadorPreferencias: {
+      buscar: async (agenteId) => st.prefs.get(chave(agenteId)) ?? null,
+      daPessoa: async () => [...st.prefs.entries()].filter(([k]) => k.startsWith(`${escopo.tenantId}:${escopo.pessoaId}:`)).map(([, v]) => v).sort((a, b) => a.agenteId.localeCompare(b.agenteId)),
+      liberacoes: async (agenteId) => st.prefs.get(chave(agenteId))?.liberacoes ?? SEM_LIBERACOES,
+      gravar: async (agenteId, p, agora) => {
+        const antes = st.prefs.get(chave(agenteId)) ?? { agenteId, continuaSemMac: false, maquinaId: null, noNod: false, soNaMaquina: false, liberacoes: SEM_LIBERACOES, perguntadoEm: null, respondidoEm: null, retomarTurnoId: null, atualizadoEm: agora };
+        const depois: PreferenciasNavegador = { ...antes, ...p, ...(p.liberacoes ? { liberacoes: lerLiberacoes(p.liberacoes) } : {}), agenteId, atualizadoEm: agora };
+        st.prefs.set(chave(agenteId), depois);
+        return depois;
+      },
+    },
+    navegadorTarefas: {
+      criar: async (t) => {
+        const nova = { id: randomUUID(), nome: t.nome.trim(), passos: [...t.passos], criadaEm: Date.now() + st.tarefas.length, chave: chave(t.agenteId) };
+        st.tarefas.push(nova);
+        const { chave: _c, ...tarefa } = nova;
+        return tarefa;
+      },
+      doAgente: async (agenteId) => st.tarefas.filter((t) => t.chave === chave(agenteId)).sort((x, y) => y.criadaEm - x.criadaEm).map(({ chave: _c, ...t }) => t),
+      apagar: async (agenteId, id) => {
+        const i = st.tarefas.findIndex((t) => t.chave === chave(agenteId) && t.id === id);
+        if (i < 0) return false;
+        st.tarefas.splice(i, 1);
+        return true;
+      },
+    },
+  };
 }
 
 function ajustesEmMemoria(b: object, escopo: Escopo): Repos["ajustesAprovacao"] {

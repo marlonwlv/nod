@@ -29,6 +29,7 @@ const descrever = chrome ? describe : describe.skip;
 const ENTRADA = `
 import { criarQuadroNaTela } from "./web/lib/quadro-na-tela.ts";
 import { criarQuadroCompartilhadoNaTela } from "./web/lib/quadro-compartilhado-na-tela.ts";
+import { desenharHtmlNoNo } from "./web/react/telas/telas.tsx";
 import { guardarRolagem, restaurarRolagem } from "./web/lib/rolagem-guardada.ts";
 window.__rolagem = { guardarRolagem, restaurarRolagem };
 const agora = 1_700_000_000_000;
@@ -121,6 +122,9 @@ window.__montar = () => {
   t.trocar("quadro");
   window.__q = t;
 };
+// ADR-179 (item 2): o que conta como "regravou o #qcp". Por innerHTML, os filhos dele trocam; pelo React, que reconcilia,
+// o redesenho que muda alguma coisa toca a subárvore (texto, atributos, nós) — e o que não muda não toca nada.
+window.__observarQcp = __QCP_REACT__ ? { childList: true, subtree: true, characterData: true, attributes: true } : { childList: true };
 // O quadro da dona na tela de quem participa (NOD-455): o casco #qcp na conversa, como o main o põe.
 window.__montarQcp = () => {
   document.getElementById("timeline").innerHTML = '<div id="qcp" class="qcp-casco"></div>';
@@ -128,7 +132,9 @@ window.__montarQcp = () => {
     // O comentário de quem participa: a tarefa cresce (o quadro volta com a descrição maior).
     comentarNoQuadro: async () => { await new Promise((r) => setTimeout(r, 50)); window.__linhas += 3; versao++; return { quadro: q() }; } };
   const c = criarQuadroCompartilhadoNaTela(document, { api: () => apiQcp, agente: () => ({ avatar: "<span>A</span>", nome: "Ada" }), hora: () => "10:00",
-    agendar: (f) => setTimeout(f, 10), reservaMs: window.__reservaMs ?? 800, aoSair: () => {}, aoPerderAcesso: () => {} });
+    agendar: (f) => setTimeout(f, 10), reservaMs: window.__reservaMs ?? 800, aoSair: () => {}, aoPerderAcesso: () => {},
+    // ADR-179 (item 2): o React desenha o mesmo HTML no #qcp, como no app (o módulo das telas); NOD_QCP_REACT=0, o innerHTML.
+    ...(__QCP_REACT__ ? { desenharHtml: desenharHtmlNoNo } : {}) });
   c.abrir("q1");
   window.__qcp = c;
   window.__mudouQcp = () => { versao++; c.aoFrame({ streamId: "s", seq: 1, pessoaId: "p", tipo: "quadro.mudou", dados: { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" } }); };
@@ -155,7 +161,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
 
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), "nod-ada7-"));
-    const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
+    const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent",
+      jsx: "automatic", loader: { ".css": "empty" }, define: { __QCP_REACT__: process.env.NOD_QCP_REACT === "0" ? "false" : "true" } });
     let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
     html = html.replace(/<link rel="stylesheet" href="\/([\w-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
     html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles[0]!.text}</script>`);
@@ -256,7 +263,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     const a0 = await medirQcp();
     expect(a0.max, "o detalhe precisa rolar para o teste valer").toBeGreaterThan(200);
     const antes = await avaliar<number>(cdp, "window.__lidas");
-    await avaliar(cdp, `(() => { window.__regravouQcp = 0; new MutationObserver(() => window.__regravouQcp++).observe(document.getElementById("qcp"), { childList: true }); })()`);
+    await avaliar(cdp, `(() => { window.__regravouQcp = 0; new MutationObserver(() => window.__regravouQcp++).observe(document.getElementById("qcp"), window.__observarQcp); })()`);
     await avaliar(cdp, "window.__mudouQcp()");
     await ate(`window.__lidas > ${antes}`);
     await ate("window.__regravouQcp > 0");
@@ -517,7 +524,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await ate(`document.querySelector("#qcp [data-act='abrir-tarefa']")`);
     await esperar(200);
     await avaliar(cdp, `(() => { window.__lidas = 0; window.__regravacoes = 0;
-      new MutationObserver(() => window.__regravacoes++).observe(document.getElementById("qcp"), { childList: true }); })()`);
+      new MutationObserver(() => window.__regravacoes++).observe(document.getElementById("qcp"), window.__observarQcp); })()`);
     // O mesmo quadro (o reconectar, o frame da própria resposta): lê e não regrava.
     await avaliar(cdp, "window.__qcp.reler()");
     await ate("window.__lidas >= 1");
@@ -605,7 +612,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await esperar(200);
     const grade = `[...document.querySelectorAll("#qcp .qd-grade")].find((e) => e.offsetParent)`;
     await avaliar(cdp, `(() => { const g = ${grade}; g.scrollLeft = 400; window.__lidas = 0; window.__regravacoes = 0;
-      new MutationObserver(() => window.__regravacoes++).observe(document.getElementById("qcp"), { childList: true }); })()`);
+      new MutationObserver(() => window.__regravacoes++).observe(document.getElementById("qcp"), window.__observarQcp); })()`);
     const l0 = await avaliar<number>(cdp, `${grade}.scrollLeft`);
     expect(l0, "a grade do compartilhado precisa rolar para o lado para o teste valer").toBeGreaterThan(100);
     await avaliar(cdp, "window.__mudouQcp()");
@@ -628,7 +635,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
       const [x, y] = JSON.parse(await avaliar<string>(cdp, `(() => { const r = [...document.querySelectorAll("${sel} [data-act='abrir-tarefa']")].find((e) => e.offsetParent).getBoundingClientRect();
         return JSON.stringify([r.left + 20, r.top + 10]); })()`)) as [number, number];
       await avaliar(cdp, `(() => { document.documentElement.style.touchAction = "none"; window.__latencia = 600; window.__lidas = 0; window.__regravacoes = 0;
-        new MutationObserver(() => window.__regravacoes++).observe(${qcp ? `document.getElementById("qcp")` : `document.querySelector("#quadro > .qd-conteudo")`}, { childList: true }); })()`);
+        new MutationObserver(() => window.__regravacoes++).observe(${qcp ? `document.getElementById("qcp"), window.__observarQcp` : `document.querySelector("#quadro > .qd-conteudo"), { childList: true }`}); })()`);
       await avaliar(cdp, qcp ? "window.__mudouQcp()" : "window.__mudou()");
       await ate("window.__lidas >= 1");
       await esperar(100);
@@ -859,7 +866,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await esperar(300);
     await avaliar(cdp, `(() => { const c = document.getElementById("qcp-com"); c.value = "comentando"; c.focus({ preventScroll: true }); window.__com = c;
       c.dispatchEvent(new Event("input", { bubbles: true }));
-      window.__lidas = 0; window.__regravacoes = 0; new MutationObserver(() => window.__regravacoes++).observe(document.getElementById("qcp"), { childList: true }); })()`);
+      window.__lidas = 0; window.__regravacoes = 0; new MutationObserver(() => window.__regravacoes++).observe(document.getElementById("qcp"), window.__observarQcp); })()`);
     await avaliar(cdp, "window.__mudouQcp()");
     await esperar(800);
     await avaliar(cdp, `(() => { window.__virarMinuto(); window.__com.dispatchEvent(new Event("input", { bubbles: true })); })()`);
@@ -1671,7 +1678,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     const mudar = async (linhas: number): Promise<void> => {
       const antes = await avaliar<number>(cdp, "window.__lidas");
       await avaliar(cdp, `(() => { window.__linhas = ${linhas}; window.__regravouQcp = 0; window.__obsQcp?.disconnect();
-        window.__obsQcp = new MutationObserver(() => window.__regravouQcp++); window.__obsQcp.observe(document.getElementById("qcp"), { childList: true }); window.__mudouQcp(); })()`);
+        window.__obsQcp = new MutationObserver(() => window.__regravouQcp++); window.__obsQcp.observe(document.getElementById("qcp"), window.__observarQcp); window.__mudouQcp(); })()`);
       await ate(`window.__lidas > ${antes}`);
       await ate("window.__regravouQcp > 0");
       await esperar(200);

@@ -1,13 +1,13 @@
 // definido em 2026-10-22 (NOD-96 PR 2, ADR-122 §4): o terminal do computador da pessoa. Roda como `nod-pc-term`
 // (nod-computador-terminal.service), separado do supervisor: escreve só no workspace, não tem DISPLAY e herda o mesmo
 // IPAddressDeny. Quem fala com ele é só o supervisor (socket 0660, grupo nod-pc). Um pedido por conexão:
-// {computadorId, comando} → {saida, codigoSaida}, como a ação `terminal` do runtime de hoje.
+// {computadorId, agenteId, comando} → {saida, codigoSaida}, como a ação `terminal` do runtime de hoje.
 import { clearTimeout, setTimeout } from 'node:timers';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
-import { access, unlink } from 'node:fs/promises';
+import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { argsDoBwrap } from './isolamento.mjs';
 
@@ -79,7 +79,7 @@ export function criarServidorTerminal({ raiz, bwrap = process.env.NOD_PC_BWRAP =
         return;
       }
       const workspace = path.join(raiz, pedido.computadorId, 'workspace', pedido.agenteId);
-      if (!(await access(workspace).then(() => true, () => false))) {
+      if (!(await mkdir(workspace, { recursive: true, mode: 0o2770 }).then(() => chmod(workspace, 0o2770)).then(() => true, () => false))) {
         socket.end(JSON.stringify({ erro: 'nao_iniciou' }));
         return;
       }

@@ -1,3 +1,5 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
+// Lote B (desvios 11 e 12, 2026-11-22): a conversa volta sozinha uma vez; o "Retomar" deste teste é o do teto da mensagem.
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { varrerPessoa } from "../../src/adapters/fundo/varredor-lease.ts";
@@ -39,6 +41,7 @@ describeIntegracao("varredor de lease (ADR-010/021, E9.4; ADR-045): conversa com
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "oi", inventario: PRONTO });
       const maquina = randomUUID();
       const turnoId = (await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId ?? "";
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${turnoId}`;
       await deps.repos.mensagens.criar({ conversaId: criado.conversa.id, turnoId, autoria: { ...(await deps.repos.mensagens.ultimaDaConversa(criado.conversa.id))!.autoria, autor_tipo: "agente", autor_id: criado.agente.id }, kind: "texto", texto: "comecei a resp", confianca: "confiavel" });
 
       expect(await varrerPessoa(deps.tx, MARLON, agora + LEASE_MS - 1)).toEqual({ interrompidos: [], decisoes: [] });
@@ -87,6 +90,7 @@ describeIntegracao("varredor de lease (ADR-010/021, E9.4; ADR-045): conversa com
       const maquina = randomUUID();
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "primeira", inventario: PRONTO });
       const t1 = (await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId ?? "";
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${t1}`;
       const r1 = await varrerPessoa(deps.tx, MARLON, agora + LEASE_MS + 1);
       // A pessoa deixa vencer e reabre o primeiro Retomar: reaberta também é substituída.
       await deps.repos.decisoes.vencerPendentes(agora + 2 * 86_400_000);
@@ -95,11 +99,14 @@ describeIntegracao("varredor de lease (ADR-010/021, E9.4; ADR-045): conversa com
       agora += 2 * 60_000;
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "segunda", inventario: PRONTO });
       const t2 = (await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId ?? "";
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${t2}`;
       const r2 = await varrerPessoa(deps.tx, MARLON, agora + LEASE_MS + 1);
       expect(r2.interrompidos).toEqual([t2]);
       const abertas = (await deps.repos.decisoes.pendentesDaConversa(criado.conversa.id)).filter((d) => d.tipo === "retomar_turno");
       expect(abertas.map((d) => d.turnoId)).toEqual([t2]);
-      expect(await deps.repos.decisoes.buscar(r1.decisoes[0] ?? "")).toMatchObject({ estado: "decidida", desfecho: { tipo: "decidida_por_regra", regra: "regra:retomada_substituida", regraVersao: 1 } });
+      // revisto em 2026-11-20 (ADR-191): a "segunda" mensagem da pessoa já dispensou o Retomar reaberto (ela seguiu
+      // conversando), antes da segunda queda; a regra:retomada_substituida cobre a queda sem mensagem no meio.
+      expect(await deps.repos.decisoes.buscar(r1.decisoes[0] ?? "")).toMatchObject({ estado: "decidida", desfecho: { tipo: "dispensada", por: MARLON.pessoaId, antes: "reaberta" } });
       expect(t1).not.toBe(t2);
       const avisos = await deps.repos.incidentes.visiveis(0);
       expect(avisos).toHaveLength(1);
@@ -171,6 +178,7 @@ describeIntegracao("varredor de lease (ADR-010/021, E9.4; ADR-045): conversa com
       const antiga = randomUUID();
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "antes do reinício", inventario: PRONTO });
       const doServidor = (await executar(deps, despacharTurno, { machineId: antiga, inventario: PRONTO })).data.plano?.turnoId ?? "";
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${doServidor}`;
       const metricas = criarMetricas();
       // O processo subiu DEPOIS do último sinal do turno: quem o perdeu foi o servidor reiniciado.
       const reinicio = await varrerPessoa(deps.tx, MARLON, agora + LEASE_MS + 1, { metricas, inicioDoProcesso: agora + 1, ultimoContato: () => null });
@@ -209,6 +217,7 @@ describeIntegracao("varredor de lease (ADR-010/021, E9.4; ADR-045): conversa com
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "oi", inventario: PRONTO });
       const mac = randomUUID();
       const turnoId = (await executar(deps, despacharTurno, { machineId: mac, inventario: PRONTO })).data.plano?.turnoId ?? "";
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${turnoId}`;
       const quando = agora + LEASE_MS + 1;
       const queda = await varrerPessoa(deps.tx, MARLON, quando, { inicioDoProcesso: 0, ultimoContato: (id: string) => (id === mac ? quando - 5_000 : null) });
       expect(queda.interrompidos).toEqual([turnoId]);
@@ -266,6 +275,7 @@ describeIntegracao("NOD-252: Parar com a máquina fora do ar termina como parada
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "oi", inventario: PRONTO });
       const maquina = randomUUID();
       const turnoId = (await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId ?? "";
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${turnoId}`;
       // O Mac dorme; a pessoa aperta Parar (o lease congela e vence sem ninguém entregar).
       await deps.repos.turnos.pedirInterrupcao([turnoId], agora + 1000);
 

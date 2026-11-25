@@ -40,7 +40,7 @@ describe("2A · há outra IA pronta no Mac", () => {
     const html = htmlSemIa(semIa(), NINA);
     expect(html).toContain('role="alert"');
     expect(html).toContain("tom-alerta");
-    expect(html).toContain("<b>A Nina não conseguiu responder</b>");
+    expect(html).toContain('<b class="aviso-estado-tit">A Nina não conseguiu responder</b>');
     expect(html).toContain("A conta do Claude Code deste Mac está sem acesso: a organização dela desativou o uso por assinatura. O ChatGPT está pronto neste Mac e pode assumir agora.");
     expect(botoes(html)).toEqual([
       { act: "ligacao-continuar-ia", ia: "codex-cli", texto: "Continuar com o ChatGPT" },
@@ -59,7 +59,7 @@ describe("2A · há outra IA pronta no Mac", () => {
 
   it("caiu o Codex e o Claude está pronto: os nomes trocam; bot com voz masculina leva 'O'", () => {
     const html = htmlSemIa(semIa({ ia: "codex-cli" }), { nome: "Bento", genero: "masculina" });
-    expect(html).toContain("<b>O Bento não conseguiu responder</b>");
+    expect(html).toContain('<b class="aviso-estado-tit">O Bento não conseguiu responder</b>');
     expect(html).toContain("A conta do Codex deste Mac está sem acesso");
     expect(html).toContain("O Claude está pronto neste Mac e pode assumir agora.");
     expect(botoes(html).slice(0, 2)).toEqual([

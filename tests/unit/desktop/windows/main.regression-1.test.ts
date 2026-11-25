@@ -113,7 +113,12 @@ describe("QA #678: o vigia a cada 30 s religa pela tarefa", () => {
   });
   it("o main religa quando o vigia manda e roda o NSIS com os argumentos da atualização", () => {
     expect(main).toMatch(/const v = vigiar\(saida\);/);
-    expect(main).toMatch(/if \(v\.religar\) \{\n\s+const c = comandoDeReligar\(systemRoot\);\n\s+execFile\(c\.arquivo, c\.args/);
+    // 2026-11-25: com a troca do motor em curso (a marca), não religa — o script religa no fim.
+    expect(main).toMatch(/if \(v\.religar && !\(await atualizandoAgora\(process\.env\)\)\) \{\n\s+const c = comandoDeReligar\(systemRoot\);\n\s+execFile\(c\.arquivo, c\.args/);
+    // O app confere o motor ao entrar e a cada INTERVALO_DO_APP_MS e dispara a troca solta.
+    expect(main).toMatch(/atualizacao\?\.conectado\(\);\n\s+void conferirMotor\(\);/);
+    expect(main).toContain("setInterval(() => void conferirMotor(), INTERVALO_DO_APP_MS)");
+    expect(main).toContain("comandoDeAtualizarSolto(c.url, systemRoot)");
     expect(main).toContain("spawn(exe, [...ARGS_DO_INSTALADOR], { detached: true");
   });
 });

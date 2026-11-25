@@ -3,7 +3,7 @@ import type { ContaIa, ContasIaDto, LoginNaMaquina } from "../../../src/contract
 import type { MaquinaDto } from "../../../src/contracts/maquina.ts";
 import { criarContasDaPessoa, ligarPedeAvisoDosTermos, type ApiContas } from "../../../web/lib/contas-da-pessoa.ts";
 import { estadoInicial, reduzir, type Estado } from "../../../web/estado/reducer.ts";
-import { REGRAS_DA_FILA, renderListaDeContas, renderContasNaMaquina, resumoDasContasNaMaquina, UI_CONTAS_INICIAL, type ContextoContas, type UiContas } from "../../../web/telas/contas-lista.ts";
+import { emBreve, estadoDaConta, precisaDeVoce, REGRAS_DA_FILA, renderListaDeContas, trilhaDoLogin, renderContasNaMaquina, resumoDasContasNaMaquina, UI_CONTAS_INICIAL, type ContextoContas, type UiContas } from "../../../web/telas/contas-lista.ts";
 import { hora } from "../../../web/lib/render.ts";
 import { renderMaquinas } from "../../../web/telas/maquinas.ts";
 import { renderProvedores } from "../../../web/telas/provedores.ts";
@@ -34,57 +34,132 @@ function ctx(o: Partial<Omit<ContextoContas, "ui">> & { ui?: Partial<UiContas> }
 const login = (o: Partial<LoginNaMaquina> = {}): LoginNaMaquina => ({ id: "33333333-3333-4333-8333-333333333333", maquinaId: VM, ia: "claude-cli", contaId: GPT.id, apelido: null, fase: "aguardando_pessoa", url: "https://claude.com/cai/oauth/authorize?x=1", codigoDispositivo: null, pedeCodigo: true, chavePublica: "QUJD", codigoEnviado: false, erro: null, contaFinalId: null, criadoEm: AGORA, atualizadoEm: AGORA, ...o });
 
 describe("lista única de contas (ADR-102)", () => {
-  it("uma linha por conta, sem agrupar: logo, provedor · apelido, plano, corporativa e uma pílula por máquina", () => {
+  it("Paper G1: uma linha enxuta por conta — logo, provedor · apelido, plano, organização e máquinas, um estado e a seta que abre", () => {
     const html = renderListaDeContas(ctx());
     expect(html.indexOf("Claude · Pessoal")).toBeLessThan(html.indexOf("ChatGPT · Pessoal"));
     expect(html.indexOf("ChatGPT · Pessoal")).toBeLessThan(html.indexOf("Claude · Lumen"));
-    expect(html).toContain("3 contas · em ordem de uso");
-    expect(html).toContain("Corporativa");
+    expect(html).toContain('<span class="prov-ordem-titulo">3 contas</span>');
+    // As regras da troca recolhidas no pé (Paper G1).
+    expect(html).toContain("Como o nod troca de conta");
+    // A corporativa só no título da linha; o selo mora na conta aberta (Paper G1 não mostra selo na lista).
+    expect(html).toContain('title="Conta corporativa"');
+    expect(renderListaDeContas(ctx({ ui: { aberta: LUMEN.id } }))).toContain('<span class="selo">Corporativa</span>');
     expect(html).toContain("No limite até");
     expect(html).toContain("Em uso");
-    // A ChatGPT · Pessoal não está na VM: a pílula tracejada leva ao login nela.
-    expect(html).toContain(`data-act="cl-entrar" data-id="${GPT.id}" data-maquina="${VM}"`);
-    // Fora do app do Mac, o Mac só entra pelo app (a pílula explica, sem clique).
-    expect(html).not.toContain(`data-act="cl-entrar" data-id="${PESSOAL.id}" data-maquina="${MAC}"`);
+    expect(html).toContain("<span>2 máquinas</span>");
+    expect(html).toContain(`data-act="cl-abrir" data-id="${PESSOAL.id}" aria-label="Abrir Claude · Pessoal"`);
+    // Sem pílula de máquina, sem ⋯ e sem o detalhe na linha: tudo isso mora na conta aberta (G2).
+    expect(html).not.toContain("cl-pil");
+    expect(html).not.toContain(`data-act="cl-menu" data-id="${PESSOAL.id}"`);
+    expect(html).not.toContain('data-act="cl-entrar"');
     expect(html).toContain('data-ordem-lista="contas"');
   });
 
-  it("sem e-mail no servidor nem no app, a linha diz só por qual CLI", () => {
-    expect(renderListaDeContas(ctx())).not.toContain("@");
-    expect(renderListaDeContas(ctx())).toContain("<span>pelo Claude Code</span>");
+  it("Paper G2: a conta aberta numa tela própria — voltar, uma linha por máquina com a ação ali e o Mac só pelo app", () => {
+    const gpt = renderListaDeContas(ctx({ ui: { aberta: GPT.id } }));
+    expect(gpt).toContain('data-pagina="cl-conta"');
+    expect(gpt).toContain('data-act="cl-fechar-conta"');
+    expect(gpt).not.toContain('data-ordem-lista="contas"');
+    // A ChatGPT · Pessoal não está na VM: a linha da vm-bots tem o Entrar.
+    expect(gpt).toContain(`data-act="cl-entrar" data-id="${GPT.id}" data-maquina="${VM}">Entrar<`);
+    // Fora do app do Mac, o Mac só entra pelo app.
+    const pessoal = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id, logins: [] }, contas: { ...CONTAS, contas: [{ ...PESSOAL, maquinas: [PESSOAL.maquinas[0]!] }, GPT, LUMEN] } }));
+    expect(pessoal).not.toContain(`data-act="cl-entrar" data-id="${PESSOAL.id}" data-maquina="${MAC}"`);
+    expect(pessoal).toContain("Entre pelo app do nod no Mac<");
+    // A conta que sumiu da lista volta para a lista.
+    expect(renderListaDeContas(ctx({ ui: { aberta: "sumiu" } }))).toContain('data-ordem-lista="contas"');
+  });
+
+  it("sem e-mail no servidor nem no app, a conta aberta diz a posição e por qual CLI", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id } }));
+    expect(html).not.toContain("@");
+    expect(html).toContain("1ª da fila · pelo Claude Code");
   });
 
   it("ADR-105: o e-mail e a organização vêm do servidor, em qualquer máquina (fora do app também)", () => {
     const comEmail = { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, email: "pessoa1@exemplo.com", organizacao: "Lumen" }] };
-    const html = renderListaDeContas(ctx({ contas: comEmail }));
-    // Rodada 3 (tela 19 do Paper): "e-mail · organização · pelo CLI", sem a palavra "organização".
-    expect(html).toContain("pessoa1@exemplo.com · Lumen · pelo Claude Code");
-    // O Detalhes da conta também.
-    expect(renderListaDeContas(ctx({ contas: comEmail, ui: { detalhe: LUMEN.id } }))).toContain("<dt>Conta</dt><dd>pessoa1@exemplo.com · Lumen</dd>");
+    // A linha leva a organização; o e-mail fica na conta aberta.
+    const lista = renderListaDeContas(ctx({ contas: comEmail }));
+    // Com uma máquina só, o nome dela (Paper G1: "Pessoal · Mac do Marlon").
+    expect(lista).toContain("<span>Lumen · MacBook</span>");
+    expect(lista).not.toContain("pessoa1@");
+    expect(renderListaDeContas(ctx({ contas: comEmail, ui: { aberta: LUMEN.id } }))).toContain("pessoa1@exemplo.com · Lumen · 3ª da fila · pelo Claude Code");
   });
 
   it("ADR-105: o app do Mac que conhece a conta ganha do servidor (é o que o CLI disse agora)", () => {
     const comEmail = { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, email: "antigo@exemplo.com", organizacao: "Lumen" }] };
-    const html = renderListaDeContas(ctx({ contas: comEmail, noApp: true, detalhes: { maquinaId: MAC, contas: [{ impressao: LUMEN.impressao, ia: "claude-cli", email: "pessoa1@exemplo.com", organizacao: "Lumen SA", plano: "Team" }] } }));
-    expect(html).toContain("pessoa1@exemplo.com · Lumen SA · pelo Claude Code");
+    const html = renderListaDeContas(ctx({ contas: comEmail, noApp: true, ui: { aberta: LUMEN.id }, detalhes: { maquinaId: MAC, contas: [{ impressao: LUMEN.impressao, ia: "claude-cli", email: "pessoa1@exemplo.com", organizacao: "Lumen SA", plano: "Team" }] } }));
+    expect(html).toContain("pessoa1@exemplo.com · Lumen SA · 3ª da fila · pelo Claude Code");
     expect(html).not.toContain("antigo@");
   });
 
-  it("o ⋯ abre Renomear, Detalhes, Sair de cada máquina e Remover de todas", () => {
-    const html = renderListaDeContas(ctx({ ui: { menu: PESSOAL.id } }));
-    expect(html).toContain('data-act="cl-renomear"');
-    expect(html).toContain('data-act="cl-detalhe"');
+  it("a conta aberta tem Renomear, Sair de cada máquina e Remover conta (o que era do ⋯)", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id } }));
+    // Revisão de 2026-11-20: o nome se edita no lugar, como o do bot (o nome editável do DS), sem botão Renomear.
+    expect(html).toContain(`<input id="cl-conta-nome" class="cl-nome-campo nome-editavel" data-nome-editavel="conta" data-campo="apelido" data-id="${PESSOAL.id}" data-salvo="${PESSOAL.apelido}"`);
+    expect(html).not.toContain(">Renomear</button>");
+    expect(html).not.toContain('data-act="cl-renomear"');
     expect(html).toContain(`data-act="cl-sair" data-id="${PESSOAL.id}" data-maquina="${VM}"`);
     expect(html).toContain(`data-act="cl-sair" data-id="${PESSOAL.id}" data-maquina="${MAC}"`);
-    expect(html).toContain("Remover de todas as máquinas");
+    expect(html).toContain(`data-act="cl-remover" data-id="${PESSOAL.id}"`);
+    expect(html).toContain("Remover conta");
+    expect(html).not.toContain("cl-detalhe");
   });
 
-  // Regression: ISSUE-004 — o menu dizia "Sair doa vm-qa". Found by /qa on 2026-10-13.
-  it("QA do PR #306: o menu diz 'Sair da vm-bots' e 'Sair do Mac'", () => {
-    const html = renderListaDeContas(ctx({ ui: { menu: PESSOAL.id } }));
-    expect(html).toContain("Sair da vm-bots");
-    expect(html).toContain("Sair do Mac");
-    expect(html).not.toContain("doa ");
+  it("o nome da conta: o fornecedor fica fixo na frente e só o apelido se edita", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id } }));
+    const cab = html.slice(html.indexOf('class="cl-conta-id"'), html.indexOf('class="cl-conta-fila"'));
+    expect(cab).toMatch(/<span class="cl-nome-prov">Claude ·<\/span><label class="sr-only" for="cl-conta-nome">/);
+    const jaComProv = renderListaDeContas(ctx({ contas: { ...CONTAS, contas: [{ ...PESSOAL, apelido: "Claude Pessoal" }, GPT] }, ui: { aberta: PESSOAL.id } }));
+    expect(jaComProv).not.toContain("cl-nome-prov");
+    expect(jaComProv).toContain('value="Claude Pessoal"');
+  });
+
+  it("Paper G1: estados da conta — login venceu, sem acesso, falta entrar, disponível e fora da fila", () => {
+    const x = ctx();
+    const sem = (estado: "sem_login" | "sem_acesso") => ({ ...PESSOAL, maquinas: PESSOAL.maquinas.map((m) => ({ ...m, estado })) });
+    expect(estadoDaConta(sem("sem_login"), x, null)).toEqual(["e-erro", "Login venceu"]);
+    expect(estadoDaConta(sem("sem_acesso"), x, null)).toEqual(["e-erro", "Sem acesso"]);
+    const metade = { ...PESSOAL, maquinas: [PESSOAL.maquinas[0]!, { ...PESSOAL.maquinas[1]!, estado: "sem_login" as const }] };
+    expect(estadoDaConta(metade, x, null)).toEqual(["e-aviso", "Falta entrar em 1"]);
+    // Na linha, o "Entrar" acompanha só o "Login venceu" (Paper G1); o "Falta entrar" leva à conta aberta.
+    const naVm = (estado: "pronta" | "sem_login") => ({ maquinaId: VM, estado, logadaEm: AGORA });
+    const linhaDe = (gpt: typeof GPT) => renderListaDeContas(ctx({ contas: { ...CONTAS, contas: [gpt] } }));
+    expect(linhaDe({ ...GPT, maquinas: [{ ...GPT.maquinas[0]!, ...naVm("sem_login") }] })).toContain(`data-act="cl-entrar" data-id="${GPT.id}" data-maquina="${VM}">Entrar<`);
+    const faltaUma = linhaDe({ ...GPT, maquinas: [{ ...GPT.maquinas[0]!, maquinaId: MAC, estado: "pronta" }, { ...GPT.maquinas[0]!, ...naVm("sem_login") }] });
+    expect(faltaUma).toContain("Falta entrar em 1");
+    expect(faltaUma).not.toContain('data-act="cl-entrar"');
+    expect(estadoDaConta(PESSOAL, x, PESSOAL.id)[0]).toBe("e-uso");
+    expect(estadoDaConta(PESSOAL, x, GPT.id)).toEqual(["e-disp", "Disponível"]);
+    expect(estadoDaConta({ ...LUMEN, noLimiteAte: null }, x, null)).toEqual(["e-fora", "Fora da fila"]);
+    // Fora da fila, a máquina sem login não vira pendência.
+    expect(precisaDeVoce(metade)).toBe(true);
+    expect(precisaDeVoce({ ...metade, entraNaTrocaAutomatica: false })).toBe(false);
+    expect(precisaDeVoce({ ...PESSOAL, maquinas: [] })).toBe(true);
+    expect(precisaDeVoce(PESSOAL)).toBe(false);
+  });
+
+  it("Paper G1: com conta que precisa de você, o aviso diz o porquê e o segmentado filtra só elas", () => {
+    const venceu = { ...GPT, maquinas: GPT.maquinas.map((m) => ({ ...m, estado: "sem_login" as const })) };
+    const contas = { ...CONTAS, contas: [PESSOAL, venceu, LUMEN] };
+    const todas = renderListaDeContas(ctx({ contas }));
+    expect(todas).toContain("<b>1 conta precisa de você.</b> Login vencido.");
+    expect(todas).toContain("Precisam de você · 1");
+    expect(todas).toContain("Todas · 3");
+    const so = renderListaDeContas(ctx({ contas, ui: { pendentes: true } }));
+    expect(so).toContain(`data-ordem-item="${GPT.id}"`);
+    expect(so).not.toContain(`data-ordem-item="${PESSOAL.id}"`);
+    expect(so).toContain('data-act="cl-pendentes" data-valor="0">Ver todas<');
+    // Sem pendência, nem aviso nem segmentado.
+    expect(renderListaDeContas(ctx())).not.toContain("cl-seg");
+  });
+
+  it("QA do PR #306: o diálogo diz 'Sair da Claude · Pessoal na vm-bots?' e 'no MacBook?'", () => {
+    const vm = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id, confirmar: { tipo: "sair", contaId: PESSOAL.id, maquinaId: VM } } }));
+    expect(vm).toContain("Sair da vm-bots");
+    const mac = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id, confirmar: { tipo: "sair", contaId: PESSOAL.id, maquinaId: MAC } } }));
+    expect(mac).toMatch(/Sair d[oa] Mac/);
+    expect(vm + mac).not.toContain("doa ");
   });
 
   // Regression: ISSUE-008 — sem máquina nenhuma, a primeira conta aparecia "Em uso". Found by /qa on 2026-10-13.
@@ -140,29 +215,31 @@ describe("lista única de contas (ADR-102)", () => {
     expect(pendente).toContain('data-act="cl-confirmar-fechar" data-cl-autofoco>Cancelar</button>');
   });
 
-  it("login na VM pela tela: link oficial, campo do código e o aviso de que vai cifrado; o terminal fica escondido", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
-    expect(html).toContain("Abrir a página da Anthropic");
+  it("login na VM pela tela (Paper A2): a página já abriu, o Abrir de novo com o link oficial, o campo do código e o aviso de que vai cifrado; o terminal fica escondido", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
+    expect(html).toContain("Abrimos a página da Anthropic no seu navegador.");
+    expect(html).toContain('href="https://claude.com/cai/oauth/authorize?x=1" target="_blank" rel="noopener noreferrer">Abrir de novo');
+    expect(html).toContain("o código renova sozinho se vencer");
     expect(html).toContain('data-form="cl-codigo"');
     expect(html).toContain("vai cifrado direto para a vm-bots");
     expect(html).toContain("Prefere o terminal?");
     expect(html).not.toContain("nod-motor entrar claude");
-    const aberto = renderListaDeContas(ctx({ ui: { terminal: login().id, logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const aberto = renderListaDeContas(ctx({ ui: { aberta: GPT.id, terminal: login().id, logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(aberto).toContain("nod-motor entrar claude");
   });
 
   it("NOD-9 PR4: login que falhou com a IA desatualizada mostra o Atualizar; outra falha, não", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(html).toContain('data-act="cl-atualizar-ia"');
     expect(html).toContain("nod-motor atualizar-ia claude");
-    const enviado = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: "Pedido enviado." }] } }));
+    const enviado = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: "Pedido enviado." }] } }));
     expect(enviado).toContain("Pedido enviado.");
-    const outra = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "codigo_invalido" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const outra = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "codigo_invalido" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(outra).not.toContain("cl-atualizar-ia");
   });
 
   it("devolução do #501: cli_antigo do Codex cita `atualizar-ia codex`; sem a capacidade (ou sem contato), sem o botão", () => {
-    const falhou = (ia: "claude-cli" | "codex-cli") => ({ ui: { logins: [{ onde: "vm" as const, login: login({ ia, fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } });
+    const falhou = (ia: "claude-cli" | "codex-cli") => ({ ui: { aberta: GPT.id, logins: [{ onde: "vm" as const, login: login({ ia, fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } });
     const codex = renderListaDeContas(ctx(falhou("codex-cli")));
     expect(codex).toContain("nod-motor atualizar-ia codex");
     expect(codex).not.toContain("nod-motor atualizar-ia claude");
@@ -174,10 +251,13 @@ describe("lista única de contas (ADR-102)", () => {
     expect(semContato).not.toContain('data-act="cl-atualizar-ia"');
   });
 
-  it("Codex na VM: o código do aparelho para digitar na página da OpenAI", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ ia: "codex-cli", pedeCodigo: false, codigoDispositivo: "ABCD-1234", url: "https://auth.openai.com/codex/device" }), codigo: "", enviando: false, erroEnvio: null }] } }));
-    expect(html).toContain("ABCD-1234");
-    expect(html).toContain("Abrir a página da OpenAI");
+  it("Codex na VM (Paper C2): a página já abriu; o código do aparelho com só o Copiar, nada para colar de volta", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", pedeCodigo: false, codigoDispositivo: "ABCD-1234", url: "https://auth.openai.com/codex/device" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    expect(html).toContain("<code>ABCD-1234</code>");
+    expect(html).toContain("Abrimos a página da OpenAI no seu navegador.");
+    expect(html).toContain("Nada para colar de volta");
+    expect(html).not.toContain('data-form="cl-codigo"');
+    expect(html.match(/>Copiar</g)).toHaveLength(1);
   });
 
   it("filtro por máquina: abas, voltar para Máquinas e o botão de entrar nas contas que não estão nela", () => {
@@ -215,7 +295,8 @@ describe("lista única de contas (ADR-102)", () => {
   });
 
   describe("NOD-8: o passo 1 do login (a máquina instala ou atualiza a IA antes)", () => {
-    const naTela = (o: Partial<LoginNaMaquina>) => renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: null, apelido: "Pessoal", url: null, pedeCodigo: false, ...o }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    // Paper G2c: o bloco do login mora embaixo da máquina, na conta aberta (a GPT · Pessoal entrando de novo na vm-bots).
+    const naTela = (o: Partial<LoginNaMaquina>) => renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: GPT.id, apelido: "Pessoal", url: null, pedeCodigo: false, ...o }), codigo: "", enviando: false, erroEnvio: null }] } }));
 
     it("preparando: passo 1 instalando (com a linha do npm), passo 2 'começa sozinho' e o Cancelar", () => {
       const html = naTela({ fase: "preparando", preparo: { acao: "instalar", linha: "added 1 package in 9s" } });
@@ -237,7 +318,7 @@ describe("lista única de contas (ADR-102)", () => {
 
     it("concluído com o preparo: '✓ ChatGPT pronto na vm-bots · Codex X'; sem preparo, o '✓ Entrou' de sempre", () => {
       expect(naTela({ fase: "pronto", preparo: { acao: "instalar", depois: "0.160.0" } })).toContain("✓ ChatGPT pronto na vm-bots · Codex 0.160.0");
-      const daMaquina = renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", { iasDetalhe: { "codex-cli": { versao: "0.161.0" } } })], ui: { logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: null, fase: "pronto", preparo: { acao: "instalar" } }), codigo: "", enviando: false, erroEnvio: null }] } }));
+      const daMaquina = renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", { iasDetalhe: { "codex-cli": { versao: "0.161.0" } } })], ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: GPT.id, fase: "pronto", preparo: { acao: "instalar" } }), codigo: "", enviando: false, erroEnvio: null }] } }));
       expect(daMaquina).toContain("✓ ChatGPT pronto na vm-bots · Codex 0.161.0");
       expect(naTela({ fase: "pronto", preparo: null })).toContain("✓ Entrou");
     });
@@ -255,7 +336,7 @@ describe("lista única de contas (ADR-102)", () => {
       // Protótipo v2.2: o terminal num link discreto; o comando só depois do clique.
       expect(semEspaco).toMatch(/data-act="cl-terminal" data-login="[^"]+">Prefere o terminal\?</);
       expect(semEspaco).not.toContain("<code>nod-motor atualizar-ia codex</code>");
-      const aberto = renderListaDeContas(ctx({ ui: { terminal: login().id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: null, apelido: "Pessoal", url: null, pedeCodigo: false, ...falha }), codigo: "", enviando: false, erroEnvio: null }] } }));
+      const aberto = renderListaDeContas(ctx({ ui: { aberta: GPT.id, terminal: login().id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: GPT.id, apelido: "Pessoal", url: null, pedeCodigo: false, ...falha }), codigo: "", enviando: false, erroEnvio: null }] } }));
       expect(aberto).toContain("<code>nod-motor atualizar-ia codex</code>");
       expect(aberto).toMatch(/data-act="copiar-texto" data-texto="nod-motor atualizar-ia codex" aria-live="polite">Copiar</);
       expect(naTela({ fase: "falhou", erro: "preparo_falhou", preparo: { acao: "instalar", atualizacao: { fase: "falhou", alvo: "0.159.0", motivo: "sem_internet", em: 1 } } })).toContain("sem conexão com a internet");
@@ -270,23 +351,24 @@ describe("lista única de contas (ADR-102)", () => {
       expect(naTela({ fase: "preparando", preparo: { acao: "instalar" } })).not.toContain("nod-motor atualizar-ia");
     });
 
-    it("J5: na linha da conta, 'Atualizar o X' só com alvo pendente na VM conectada que atende o pedido", () => {
-      const com = (o: Partial<MaquinaDto>) => renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", { atualizaIas: true, ...o }), MAQUINAS[1]!] }));
+    it("J5: na conta aberta, a linha da máquina diz 'Atualizar o X' só com alvo pendente na VM conectada que atende o pedido", () => {
+      const com = (o: Partial<MaquinaDto>) => renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id }, maquinas: [maquina(VM, "vm-bots", { atualizaIas: true, ...o }), MAQUINAS[1]!] }));
       const antigo = { iasDetalhe: { "claude-cli": { causa: "cli_antigo" as const, versao: "2.0.1", minima: "2.1.150" } } };
       expect(com(antigo)).toMatch(new RegExp(`data-act="cl-atualizar-maquina" data-maquina="${VM}" data-ia="claude-cli"[^>]*>Atualizar o Claude Code<`));
       expect(com({ ...antigo, atualizaIas: false })).not.toContain("cl-atualizar-maquina");
       expect(com({ ...antigo, conectada: false })).not.toContain("cl-atualizar-maquina");
       expect(com({ iasDetalhe: { "claude-cli": { versao: "2.1.200" } } })).not.toContain("cl-atualizar-maquina");
       // O Mac fica com o cartão da IA do #498.
-      const mac = renderListaDeContas(ctx({ maquinas: [MAQUINAS[0]!, maquina(MAC, "MacBook", { plataforma: "darwin", atualizaIas: true, ...antigo })] }));
+      const mac = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id }, maquinas: [MAQUINAS[0]!, maquina(MAC, "MacBook", { plataforma: "darwin", atualizaIas: true, ...antigo })] }));
       expect(mac).not.toContain(`data-maquina="${MAC}" data-ia="claude-cli"`);
     });
 
-    it("Nova conta: na VM sem a IA, 'o nod instala o ChatGPT nela'; abaixo do piso, 'atualiza'; com ela, o de sempre", () => {
+    it("Nova conta (Paper A1): na VM sem a IA, 'O nod instala ao conectar'; abaixo do piso, 'atualiza'; com ela, o de sempre", () => {
       const nova = { ia: "codex-cli" as const, apelido: "", maquinas: [] };
       const com = (o: Partial<MaquinaDto>) => renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", o)], ui: { nova } }));
-      expect(com({ ias: { "codex-cli": "ausente" } })).toContain("O nod instala o ChatGPT nela e o login aparece aqui"); // tela 19b: a dica começa em maiúscula
-      expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "cli_antigo", versao: "0.158.0", minima: "0.159.0" } } })).toContain("O nod atualiza o ChatGPT nela");
+      expect(com({ ias: { "codex-cli": "ausente" } })).toContain("O nod instala ao conectar · ~1 min");
+      expect(com({ ias: { "codex-cli": "ausente" } })).toContain("Sem Codex ainda");
+      expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "cli_antigo", versao: "0.158.0", minima: "0.159.0" } } })).toContain("O nod atualiza ao conectar");
       expect(com({ ias: { "codex-cli": "nao_autenticado" } })).toContain("O login aparece aqui na tela");
       expect(com({ ias: {} })).toContain("O login aparece aqui na tela");
       expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "sonda_lenta" } } })).not.toContain("O nod instala");
@@ -371,7 +453,7 @@ describe("Provedores e Máquinas com a lista (ADR-102)", () => {
 });
 
 describe("controlador da lista (ADR-102)", () => {
-  function montar(api: Partial<ApiContas> = {}, termos: { aceita: boolean } = { aceita: true }, noMac?: () => Promise<boolean | { erro: string }>, prazoFrentesMs = 5_000) {
+  function montar(api: Partial<ApiContas> = {}, termos: { aceita: boolean } = { aceita: true }, noMac?: () => Promise<boolean | { erro: string }>, prazoFrentesMs = 5_000, abrirPagina?: (url: string) => void) {
     let estado = reduzir({ ...estadoInicial, maquinas: { maquinas: MAQUINAS, padraoId: null } }, { tipo: "hidratar-contas", contas: CONTAS, detalhes: null });
     const pendentes: (() => void)[] = [];
     const chamadas: string[] = [];
@@ -401,6 +483,7 @@ describe("controlador da lista (ADR-102)", () => {
       agendar: (fn) => { pendentes.push(fn); },
       agora: () => AGORA,
       prazoFrentesMs,
+      abrirPagina,
     });
     const rodar = async () => { for (const fn of pendentes.splice(0)) fn(); await new Promise((r) => setTimeout(r, 0)); };
     return { c, chamadas, rodar, get estado() { return estado; } };
@@ -435,6 +518,45 @@ describe("controlador da lista (ADR-102)", () => {
     expect(m.chamadas).toContain("codigo");
     const depois = m.estado.contasUi.logins[0]!;
     expect(depois.onde === "vm" && depois.login.codigoEnviado).toBe(true);
+  });
+
+  it("Paper G1b: retomar a conta nova reabre a Nova conta já entrando, com as máquinas dos logins dela", async () => {
+    const m = montar();
+    await m.c.novaNaMaquina("claude-cli", VM);
+    m.c.retomarNova("claude-cli", "");
+    expect(m.estado.contasUi.nova).toEqual({ ia: "claude-cli", apelido: "", maquinas: [VM], entrando: true });
+  });
+
+  it("Paper A2/C2: a página oficial abre sozinha uma vez, quando a VM manda o link", async () => {
+    const abertas: string[] = [];
+    const m = montar({}, undefined, undefined, 5_000, (url) => abertas.push(url));
+    await m.c.entrar(GPT.id, VM);
+    expect(abertas).toEqual([]);
+    await m.rodar();
+    expect(abertas).toEqual(["https://claude.com/cai/oauth/authorize?x=1"]);
+    await m.rodar();
+    await m.rodar();
+    expect(abertas).toHaveLength(1);
+  });
+
+  it("Paper A2/C2: o código que venceu com a pessoa na página renova sozinho até 2 vezes; na 3ª, a falha aparece", async () => {
+    let pedidos = 0;
+    let fase: "aguardando_pessoa" | "falhou" = "aguardando_pessoa";
+    const m = montar({
+      pedirLogin: async (maq, p) => { pedidos++; return login({ id: `33333333-3333-4333-8333-33333333333${pedidos}`, maquinaId: maq, contaId: p.contaId ?? null, apelido: p.apelido ?? null }); },
+      verLogin: async (_m, id) => login({ id, fase, erro: fase === "falhou" ? "tempo_esgotado" : null }),
+    });
+    await m.c.entrar(GPT.id, VM);
+    expect(pedidos).toBe(1);
+    for (let i = 0; i < 3; i++) {
+      fase = "aguardando_pessoa";
+      await m.rodar();
+      fase = "falhou";
+      await m.rodar();
+    }
+    expect(pedidos).toBe(3);
+    const l = m.estado.contasUi.logins.at(-1)!;
+    expect(l.onde === "vm" && l.login.fase).toBe("falhou");
   });
 
   it("NOD-8 (regressão, crítico): no Mac, a instalação que falhou não abre o cartão do login; a nota mostra o erro", async () => {
@@ -553,38 +675,170 @@ describe("controlador da lista (ADR-102)", () => {
 });
 
 describe("o uso de cada conta na lista (NOD-302 CA12; NOD-12)", () => {
-  it("a linha mostra as barras de 5 h e da semana; sem `cota` (servidor anterior) nada; a pílula do limite diz o dia quando é outro", () => {
+  it("Paper G1: a janela que renovou desde a leitura fica na linha como um fio vazio, não some", () => {
+    const comCota = { ...CONTAS, contas: [
+      { ...PESSOAL, cota: { cincoHoras: null, semana: { utilizacao: 0.74, renovaEm: AGORA + 86_400_000 }, renovou: { cincoHoras: AGORA - 3_600_000, semana: null }, situacao: "livre" as const, voltaEm: null, medidoEm: AGORA - 5 * 3_600_000 } },
+    ] };
+    const lista = renderListaDeContas(ctx({ contas: comCota }));
+    expect(lista).toContain("semana <b>74%</b>");
+    expect(lista).toContain('aria-label="semana: 74% usado; 5 horas: 0% usado"');
+    expect(lista.match(/class="cl-uso-fio[ "]/g)).toHaveLength(2);
+    expect(lista).toContain('<span style="width:0%"></span>');
+  });
+
+  it("Paper G1: a linha mostra o limite mais apertado e um fio por limite; a conta aberta, as barras de 5 h e da semana; sem `cota` nada", () => {
     const volta = AGORA + 2 * 3_600_000;
     const comCota = { ...CONTAS, contas: [
       { ...PESSOAL, cota: { cincoHoras: { utilizacao: 0.995, renovaEm: volta }, semana: { utilizacao: 0.4, renovaEm: AGORA + 86_400_000 }, situacao: "reserva" as const, voltaEm: volta, medidoEm: AGORA } },
       { ...GPT, cota: null },
       LUMEN,
     ] };
-    const html = renderListaDeContas(ctx({ contas: comCota }));
-    expect(html).toContain(`aria-valuetext="5 horas: 99% usado, renova às ${hora(volta)}"`);
-    expect(html).toContain('class="cu-jan f-alerta"');
-    expect(html).toContain('aria-label="Semana"');
-    expect(html).toContain("O ChatGPT não informou o uso desta conta");
-    // A Lumen (sem o campo) não ganha bloco nenhum; a Pessoal (alerta) diz o que acontece sem outra conta na fila.
-    expect(html.match(/class="cl-uso /g)).toHaveLength(1);
-    expect(html).toContain("Sem outra conta do Claude na fila: no limite, as rotinas esperam até renovar.");
-    expect(html).not.toContain("cl-cota");
+    const lista = renderListaDeContas(ctx({ contas: comCota }));
+    expect(lista).toContain('class="cl-uso-pilha f-alerta" role="img" aria-label="5 horas: 99% usado; semana: 40% usado"');
+    expect(lista).toContain("5 h <b>99%</b>");
+    expect(lista.match(/class="cl-uso-fio[ "]/g)).toHaveLength(2);
+    // Só a Pessoal tem medida: a ChatGPT (cota null) e a Lumen (sem o campo) não ganham pilha.
+    expect(lista.match(/class="cl-uso-pilha/g)).toHaveLength(1);
+    const aberta = renderListaDeContas(ctx({ contas: comCota, ui: { aberta: PESSOAL.id } }));
+    expect(aberta).toContain(`aria-valuetext="5 horas: 99% usado, renova às ${hora(volta)}"`);
+    expect(aberta).toContain('class="cu-jan f-alerta"');
+    expect(aberta).toContain('aria-label="Semana"');
+    expect(aberta).toContain("Sem outra conta do Claude na fila: no limite, as rotinas esperam até renovar.");
+    expect(renderListaDeContas(ctx({ contas: comCota, ui: { aberta: GPT.id } }))).toContain("O ChatGPT não informou o uso desta conta");
+    expect(aberta).not.toContain("cl-cota");
     const amanha = AGORA + 30 * 3_600_000;
     const d = new Date(amanha);
     const dia = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const limite = renderListaDeContas(ctx({ contas: { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, noLimiteAte: amanha }] } }));
-    expect(limite).toContain(`No limite até ${dia} às ${hora(amanha)}`);
+    const contas = { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, noLimiteAte: amanha }] };
+    expect(renderListaDeContas(ctx({ contas }))).toContain(`No limite até ${dia} às ${hora(amanha)}`);
+    // Na conta aberta, o limite vem com o Tentar de novo.
+    expect(renderListaDeContas(ctx({ contas, ui: { aberta: LUMEN.id } }))).toContain(`data-act="cl-tentar-de-novo" data-id="${LUMEN.id}"`);
   });
 
-  it("NOD-12: na simulação (catcher) nenhum medidor; os detalhes dizem de onde vem o número, só com o campo `cota`", () => {
+  it("NOD-12: na simulação (catcher) nenhum medidor; a conta aberta diz de onde vem o número, só com o campo `cota`", () => {
     const comCota = { ...CONTAS, contas: [{ ...PESSOAL, cota: { cincoHoras: { utilizacao: 0.42, renovaEm: AGORA + 3_600_000 }, semana: null, situacao: "livre" as const, voltaEm: null, medidoEm: AGORA } }, { ...GPT, cota: null }, LUMEN] };
     const simulado = renderListaDeContas(ctx({ contas: comCota, simulacao: true }));
-    expect(simulado).not.toContain("cl-uso");
+    expect(simulado).not.toContain("cl-uso-pilha");
     expect(simulado).not.toContain("cu-nada");
-    const detalhe = (id: string, simulacao = false) => renderListaDeContas(ctx({ contas: comCota, simulacao, ui: { detalhe: id } }));
-    expect(detalhe(PESSOAL.id)).toContain("O próprio Claude Code informa o uso a cada trabalho.");
-    expect(detalhe(GPT.id)).toContain("O próprio Codex informa o uso no fim de cada conversa.");
-    expect(detalhe(LUMEN.id)).not.toContain("Uso do plano");
-    expect(detalhe(PESSOAL.id, true)).not.toContain("Uso do plano");
+    const aberta = (id: string, simulacao = false) => renderListaDeContas(ctx({ contas: comCota, simulacao, ui: { aberta: id } }));
+    expect(aberta(PESSOAL.id)).toContain("O próprio Claude Code informa o uso a cada trabalho.");
+    expect(aberta(GPT.id)).toContain("O próprio Codex informa o uso no fim de cada conversa.");
+    expect(aberta(LUMEN.id)).not.toContain("O próprio Claude Code informa");
+    expect(aberta(PESSOAL.id, true)).not.toContain("O próprio Claude Code informa");
+    expect(aberta(PESSOAL.id, true)).not.toContain("cu-jan");
+  });
+});
+
+describe("Nova conta (Jornadas da IA, Paper A1 → A1b/A2 → A3)", () => {
+  const nova = (o: Partial<NonNullable<UiContas["nova"]>> = {}) => ({ ia: "claude-cli" as const, apelido: "Freela", maquinas: [VM], ...o });
+  const naVm = (o: Partial<LoginNaMaquina>) => ({ onde: "vm" as const, login: login({ contaId: null, apelido: "Freela", ...o }), codigo: "", enviando: false, erroEnvio: null });
+
+  it("A1: fornecedores numa lista com a assinatura, os que chegam em breve numa linha, os passos e o Conectar", () => {
+    const html = renderListaDeContas(ctx({ ui: { nova: nova() }, emBreve: ["Cursor", "Hermes"] }));
+    expect(html).toContain("Anthropic · pelo Claude Code · assinatura Pro, Max ou Team");
+    expect(html).toContain("OpenAI · pelo Codex · assinatura Plus, Pro ou Team");
+    expect(emBreve(["Gemini", "Cursor", "Hermes"])).toBe("Gemini, Cursor e Hermes chegam em breve");
+    expect(emBreve(["Cursor"])).toBe("Cursor chega em breve");
+    expect(renderListaDeContas(ctx({ ui: { nova: nova() } }))).not.toContain("cl-prov-breve");
+    expect(html).toContain("Cursor e Hermes chegam em breve");
+    expect(html).toContain("Onde a conta vai rodar");
+    expect(html).toContain("Ao conectar, em cada máquina");
+    expect(html).toMatch(/<button type="submit" class="cl-np-entrar">Conectar<\/button>/);
+    const vmSem = renderListaDeContas(ctx({ ui: { nova: nova() }, maquinas: [maquina(VM, "vm-bots", { ias: { "claude-cli": "ausente" } }), MAQUINAS[1]!] }));
+    expect(vmSem).toContain("Sem Claude Code ainda");
+    expect(vmSem).toContain("O nod instala ao conectar · ~1 min");
+  });
+
+  it("A1b/A2: depois do Conectar, o fornecedor recolhe e cada máquina mostra a trilha Instalar · Conta · Teste", () => {
+    const instalando = renderListaDeContas(ctx({ ui: { nova: nova({ entrando: true }), logins: [naVm({ fase: "preparando", url: null, preparo: { acao: "instalar", linha: "Instalando o Claude Code 2.1.327 · 48 de 77 MB" } })] } }));
+    expect(instalando).toContain("cl-prov-escolhido");
+    expect(instalando).not.toContain('role="radiogroup"');
+    expect(instalando).toContain("Instalando o Claude Code 2.1.327 · 48 de 77 MB");
+    expect(instalando).toContain(">Instalando…</button>");
+    expect(instalando).toContain('class="t-girando"');
+    const conta = renderListaDeContas(ctx({ ui: { nova: nova({ entrando: true }), logins: [naVm({ fase: "aguardando_pessoa" })] } }));
+    expect(conta).toContain("Esperando você no navegador");
+    expect(conta).toContain('data-form="cl-codigo"');
+    expect(conta).toContain(">Conectando…</button>");
+  });
+
+  it("trilha: cada fase do login vira as três marcas", () => {
+    const t = (o: Partial<LoginNaMaquina>) => trilhaDoLogin(login(o));
+    expect(t({ fase: "preparando" })).toEqual(["girando", "depois", "depois"]);
+    expect(t({ fase: "abrindo", url: null })).toEqual(["feito", "girando", "depois"]);
+    expect(t({ fase: "aguardando_pessoa" })).toEqual(["feito", "ativo", "depois"]);
+    expect(t({ fase: "conferindo" })).toEqual(["feito", "feito", "girando"]);
+    expect(t({ fase: "pronto" })).toEqual(["feito", "feito", "feito"]);
+    expect(t({ fase: "falhou", erro: "preparo_falhou" })).toEqual(["erro", "depois", "depois"]);
+    expect(t({ fase: "falhou", erro: "nao_confirmou" })).toEqual(["feito", "feito", "erro"]);
+    expect(t({ fase: "falhou", erro: "codigo_invalido" })).toEqual(["feito", "erro", "depois"]);
+  });
+
+  it("A3: tudo pronto, a conta diz o lugar na fila e o Concluir leva a lista com o selo Nova", () => {
+    const freela = conta("aaaaaaaa-0000-4000-8000-000000000004", "claude-cli", "Freela", [VM], { entraNaTrocaAutomatica: true });
+    const contas = { ...CONTAS, contas: [...CONTAS.contas, freela] };
+    const html = renderListaDeContas(ctx({ contas, ui: { nova: nova({ entrando: true }), logins: [naVm({ fase: "pronto", contaFinalId: freela.id })] } }));
+    expect(html).toContain("Claude · Freela é a 4ª conta da fila");
+    expect(html).toContain("✓ Pronta");
+    expect(html).toContain(`data-act="cl-nova-fechar" data-recente="${freela.id}">Concluir`);
+    const fora = renderListaDeContas(ctx({ contas: { ...contas, contas: [...CONTAS.contas, { ...freela, entraNaTrocaAutomatica: false }] }, ui: { nova: nova({ entrando: true }), logins: [naVm({ fase: "pronto", contaFinalId: freela.id })] } }));
+    expect(fora).toContain("Claude · Freela ficou fora da fila");
+    const lista = renderListaDeContas(ctx({ contas, ui: { recente: freela.id } }));
+    expect(lista).toContain('<span class="selo selo-nova">Nova</span>');
+  });
+});
+
+describe("desvios do momento A que moram na web (Paper, tabela A)", () => {
+  it("6: depois de o código renovar e vencer de novo, 'Recomeçar o login' e 'Pular esta máquina'", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "tempo_esgotado" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    expect(html).toContain("Os códigos venceram sem login");
+    expect(html).toContain('data-act="cl-login-de-novo" data-login="33333333-3333-4333-8333-333333333333">Recomeçar o login<');
+    expect(html).toContain(">Pular esta máquina<");
+  });
+
+  it("7: a conta sem acesso diz quem desligou e oferece 'Entrar com outra conta' e 'Tirar da fila'", () => {
+    const sem = { ...PESSOAL, organizacao: "Leapy", email: "pessoa1@exemplo.com", maquinas: PESSOAL.maquinas.map((m) => ({ ...m, estado: "sem_acesso" as const })) };
+    const html = renderListaDeContas(ctx({ contas: { ...CONTAS, contas: [sem, GPT, LUMEN] }, ui: { aberta: PESSOAL.id } }));
+    expect(html).toContain("Leapy desligou o Claude por assinatura para pessoa1@exemplo.com.");
+    expect(html).toContain(`data-act="cl-nova-da-conta" data-id="${PESSOAL.id}">Entrar com outra conta<`);
+    expect(html).toContain(">Tirar da fila<");
+  });
+});
+
+describe("login aberto pela lista (Paper G1b e G2c)", () => {
+  const naVm = (o: Partial<LoginNaMaquina> = {}) => ({ onde: "vm" as const, login: login(o), codigo: "", enviando: false, erroEnvio: null });
+
+  it("G1b: a linha nunca leva o bloco do login; só 'Entrando na vm-bots' e a conta abre com ele", () => {
+    const html = renderListaDeContas(ctx({ ui: { logins: [naVm()] } }));
+    expect(html).not.toContain('data-form="cl-codigo"');
+    expect(html).not.toContain("Abrimos a página");
+    expect(html).toContain('<span class="contas-estado e-aviso">Entrando na vm-bots</span>');
+    const falhou = renderListaDeContas(ctx({ ui: { logins: [naVm({ fase: "falhou", erro: "codigo_invalido" })] } }));
+    expect(falhou).toContain('<span class="contas-estado e-erro">Não entrou na vm-bots</span>');
+  });
+
+  it("G2c: na conta aberta, o login mora embaixo da máquina dele, com o estado na linha e sem o Sair", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [naVm()] } }));
+    const vm = html.slice(html.indexOf("<b>vm-bots</b>"));
+    expect(vm.indexOf('<li class="cl-maq-login">')).toBeGreaterThan(-1);
+    expect(vm.indexOf('<li class="cl-maq-login">')).toBeLessThan(vm.indexOf("</ul>"));
+    expect(html).toContain('<span class="contas-estado e-aviso">Esperando você no navegador</span>');
+    expect(html).toContain("entrando");
+    expect(html).not.toContain(`data-act="cl-sair" data-id="${GPT.id}" data-maquina="${VM}"`);
+  });
+
+  it("o 'Entrar' da linha da lista abre a conta antes de começar o login (main.ts)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/"cl-entrar": \(el\) => \{\s*if \(el\.closest\("\.cl-linha-g1"\)\) contasDaPessoa\.abrirConta/);
+  });
+});
+
+describe("login de conta nova com a Nova conta fechada (Paper G1b)", () => {
+  it("a linha só diz onde está entrando e reabre a Nova conta no ponto do login", () => {
+    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ contaId: null, apelido: "Freela" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    expect(html).not.toContain('data-form="cl-codigo"');
+    expect(html).toContain('<span class="contas-estado e-aviso">Entrando na vm-bots</span>');
+    expect(html).toContain('data-act="cl-nova-retomar" data-ia="claude-cli" data-apelido="Freela"');
   });
 });

@@ -176,3 +176,34 @@ describe("a ordem arrastável", () => {
     expect(ordemComPasso(["a", "b"], "a", -1)).toEqual(["a", "b"]);
   });
 });
+
+describe("Jornadas da IA (Paper A2/C2): a página abre sozinha e o código vencido renova", () => {
+  const aguardando = (ia: IaDesktop, codigo: string | null) => e(ia, "entrando", { login: { fase: "aguardando", host: "auth.openai.com", codigoDoDispositivo: codigo, pedeCodigo: false, codigoEnviado: false, expiraEm: 1, mensagem: "" } as NonNullable<EstadoIa["login"]> });
+
+  it("Codex: o nod abre a página uma vez por código, assim que ele aparece", async () => {
+    const abertas: string[] = [];
+    const { c, emitir } = montar({ ponte: { abrirLink: async (ia) => { abertas.push(ia); return true; } } });
+    await c.iniciar();
+    emitir(aguardando("codex-cli", null));
+    expect(abertas).toEqual([]);
+    emitir(aguardando("codex-cli", "NP6Z-V3598"));
+    emitir(aguardando("codex-cli", "NP6Z-V3598"));
+    expect(abertas).toEqual(["codex-cli"]);
+    emitir(aguardando("codex-cli", "K7PX-2QMD4"));
+    expect(abertas).toHaveLength(2);
+  });
+
+  it("o código que venceu no meio do fluxo renova sozinho até 2 vezes", async () => {
+    let entradas = 0;
+    const { c, emitir } = montar({ ponte: { entrar: async (ia) => { entradas++; return aguardando(ia, `C-${entradas}`); } } });
+    await c.iniciar();
+    await c.entrar("codex-cli");
+    expect(entradas).toBe(1);
+    for (let i = 0; i < 3; i++) {
+      emitir(aguardando("codex-cli", `C-${entradas}`));
+      emitir(e("codex-cli", "falta_entrar", { login: { fase: "expirou", host: null, codigoDoDispositivo: null, pedeCodigo: false, codigoEnviado: false, expiraEm: 1, mensagem: "O código expirou." } as NonNullable<EstadoIa["login"]> }));
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(entradas).toBe(3);
+  });
+});

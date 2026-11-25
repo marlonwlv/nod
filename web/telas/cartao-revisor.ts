@@ -39,7 +39,10 @@ export function sempreNoCartao(item: Pick<Item, "itensAprovacao" | "nuncaPermane
 /** O brilho de "sugerida pelo revisor" (tela 06). */
 const ICONE_BRILHO = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M8 2l1.3 3.7L13 7l-3.7 1.3L8 12l-1.3-3.7L3 7l3.7-1.3z"/></svg>';
 
-const cortar = (t: string): string => (t.length > MOTIVO_NA_TELA_MAX ? `${t.slice(0, MOTIVO_NA_TELA_MAX - 1).trimEnd()}…` : t);
+const cortar = (t: string): string => {
+  const caracteres = Array.from(t);
+  return caracteres.length > MOTIVO_NA_TELA_MAX ? `${caracteres.slice(0, MOTIVO_NA_TELA_MAX - 1).join("").trimEnd()}…` : t;
+};
 
 /**
  * A linha embaixo da pergunta. "Revisor:" vai em texto, não só no escudo. No `revisor_pediu`, o motivo do revisor (texto

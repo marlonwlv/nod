@@ -35,7 +35,9 @@ describe("enviarMensagem: mensagem + turno + outbox na mesma tx (ADR-010), local
     const { data, events } = await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "oi" });
     expect(data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "executor_indisponivel" });
     expect(data.negacao).toMatchObject({ kind: "negacao", payload: { kind: "negacao", classe: "plano_ausente", terminal: true } });
-    expect(data.negacao?.texto).toContain("executor indisponível");
+    // Lote B (desvio 6): sem termos internos; a mensagem fica guardada.
+    expect(data.negacao?.texto).toContain("Nenhum trabalho começou");
+    expect(data.negacao?.texto).not.toMatch(/executor|claude-cli|nao_autenticado/);
     expect(events.map((e) => e.kind)).toEqual(["mensagem_criada", "turno_interrompido", "mensagem_criada"]);
     expect(await deps.repos.turnos.reivindicar({ machineId: randomUUID(), agora: Date.now() })).toBeNull();
   });

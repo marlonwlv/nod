@@ -127,6 +127,57 @@ Peso no celular (build de produção, gzip -9): o `index-*.js` cresce 0,5 KB; o 
 (69 KB) passa a baixar logo depois do boot, e não só ao abrir o onboarding ou o Marketplace. Dentro do teto de +120 KB
 da ADR-179.
 
+## Emenda (2026-11-19, fase 5 da ADR-179: abrir o quadro)
+
+A medida do quadro (`scripts/carga-tela`, cenário `quadro` com 160 tarefas e a conversa de 150 trocas aberta por baixo)
+achou o mesmo problema por outros dois caminhos. Abrir o quadro levava 300–620 ms até pintar com o servidor respondendo
+em 65–270 ms: o JS era 60–75 ms, e o resto eram **quatro recálculos de estilo da conversa escondida por baixo** (31 a 42
+mil elementos cada) a cada ida e volta. O trace com invalidação mostrou três causas:
+
+1. **A conversa saía por `inert` + `visibility: hidden`.** As duas são herdadas: pô-las e tirá-las recalcula cada nó da
+   conversa. Agora a `.qd-saiu` é `content-visibility: hidden` (o Chrome pula a subárvore no estilo e no layout, e ela não
+   recebe foco, clique nem leitor de tela) e só a vista do quadro fica `inert`. A rolagem da conversa volta igual (medido).
+2. **O Chrome junta todas as regras de `:has()` num conjunto de invalidação só.** A decisão 1 achava que bastava o sujeito
+   ser estreito; não basta quando a âncora é um ancestral da conversa. Com `body:has(#pg-menu)` ou
+   `.stage:has(> #quadro:not([hidden]) .pg-app)`, o `hidden` do `#quadro` que muda (ou os cards que entram) agenda a
+   invalidação no `body` e no `.stage` com o conjunto juntado — que tem `.message`, `.bubble`, `.msg-actions`, `tr.md-extra`
+   e os mascotes, sujeitos de outras regras. **Regra nova: nenhum `:has()` fora do sujeito ancorado em `html`, `body`,
+   `main`, `.app` ou `.stage`.** O estado vira classe: `palco-*` no `.stage`, posta por `marcarEstadoDaPagina`
+   (`web/lib/estado-da-pagina.ts`) depois de cada desenho que pode mudá-lo, e `pg-menu-aberto`/`menu-conta-aberto` no
+   `<html>`, postas pelos próprios menus. As 14 regras foram reescritas com o mesmo efeito.
+3. **Sujeito universal sob uma classe do `.stage`** (`.stage.qd-no-quadro > .cabecalho-pilula > *`,
+   `.stage.qd-no-quadro .abas-com-pilula > :not(.at-pilula)`): trocar `qd-no-quadro` invalidava o palco inteiro. **Regra
+   nova: sob uma classe do `.stage`, o sujeito nomeia o que estiliza.**
+
+As duas regras novas estão travadas em `tests/unit/web/css-has-sem-sujeito-universal.test.ts`. Ficam como dívida, fora
+desta emenda, as regras com sujeito universal sob estado do `<html>` ou da `.app` (`html[data-foco]`,
+`html.borda-arrastando`, `.app.painel-entrando`), que trocam raramente, e os `:has()` no próprio `#timeline`
+(`.timeline-wrap:has(> .tdt-casco)`), que só disparam ao trocar de tela.
+
+**Resultado** (2026-11-19, build de produção, mesmo banco, uma variante logo depois da outra, carga de 1 min entre 2,3 e
+3,3 do começo ao fim; 160 tarefas no quadro, maior tarefa / TBT / tecla p95 em ms):
+
+| Cenário | `main` | com a emenda |
+|---|---|---|
+| ocioso | 0 / 0 / 11 | 0 / 0 / 11 |
+| 8 bots fora da tela | 0 / 0 / 18 | 0 / 0 / 10 |
+| turno pesado | 70 / 22 / 11 | 0 / 0 / 7 |
+| os dois juntos | 54 / 4 / 16 | 55 / 5 / 9 |
+| 5 frentes | 58 / 16 / 15 | 0 / 0 / 7 |
+| quadro (bots escrevendo + arrastos) | 141 / 1.819 / 138 | 157 / 1.252 / 97 |
+
+| Quadro (ms) | `main` | com a emenda |
+|---|---|---|
+| 1ª abertura: até pintar / maior tarefa / servidor | 500 / 233 / 57 | 197 / 77 / 71 |
+| abrir de novo (p50): até pintar / maior tarefa / servidor | 307 / 252 / 76 | 136 / 91 / 91 |
+| soltar → card na coluna nova, p50 / p95 | 95 / 273 | 76 / 146 |
+| PATCH do mover (servidor), p50 / p95 | 125 / 353 | 135 / 355 |
+
+No trace, a ida e a volta não têm mais nenhum recálculo da página inteira (antes, quatro de 31 a 42 mil elementos); o
+maior visita a própria grade (~2,5 mil). Com a grade em React ligada (`?quadro-react=1`), a emenda também ajuda (abrir de
+novo 318 → 183 ms), mas a grade continua mais lenta que a por string (soltar p50 123 contra 76 ms): ela é refeita nos
+passos seguintes da fase 5 (ADR-179).
+
 ## Alternativas descartadas
 
 - **Reescrever a barra e a conversa em JSX, componente a componente.** É o fim do caminho, mas as duas regiões somam
