@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { TarefaNoTrabalho } from "../../../src/contracts/tarefa.ts";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
@@ -122,5 +124,23 @@ describe("emenda 5 do ADR-192 (achados das jornadas de QA)", () => {
     expect(html).toContain('data-act="abrir-trabalho" data-id="t9"');
     expect(html).toContain("Haicai sobre café");
     expect(htmlDasArquivadas({ ...nova, tarefasArquivadas: [] })).toContain("Nenhuma tarefa arquivada.");
+  });
+
+  it("QA r225: a leitura que falhou diz que falhou e oferece tentar de novo — não 'Nenhuma tarefa arquivada'", () => {
+    const nova = { ...estadoInicial, trabalhos: { trabalhos: [], pressao: null, memoriaTotalMb: null, leituraNovaDasTarefas: true } } as Estado;
+    const html = htmlDasArquivadas({ ...nova, tarefasArquivadas: "erro" });
+    expect(html).not.toContain("Nenhuma tarefa arquivada");
+    expect(html).toContain("Não deu para carregar as tarefas arquivadas.");
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('data-act="arquivadas-tentar"');
+  });
+
+  it("QA r225: arquivar ou desarquivar na tarefa relê a lista do chip; a falha da leitura vira 'erro', não lista vazia", () => {
+    const main = readFileSync(join(process.cwd(), "web/main.ts"), "utf8");
+    const carregar = main.slice(main.indexOf("async function carregarArquivadas"), main.indexOf("function campoDaTela"));
+    expect(carregar).toContain('tarefas: "erro"');
+    expect(carregar).not.toMatch(/tarefas: \[\]/);
+    const acoes = main.slice(main.indexOf('["resolver", "reabrir", "arquivar", "desarquivar"]'), main.indexOf('"trabalho-depois"'));
+    expect(acoes).toContain("carregarArquivadas()");
   });
 });

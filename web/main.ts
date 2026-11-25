@@ -4275,7 +4275,8 @@ async function carregarArquivadas(): Promise<void> {
   try {
     dispatch({ tipo: "tarefas-arquivadas", tarefas: api ? (await api.tarefasArquivadas()).tarefas : [] });
   } catch {
-    dispatch({ tipo: "tarefas-arquivadas", tarefas: [] });
+    // Erro não é lista vazia: "Nenhuma tarefa arquivada" mentia com arquivadas no servidor (QA r225).
+    dispatch({ tipo: "tarefas-arquivadas", tarefas: "erro" });
   }
 }
 
@@ -9717,6 +9718,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     await api!.acaoNaTarefa(tarefaId, acao, { ...(Number.isInteger(versao) && versao > 0 ? { versao } : {}), ...(turnoVivo ? { turnoVivo } : {}) });
     const trabalhoId = estado.tela.tipo === "trabalho" ? estado.tela.id : null;
     dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(trabalhoId ? [`trabalho:${trabalhoId}` as Invalidacao] : [])] });
+    // A lista do chip "Arquivadas" é lida só no clique: arquivar ou desarquivar aqui e voltar mostrava a lista de antes (QA r225).
+    if ((acao === "arquivar" || acao === "desarquivar") && estado.tarefasArquivadas !== null) void carregarArquivadas();
   })])),
   "trabalho-depois": (el) => estado.ocupado ? undefined : agir(async () => {
     await api!.trabalhoDepois(el.dataset.id ?? "", el.dataset.depois ?? "");
@@ -9778,6 +9781,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (m === "abertas" || m === "feitas" || m === "todas" || m === "arquivadas") navegar({ ...t, mostrar: m });
     if (m === "arquivadas") void carregarArquivadas();
   },
+  // O botão sai com o redesenho: o foco vai ao chip "Arquivadas", que fica (sem isso caía no <body>).
+  "arquivadas-tentar": () => { document.querySelector<HTMLElement>('.tela-tarefas .tf-chip[aria-pressed="true"]')?.focus(); dispatch({ tipo: "tarefas-arquivadas", tarefas: null }); void carregarArquivadas(); },
   "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {

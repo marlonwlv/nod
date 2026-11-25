@@ -85,6 +85,7 @@ export function comArquivadas(estado: Pick<Estado, "trabalhos">): boolean {
 /** A lista do chip "Arquivadas" (GET tarefas?estado=arquivada): título, bot e quando arquivou; a linha abre a tarefa. */
 export function htmlDasArquivadas(estado: Estado, bot?: string): string {
   if (estado.tarefasArquivadas === null) return '<p class="tf-vazio">carregando…</p>';
+  if (estado.tarefasArquivadas === "erro") return '<p class="tf-vazio" role="alert">Não deu para carregar as tarefas arquivadas. <button type="button" class="atv-link" data-act="arquivadas-tentar">Tentar de novo</button></p>';
   const lista = estado.tarefasArquivadas.filter((t) => !bot || t.agenteId === bot);
   if (lista.length === 0) return '<p class="tf-vazio">Nenhuma tarefa arquivada.</p>';
   const linha = (t: (typeof lista)[number]): string => {
