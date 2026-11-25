@@ -23,7 +23,7 @@ import type { DadosDoEncolhido } from "./cartao-encolhido.ts";
  * A fase sai da conversa (o que veio depois do cartão) e do clique desta aba; recarregar a tela não volta a abrir o cartão.
  */
 export type FaseDoCartao =
-  | { fase: "aberto" }
+  | { fase: "aberto"; erro?: string }
   | { fase: "agindo"; acao: string; agora: string }
   | { fase: "fechado"; marca: "ok" | "sem-resposta" | null; resultado: string };
 
@@ -39,6 +39,8 @@ export function faseDoCartao(m: Pick<Mensagem, "id" | "conversaId" | "criadoEm">
   const espera = botoes.find((b) => b.acao === "cancelar")?.dados?.turnoId;
   const fase = espera ? estado.cancelando[espera]?.fase : undefined;
   if (espera && (c?.turnosCancelados.some((t) => t.id === espera) || fase === "cancelando" || fase === "cancelada" || fase === "voltou")) return { fase: "fechado", marca: null, resultado: "Cancelada" };
+  // QA-226: a cópia já não está na fila (409/404): ela acordou e saiu. O cartão fecha dizendo isso, sem piscar "Cancelada".
+  if (espera && fase === "tarde") return { fase: "fechado", marca: null, resultado: "Já tinha saído · não deu para cancelar" };
   // A fala do bot depois do cartão: a mensagem saiu (pelo botão, pela espera ou pela outra conta).
   // PR #333 (achado 14): sem o clique desta aba, o genérico é "A conversa seguiu", não "A mensagem saiu": o bot pode ter
   // respondido uma mensagem posterior, e "✓ A mensagem saiu · Lia não conseguiu recomeçar" se contradizia.
@@ -53,6 +55,11 @@ export function faseDoCartao(m: Pick<Mensagem, "id" | "conversaId" | "criadoEm">
   // O clique deu certo e a resposta ainda não veio (o "Rodar no <máquina>" só muda a máquina do turno que espera): o
   // cartão fecha com o que está acontecendo.
   if (local) return { fase: "fechado", marca: "ok", resultado: local.agora };
+  // QA-226: a cópia que esperava já rodou e deixou o que aconteceu (o aviso de sempre ou outro cartão do mesmo desvio):
+  // a promessa deste cartão acabou e o Cancelar dele não cancela mais nada.
+  if (espera && depois.some((x) => x.turnoId === espera && x.kind === "sistema" && !(x.payload?.kind === "desvio" && x.payload.forma === "linha"))) return { fase: "fechado", marca: null, resultado: "Tentou de novo e não saiu" };
+  // O Cancelar falhou (rede, 5xx): o cartão segue aberto e diz, para a pessoa tentar de novo.
+  if (espera && fase === "erro") return { fase: "aberto", erro: "Não consegui cancelar. Tente de novo." };
   return ABERTO;
 }
 
@@ -87,7 +94,8 @@ export function desvioNaConversa(m: Pick<Mensagem, "id" | "conversaId">, p: Payl
   const acao = linha ? `<div class="aviso-estado-acoes desvio-acoes">${linha}</div>` : undefined;
   // O cartão do aviso de estado (ds.css): o ponto âmbar quando a mensagem espera sozinha; sem ponto quando o nod parou
   // e a pessoa escolhe.
-  return avisoDeEstado({ tom: p.tom === "espera" ? "alerta" : "info", titulo: p.titulo, texto: p.texto, ...(acao ? { acao } : {}), classe: `aviso-desvio desvio-${p.desvio}` });
+  const erro = fase.fase === "aberto" && fase.erro ? `<p class="aviso-estado-txt desvio-erro-cancelar" role="status">${esc(fase.erro)}</p>` : "";
+  return avisoDeEstado({ tom: p.tom === "espera" ? "alerta" : "info", titulo: p.titulo, texto: p.texto, ...(acao ? { acao } : {}), ...(erro ? { extra: erro } : {}), classe: `aviso-desvio desvio-${p.desvio}` });
 }
 
 /** O que a linha encolhida diz enquanto o botão roda e depois que a resposta chega. */

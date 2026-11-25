@@ -1,9 +1,25 @@
 import type { CofreDto } from "../../src/contracts/cofre.ts";
 import type { LoginDoCofreNaTela } from "../../src/contracts/navegador-do-bot.ts";
-import { siteDoFiltro, TELA_COFRE_INICIAL, type TelaCofre } from "../telas/config-cofre.ts";
+import { casaComFiltro, siteDoFiltro, TELA_COFRE_INICIAL, type TelaCofre } from "../telas/config-cofre.ts";
 
 /** Apagar um login some da lista na hora e só vai ao servidor quando o aviso com Desfazer acaba (D0: desfazer > confirmar). */
 export const MS_DESFAZER_LOGIN = 5_500;
+
+const SELETOR_ADICIONAR = '[data-act="cofre-adicionar-login"]';
+const seletorDoApagar = (id: string) => `.cofre-apagar[data-id="${id.replace(/["\\]/gu, "\\$&")}"]`;
+
+/**
+ * QA-206: para onde vai o foco quando a linha `id` some — o Apagar da linha seguinte que está à vista, senão o da
+ * anterior, senão o "Adicionar login" (a lista ficou vazia). Segue a mesma conta de visíveis do desenho (filtro e
+ * apagando).
+ */
+export function destinoAoApagar(t: TelaCofre, id: string): string {
+  const visiveis = (t.logins ?? []).filter((l) => !t.apagando?.has(l.id) && (!t.filtro || casaComFiltro(l.site, t.filtro)));
+  const i = visiveis.findIndex((l) => l.id === id);
+  const vizinho = i < 0 ? undefined : visiveis[i + 1] ?? visiveis[i - 1];
+  if (vizinho) return seletorDoApagar(vizinho.id);
+  return t.adicionando ? '.cofre-form input[name="site"]' : SELETOR_ADICIONAR;
+}
 
 type ApiDoCofre = {
   cofre(): Promise<CofreDto>;
@@ -24,6 +40,11 @@ export function criarTelaCofre(o: {
   aoErro?: (e: unknown) => void;
   esperar?: (fn: () => void, ms: number) => unknown;
   cancelar?: (t: unknown) => void;
+  /**
+   * QA-206: o destino do foco para o próximo desenho (no app, `focoPendente.lembrar`). Apagar, Desfazer e Ver todos tiram
+   * da tela o botão focado; sem isto o foco caía no <body> e o teclado voltava ao começo da página.
+   */
+  focar?: (seletor: string) => void;
 }) {
   let t: TelaCofre = TELA_COFRE_INICIAL;
   let pedido = 0;
@@ -52,6 +73,8 @@ export function criarTelaCofre(o: {
     abrir,
     /** "Logins deste site…" (D1c): o Cofre abre filtrado pelo site da aba do navegador. "" tira o filtro. */
     filtrar(url: string): void { mudar({ filtro: siteDoFiltro(url) || null }); },
+    /** "Ver todos" do filtro: o chip some com o botão focado; o foco vai para o "Adicionar login" (ou o campo do site). */
+    verTodos(): void { o.focar?.(t.adicionando ? '.cofre-form input[name="site"]' : SELETOR_ADICIONAR); mudar({ filtro: null }); },
     adicionando(sim: boolean): void { mudar({ adicionando: sim, erroNovo: null }); },
     /**
      * Guarda o login novo. O valor da senha só passa por aqui até o POST; quem chama limpa o campo. true = guardou (o
@@ -77,6 +100,7 @@ export function criarTelaCofre(o: {
       const api = o.api();
       const alvo = t.logins?.find((l) => l.id === id);
       if (!api?.apagarDoCofre || !alvo) return;
+      o.focar?.(destinoAoApagar(t, id));
       mudar({ apagando: new Set([...(t.apagando ?? []), id]) });
       const voltar = () => { const a = new Set(t.apagando ?? []); a.delete(id); mudar({ apagando: a }); };
       const timer = esperar(() => {
@@ -86,7 +110,7 @@ export function criarTelaCofre(o: {
           mudar({ apagando: a, logins: (t.logins ?? []).filter((l) => l.id !== id) });
         }, (e: unknown) => { voltar(); o.aoErro?.(e); });
       }, MS_DESFAZER_LOGIN);
-      o.avisar?.(`Login de ${alvo.site} apagado`, () => { cancelar(timer); voltar(); });
+      o.avisar?.(`Login de ${alvo.site} apagado`, () => { cancelar(timer); o.focar?.(seletorDoApagar(id)); voltar(); });
     },
   };
 }

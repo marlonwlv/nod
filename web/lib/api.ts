@@ -531,7 +531,10 @@ export function criarApi(escopo: Escopo) {
     // ADR-187 §6 (2026-11-18): com os anexos do clipe do campo da tarefa (ids soltos da conversa do trabalho).
     escreverNoTrabalho: (id: string, texto: string, anexos: readonly string[] = []) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, anexos.length ? { texto, anexos } : { texto }),
     // ADR-187 §7 (2026-11-18): a tarefa nova da pessoa nasce da primeira mensagem dela (⌘N, o "+" da aba).
-    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = []) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}) }),
+    // QA-196: a `chave` (a do envio, web/lib/envio-idempotente.ts) faz o reenvio depois de uma resposta perdida devolver a
+    // tarefa que o primeiro POST já criou (ADR-192, etapa 2), em vez de abrir outra igual com o bot rodando duas vezes.
+    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = [], chave?: string) =>
+      post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}), ...(chave ? { chave } : {}) }),
     // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
     fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
     pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),
@@ -729,9 +732,9 @@ export function criarApi(escopo: Escopo) {
     // Lote B (2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio — refaz o turno uma vez na outra IA.
     // Lote B (desvio 9): "Reinstalar e tentar" — a máquina reinstala a cópia da IA e a fala sai quando ela abrir.
     reinstalarETentar: (conversaId: string, turnoId: string, maquinaId: string, ia: string) =>
-      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/reinstalar-e-tentar`, { turnoId, maquinaId, ia }),
+      post<{ turnoId: string | null; motivo: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/reinstalar-e-tentar`, { turnoId, maquinaId, ia }),
     responderComOutraIa: (conversaId: string, turnoId: string, ia: string) =>
-      post<{ data: { turnoId: string | null; motivo: MotivoDaNota | null } }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId, ia }),
+      post<{ turnoId: string | null; motivo: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId, ia }),
     // ADR-102: as contas de IA da pessoa em todas as máquinas, o login numa máquina pela tela e o convite da VM.
     contasIa: () => get<ContasIaDto>("contas-ia"),
     ordemContas: (ids: string[]) => pedir<null>("PUT", `${base}/contas-ia/ordem`, { ids }),

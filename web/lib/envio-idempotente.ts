@@ -52,13 +52,13 @@ export function criarEnvios(gerar: () => string = () => crypto.randomUUID()): En
  * roda e a volta é `false`. É a trava do chat para quem não leva chave de idempotência (o campo da tela da task:
  * `POST trabalhos/:id/mensagens` não aceita `idEnvio`).
  */
-export async function enviarUmaVez(envios: Envios, alvo: string, texto: string, enviar: (idEnvio: string) => Promise<unknown>): Promise<boolean> {
-  const idEnvio = envios.iniciar(alvo, texto, []);
+export async function enviarUmaVez(envios: Envios, alvo: string, texto: string, enviar: (idEnvio: string) => Promise<unknown>, anexos: readonly string[] = []): Promise<boolean> {
+  const idEnvio = envios.iniciar(alvo, texto, anexos);
   if (idEnvio === null) return false;
   let ok = false;
   try {
-    await enviar(idEnvio);
-    ok = true;
+    // QA-196: `false` é a falha que quem envia já mostrou (o `agir` engole o erro): a chave fica para o reenvio da mesma fala.
+    ok = (await enviar(idEnvio)) !== false;
   } finally {
     envios.concluir(alvo, ok);
   }

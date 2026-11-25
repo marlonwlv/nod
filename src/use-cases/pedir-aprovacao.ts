@@ -6,7 +6,8 @@ import { ligarDecisaoATarefa } from "./tarefa-casa.ts";
 import type { Concessao } from "../contracts/concessao.ts";
 import type { Assunto } from "../contracts/destino-no-chat.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
-import type { ItemAprovacao } from "../contracts/item-aprovacao.ts";
+import type { DestinoItem, ItemAprovacao } from "../contracts/item-aprovacao.ts";
+import { jsonEstavel } from "../domain/json-estavel.ts";
 import type { DesfechoItem, MotivoAprovacaoManual } from "../contracts/motivos.ts";
 import type { CasoNod } from "../contracts/servicos.ts";
 import { montarItens, type PropostaItem } from "../domain/aprovacao-item.ts";
@@ -93,6 +94,20 @@ async function quemPediuSaiuDoQuadro(deps: Deps, turnoId: string): Promise<boole
   if (!turno || !aPedidoDeOutraPessoa(turno.sobProcuracaoDe, deps.escopo.pessoaId) || !turno.sobProcuracaoDe) return false;
   const q = await deps.repos.quadros.doTurno(turno.id);
   return !!q && !(await deps.repos.quadros.ehMembro(q.id, turno.sobProcuracaoDe));
+}
+
+const chaveDoLote = (itens: readonly { texto: string; destino: DestinoItem }[]): string =>
+  jsonEstavel(itens.map((i) => ({ texto: i.texto, conector: i.destino.conector, ferramenta: i.destino.ferramenta, argumentos: i.destino.argumentos ?? {} })));
+
+/** QA-144: o card de aprovação deste turno ainda aberto com exatamente os mesmos itens (texto e destino, na ordem). */
+async function cardIgualAberto(deps: Deps, turnoId: string, propostas: readonly PropostaItem[]): Promise<string | null> {
+  const chave = chaveDoLote(propostas);
+  for (const d of await deps.repos.decisoes.doTurno(turnoId)) {
+    if (d.tipo !== "aprovacao" || d.estado !== "pendente") continue;
+    const itens = await deps.repos.itensAprovacao.listar(d.id);
+    if (chaveDoLote(itens.map((i) => ({ texto: i.textoOriginal, destino: i.destino }))) === chave) return d.id;
+  }
+  return null;
 }
 
 /** `comRevisor`: só o caminho da ferramenta (a rota interna sabe esperar a revisão e enfileirar o pedido); os outros, como hoje. */
@@ -242,6 +257,13 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
       agente: agente ? { nome: agente.nome, titulo: agente.titulo, descricao: agente.descricao } : null,
     });
     return { revisao: { aguardar: r.data.aguardar, fila: r.data.revisao }, events: r.events ?? [] };
+  }
+
+  // QA-144: o bot repetir o MESMO lote no turno (retry depois de timeout, chamada duplicada) não abre outro card. Dois
+  // cards iguais aprovados executavam o efeito duas vezes (o e-mail saía em dobro). Devolve o card ainda aberto.
+  if (!automatico) {
+    const igual = await cardIgualAberto(deps, input.turnoId, propostas);
+    if (igual) return { saida: { data: { estado: "pendente", decisao_id: igual, instrucao: "encerre o turno; a decisão retoma depois" }, events: [] } };
   }
 
   const decisao = await deps.repos.decisoes.criar({

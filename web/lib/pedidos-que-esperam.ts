@@ -85,7 +85,7 @@ export function pedidosQueEsperam(p: {
  * (PLACEHOLDER_COM_APROVACAO, ADR-184), que diz o mesmo para a aprovação.
  */
 export function placeholderComPedido(nomeDoBot: string): string {
-  return `Responda à ${nomeDoBot} ou fale de outra coisa`;
+  return `Responda a ${nomeDoBot} ou fale de outra coisa`;
 }
 
 /**

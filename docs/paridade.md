@@ -227,7 +227,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 | Ação | O que faz | Risco | No chat | Rotas |
 | --- | --- | --- | --- | --- |
-| `trabalhos.abrir` | Abrir uma tarefa | muda | parcial (`abrir_task`): pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato | `POST ^\/agentes\/(?<id>[^/]+)\/trabalhos$` |
+| `trabalhos.abrir` | Abrir uma tarefa | muda | parcial (`abrir_frentes`): pelo chat quem escreve o pedido é o bot (abrir_frentes, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato | `POST ^\/agentes\/(?<id>[^/]+)\/trabalhos$` |
 | `trabalhos.renomear` | Renomear uma tarefa | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/titulo$` |
 | `trabalhos.parar` | Parar um trabalho | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/parar$` |
 | `trabalhos.encerrar` | Encerrar uma tarefa parada | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/encerrar$` |

@@ -87,6 +87,30 @@ describe("os cartões da tela são os da tabela única", () => {
       expect(fechado).toMatchObject({ titulo: cartao.titulo, resultado: "Cancelada", marca: null });
     });
 
+    // QA-226 (r229): a cópia que esperava já saiu (acordou e caiu de novo no desvio). O Cancelar dá 409 ("tarde") ou falha,
+    // e o cartão piscava "Cancelada" e voltava a abrir calado, prometendo que a mensagem sairia.
+    it("Cancelar tarde: fecha dizendo que a mensagem já tinha saído, não volta a abrir calado", () => {
+      expect(fase(estado({ cancelando: { t2: { fase: "tarde" } } }))).toEqual({ fase: "fechado", marca: null, resultado: "Já tinha saído · não deu para cancelar" });
+    });
+
+    it("Cancelar com erro: o cartão segue aberto e diz que não conseguiu cancelar", () => {
+      const f = fase(estado({ cancelando: { t2: { fase: "erro" } } }));
+      expect(f).toEqual({ fase: "aberto", erro: "Não consegui cancelar. Tente de novo." });
+      const html = desvioNaConversa(m, cartao, { fase: f });
+      expect(html).toContain('role="status"');
+      expect(html).toContain("Não consegui cancelar. Tente de novo.");
+      expect(html).toContain('data-act="cancelar-turno" data-id="t2"');
+    });
+
+    it("a cópia que esperava já rodou (deixou aviso ou outro cartão): o cartão antigo fecha", () => {
+      const aviso = { ...fala("m2", "agente"), kind: "sistema", turnoId: "t2", texto: "Turno interrompido: … nada foi reenviado." };
+      expect(fase(estado({ depois: [aviso] }))).toEqual({ fase: "fechado", marca: null, resultado: "Tentou de novo e não saiu" });
+      const outro = { ...fala("m2", "agente"), kind: "sistema", turnoId: "t2", payload: cartao };
+      expect(fase(estado({ depois: [outro] }))).toMatchObject({ fase: "fechado", resultado: "Tentou de novo e não saiu" });
+      // Linha de sistema de outro turno não fecha.
+      expect(fase(estado({ depois: [{ ...aviso, turnoId: "t9" }] }))).toEqual({ fase: "aberto" });
+    });
+
     it("9 · reinstalando: com a linha 'Reinstalando…' depois do cartão, o botão gira até a IA abrir", () => {
       const linha = { ...fala("m2", "pessoa"), kind: "sistema", payload: { kind: "desvio", desvio: "ia_nao_abriu", forma: "linha" } };
       expect(fase(estado({ depois: [linha] }))).toEqual({ fase: "agindo", acao: "reinstalar_e_tentar", agora: "Reinstalando" });

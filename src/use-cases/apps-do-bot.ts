@@ -41,14 +41,23 @@ async function experimentoLigado(deps: Deps): Promise<boolean> {
 
 const autoriaDe = (deps: Deps, autor: Autor): Autoria => (autor.tipo === "agente" ? autoriaDoAgente(deps.escopo, autor.agenteId) : autoriaPessoa(deps.escopo));
 
-/** O bot da pessoa: o id ou o nome exato. Bot de outra pessoa (ou excluído) = não encontrado. */
-async function botDaPessoa(deps: Deps, ref: string): Promise<{ id: string; nome: string } | null> {
+/**
+ * O bot da pessoa: o id ou o nome exato (sem caixa). Bot de outra pessoa (ou excluído) = não encontrado. QA-237: o nome
+ * olha só os bots dela (antes a busca pegava o mais antigo do tenant, e o bot da empresa de outra pessoa com o mesmo
+ * nome escondia o dela: "a pessoa não tem um bot chamado"); dois bots dela com o mesmo nome pedem o id, como o resto do
+ * chat (resolverBot, gerir_times, gerir_acessos), em vez de cair calado no mais antigo.
+ */
+export async function botDaPessoa(deps: Deps, ref: string): Promise<{ ok: true; id: string; nome: string } | Falha> {
   const r = ref.trim();
-  if (!r) return null;
+  const naoTem = falha("nao_encontrado", `a pessoa não tem um bot chamado ${ref}`);
+  if (!r) return naoTem;
   const porId = /^[0-9a-f-]{36}$/i.test(r) ? await deps.repos.agentes.buscar(r) : null;
-  const a = porId ?? (await deps.repos.agentes.buscarPorNome(r));
-  if (!a || a.ownerId !== deps.escopo.pessoaId) return null;
-  return { id: a.id, nome: a.nome };
+  if (porId) return porId.ownerId === deps.escopo.pessoaId ? { ok: true, id: porId.id, nome: porId.nome } : naoTem;
+  const chave = r.toLowerCase();
+  const iguais = (await deps.repos.agentes.listar({ incluirOcultos: true })).filter((a) => a.ownerId === deps.escopo.pessoaId && a.excluidoEm == null && a.nome.trim().toLowerCase() === chave);
+  if (iguais.length > 1) return falha("entrada_invalida", `há mais de um bot chamado "${r}": use o id (${iguais.map((a) => a.id).join(", ")})`);
+  const a = iguais[0];
+  return a ? { ok: true, id: a.id, nome: a.nome } : naoTem;
 }
 
 /**
@@ -190,7 +199,7 @@ async function gravar(deps: Deps, agenteId: string, nova: readonly string[]): Pr
 
 // ------------------------------------------------------------------------------------------------- remover / restaurar
 
-export async function removerApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto }>; events: RuntimeEvent[] }> {
+export async function removerApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto; jaEstava?: true }>; events: RuntimeEvent[] }> {
   const f = await preparar(deps, input.agenteId);
   if (f) return { data: f, events: [] };
   const ref = input.app.trim();
@@ -202,7 +211,13 @@ export async function removerApp(deps: Deps, input: Comum & { app: string }): Pr
   // A trava do bot, como em ordenar, restaurar e no card: quem grava a ordem ou conta os apps ao mesmo tempo espera.
   await deps.repos.appsDoBot.travar(input.agenteId);
   const app = await acharApp(deps, input.agenteId, ref);
-  if (!app) return { data: falha("nao_encontrado", `o app ${ref} não existe neste bot`), events: [] };
+  if (!app) {
+    // QA-138: o remover repetido (retry do bot, duplo clique) acha o app já fora: devolve o mesmo resultado, sem evento,
+    // em vez de "não existe" (que fazia o bot dizer à pessoa que falhou o que já tinha saído).
+    const fora = await acharApp(deps, input.agenteId, ref, { removido: true });
+    if (fora) return { data: { ok: true, paginas: await montar(deps, input.agenteId), app: paraDto(fora, deps.agora()), jaEstava: true }, events: [] };
+    return { data: falha("nao_encontrado", `o app ${ref} não existe neste bot`), events: [] };
+  }
   const removido = await deps.repos.appsDoBot.remover(app.id, deps.agora());
   if (!removido) return { data: falha("nao_encontrado", "o app já foi removido"), events: [] };
   // Retenção: só o último removido de cada nome fica para o Desfazer (o restaurar pelo nome já traz só ele); os de antes
@@ -213,13 +228,18 @@ export async function removerApp(deps: Deps, input: Comum & { app: string }): Pr
 }
 
 /** O Desfazer da remoção: volta no lugar que tinha na ordem (a ordem guardada não perde o id enquanto ele está fora). */
-export async function restaurarApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto }>; events: RuntimeEvent[] }> {
+export async function restaurarApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto; jaEstava?: true }>; events: RuntimeEvent[] }> {
   const f = await preparar(deps, input.agenteId);
   if (f) return { data: f, events: [] };
   // A trava antes de contar: um card confirmado ao mesmo tempo espera (ou é esperado), e o limite vale para os dois.
   await deps.repos.appsDoBot.travar(input.agenteId);
   const app = await acharApp(deps, input.agenteId, input.app, { removido: true });
-  if (!app) return { data: falha("nao_encontrado", `não há app removido com esse id ou nome neste bot: ${input.app.trim()}`), events: [] };
+  if (!app) {
+    // QA-138: o restaurar repetido acha o app já de volta na pílula: devolve o mesmo resultado, sem evento.
+    const vivo = await acharApp(deps, input.agenteId, input.app);
+    if (vivo) return { data: { ok: true, paginas: await montar(deps, input.agenteId), app: paraDto(vivo, deps.agora()), jaEstava: true }, events: [] };
+    return { data: falha("nao_encontrado", `não há app removido com esse id ou nome neste bot: ${input.app.trim()}`), events: [] };
+  }
   const atual = await montar(deps, input.agenteId);
   if (!atual.cabeMais) return { data: falha("limite_de_apps", `o bot já tem ${LIMITE_DE_APPS - 1} apps, o limite (a ${LIMITE_DE_APPS}ª página é de Tarefas): remova um antes`), events: [] };
   const r = await deps.repos.appsDoBot.restaurar(app.id);
@@ -372,7 +392,7 @@ export async function proporApp(deps: Deps, p: PedidoApp): Promise<{ data: Resul
   if (p.bot !== undefined && p.bot !== null) {
     if (typeof p.bot !== "string") return { data: falha("entrada_invalida", "bot: o id ou o nome"), events: [] };
     const b = await botDaPessoa(deps, p.bot);
-    if (!b) return { data: falha("nao_encontrado", `a pessoa não tem um bot chamado ${p.bot}`), events: [] };
+    if (!b.ok) return { data: b, events: [] };
     alvoId = b.id;
   }
   const v = await validarCriacao(deps, { alvoId, nome: p.nome, icone: p.icone, fonte: p.fonte, fonte_ref: p.fonte_ref, forma: p.forma, regra_pede: p.regra_pede, pede_quando: p.pede_quando });
