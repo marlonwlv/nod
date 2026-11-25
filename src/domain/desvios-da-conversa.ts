@@ -230,7 +230,7 @@ export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: n
     case "limite_bot_fixo":
       return c(quando ? `Esperando ${oIa(n.ia)} voltar, ${quando.replace(/^às /, "")}` : `Esperando ${oIa(n.ia)} voltar · volta sem hora`, `${n.bot} só usa ${oIa(n.ia)}. A mensagem sai sozinha quando o limite passar`, [...outraIa, ...cancelar], { espera: { ate: o.ate ?? null }, tom: "espera" });
     case "limite":
-      return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `${oIa(n.ia, true)} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele voltar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null } });
+      return c(quando ? `A ${conta} volta ${quando}` : `A ${conta} chegou ao limite · volta sem hora`, quando ? `A mensagem espera e sai sozinha ${quando}` : `${oIa(n.ia, true)} não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele passar`, [...outraMaquina, ...cancelar], { espera: { ate: o.ate ?? null } });
     case "instavel":
       return c(`${oIa(n.ia, true)} continua instável`, n.outraIa ? `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes. ${n.bot} só usa ${oIa(n.ia)}, mas o ${n.outraIa} está pronto para responder desta vez` : `O nod tentou ${DESVIOS.instavel.repeticoes + 1} vezes e não há outra IA pronta agora`, [...outraIa, ...outraMaquina, ...verErro]);
     case "sem_ia_pronta":
@@ -251,7 +251,7 @@ export function cartaoDoDesvio(desvio: IdDesvio, n: NomesDoDesvio, o: { agora: n
       return c(`${oIa(n.ia, true)} não abriu${onde}`, texto, [...reinstalar, ...outraMaquina.map((b) => ({ ...b, rotulo: `Rodar ${noNa(n.outraMaquina!.nome)}` }))]);
     }
     case "erro_desconhecido":
-      return c(`A ${conta} parou duas vezes com o mesmo erro`, `Já tentei de novo uma vez.${o.relatado ? " O relato foi para o time do nod com o erro anexado" : ""}`, [...outraIa, ...outraMaquina, ...verErro]);
+      return c(`A ${conta} parou duas vezes com o mesmo erro`, `O nod já tentou de novo uma vez.${o.relatado ? " O relato foi para o time do nod com o erro anexado" : ""}`, [...outraIa, ...outraMaquina, ...verErro]);
     case "nod_atualizou":
       return c("O nod atualizou e não conseguiu retomar", "A resposta parou no meio. Peça de novo para continuar de onde parou", outraMaquina);
     case "computador_dormiu":
