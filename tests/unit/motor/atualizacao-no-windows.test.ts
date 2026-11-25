@@ -1,12 +1,14 @@
+import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  APP_PARADO, appDeveAtualizar, arquivoDaMarca, atualizandoAgora, CARENCIA_DO_APP_MS, codificar, comandoDeAtualizarSolto, manifestoDoWindows,
+  APP_PARADO, appDeveAtualizar, arquivoDaMarca, atualizandoAgora, CARENCIA_DO_APP_MS, codificar, comandoDeAtualizarSolto, dispararSolto, manifestoDoWindows, OPCOES_DO_DISPARO,
   marcaValida, motorDoWindowsDiferente, motorSeAtualiza, scriptDaAtualizacao, sinalizarQueSeAtualiza, VALIDADE_DA_MARCA_MS, VALIDADE_DO_SINAL_MS,
 } from "../../../motor/atualizacao-no-windows.ts";
+import { ARQUIVO_LOG_DO_MOTOR, destinoDoLogNoWindows } from "../../../motor/log-no-windows.ts";
 
 const sha = (t: string) => createHash("sha256").update(t).digest("hex");
 const MIN = 60_000;
@@ -116,5 +118,89 @@ describe("o motor do Windows se atualiza sozinho (2026-11-25)", () => {
     await sinalizarQueSeAtualiza(env);
     expect(await motorSeAtualiza(env)).toBe(true);
     expect(await motorSeAtualiza(env, Date.now() + VALIDADE_DO_SINAL_MS + MIN)).toBe(false);
+  });
+});
+
+describe("#358: o disparo da troca no Windows (QA da rc.13)", () => {
+  type Ouvinte = (...a: unknown[]) => void;
+  const falso = () => {
+    const chamadas: { arquivo: string; args: string[]; opcoes: SpawnOptions }[] = [];
+    const ouvintes = new Map<string, Ouvinte>();
+    let soltou = false;
+    const gerar = (arquivo: string, args: string[], opcoes: SpawnOptions) => {
+      chamadas.push({ arquivo, args, opcoes });
+      const p = { once: (ev: string, fn: Ouvinte) => { ouvintes.set(ev, fn); return p; }, unref: () => { soltou = true; return p; } };
+      return p as unknown as ChildProcess;
+    };
+    return { gerar, chamadas, emitir: (ev: string, ...a: unknown[]) => ouvintes.get(ev)?.(...a), soltou: () => soltou };
+  };
+  const cmd = comandoDeAtualizarSolto("https://app.nodbot.ai", "C:\\Windows");
+
+  it("as opções do PowerShell externo NÃO têm detached (com ele, o Start-Process interno não sobe no Windows)", () => {
+    expect(OPCOES_DO_DISPARO).not.toHaveProperty("detached");
+    expect(OPCOES_DO_DISPARO).toEqual({ windowsHide: true, stdio: "ignore" });
+  });
+
+  it("dispara com essas opções, solta o filho e só resolve quando o PowerShell externo sai", async () => {
+    const f = falso();
+    let resolvido = false;
+    const d = dispararSolto(cmd, f.gerar).then((r) => { resolvido = true; return r; });
+    expect(f.chamadas).toEqual([{ arquivo: cmd.arquivo, args: cmd.args, opcoes: OPCOES_DO_DISPARO }]);
+    expect(f.chamadas[0]!.opcoes.detached).toBeUndefined();
+    expect(f.soltou()).toBe(true);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(resolvido).toBe(false);
+    f.emitir("exit", 0);
+    expect(await d).toEqual({ ok: true });
+  });
+
+  it("saída diferente de 0, erro do spawn e o prazo viram falha com o motivo", async () => {
+    let f = falso();
+    let d = dispararSolto(cmd, f.gerar);
+    f.emitir("exit", 1);
+    expect(await d).toEqual({ ok: false, motivo: "saida", codigo: 1 });
+    f = falso();
+    d = dispararSolto(cmd, f.gerar);
+    f.emitir("error", Object.assign(new Error("x"), { name: "Error" }));
+    expect(await d).toEqual({ ok: false, motivo: "erro", erro: "Error" });
+    f = falso();
+    expect(await dispararSolto(cmd, f.gerar, 5)).toEqual({ ok: false, motivo: "prazo" });
+    expect(await dispararSolto(cmd, () => { throw new TypeError("sem powershell"); })).toEqual({ ok: false, motivo: "erro", erro: "TypeError" });
+  });
+
+  it("o motor e o app disparam por dispararSolto, e nenhum dos dois volta a usar spawn detached para a troca", async () => {
+    const motor = await readFile(join(import.meta.dirname, "../../../motor/main.ts"), "utf8");
+    const app = await readFile(join(import.meta.dirname, "../../../desktop/windows/main.ts"), "utf8");
+    const corpo = (texto: string, de: string) => texto.slice(texto.indexOf(de), texto.indexOf("\n}\n", texto.indexOf(de)));
+    const doMotor = corpo(motor, "async function atualizarNoWindows(");
+    const doApp = corpo(app, "async function conferirMotor(");
+    expect(doMotor).toContain("await dispararSolto(c)");
+    expect(doApp).toContain("await dispararSolto(cmd)");
+    for (const t of [doMotor, doApp]) { expect(t).not.toMatch(/detached: true/); expect(t).not.toMatch(/\bspawn\(/); }
+  });
+});
+
+describe("#358 (achado 9): o log do motor do Windows em disco", () => {
+  it("grava motor.log na pasta do nod e gira para motor.1.log no teto", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "nod-win-"));
+    const destino = destinoDoLogNoWindows({ NOD_PASTA: pasta }, 250);
+    destino(JSON.stringify({ evento: "motor_iniciado", pad: "x".repeat(80) }));
+    expect(await readFile(join(pasta, ARQUIVO_LOG_DO_MOTOR), "utf8")).toContain("motor_iniciado");
+    destino(JSON.stringify({ evento: "motor_atualizacao", pad: "y".repeat(80) }));
+    destino(JSON.stringify({ evento: "pedido_falhou", pad: "z".repeat(80) }));
+    expect(await readFile(join(pasta, "motor.1.log"), "utf8")).toContain("motor_iniciado");
+    expect(await readFile(join(pasta, ARQUIVO_LOG_DO_MOTOR), "utf8")).toContain("pedido_falhou");
+  });
+
+  it("sem NOD_PASTA, fica em %LOCALAPPDATA%\\nod (a pasta da instalação)", async () => {
+    const local = await mkdtemp(join(tmpdir(), "nod-local-"));
+    destinoDoLogNoWindows({ LOCALAPPDATA: local })(JSON.stringify({ evento: "motor_iniciado" }));
+    expect(await readFile(join(local, "nod", "motor.log"), "utf8")).toContain("motor_iniciado");
+  });
+
+  it("o motor rodar no Windows liga o destino e registra a saída", async () => {
+    const motor = await readFile(join(import.meta.dirname, "../../../motor/main.ts"), "utf8");
+    expect(motor).toMatch(/async function rodar\(\): Promise<number> \{\n[^\n]*\n\s+if \(NO_WINDOWS\) \{\n\s+definirDestinoDoLog\(destinoDoLogNoWindows\(process\.env\)\);/);
+    expect(motor).toContain('log("info", "motor_saiu", { codigo })');
   });
 });

@@ -42,7 +42,7 @@ import type { AtualizadorDeIas } from "../desktop/atualizador-ias.ts";
 import { PACOTE_DA_IA } from "../desktop/instalar-ia.ts";
 import { versaoAceita } from "../src/domain/versao-app.ts";
 import { repassarAcaoDoEvento } from "../src/domain/rotulo-ferramenta.ts";
-import { log } from "../src/obs/log.ts";
+import { definirDestinoDoLog, log } from "../src/obs/log.ts";
 import { ambienteDoLogin, comandoDeEstadoDoLogin, lerIaDesktop, textoDaImpressao } from "../desktop/ia-mac.ts";
 import { criarVigiaDasIas, type Veredito, type VigiaDasIas } from "../desktop/vigia-ias.ts";
 import { criarContasLocais, inventariosComContas, type ContaLocal } from "../desktop/contas-locais.ts";
@@ -53,7 +53,8 @@ import { iniciarContasDoMotor, lerIdentidadeNoCli, logoutNoCli, type ClisDoMotor
 import { depsDeVerdade, desinstalar } from "./desinstalar.ts";
 import type { OpcoesRemover } from "../src/contracts/remover-computador.ts";
 import { arquivoDoPedido, atualizacaoLigada, iniciarAtualizacao, MARCA_DA_ATUALIZACAO, type Atualizador } from "./atualizacao.ts";
-import { atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_SINAL_MS, sinalizarQueSeAtualiza } from "./atualizacao-no-windows.ts";
+import { destinoDoLogNoWindows } from "./log-no-windows.ts";
+import { atualizandoAgora, comandoDeAtualizarSolto, dispararSolto, INTERVALO_DO_SINAL_MS, sinalizarQueSeAtualiza } from "./atualizacao-no-windows.ts";
 import { anuncioDoComputador, sondaLocal } from "./computador.ts";
 import { arquivoDasAtualizacoes, arquivoDoEstadoDeIa, arquivoDoPedidoDeIa, ESPERA_DA_RESPOSTA_MS, ESPERA_DO_SERVICO_MS, gravarJson, IA_DO_TERMINAL, lerEstadoDoPedido, passoNpmLocal, vigiarPedidosDoTerminal } from "./atualizar-ias.ts";
 import { criarPreparoNoMotor } from "./preparo-do-login.ts";
@@ -508,8 +509,10 @@ function sairPor(codigo: "chave_invalida" | "atualize_app", url: string): number
 async function atualizarNoWindows(url: string): Promise<void> {
   if (await atualizandoAgora(process.env)) { log("info", "motor_atualizacao", { motivo: "troca_em_curso" }); return; }
   const c = comandoDeAtualizarSolto(url, process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows");
-  spawn(c.arquivo, c.args, { detached: true, windowsHide: true, stdio: "ignore" }).on("error", (e) => log("aviso", "motor_atualizacao_falhou", { erro: e.name })).unref();
-  log("info", "motor_atualizacao", { motivo: "script_disparado" });
+  // #358: sem `detached` (OPCOES_DO_DISPARO) e esperando o PowerShell externo sair, para o `sairPorVersao` não o levar junto.
+  const d = await dispararSolto(c);
+  if (d.ok) log("info", "motor_atualizacao", { motivo: "script_disparado" });
+  else log("aviso", "motor_atualizacao_falhou", { motivo: d.motivo, codigo: d.codigo ?? null, erro: d.erro ?? null });
 }
 
 /**
@@ -531,6 +534,12 @@ async function sairPorVersao(url: string, pasta: string): Promise<number> {
 }
 
 async function rodar(): Promise<number> {
+  // #358 (achado 9): no Windows o conhost --headless descarta a saída; o log vai também para %LOCALAPPDATA%\nod\motor.log.
+  if (NO_WINDOWS) {
+    definirDestinoDoLog(destinoDoLogNoWindows(process.env));
+    process.on("uncaughtExceptionMonitor", (e) => { log("erro", "motor_caiu", { erro: e instanceof Error ? e.name : "desconhecido" }); });
+    log("info", "motor_iniciado", { versao: await versaoDoMotor().catch(() => "desconhecida") });
+  }
   const pasta = pastaDoMotor(process.env);
   const c = await carregarConexao(pasta);
   if (!c) { process.stderr.write(`Esta máquina ainda não está conectada. Rode: ${comandoDeParear("https://seu-nod")}\n`); return 2; }
@@ -789,4 +798,11 @@ const saida =
   : comando.tipo === "versao" ? versaoDoMotor().then((v) => { process.stdout.write(`${v}\n`); return 0; })
   : comando.tipo === "navegador-host" ? (async () => rodarHostDoChrome({ pipe: pipeDoChrome(pastaDoMotor(process.env)), senha: await senhaDoChrome(pastaDoMotor(process.env), false), entrada: process.stdin, saida: process.stdout }))()
   : Promise.resolve((process.stdout.write(`${comando.erro ? `${comando.erro}\n\n` : ""}${AJUDA}`), comando.erro ? 1 : 0));
-saida.then((codigo) => process.exit(codigo), (e: unknown) => { process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`); process.exit(1); });
+saida.then((codigo) => {
+  if (comando.tipo === "rodar" && NO_WINDOWS) log("info", "motor_saiu", { codigo });
+  process.exit(codigo);
+}, (e: unknown) => {
+  if (comando.tipo === "rodar" && NO_WINDOWS) log("erro", "motor_saiu", { codigo: 1, erro: e instanceof Error ? e.name : "desconhecido" });
+  process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
+  process.exit(1);
+});

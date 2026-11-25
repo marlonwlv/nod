@@ -22,10 +22,14 @@ function existe(caminho: string) {
   try { return lstatSync(caminho); } catch { return null; }
 }
 
-/** Destino do log(): uma linha por chamada, com rotação. Erro sobe para o try/catch do log(). */
-export function criarArquivoDeLog(o: { dir: string; maxBytes: number }): (linha: string) => void {
-  const atual = join(o.dir, ARQUIVO_LOG);
-  const anterior = join(o.dir, ARQUIVO_LOG_ANTERIOR);
+/**
+ * Destino do log(): uma linha por chamada, com rotação. Erro sobe para o try/catch do log(). `nome` troca o par
+ * `nod.log`/`nod.1.log` (o motor do Windows grava `motor.log`/`motor.1.log`, #358).
+ */
+export function criarArquivoDeLog(o: { dir: string; maxBytes: number; nome?: string }): (linha: string) => void {
+  const base = o.nome ?? ARQUIVO_LOG;
+  const atual = join(o.dir, base);
+  const anterior = join(o.dir, base.replace(/\.log$/, ".1.log"));
   let tamanho: number | null = null;
   return (linha) => {
     let dados = `${linha}\n`;

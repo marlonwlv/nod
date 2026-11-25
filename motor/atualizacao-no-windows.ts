@@ -1,3 +1,4 @@
+import { spawn, type SpawnOptions } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -80,8 +81,45 @@ const OCULTO = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "
  * chamou. Do motor isso é obrigatório (o `PararMotor` do script mata a árvore do node.exe com `taskkill /T`).
  */
 export function comandoDeAtualizarSolto(servidor: string, systemRoot = "C:\\Windows"): Comando {
-  const interno = [...OCULTO, "-EncodedCommand", codificar(scriptDaAtualizacao(servidor))].map((a) => `'${a}'`).join(",");
+  return comandoSolto(scriptDaAtualizacao(servidor), systemRoot);
+}
+
+/** O mesmo PowerShell solto com qualquer script (o teste no Windows de verdade dispara um script que só grava um arquivo). */
+export function comandoSolto(script: string, systemRoot = "C:\\Windows"): Comando {
+  const interno = [...OCULTO, "-EncodedCommand", codificar(script)].map((a) => `'${a}'`).join(",");
   return { arquivo: POWERSHELL(systemRoot), args: [...OCULTO, "-Command", `Start-Process -FilePath '${POWERSHELL(systemRoot)}' -WindowStyle Hidden -ArgumentList ${interno}`] };
+}
+
+/**
+ * QA da rc.13 no Windows (#358, 2026-11-25): as opções do PowerShell externo. SEM `detached`: no Windows ele vira
+ * DETACHED_PROCESS, o PowerShell externo nasce sem console e o `Start-Process` dele não sobe o interno (medido no
+ * Windows Server 2022, sessões 0 e 1: a marca e o log nunca apareciam, e o motor seguia velho). Sem `detached` o
+ * interno nasce e sobrevive ao `taskkill /T` do motor e à saída do app: o `Start-Process` o tira da árvore, e o job
+ * do libuv (SILENT_BREAKAWAY_OK) não leva os netos junto.
+ */
+export const OPCOES_DO_DISPARO: SpawnOptions = { windowsHide: true, stdio: "ignore" };
+/** O PowerShell externo só roda o `Start-Process` e sai; passou disso, desiste de esperar (o interno já pode ter subido). */
+export const PRAZO_DO_DISPARO_MS = 30_000;
+
+export type Disparo = { ok: true } | { ok: false; motivo: "erro" | "prazo" | "saida"; codigo?: number | null; erro?: string };
+type Gerar = (arquivo: string, args: string[], opcoes: SpawnOptions) => Pick<import("node:child_process").ChildProcess, "once" | "unref">;
+
+/**
+ * Dispara o comando de `comandoDeAtualizarSolto` e espera o PowerShell externo sair (ele sai logo depois do
+ * `Start-Process`). Esperar importa para o motor que sai em seguida (`sairPorVersao`): sem `detached`, o processo que
+ * morre antes do externo terminar levaria o externo junto (o job do libuv mata os filhos diretos ao fechar).
+ */
+export function dispararSolto(c: Comando, gerar: Gerar = spawn, prazoMs = PRAZO_DO_DISPARO_MS): Promise<Disparo> {
+  return new Promise((resolver) => {
+    let feito = false;
+    const fim = (d: Disparo) => { if (!feito) { feito = true; clearTimeout(t); resolver(d); } };
+    const t = setTimeout(() => fim({ ok: false, motivo: "prazo" }), prazoMs);
+    let p: ReturnType<Gerar>;
+    try { p = gerar(c.arquivo, c.args, OPCOES_DO_DISPARO); } catch (e) { fim({ ok: false, motivo: "erro", erro: e instanceof Error ? e.name : "desconhecido" }); return; }
+    p.once("error", (e: Error) => fim({ ok: false, motivo: "erro", erro: e.name }));
+    p.once("exit", (codigo: number | null) => fim(codigo === 0 ? { ok: true } : { ok: false, motivo: "saida", codigo }));
+    p.unref();
+  });
 }
 
 /** A marca vale (troca em curso) se existe e é mais nova que VALIDADE_DA_MARCA_MS. */

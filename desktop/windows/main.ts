@@ -28,7 +28,7 @@ import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio } from "
 import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../../src/contracts/desktop-atualizacao.ts";
 import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
-import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, motorSeAtualiza, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
+import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, dispararSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, motorSeAtualiza, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
 import { FalhaPareamentoWindows, linkDePareamento, parearPorDispositivo } from "./pareamento.ts";
 import { abrirSessao, cookieDaJanela, PARTITION_DA_JANELA } from "./sessao.ts";
@@ -191,8 +191,10 @@ async function conferirMotor(): Promise<void> {
     estadoDoMotorNoApp = d.estado;
     if (!d.atualizar) return;
     const cmd = comandoDeAtualizarSolto(c.url, systemRoot);
-    spawn(cmd.arquivo, cmd.args, { detached: true, windowsHide: true, stdio: "ignore" }).on("error", () => registrar("motor_atualizacao_pelo_app_falhou", {})).unref();
-    registrar("motor_atualizacao_pelo_app", {});
+    // #358: sem `detached` (OPCOES_DO_DISPARO): com ele o PowerShell interno nunca subia e o motor seguia velho.
+    const r = await dispararSolto(cmd);
+    if (r.ok) registrar("motor_atualizacao_pelo_app", {});
+    else registrar("motor_atualizacao_pelo_app_falhou", { motivo: r.motivo, codigo: r.codigo ?? null });
   } catch { registrar("motor_atualizacao_pelo_app_falhou", {}); } finally { conferindoMotor = false; }
 }
 
