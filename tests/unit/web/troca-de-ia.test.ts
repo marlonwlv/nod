@@ -141,7 +141,7 @@ describe("revisão do PR 2: o aviso de troca de IA", () => {
 
   it("C5: a outra IA não está na máquina do bot — só esperar, e o cartão diz por quê", () => {
     const html = cartaoTrocaDeIa(aviso({ iaPara: null, foraDaMaquina: { ia: "codex-cli", maquina: "vm-bots" } }), { nomeDoBot: "Eng 1", agora: AGORA })!;
-    expect(html).toContain("O ChatGPT não está em vm-bots, a máquina do Eng 1.");
+    expect(html).toContain("O ChatGPT não está em vm-bots, a máquina de Eng 1.");
     expect(html).not.toContain('data-act="troca-levar"');
     expect(html).not.toContain("A conversa segue no");
   });

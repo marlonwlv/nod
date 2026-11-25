@@ -35,6 +35,15 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * QA-178: a vaga da máquina só-computador da pessoa, travada até o fim da transação. `computadorVivo` + `criar` sem
+     * ela deixavam dois pareamentos ao mesmo tempo verem a vaga livre, e o segundo batia no índice da 0105 (23505, 500).
+     * Com a trava, o segundo espera, relê a vaga e recebe a recusa do domínio (ou, no Substituir, revoga a do primeiro).
+     */
+    async travarVagaDoComputador(): Promise<void> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`maquina-computador:${escopo.tenantId}:${escopo.pessoaId}`}, 0))`;
+    },
+
+    /**
      * NOD-94 (0105): a máquina só-computador viva da pessoa, depois de revogar (na data em que venceu) a que venceu sem
      * confirmação — ela ainda seguraria a vaga do índice único. null = a vaga está livre.
      */
@@ -69,6 +78,19 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
           and revogado_em is null and (expira_em is null or expira_em > now()) and papel = 'motor'
         order by criado_em desc`.then((ls) => ls.map((l) => ({ id: l.id, nome: l.nome, plataforma: l.plataforma ?? null })));
+    },
+
+    /**
+     * definido em 2026-11-25: a pessoa tem uma máquina Linux viva (motor, só-computador ou na nuvem), o único lugar onde o
+     * computador do bot roda agora (COMPUTADOR_NO_MAC, src/domain/computador-canal.ts). Conta mesmo desconectada: o
+     * computador dela fica "fora do ar" e volta quando a máquina volta, em vez de sumir da tela.
+     */
+    async temLinuxViva(): Promise<boolean> {
+      const [l] = await conn<{ tem: boolean }[]>`
+        select exists (select 1 from maquina_tokens
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and plataforma = 'linux'
+            and revogado_em is null and (expira_em is null or expira_em > now())) as tem`;
+      return l?.tem === true;
     },
 
     /** Revogar é idempotente: a primeira data fica. false = a chave não existe (ou é de outra pessoa). */

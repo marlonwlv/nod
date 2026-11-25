@@ -108,7 +108,7 @@ describe("a tarefa nova (Paper 3b e 3e)", () => {
     // ADR-187 §8 (2026-11-18): o botão passa a si mesmo, para o menu "Nova tarefa com" da tela Tarefas abrir junto dele.
     expect(main).toContain('"nova-tarefa": (el) => abrirNovaTarefa(el),');
     expect(main).toContain('if (tela.tipo === "nova-tarefa") return criarTarefaNova(tela);');
-    expect(main).toContain("id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids)).trabalho.id;");
+    expect(main).toContain("id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids, idEnvio)).trabalho.id;");
     // Validação de 2026-11-18: o campo da tarefa nova tem o clipe, e a fila dela é a da conversa do bot.
     expect(main).toContain("htmlComposer(PLACEHOLDER_NOVA_TAREFA, [], { seletor: true, anexos: aceitaDo(botGerido(t.agenteId)?.harness) })");
     const criar = main.slice(main.indexOf("async function criarTarefaNova"), main.indexOf("async function criarTarefaNova") + 1400);

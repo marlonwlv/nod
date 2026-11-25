@@ -64,6 +64,26 @@ describeIntegracao("navegador do bot: repositórios (0180)", () => {
     });
   });
 
+  it("QA-200: guardar de novo o mesmo site e usuário troca a senha do login que já existe, sem gravar outro", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const repos = criarRepos(trx, MARLON);
+      const chave = randomBytes(32);
+      const antigo = await repos.cofreLogins.criar({ site: "itau.com.br", usuario: "Marlon@x.com", senhaCifrada: cifrar("velha", chave) });
+      const outro = await repos.cofreLogins.criar({ site: "itau.com.br", usuario: "ana@x.com", senhaCifrada: cifrar("da-ana", chave) });
+      const novo = await repos.cofreLogins.criar({ site: "ITAU.com.br", usuario: "marlon@x.com", senhaCifrada: cifrar("nova", chave) });
+      expect(novo.id).toBe(antigo.id);
+      expect((await repos.cofreLogins.doSite("itau.com.br")).map((l) => l.id).sort()).toEqual([antigo.id, outro.id].sort());
+      expect(decifrar((await repos.cofreLogins.senhaCifrada(antigo.id))!, chave)).toBe("nova");
+      expect(decifrar((await repos.cofreLogins.senhaCifrada(outro.id))!, chave)).toBe("da-ana");
+      // Outra pessoa com o mesmo site e usuário grava o dela, sem tocar no de Marlon.
+      await vincularEscopo(trx, ANA);
+      const daAna = await criarRepos(trx, ANA).cofreLogins.criar({ site: "itau.com.br", usuario: "marlon@x.com", senhaCifrada: cifrar("outra", chave) });
+      expect(daAna.id).not.toBe(antigo.id);
+      await vincularEscopo(trx, MARLON);
+      expect(decifrar((await repos.cofreLogins.senhaCifrada(antigo.id))!, chave)).toBe("nova");
+    });
+  });
+
   it("cofre: a senha só entra cifrada e volta cifrada; a listagem não a leva; outra pessoa não lê", async () => {
     await withRollback(MARLON, async (trx) => {
       const repos = criarRepos(trx, MARLON);

@@ -430,7 +430,8 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(navegador.abaAberta("a1")).toBe(false);
     expect(app().classList.contains("nv-aba-ativa")).toBe(false);
     const desfazer = document.querySelector<HTMLButtonElement>(".nv-aviso button")!;
-    expect(desfazer.textContent).toContain("⌘⇧T");
+    // QA do Windows (2026-11-25): fora do Mac (o happy-dom não é Mac) a tecla se escreve Ctrl+Shift+T.
+    expect(desfazer.textContent).toContain(/Mac/.test(navigator.platform) ? "⌘⇧T" : "Ctrl+Shift+T");
     desfazer.click();
     expect(navegador.abaAberta("a1")).toBe(true);
     expect(navegador.abaAtiva("a1")).toBe(true);

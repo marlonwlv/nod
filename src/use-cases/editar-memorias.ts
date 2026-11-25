@@ -1,4 +1,4 @@
-import type { EntradaDiario, Memoria, PaginaDiario, TipoMemoria } from "../contracts/memoria.ts";
+import { TEXTO_MEMORIA_MAX, type EntradaDiario, type Memoria, type PaginaDiario, type TipoMemoria } from "../contracts/memoria.ts";
 import type { Agente } from "../contracts/agente.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
@@ -27,11 +27,21 @@ export const listarMemorias: CasoDeUso<{ agenteId: string }, { memorias: Memoria
   return { data: { memorias: await deps.repos.memorias.listarDoAgente(agente.id), aRevisar } };
 };
 
-export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?: TipoMemoria }, { memoria: Memoria }> = async (deps, input) => {
+/**
+ * QA-125: a memória precisa ser do bot da URL (`agenteId`, que a rota sempre passa); memória de outro bot da mesma dona
+ * é "não encontrada", sem mudar nada.
+ */
+const daMemoriaDoBot = (m: Memoria | null, agenteId: string | undefined): Memoria => {
+  if (!m || (agenteId !== undefined && m.agenteId !== agenteId)) throw new ErroDeDominio("nao_encontrado");
+  return m;
+};
+
+export const editarMemoria: CasoDeUso<{ agenteId?: string; memoriaId: string; texto?: string; tipo?: TipoMemoria }, { memoria: Memoria }> = async (deps, input) => {
   const campos: { texto?: string; tipo?: TipoMemoria } = {};
   if (input.texto !== undefined) {
     if (typeof input.texto !== "string" || input.texto.trim() === "") throw new ErroDeDominio("texto_vazio");
     campos.texto = input.texto.trim();
+    if ([...campos.texto].length > TEXTO_MEMORIA_MAX) throw new ErroDeDominio("entrada_invalida", { cause: `texto da memória acima de ${TEXTO_MEMORIA_MAX} caracteres` });
   }
   if (input.tipo !== undefined) {
     if (!TIPOS.includes(input.tipo)) throw new ErroDeDominio("entrada_invalida", { cause: "tipo" });
@@ -39,8 +49,7 @@ export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?
   }
   if (campos.texto === undefined && campos.tipo === undefined) throw new ErroDeDominio("entrada_invalida", { cause: "nada a editar" });
   await deps.repos.memorias.travar(input.memoriaId);
-  const existente = await deps.repos.memorias.buscar(input.memoriaId);
-  if (!existente) throw new ErroDeDominio("nao_encontrado");
+  daMemoriaDoBot(await deps.repos.memorias.buscar(input.memoriaId), input.agenteId);
   const memoria = await deps.repos.memorias.atualizar(input.memoriaId, campos, { autor: "pessoa" });
   if (!memoria) throw new ErroDeDominio("nao_permitido");
   const agora = deps.agora();
@@ -50,10 +59,9 @@ export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?
   };
 };
 
-export const apagarMemoria: CasoDeUso<{ memoriaId: string }, { apagada: true; agenteId: string }> = async (deps, input) => {
+export const apagarMemoria: CasoDeUso<{ agenteId?: string; memoriaId: string }, { apagada: true; agenteId: string }> = async (deps, input) => {
   await deps.repos.memorias.travar(input.memoriaId);
-  const existente = await deps.repos.memorias.buscar(input.memoriaId);
-  if (!existente) throw new ErroDeDominio("nao_encontrado");
+  const existente = daMemoriaDoBot(await deps.repos.memorias.buscar(input.memoriaId), input.agenteId);
   const apagada = await deps.repos.memorias.apagar(input.memoriaId, { autor: "pessoa" });
   if (!apagada) throw new ErroDeDominio("nao_permitido");
   const agora = deps.agora();
@@ -106,6 +114,12 @@ export const desfazerEntradaDiario: CasoDeUso<{ agenteId: string; entradaId: str
     memoria = await deps.repos.memorias.atualizar(entrada.memoriaId, { texto: entrada.antes.texto, tipo: entrada.antes.tipo }, op);
     if (!memoria) throw new ErroDeDominio("mudou_depois");
   } else if (entrada.acao === "apagada" && entrada.antes) {
+    // QA-183: o bot pode ter lembrado o mesmo fato depois do apagar (o `lembrar` deduplica pelo conteúdo, com a
+    // mesma trava). Recriar a antiga deixaria duas iguais no prompt.
+    await deps.repos.memorias.travarConteudo(agente.id, entrada.antes.tipo, entrada.antes.texto);
+    if (await deps.repos.memorias.existeIgual(agente.id, entrada.antes.tipo, entrada.antes.texto)) {
+      throw new ErroDeDominio("mudou_depois", { cause: "já há memória igual" });
+    }
     memoria = await deps.repos.memorias.criar(
       { id: entrada.memoriaId, agenteId: agente.id, tipo: entrada.antes.tipo, texto: entrada.antes.texto, origem: entrada.memoriaOrigem, criadoEm: entrada.memoriaCriadoEm },
       op,

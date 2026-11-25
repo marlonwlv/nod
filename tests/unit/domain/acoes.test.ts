@@ -5,6 +5,7 @@ import type { MotivoCardDoLote } from "../../../src/contracts/conversa.ts";
 import { TIPOS_ACAO_LOTE, type AcaoLote } from "../../../src/contracts/ferramentas-do-nod.ts";
 import { acaoDoTipoDoLote, buscarAcao, REGISTRO_DE_ACOES, tiposDoLoteNoRegistro, validarRegistro } from "../../../src/domain/acoes/index.ts";
 import { riscoDaAcao } from "../../../src/domain/lote-bots.ts";
+import { FERRAMENTAS_DO_NOD, FERRAMENTAS_NOD_POR_MODO } from "../../../src/domain/plano-turno.ts";
 
 /** NOD-391 (ADR-135): o registro único de ações — formato, ids únicos, estados completos e o lote derivado dele. */
 
@@ -13,6 +14,15 @@ const valida: DefinicaoAcao = { id: "bots.teste", titulo: "Teste", risco: "muda"
 describe("registro de ações", () => {
   it("o registro real está limpo", () => {
     expect(validarRegistro(REGISTRO_DE_ACOES)).toEqual([]);
+  });
+
+  // QA-190: a via do chat de trabalhos.abrir apontava para abrir_task, sinônimo que não entra no catálogo de modo nenhum
+  // (o gateway nega fora_do_catalogo); a paridade dizia "parcial" por um caminho que o bot não tem.
+  it("a via do chat de cada ação é uma ferramenta que entra no catálogo de algum modo", () => {
+    // As do kit do Nod (FERRAMENTAS_DO_NOD) e as dos experimentos (quadro, apps, canvas) entram pelo montarPlano.
+    const noCatalogo = new Set<string>([...Object.values(FERRAMENTAS_NOD_POR_MODO).flat(), ...FERRAMENTAS_DO_NOD, "gerir_quadro", "gerir_apps", "gerir_canvas"]);
+    const fora = REGISTRO_DE_ACOES.flatMap((a) => ("via" in a.chat && !noCatalogo.has(a.chat.via.ferramenta) ? [`${a.id}: ${a.chat.via.ferramenta}`] : []));
+    expect(fora).toEqual([]);
   });
 
   it("id repetido falha", () => {

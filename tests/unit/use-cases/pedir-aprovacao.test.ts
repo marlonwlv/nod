@@ -305,3 +305,33 @@ it.each(["nod", "computador"])("recusa computador via %s sem criar cartão ou ex
   expect(banco.decisoes).toHaveLength(0);
   expect(r.events).toEqual([]);
 });
+
+describe("pedirAprovacao repetido no mesmo turno (QA-144)", () => {
+  const entrada = (c: { turnoId: string; agenteId: string; conversaId: string }, itens = [{ texto: "email para a Ana", destino }]) =>
+    ({ turnoId: c.turnoId, agenteId: c.agenteId, conversaId: c.conversaId, resumo: "enviar o email", itens });
+
+  it("o mesmo lote pedido de novo (retry, chamada duplicada) devolve o card aberto, sem abrir outro", async () => {
+    const { deps, banco } = depsFalsos();
+    const c = await cenario(deps);
+    const r1 = await pedirAprovacao(deps, entrada(c));
+    const r2 = await pedirAprovacao(deps, entrada(c));
+    if (r1.data.estado !== "pendente" || r2.data.estado !== "pendente") throw new Error("esperava pendente");
+    expect(r2.data.decisao_id).toBe(r1.data.decisao_id);
+    expect(banco.decisoes.filter((d) => d.turnoId === c.turnoId)).toHaveLength(1);
+    expect(r2.events ?? []).toEqual([]);
+  });
+
+  it("lote diferente, ou o mesmo depois de decidido, abre o próprio card", async () => {
+    const { deps, banco } = depsFalsos();
+    const c = await cenario(deps);
+    const r1 = await pedirAprovacao(deps, entrada(c));
+    const r2 = await pedirAprovacao(deps, entrada(c, [{ texto: "email para a Bia", destino: { ...destino, argumentos: { para: "bia" } } }]));
+    if (r1.data.estado !== "pendente" || r2.data.estado !== "pendente") throw new Error("esperava pendente");
+    expect(r2.data.decisao_id).not.toBe(r1.data.decisao_id);
+    await deps.repos.decisoes.decidir(r1.data.decisao_id, { por: deps.escopo.pessoaId, agora: deps.agora() });
+    const r3 = await pedirAprovacao(deps, entrada(c));
+    if (r3.data.estado !== "pendente") throw new Error("esperava pendente");
+    expect(r3.data.decisao_id).not.toBe(r1.data.decisao_id);
+    expect(banco.decisoes.filter((d) => d.turnoId === c.turnoId)).toHaveLength(3);
+  });
+});

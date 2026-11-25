@@ -748,6 +748,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return m ?? null;
       },
       async travar() {},
+      async travarConteudo() {},
+      async existeIgual(agenteId, tipo, texto) {
+        return doTenant(b.memorias).some((m) => m.agenteId === agenteId && m.tipo === tipo && m.texto === texto);
+      },
     },
 
     // NOD-58: o diário da memória só existe no Postgres (CTE na escrita); aqui, vazio.
@@ -1221,6 +1225,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async travarPedidosDoTurno() {},
       async buscarParaAtualizar(id) {
         // Espelha `buscar`; sem concorrência na memória, sem lock.
+        return doTenant(b.propostas).find((p) => p.id === id) ?? null;
+      },
+      async travarSeLivre(id) {
+        // Sem concorrência na memória: nunca está travada; espelha `buscarParaAtualizar`.
         return doTenant(b.propostas).find((p) => p.id === id) ?? null;
       },
       async pendentesDaConversa(conversaId) {
@@ -3505,6 +3513,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
     },
     mcpTokens: {
+      async contarVivosTravando() {
+        return b.mcpTokens.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.revogadoEm === null).length;
+      },
       async criar(e) {
         const l = { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), nome: e.nome, prefixo: e.prefixo, hash: e.hash, cliente: null as string | null, criadoEm: agora(), ultimoUsoEm: null as number | null, revogadoEm: null as number | null };
         b.mcpTokens.push(l);
@@ -3575,6 +3586,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.maquinaTokens.push(l);
         return { id: l.id, nome: l.nome, prefixo: l.prefixo, criadaEm: l.criadaEm, ultimoUsoEm: null, revogadaEm: null, papel };
       },
+      async travarVagaDoComputador() {},
       async computadorVivo(em) {
         const dela = b.maquinaTokens.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.papel === "computador" && x.revogadaEm === null);
         for (const x of dela) if (x.expiraEm !== null && x.expiraEm <= em) x.revogadaEm = x.expiraEm;
@@ -3592,6 +3604,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           .filter((l) => l.tenantId === escopo.tenantId && l.ownerId === escopo.pessoaId && l.revogadaEm === null && (l.expiraEm === null || l.expiraEm > Date.now()) && (l.papel ?? "motor") === "motor")
           .sort((x, y) => y.criadaEm - x.criadaEm)
           .map((l) => ({ id: l.id, nome: l.nome, plataforma: l.plataforma ?? null }));
+      },
+      async temLinuxViva() {
+        return b.maquinaTokens.some((l) => l.tenantId === escopo.tenantId && l.ownerId === escopo.pessoaId && l.plataforma === "linux" && l.revogadaEm === null && (l.expiraEm === null || l.expiraEm > Date.now()));
       },
       async revogar(id, em) {
         const l = b.maquinaTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);

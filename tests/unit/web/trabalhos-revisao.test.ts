@@ -198,7 +198,7 @@ describe("W12: o último lote da telemetria sobrevive ao pagehide", () => {
 });
 
 describe("QA do épico (2026-10-08): o chip da task de colega mostra quem pediu › quem faz (K7)", () => {
-  it("pedido do Leonardo ao Dev 1: mascote do Leonardo, seta, mascote do Dev 1; task da pessoa sem seta", () => {
+  it("pedido de Leonardo ao Dev 1: mascote do Leonardo, seta, mascote do Dev 1; task da pessoa sem seta", () => {
     const e = estadoCom([trabalho("login", { origem: "colega", pedidoPorAgenteId: "leo", pedidoPorNome: "Leonardo" }), trabalho("churn")]);
     const chip = renderTopoTrabalho(e, "login");
     expect(chip).toMatch(/<span class="tk-chip">.*aria-label="Leonardo[^"]*".*class="tk-seta".*aria-label="Dev 1[^"]*".*<span class="tk-titulo">login/);
