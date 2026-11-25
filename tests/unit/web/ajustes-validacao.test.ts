@@ -27,6 +27,40 @@ describe("a leitura de fundo que falhou com 5xx", () => {
     expect(l.falhou("sua-vez", erro500)).toBe("calar");
   });
 
+  it("QA-211: na espera depois da falha a passada não relê; a releitura agendada e o sucesso soltam", () => {
+    let agora = 0;
+    const timers: { fn: () => void; em: number }[] = [];
+    const relidas: string[] = [];
+    const l = criarLeituraDeNovo<string>({ agendar: (fn, ms) => timers.push({ fn, em: agora + ms }), reler: (q) => relidas.push(q), agora: () => agora });
+    expect(l.esperando("trabalhos")).toBe(false);
+    l.falhou("trabalhos", erro500);
+    // A tela Tarefas sem dado pede "trabalhos" a cada passada: durante os 2 s ela não relê.
+    agora = 1000;
+    expect(l.esperando("trabalhos")).toBe(true);
+    expect(l.esperando("frota")).toBe(false);
+    agora = 2000;
+    timers.shift()!.fn();
+    expect(relidas).toEqual(["trabalhos"]);
+    expect(l.esperando("trabalhos")).toBe(false);
+    l.falhou("trabalhos", erro500);
+    l.falhou("trabalhos", erro500);
+    expect(l.falhou("trabalhos", erro500)).toBe("mostrar");
+    // Depois do erro na tela, ainda espera 10 s antes de a passada tentar de novo.
+    agora += 9999;
+    expect(l.esperando("trabalhos")).toBe(true);
+    agora += 1;
+    expect(l.esperando("trabalhos")).toBe(false);
+    l.falhou("trabalhos", erro500);
+    l.deuCerto("trabalhos");
+    expect(l.esperando("trabalhos")).toBe(false);
+  });
+
+  it("QA-211: 4xx não põe a leitura em espera", () => {
+    const l = criarLeituraDeNovo<string>({ agendar: () => {}, reler: () => {} });
+    l.falhou("frota", { codigo: "entrada_invalida", mensagem: "x", status: 422 });
+    expect(l.esperando("frota")).toBe(false);
+  });
+
   it("4xx e erro da própria web vão à tela na hora (não são falha passageira)", () => {
     const l = criarLeituraDeNovo<string>({ agendar: () => {}, reler: () => {} });
     expect(l.falhou("frota", { codigo: "entrada_invalida", mensagem: "x", status: 422 })).toBe("mostrar");

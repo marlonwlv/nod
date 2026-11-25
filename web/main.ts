@@ -3062,12 +3062,19 @@ const janelaConversa = criarReleituraAdiada(JANELA_CONVERSA_MS, (fn, ms) => {
   return () => window.clearTimeout(t);
 }, () => void reidratar());
 
+/** A leitura de fundo que falhou com 5xx volta à fila em 2, 5 e 10 s antes de o erro ir à tela;
+ * na espera, a passada do `reidratar` não a busca (QA-211). */
+const leituraDeNovo = criarLeituraDeNovo<Invalidacao>({
+  agendar: (fn, ms) => window.setTimeout(fn, ms),
+  reler: (q) => dispatch({ tipo: "invalidar", quais: [q] }),
+});
+
 async function reidratar(): Promise<void> {
   if (!api) return;
   const pendentes = [...new Set([...estado.invalidacoes, ...invalidacoesDaTela(estado)])];
   // Só o que a tela atual olha entra agora; o resto fica marcado para quando a tela abrir.
   // C5 (2026-11-12): a conversa aberta é a primeira da passada (web/lib/fila-do-reidratar.ts).
-  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !leituras.emVoo(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()) && !(q.startsWith("conversa:") && janelaConversa.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
+  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !leituras.emVoo(q) && !leituraDeNovo.esperando(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()) && !(q.startsWith("conversa:") && janelaConversa.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
   // definido em 2026-09-30: nada relevante, nada a buscar nem a redesenhar. A conversa de outro bot fica marcada
   // até ser aberta, e antes cada frame caía aqui e redesenhava a tela inteira de forma síncrona.
   if (relevantes.length === 0) return;
@@ -3091,11 +3098,6 @@ async function reidratar(): Promise<void> {
   if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q) && !leituras.emVoo(q))) void reidratar();
 }
 
-/** A leitura de fundo que falhou com 5xx volta à fila em 2, 5 e 10 s antes de o erro ir à tela. */
-const leituraDeNovo = criarLeituraDeNovo<Invalidacao>({
-  agendar: (fn, ms) => window.setTimeout(fn, ms),
-  reler: (q) => dispatch({ tipo: "invalidar", quais: [q] }),
-});
 
 /** Uma leitura da passada: busca, aplica, redesenha e trata o erro. Nunca rejeita (a chave em voo é compartilhada). */
 async function lerUma(q: Invalidacao, passada: { redeCaiu: boolean }, lerParaDeepLink: (lida: NonNullable<ReturnType<typeof leituraConta>>) => void): Promise<void> {
