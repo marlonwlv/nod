@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
-import { JS_CAMPO_PREENCHIDO } from "../../../src/domain/navegador-sensivel.ts";
+import { JS_CAMPO_PREENCHIDO, JS_SEGREDO_MARCADO } from "../../../src/domain/navegador-sensivel.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
@@ -51,6 +51,8 @@ let tituloDepois: string;
 let abasFalsas: { id: string; titulo: string; url: string; ativa: boolean }[] | null;
 /** O que JS_CAMPO_PREENCHIDO responde: algum campo da página ainda tem valor (QA-210). */
 let campoPreenchido: unknown;
+/** O que JS_SEGREDO_MARCADO responde: o campo que o nod marcou ainda tem valor (QA-214). */
+let segredoMarcado: unknown;
 
 const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
   get(_t, op: string) {
@@ -80,7 +82,7 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
-        case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : args[1] === JS_CAMPO_PREENCHIDO ? campoPreenchido : String(args[1]).includes("document.title") ? tituloDepois : undefined;
+        case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : args[1] === JS_CAMPO_PREENCHIDO ? campoPreenchido : args[1] === JS_SEGREDO_MARCADO ? segredoMarcado : String(args[1]).includes("document.title") ? tituloDepois : undefined;
         default: return undefined;
       }
     };
@@ -153,6 +155,7 @@ beforeEach(() => {
   chamadas = [];
   urlAgora = "https://loja.exemplo.com/carrinho";
   campoPreenchido = false;
+  segredoMarcado = false;
   leitura = { url: urlAgora, arvore: '- button "Pagar R$ 120,00" [ref=e1]\n- textbox "Senha" [ref=e2]: hunter22\n- button "Enviar" [ref=e3]\n- link "Alterar senha" [ref=e4]\n- button "Ver mais" [ref=e5]', refs: { e1: { papel: "button", nome: "Pagar R$ 120,00" }, e2: { papel: "textbox", nome: "Senha" }, e3: { papel: "button", nome: "Enviar" }, e4: { papel: "link", nome: "Alterar senha" }, e5: { papel: "button", nome: "Ver mais" } } };
   trilha = [];
   concluidos = new Set();
@@ -627,6 +630,34 @@ describe("segredo na página (L3)", () => {
     expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true });
     campoPreenchido = null;
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ erro: "segredo_na_pagina" });
+  });
+
+  it("a SPA troca a URL sem recarregar e a senha segue no campo marcado: a trava fica (QA-214)", async () => {
+    modo = "total";
+    const n = criar();
+    const login = urlAgora;
+    n.marcarSegredo(MARLON, A, login);
+    // Medido na sonda da r213: clicar em "Entrar" de uma SPA faz pushState para outra URL e o campo continua com a senha.
+    urlAgora = `${login}/etapa2?erro=1`;
+    segredoMarcado = true;
+    chamadas = [];
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_avaliar", argumentos: { expressao: "document.forms[0].elements[1].value" } }))).toMatchObject({ erro: "segredo_na_pagina" });
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ erro: "segredo_na_pagina" });
+    expect(ops().filter((o) => o === "ler" || o === "print")).toEqual([]);
+    expect(chamadas.filter((c) => c.op === "avaliar" && c.args[0] !== JS_SEGREDO_MARCADO && c.args[0] !== DETECTAR_DESAFIO)).toEqual([]);
+    expect(n.vista(MARLON, A)).toMatchObject({ segredoNaPagina: true });
+  });
+
+  it("depois do login, página nova sem o campo marcado lê normal; sem resposta da página, trava só aquela leitura (QA-214)", async () => {
+    modo = "total";
+    const n = criar();
+    n.marcarSegredo(MARLON, A, urlAgora);
+    urlAgora = "https://loja.exemplo.com/conta";
+    segredoMarcado = null;
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ erro: "segredo_na_pagina" });
+    segredoMarcado = false;
+    expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true });
+    expect(n.vista(MARLON, A)).toMatchObject({ segredoNaPagina: false });
   });
 
   it("eval recusa cookie e armazenamento", async () => {

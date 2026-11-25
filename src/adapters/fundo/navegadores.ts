@@ -12,7 +12,7 @@ import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, domi
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, mensagemDoEnsinado, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
-import { campoEhSecreto, JS_CAMPO_PREENCHIDO, paginaSemFragmento, redigirArvore, segredoAindaNaPagina, segredoEmAlgumaAba } from "../../domain/navegador-sensivel.ts";
+import { campoEhSecreto, JS_CAMPO_PREENCHIDO, JS_SEGREDO_MARCADO, paginaSemFragmento, redigirArvore, segredoAindaNaPagina, segredoEmAlgumaAba } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, viewportDeQuemAssiste, viewportMudouMuito, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
@@ -648,14 +648,18 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     if (c.est.urlDoSegredo) {
       if (segredoAindaNaPagina(c.est.urlDoSegredo, url)) return true;
       const abas = await c.motor.abas(s).catch(() => null);
-      if (!abas || segredoEmAlgumaAba(c.est.urlDoSegredo, abas)) return false;
-      c.est.urlDoSegredo = null;
-      mudar(c.est, { segredoNaPagina: false });
+      if (abas && !segredoEmAlgumaAba(c.est.urlDoSegredo, abas)) {
+        c.est.urlDoSegredo = null;
+        mudar(c.est, { segredoNaPagina: false });
+      }
     }
-    if (!c.est.paginasComSegredo.has(paginaSemFragmento(url))) return false;
-    const preenchido = await c.motor.avaliar(s, JS_CAMPO_PREENCHIDO).catch(() => null);
+    // A URL mudou, mas a página de agora pode ainda guardar o segredo: a página lembrada voltou pelo histórico com o campo
+    // cheio (QA-210), ou a mesma página trocou a URL sem recarregar (pushState de SPA) e o campo que o nod marcou segue
+    // com valor (QA-214). Sem resposta: trava (só a página lembrada fica travada pela URL).
+    const lembrada = c.est.paginasComSegredo.has(paginaSemFragmento(url));
+    const preenchido = await c.motor.avaliar(s, lembrada ? JS_CAMPO_PREENCHIDO : JS_SEGREDO_MARCADO).catch(() => null);
     if (preenchido === false) return false;
-    travarSegredo(c.est, url);
+    if (preenchido === true || lembrada) travarSegredo(c.est, url);
     return true;
   }
 
