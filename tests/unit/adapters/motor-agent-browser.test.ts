@@ -261,6 +261,32 @@ describe("socket do daemon cabe no sun_path do macOS", () => {
     await motor(link).abrir(s, "https://example.com");
     expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
   });
+
+  // r207 (QA-208): a checagem era feita uma vez por processo. Se a limpeza do /tmp (macOS: 3 dias; systemd-tmpfiles: 10)
+  // apaga a pasta com o motor vivo, quem a refaz é o agent-browser (medido no Chromium real: 0755) ou outro usuário que a
+  // crie antes (link ou pasta dele), e os comandos do bot — inclusive o `fill` com a senha do cofre — vão ao socket de lá.
+  it.skipIf(process.platform === "win32")("confere a pasta dos sockets a cada comando: apagada e trocada por link, sai do env", async () => {
+    const fsp = await import("node:fs/promises");
+    const dir = join(dados, "sock");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_SOCKET_DIR).toBe(dir);
+    await rm(dir, { recursive: true, force: true });
+    const alheia = join(dados, "alheia");
+    await fsp.mkdir(alheia, { mode: 0o777 });
+    await symlink(alheia, dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+
+  it.skipIf(process.platform === "win32")("a pasta apagada volta 0700 no comando seguinte", async () => {
+    const dir = join(dados, "sock2");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    await rm(dir, { recursive: true, force: true });
+    await m.url(s).catch(() => undefined);
+    expect(((await stat(dir)).mode & 0o777).toString(8)).toBe("700");
+  });
 });
 
 describe("baixar: o download direto quando o do agent-browser falha (QA do navegador no Windows, 2026-11-25)", () => {
@@ -294,6 +320,25 @@ describe("baixar: o download direto quando o do agent-browser falha (QA do naveg
     await expect(m.baixar(s, "@e99", "x.pdf")).rejects.toMatchObject({ motivo: "alvo_invalido" });
   });
 
+  it("corpo sem content-length (chunked) para no teto de 200 MB sem ler o resto e não deixa arquivo pela metade (QA Nod r216)", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const MB = 1024 * 1024;
+    let lidos = 0;
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(ctl) {
+        if (lidos >= 1024 * MB) { ctl.close(); return; }
+        lidos += MB;
+        ctl.enqueue(new Uint8Array(MB));
+      },
+    });
+    const buscar = (async () => new Response(corpo, { status: 200 })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "grande.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/200 MB/) });
+    // Na main o `arrayBuffer()` lia o GB inteiro antes de olhar o tamanho.
+    expect(lidos).toBeLessThanOrEqual(202 * MB);
+    expect(existsSync(join(dados, pastaDoBot(A), "arquivos", "grande.pdf"))).toBe(false);
+  });
+
   it("cookieVale: domínio com e sem ponto, caminho e seguro só em https", () => {
     const u = new URL("https://app.exemplo.com.br/a/b");
     expect(cookieVale({ domain: ".exemplo.com.br", path: "/" }, u)).toBe(true);
@@ -301,6 +346,18 @@ describe("baixar: o download direto quando o do agent-browser falha (QA do naveg
     expect(cookieVale({ domain: "exemplo.com", path: "/" }, u)).toBe(false);
     expect(cookieVale({ domain: "app.exemplo.com.br", path: "/c" }, u)).toBe(false);
     expect(cookieVale({ domain: "app.exemplo.com.br", path: "/", secure: true }, new URL("http://app.exemplo.com.br/"))).toBe(false);
+  });
+
+  it("cookieVale: cookie só do site não vai ao subdomínio e caminho casa por segmento, como no Chrome (QA r217)", () => {
+    // Formato real do `cookies` no Chromium: "lvh.me" (sem Domain=) e ".lvh.me" (Domain=lvh.me).
+    const sub = new URL("http://a.lvh.me/arquivo.pdf");
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, sub)).toBe(false);
+    expect(cookieVale({ domain: ".lvh.me", path: "/" }, sub)).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, new URL("http://lvh.me/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/contas-falsas"))).toBe(false);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta/" }, new URL("http://lvh.me/conta/x"))).toBe(true);
   });
 });
 

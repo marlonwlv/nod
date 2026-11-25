@@ -191,6 +191,27 @@ describe("backoffice interno (ADR-194)", () => {
     expect(amb.sair).toHaveBeenCalled();
   });
 
+  it("QA r220: ao navegar por um link do app, o foco vai ao título da tela nova (o link clicado some)", async () => {
+    const a = api();
+    render(<AppBackoffice api={a} ambiente={ambiente("/backoffice/pessoas")} />);
+    const link = await screen.findByRole("link", { name: /Pessoa A/ });
+    link.focus();
+    await act(async () => fireEvent.click(link));
+    expect(await screen.findByText("Linha do tempo")).toBeTruthy();
+    const titulo = screen.getByRole("heading", { level: 1 });
+    expect(document.activeElement).toBe(titulo);
+    const voltar = screen.getByRole("link", { name: /← Pessoas/ });
+    voltar.focus();
+    await act(async () => fireEvent.click(voltar));
+    await screen.findByRole("link", { name: /Pessoa A/ });
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
+  });
+
+  it("QA r220: texto do backoffice não usa --ink-4 (2,5:1 no claro); só a marca decorativa da linha do tempo", () => {
+    const css = readFileSync("web/backoffice.css", "utf8");
+    expect(css).not.toMatch(/(^|[;{\s])color:\s*var\(--ink-4\)/m);
+  });
+
   it("o CSS do backoffice usa só tokens, sem cor solta", () => {
     const css = readFileSync("web/backoffice.css", "utf8");
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);

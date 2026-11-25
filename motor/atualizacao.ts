@@ -97,6 +97,11 @@ export function iniciarAtualizacao(o: {
   intervaloDrenandoMs?: number;
   esperaDoPuxarMs?: number;
   tetoSemPuxarMs?: number;
+  /**
+   * Quem troca os arquivos. Padrão (Linux): grava o pedido que o systemd do root vê. No Windows (2026-11-25): dispara o
+   * script da instalação solto (atualizacao-no-windows.ts), que para este motor, troca e o religa.
+   */
+  pedir?: (versao: string | null) => Promise<void>;
 }): Atualizador {
   const relogio = o.relogio ?? Date.now;
   const buscar = o.buscar ?? fetch;
@@ -159,7 +164,8 @@ export function iniciarAtualizacao(o: {
       await esperar(o.esperaDoPuxarMs ?? ESPERA_DO_PUXAR_EM_VOO_MS);
       if (o.turnosDaPessoa() > 0) { estado = { ...estado, pedidoEm: null }; o.drenar(nivel()); ajustarRitmo(); return; }
       await writeFile(arquivoDoUltimoPedido(o.pastaDoMotor), `${JSON.stringify({ assinatura: assinatura(comparado), em: relogio() })}\n`, { mode: 0o600 });
-      await writeFile(arquivoDoPedido(o.pastaDoMotor), `${JSON.stringify({ versao: manifesto.versao ?? null, em: relogio() })}\n`, { mode: 0o600 });
+      if (o.pedir) await o.pedir(manifesto.versao ?? null);
+      else await writeFile(arquivoDoPedido(o.pastaDoMotor), `${JSON.stringify({ versao: manifesto.versao ?? null, em: relogio() })}\n`, { mode: 0o600 });
       // O root não reiniciou a tempo (atualizador lento ou fora): a fala da pessoa volta a sair enquanto o pedido espera.
       setTimeout(() => { if (estado.pedidoEm !== null) o.drenar(nivel()); }, o.tetoSemPuxarMs ?? TETO_SEM_PUXAR_MS).unref();
     } catch (e) {

@@ -143,3 +143,8 @@ máquina continua falhando. O OpenMausBot resolve esse caso com uma relançada �
 no prompt, quando o CLI recusa a sessão antes do `init`.
 Gatilho de reversão: cópia de sessões grandes atrasando o começo do turno, ou sessão copiada divergindo da original
 quando as duas contas voltam a rodar a mesma conversa (aí a sessão passa a ser guardada por conta, como no OpenMausBot).
+
+Ajuste de 2026-11-20 (QA r142): a fila de contas alterna (A para no limite, B segue, A volta). Vale a cópia mais recente
+do transcript entre as pastas de conta: se outra conta tem uma mais nova que a da conta do turno, ela substitui a desta
+por troca atômica; a cópia da conta do turno só fica quando é a mais nova. Sem isso, a A retomava a própria cópia velha
+e esquecia os turnos feitos na B.

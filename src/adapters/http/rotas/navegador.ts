@@ -79,6 +79,7 @@ export const MOTIVOS_DO_NAVEGADOR: Readonly<Record<string, string>> = {
   sem_pedido: "Este pedido já foi respondido.",
   login_em_curso: "O login ainda está sendo preenchido. Confirme no seu Mac.",
   site_mudou: "A página mudou de site. Peça o login de novo.",
+  login_saiu: "Esse login saiu do cofre. Escolha outro ou entre você mesmo.",
   precisa_do_mac: "Isto precisa do seu Mac ligado, com o app do nod aberto.",
   nao_preencheu: "Não achei o campo na página. Entre você mesmo pelo navegador.",
   sem_oferta: "Não há login para guardar agora.",

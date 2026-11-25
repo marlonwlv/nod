@@ -36,6 +36,18 @@ export function mcpTokensRepo(conn: Conn, escopo: Escopo) {
       return l ? paraDto(l) : null;
     },
 
+    /**
+     * QA-169: os vivos da pessoa para o teto de TOKENS_MCP_VIVOS_MAX, com a trava da pessoa até o fim da tx. Sem ela,
+     * dois "Gerar" ao mesmo tempo contavam 19 cada um e os dois gravavam (25 em paralelo deixavam 22 vivos).
+     */
+    async contarVivosTravando(): Promise<number> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`mcp_tokens:${escopo.tenantId}:${escopo.pessoaId}`}, 0))`;
+      const [l] = await conn<{ n: number }[]>`
+        select count(*)::int as n from mcp_tokens
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and revogado_em is null`;
+      return l?.n ?? 0;
+    },
+
     async listar(): Promise<TokenMcpDto[]> {
       const linhas = await conn<Linha[]>`
         select ${conn.unsafe(COLUNAS)} from mcp_tokens

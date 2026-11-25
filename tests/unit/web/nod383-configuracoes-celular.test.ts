@@ -37,7 +37,10 @@ describe("NOD-383: textos de aparelho (critério 2)", () => {
     expect(rotuloDoMac(true)).toBe("Seu Mac");
     expect(rotuloDoMac(false)).toBe("Este Mac");
     expect(detalheDoTema(true)).not.toMatch(/macOS|computador/);
-    expect(detalheDoTema(false)).toBe("Sistema acompanha o modo claro ou escuro do macOS. Vale para este computador.");
+    expect(detalheDoTema(false, "MacIntel")).toBe("Sistema acompanha o modo claro ou escuro do macOS. Vale para este computador.");
+    // PR #333 (achado 7): no Windows não fala de macOS.
+    expect(detalheDoTema(false, "Win32")).toBe("Sistema acompanha o modo claro ou escuro do Windows. Vale para este computador.");
+    expect(detalheDoTema(false, "Linux x86_64")).toBe("Sistema acompanha o modo claro ou escuro do sistema. Vale para este computador.");
   });
 
   it("sem matchMedia (o desktop dos testes) nada muda", () => {

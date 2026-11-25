@@ -419,9 +419,9 @@ function desfechoDaTroca(p: PayloadTrocaDeIa, nomeDoBot: string): string {
     case "esperar": return `${tasks} esperam o ${de}, como você escolheu.`;
     case "levar": return p.contaDe ? `${tasks} seguiram noutra conta do ${de}.` : `${tasks} foram para o ${para}.`;
     case "expirou": return `Sem escolha em 10 min: ${tasks.toLowerCase()} ${p.contaDe ? `seguiram noutra conta do ${de}` : `foram para o ${para}`}, como recomendado.`;
-    case "voltou": return `O ${de} voltou: ${p.fixo ? `o ${nomeDoBot} seguiu` : `${tasks.toLowerCase()} seguiram`} de onde parou.`;
-    case "outra_ia": return `O ${nomeDoBot} segue no ${para} até o ${de} voltar.`;
-    case "conta": return `O ${nomeDoBot} seguiu ${p.conta ? `na conta ${de} · ${p.conta.apelido}` : "noutra conta"}.`;
+    case "voltou": return `O ${de} voltou: ${p.fixo ? `${nomeDoBot} seguiu` : `${tasks.toLowerCase()} seguiram`} de onde parou.`;
+    case "outra_ia": return `${nomeDoBot} segue no ${para} até o ${de} voltar.`;
+    case "conta": return `${nomeDoBot} seguiu ${p.conta ? `na conta ${de} · ${p.conta.apelido}` : "noutra conta"}.`;
     default: return "";
   }
 }
@@ -468,7 +468,7 @@ export function cartaoTrocaDeIa(m: Mensagem, p: { nomeDoBot: string | null; agor
     ? `Para ${tasks}, recomendo levar para ${destino}: ${falta !== null ? `esperar seriam ${quantoFalta(falta)} paradas` : `o ${de} não disse quando volta`}.`
     : `Para ${tasks}, recomendo esperar: ${falta !== null ? `o ${de} volta em ${quantoFalta(falta)} e ` : ""}elas continuam de onde pararam.`;
   // C5: a outra IA existe, mas não na máquina do bot — o cartão diz por que não oferece "levar".
-  const fora = !para && t.foraDaMaquina ? `O ${nomeDaIa(t.foraDaMaquina.ia)} não está ${t.foraDaMaquina.maquina ? `em ${t.foraDaMaquina.maquina}, ` : "n"}a máquina do ${bot}. ` : "";
+  const fora = !para && t.foraDaMaquina ? `O ${nomeDaIa(t.foraDaMaquina.ia)} não está ${t.foraDaMaquina.maquina ? `em ${t.foraDaMaquina.maquina}, ` : "n"}a máquina de ${bot}. ` : "";
   const esperar = opcaoDaTroca({ act: "troca-esperar", dados, rotulo: `Esperar o ${de}`, consequencia: volta ? `Voltam ${volta} com tudo o que já fizeram.` : "Voltam quando a conta voltar, com tudo o que já fizeram.", recomendada: !levar });
   const levarOp = para ? opcaoDaTroca({ act: "troca-levar", dados, rotulo: mesmaIa ? `Seguir noutra conta do ${de}` : `Levar as tarefas para o ${para}`, consequencia: mesmaIa ? "Seguem agora, mas recomeçam do resumo: a sessão fica na conta que parou." : "Seguem agora, mas recomeçam do resumo de cada tarefa.", recomendada: levar }) : "";
   const rodape = levar ? "Se você não escolher em 10 min, eu sigo a recomendação." : "Se você não escolher, eu sigo a recomendação.";

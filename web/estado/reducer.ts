@@ -618,7 +618,8 @@ export type Estado = {
   /** definido em 2026-10-12 (ADR-099, parte 5): o bot aberto na tela Trabalhos (as frentes dele embaixo da linha). */
   botAbertoEmTrabalhos: string | null;
   /** ADR-192 (emenda 5): as Tarefas arquivadas do chip "Arquivadas" (GET tarefas?estado=arquivada); null = não lidas. */
-  tarefasArquivadas: TarefaDto[] | null;
+  /** null = lendo; "erro" = a leitura falhou (a tela diz e oferece tentar de novo, em vez de mostrar a lista vazia). */
+  tarefasArquivadas: TarefaDto[] | null | "erro";
   /** ADR-085: quanto do Mac os bots podem usar (Seu espaço › Este Mac; `PUT preferencias`). */
   usoDoMac: UsoDoMac;
   /** ADR-111: as chaves de experimento do menu da conta (Calibração, Memória longa, ADR-112 Modo WhatsApp e, NOD-429, Quadro), lidas de `GET preferencias`. */
@@ -768,7 +769,7 @@ export type Acao =
   | { tipo: "faixa-trabalhos"; agenteId: string | null }
   /** ADR-099 (parte 5): abre (o id do bot) ou fecha (null) as frentes de um bot na tela Trabalhos. */
   | { tipo: "bot-trabalhos"; agenteId: string | null }
-  | { tipo: "tarefas-arquivadas"; tarefas: TarefaDto[] | null }
+  | { tipo: "tarefas-arquivadas"; tarefas: TarefaDto[] | null | "erro" }
   | { tipo: "uso-do-mac"; uso: UsoDoMac }
   | { tipo: "experimentos"; experimentos: Experimentos; quadroLiberado?: boolean }
   | { tipo: "tempo-task"; id: string | null }

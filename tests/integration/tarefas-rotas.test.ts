@@ -161,4 +161,18 @@ describeIntegracao("rotas /tarefas (ADR-192, etapa 3)", () => {
       expect((await servidor.chamar(ana, "POST", `/tarefas/${criada.tarefa.id}/resolver`, { turnoVivo: "manter" })).status).toBe(404);
     });
   });
+
+  it("QA-197: Continuar a Tarefa de um bot excluído é 404 (como o chat), não 500; a Tarefa segue na lista e resolve", async () => {
+    await noTeste(async (trx) => {
+      const ada = await agenteComConversa(trx, MARLON, { nome: "Ada" });
+      const s = await servidor.entrar("marlon");
+      const criada = (await (await servidor.chamar(s, "POST", `/agentes/${ada.agenteId}/tarefas`, { texto: "Levante os números" })).json()) as { tarefa: TarefaDto };
+      await criarRepos(trx, MARLON).agentes.excluir(ada.agenteId, Date.now());
+      const nova = await servidor.chamar(s, "POST", `/tarefas/${criada.tarefa.id}/mensagens`, { texto: "e aí?" });
+      expect(nova.status).toBe(404);
+      const lista = (await (await servidor.chamar(s, "GET", `/tarefas`)).json()) as { tarefas: TarefaDto[] };
+      expect(lista.tarefas.map((t) => t.id)).toContain(criada.tarefa.id);
+      expect((await servidor.chamar(s, "POST", `/tarefas/${criada.tarefa.id}/resolver`, {})).status).toBe(200);
+    });
+  });
 });

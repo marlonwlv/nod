@@ -17,11 +17,27 @@ const login = (l: Linha): LoginDoCofre => ({ id: l.id, site: l.site, usuario: l.
 
 export function cofreLoginsRepo(conn: Conn, escopo: Escopo) {
   return {
+    /**
+     * Guarda um login. QA-200: o mesmo site e o mesmo usuário (sem diferença de maiúsculas) trocam a senha do login que já
+     * existe, em vez de gravar outro: senão o cartão de login mostrava dois iguais (o usuário vai mascarado) e a senha antiga
+     * seguia lá. A trava por pessoa + site + usuário segura dois "Guardar" ao mesmo tempo (duas abas, resposta perdida).
+     */
     async criar(p: { site: string; usuario: string; senhaCifrada: string }): Promise<LoginDoCofre> {
       if (!CIFRADO.test(p.senhaCifrada)) throw new ErroDeDominio("entrada_invalida", { cause: "senha do cofre sem cifra" });
+      const site = p.site.trim().toLowerCase();
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`cofre-login:${escopo.tenantId}:${escopo.pessoaId}:${site}:${p.usuario.toLowerCase()}`}, 0))`;
+      const [igual] = await conn<Linha[]>`
+        update cofre_logins set senha_cifrada = ${p.senhaCifrada}
+        where id = (
+          select id from cofre_logins
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and site = ${site} and lower(usuario) = ${p.usuario.toLowerCase()}
+          order by criado_em limit 1)
+        and tenant_id = ${escopo.tenantId}
+        returning id, site, usuario, criado_em`;
+      if (igual) return login(igual);
       const [l] = await conn<Linha[]>`
         insert into cofre_logins (tenant_id, owner_id, site, usuario, senha_cifrada)
-        values (${escopo.tenantId}, ${escopo.pessoaId}, ${p.site.trim().toLowerCase()}, ${p.usuario}, ${p.senhaCifrada})
+        values (${escopo.tenantId}, ${escopo.pessoaId}, ${site}, ${p.usuario}, ${p.senhaCifrada})
         returning id, site, usuario, criado_em`;
       return login(l!);
     },
