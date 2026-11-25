@@ -89,7 +89,7 @@ describe("as esperas e a fila em frase (a pílula alargada lê daqui)", () => {
     expect(esperaNaTela({ tipo: "colega", trabalhoId: null, motivo: "Ze 2", desde: AGORA - 3 * MIN }, AGORA).titulo).toBe("Esperando Ze 2");
     expect(quemPediu({ de: "pessoa", nome: null })).toBe("seu pedido");
     expect(quemPediu({ de: "rotina", nome: "Triagem do Slack" })).toBe("rotina Triagem do Slack");
-    expect(quemPediu({ de: "colega", nome: "Leonardo" })).toBe("pedido do Leonardo");
+    expect(quemPediu({ de: "colega", nome: "Leonardo" })).toBe("pedido de Leonardo");
   });
 });
 
@@ -167,7 +167,7 @@ describe("Tarefas com uma linha por bot (quadro 05, Paper 5a)", () => {
     expect(html).toMatch(/data-id="g66"[^]*?<span class="tf-tempo">22 min<\/span>/);
     // Com "Abertas", a terminada de hoje fica de fora (aparece com Feitas ou Todas).
     expect(html).not.toContain("GFK-1868 · preservar Ferons");
-    expect(html).toContain("Na fila: pedido do Leonardo");
+    expect(html).toContain("Na fila: pedido de Leonardo");
     expect(html).toContain('data-act="abrir-conversa" data-conversa="c-ze2" data-agente="ze2">Abrir a conversa com Ze 2 ›</button>');
     // A linha corta com reticências; o title traz a frase inteira (e some sem frase).
     const passos = [...html.matchAll(/<span class="tf-t-passo"( title="([^"]*)")?>([^<]*)<\/span>/g)];
@@ -183,7 +183,7 @@ describe("Tarefas com uma linha por bot (quadro 05, Paper 5a)", () => {
     const comCota = base();
     const e = reduzir({ ...comCota, trabalhos: { ...comCota.trabalhos!, cota: { situacao: "reserva", ias: ["claude-cli"], voltaEm }, pedidosNaFila } }, { tipo: "bot-trabalhos", agenteId: "ze2" });
     const html = porBot(e);
-    expect(html).toContain('<div class="tf-tarefa-bot estatica" data-cota="1"><span class="tf-ic tf-ordem" aria-hidden="true">1</span><span class="tf-t-titulo">Na fila: pedido do Leonardo</span><span class="tf-t-passo">na fila (cota) · volta às 20:30</span>');
+    expect(html).toContain('<div class="tf-tarefa-bot estatica" data-cota="1"><span class="tf-ic tf-ordem" aria-hidden="true">1</span><span class="tf-t-titulo">Na fila: pedido de Leonardo</span><span class="tf-t-passo">na fila (cota) · volta às 20:30</span>');
     expect(html).toContain("1 espera · trabalho de fundo volta às 20:30");
     // Sem a cota segurando, a fila de sempre.
     expect(porBot(reduzir(base(), { tipo: "bot-trabalhos", agenteId: "ze2" }))).not.toContain("na fila (cota)");

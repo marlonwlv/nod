@@ -77,6 +77,10 @@ afterEach(async () => {
     await trx`delete from turnos where owner_id = ${p}`;
     // ADR-083 (0060): o trabalho aponta para agente, conversa e rotina, e os turnos apontam para ele — sai entre os dois.
     await trx`delete from trabalhos where owner_id = ${p}`;
+    // ADR-192: a frente nasce com Tarefa + Thread (emenda 5); saem antes da conversa.
+    await trx`delete from threads where owner_id = ${p}`;
+    await trx`delete from tarefa_eventos where owner_id = ${p}`;
+    await trx`delete from tarefas where owner_id = ${p}`;
     await trx`delete from inventario_motores where owner_id = ${p}`;
     await trx`delete from uso_do_plano_contas where owner_id = ${p}`;
     await trx`delete from contas_ia where owner_id = ${p}`;

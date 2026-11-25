@@ -83,7 +83,10 @@ describeIntegracao("NOD_EXECUTOR desconhecido falha fechado (NOD-160)", () => {
     const { mensagens } = await srv.json<{ mensagens: { kind: string; texto: string; payload: Record<string, unknown> | null }[] }>("GET", `conversas/${criado.conversa.id}/mensagens`);
     const negacao = mensagens.find((m) => m.kind === "negacao");
     expect(negacao?.payload).toMatchObject({ kind: "negacao", classe: "plano_ausente" });
-    expect(negacao?.texto).toContain(MOTIVO);
+    // Lote B (ADR-192, regra 7): o nome da variável não vai à conversa; ele fica no inventário, no seletor e no log
+    // (nod_executor_desconhecido). A pessoa lê que a mensagem espera.
+    expect(negacao?.texto).not.toContain("NOD_EXECUTOR");
+    expect(negacao?.texto).toContain("A mensagem fica guardada e sai sozinha quando uma IA ficar pronta.");
     expect(mensagens.some((m) => m.texto === "não devia simular")).toBe(false);
     expect(eventos("nod_executor_desconhecido")).toHaveLength(1);
   });

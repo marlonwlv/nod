@@ -1,3 +1,4 @@
+import type { TarefaDto } from "../../src/contracts/tarefa.ts";
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
 import type { CofreDto } from "../../src/contracts/cofre.ts";
@@ -13,6 +14,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
+import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaMacDesligado, RespostaNavegador, RespostaTrazerDoChrome, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -281,6 +283,45 @@ export function criarApi(escopo: Escopo) {
       }
     },
     operarComputador: (operacao: OperacaoPessoa) => post<unknown>("computador", { operacao }),
+    /** ADR-190: a vista do navegador do bot e se ele roda neste servidor (404: servidor de antes ou bot de outra pessoa). */
+    navegador: (agenteId: string) => get<RespostaNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador`),
+    /** ADR-190: ligar, encerrar, retomar, recarregar e passar o controle (409 traz `motivo` em MOTIVOS_DO_NAVEGADOR). */
+    operarNavegador: (agenteId: string, operacao: OperacaoNavegador) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador`, { operacao }),
+    /** ADR-190: a pessoa no controle digita na barra de endereço. */
+    irParaNoNavegador: (agenteId: string, url: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/endereco`, { url }),
+    /** ADR-190: a pessoa no controle troca de aba (o id da aba na vista, `t1`). */
+    trocarAbaDoNavegador: (agenteId: string, aba: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/aba`, { aba }),
+    /** ADR-190 (T): começar, descartar, desfazer o descarte e salvar a tarefa ensinada. */
+    ensinarNoNavegador: (agenteId: string, operacao: OperacaoEnsinar, nome?: string) => post<RespostaEnsinar>(`agentes/${encodeURIComponent(agenteId)}/navegador/ensinar`, nome === undefined ? { operacao } : { operacao, nome }),
+    /** ADR-190 (M, N): onde o navegador do bot mora — a pergunta, as máquinas e os textos prontos. */
+    lugarDoNavegador: (agenteId: string) => get<RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`),
+    /** ADR-190 (N): muda o lugar (o interruptor, a máquina, "nod", "Só na …"); a mesma rota do Desfazer da conversa. */
+    mudarLugarDoNavegador: (agenteId: string, mudar: MudancaLugarNavegador) => post<{ ok: true } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`, mudar),
+    /** ADR-190 (K1): "Fazer agora" ou "Quando o Mac ligar" no cartão "Seu Mac está desligado". */
+    responderMacDesligado: (agenteId: string, turnoId: string, resposta: RespostaMacDesligado) => post<{ ok: true; turnoId: string | null } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/mac-desligado`, { turnoId, resposta }),
+    /**
+     * ADR-190 (L1, L2): a escolha do cartão de login. Com o 1Password, o Bitwarden ou o Chrome, `aviso` = "Confirme no seu
+     * Mac" e o preenchimento segue no servidor (a vista muda pelo `navegador.mudou`). Nenhum segredo vai neste corpo.
+     */
+    escolherLoginNoNavegador: (agenteId: string, decisaoId: string, escolha: EscolhaLoginNavegador) => post<RespostaLoginNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/login`, { decisaoId, escolha }),
+    /**
+     * 2026-11-23: "Trazer do meu Chrome" solto (o ⋯ e a recusa do login pelo Google). Sem `site`: o da recusa ou o da aba.
+     * Espera o aparelho (o macOS pede o Keychain); `aviso` é a frase para a pessoa, deu certo ou não.
+     */
+    trazerDoChromeNoNavegador: (agenteId: string, site?: string) => post<RespostaTrazerDoChrome>(`agentes/${encodeURIComponent(agenteId)}/navegador/trazer-do-chrome`, site ? { site } : {}),
+    /** ADR-190 (L4): o código de uso único do campo privado do cartão, direto para a página. */
+    codigoNoNavegador: (agenteId: string, decisaoId: string, codigo: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/codigo`, { decisaoId, codigo }),
+    /** ADR-190 (L5): "Guardar no cofre?" — `guardar: false` descarta (o texto sai da memória do servidor). */
+    guardarLoginDoNavegador: (agenteId: string, guardar: boolean, destino?: FonteCofre) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/guardar-login`, destino ? { guardar, destino } : { guardar }),
+    /** ADR-190 (decisão 6): o cofre do nod — site, usuário mascarado e data; a senha nunca volta. */
+    cofreLogins: () => get<{ logins: LoginDoCofreNaTela[] }>("cofre/logins"),
+    guardarNoCofre: (login: { site: string; usuario: string; senha: string }) => post<{ ok: true; login: LoginDoCofreNaTela }>("cofre/logins", login),
+    apagarDoCofre: (id: string) => del<{ ok: true }>(`cofre/logins/${encodeURIComponent(id)}`),
+    /** ADR-190 (T3): as habilidades do bot — as tarefas que a pessoa ensinou no navegador dele. */
+    tarefasEnsinadas: (agenteId: string) => get<{ tarefas: TarefaEnsinada[]; espacoBytes?: number | null }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades`),
+    apagarTarefaEnsinada: (agenteId: string, id: string) => del<{ ok: true }>(`agentes/${encodeURIComponent(agenteId)}/navegador/habilidades/${encodeURIComponent(id)}`),
+    /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
+    urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,
     trocarLugarDoComputador: (maquinaId: string, semLogins: boolean) => post<{ ok: true }>("computador/lugar", { maquinaId, semLogins }),
     urlEventos: `${base}/eventos`,
     frota: () => get<FrotaDto>("frota"),
@@ -490,12 +531,21 @@ export function criarApi(escopo: Escopo) {
     // ADR-187 §6 (2026-11-18): com os anexos do clipe do campo da tarefa (ids soltos da conversa do trabalho).
     escreverNoTrabalho: (id: string, texto: string, anexos: readonly string[] = []) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, anexos.length ? { texto, anexos } : { texto }),
     // ADR-187 §7 (2026-11-18): a tarefa nova da pessoa nasce da primeira mensagem dela (⌘N, o "+" da aba).
-    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = []) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}) }),
+    // QA-196: a `chave` (a do envio, web/lib/envio-idempotente.ts) faz o reenvio depois de uma resposta perdida devolver a
+    // tarefa que o primeiro POST já criou (ADR-192, etapa 2), em vez de abrir outra igual com o bot rodando duas vezes.
+    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = [], chave?: string) =>
+      post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}), ...(chave ? { chave } : {}) }),
     // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
     fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
     pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),
     // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" parada.
     encerrarTrabalho: (id: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/encerrar`),
+    // ADR-192 (etapa 3, 2026-11-22): as ações da Tarefa como objetivo. Com turno vivo, Resolver e Arquivar levam a escolha
+    // explícita da pessoa (`turnoVivo`); a versão lida faz a corrida de dois cliques perder com 409.
+    acaoNaTarefa: (tarefaId: string, acao: "resolver" | "reabrir" | "arquivar" | "desarquivar", corpo: { versao?: number; turnoVivo?: "parar" | "manter" } = {}) =>
+      post<RespostaMutacao & { tarefa: TarefaDto; mudou: boolean }>(`tarefas/${encodeURIComponent(tarefaId)}/${acao}`, corpo),
+    // ADR-192 (emenda 5): as Tarefas arquivadas, para o chip "Arquivadas" da tela Tarefas.
+    tarefasArquivadas: () => get<{ tarefas: TarefaDto[] }>("tarefas?estado=arquivada&arquivadas=1"),
     // ADR-187 §6 (2026-11-18): o nome novo da tarefa, dado na aba.
     renomearTrabalho: (id: string, titulo: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/titulo`, { titulo }),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.
@@ -584,6 +634,8 @@ export function criarApi(escopo: Escopo) {
     gerarEnderecoWebhook: (id: string) => post<RespostaMutacao>(`rotinas/${id}/endereco`),
     testarWebhook: (id: string) => post<RespostaMutacao>(`rotinas/${id}/testar-webhook`),
     ativarRotina: (id: string) => post<RespostaMutacao>(`rotinas/${id}/ativar`),
+    /** PR #333 (achado 4): o Excluir de Configurações › Rotinas (a confirmação é do diálogo da tela). */
+    excluirRotina: (id: string) => post<RespostaMutacao>(`rotinas/${id}/excluir`),
     /** Desfazer a pausa em lote (2026-11-19): o lote volta para o Desfazer do aviso; null quando não havia ativa. */
     pausarTodasRotinas: () => post<{ ok: true; lote: { id: string; em: number } | null; rotinaIds: string[] }>("rotinas/pausar-todas"),
     reativarLoteDeRotinas: (loteId: string) => post<{ ok: true; reativadas: string[] }>(`rotinas/lotes/${encodeURIComponent(loteId)}/reativar`),
@@ -677,6 +729,12 @@ export function criarApi(escopo: Escopo) {
       post<{ turnos: number; motivo?: "ja_refeito" | null }>(`trabalhos/${encodeURIComponent(trabalhoId)}/rodar-desta-vez`, { maquinaId }),
     rodarDestaVez: (conversaId: string, maquinaId: string, turnoId?: string, contaId?: string) =>
       post<{ turnos: number; turnoId?: string | null; motivo?: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/rodar-desta-vez`, { maquinaId, ...(turnoId ? { turnoId } : {}), ...(contaId ? { contaId } : {}) }),
+    // Lote B (2026-11-22): "Responder com o <outra IA> desta vez" no cartão do desvio — refaz o turno uma vez na outra IA.
+    // Lote B (desvio 9): "Reinstalar e tentar" — a máquina reinstala a cópia da IA e a fala sai quando ela abrir.
+    reinstalarETentar: (conversaId: string, turnoId: string, maquinaId: string, ia: string) =>
+      post<{ turnoId: string | null; motivo: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/reinstalar-e-tentar`, { turnoId, maquinaId, ia }),
+    responderComOutraIa: (conversaId: string, turnoId: string, ia: string) =>
+      post<{ turnoId: string | null; motivo: MotivoDaNota | null }>(`conversas/${encodeURIComponent(conversaId)}/responder-com-outra-ia`, { turnoId, ia }),
     // ADR-102: as contas de IA da pessoa em todas as máquinas, o login numa máquina pela tela e o convite da VM.
     contasIa: () => get<ContasIaDto>("contas-ia"),
     ordemContas: (ids: string[]) => pedir<null>("PUT", `${base}/contas-ia/ordem`, { ids }),

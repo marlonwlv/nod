@@ -48,6 +48,18 @@ export type EstadoDecisao = "pendente" | "decidida" | "vencida" | "reaberta" | "
  */
 export const TIPOS_DISPENSAVEIS_ABERTOS = ["pergunta", "falta_de_dado", "permissao", "retomar_turno"] as const satisfies readonly TipoDecisao[];
 
+/**
+ * ABERTAS que a mensagem nova da pessoa fecha como dispensadas por ela (definido em 2026-11-20, ADR-191, pedido do dono):
+ * os cartões que esperam um clique — acesso, propostas, credencial, "Retomar" — e, de 'pergunta', só o pedido de ajuda do
+ * computador (o caso de uso confere o balão: `ajudaDoComputador`), que não se responde com texto. Ficam de fora as
+ * perguntas que se respondem com texto (a mensagem é a resposta, EMENDA 16), o gate da rotina, o CSV das decisões e a
+ * aprovação, que a mensagem nova já substitui por regra (ADR-184). A web espelha num Record (web/lib/pedidos-que-esperam.ts).
+ */
+export const TIPOS_DISPENSADOS_AO_SEGUIR = [
+  "acesso", "app", "credencial", "perfil", "bot", "lote_bots", "rotina", "rotina_atualizacao", "rotina_exclusao", "rotina_execucao",
+  "colunas_quadro", "quadro_exclusao", "importacao_linear", "assumir_quadro", "retomar_turno", "pergunta",
+] as const satisfies readonly TipoDecisao[];
+
 export type DesfechoDecisao =
   | { tipo: "decidida"; por: string; em: IsoUtc }
   /**

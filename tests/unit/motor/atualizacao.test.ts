@@ -161,6 +161,25 @@ describe("o motor se atualiza sozinho (ADR-100): no motor", () => {
     expect(drenos).toEqual(["fundo", "tudo", false]);
   });
 
+  it("2026-11-25, Windows: com `pedir`, chama ele em vez de gravar o pedido para o root", async () => {
+    const { dir, pasta, buscar } = await montar("// motor novo\n");
+    const pedidos: (string | null)[] = [];
+    const a = iniciarAtualizacao({ url: "https://nod", dir, pastaDoMotor: pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: () => undefined, buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0, relogio: () => 42, pedir: async (v) => { pedidos.push(v); } });
+    await a.agora();
+    expect(pedidos).toEqual(["0.5.0"]);
+    await expect(readFile(arquivoDoPedido(pasta), "utf8")).rejects.toThrow();
+    a.parar();
+  });
+
+  it("2026-11-25, Windows: com turno da pessoa rodando, não pede (espera, como no Linux)", async () => {
+    const { dir, pasta, buscar } = await montar("// motor novo\n");
+    const pedidos: (string | null)[] = [];
+    const a = iniciarAtualizacao({ url: "https://nod", dir, pastaDoMotor: pasta, turnosRodando: () => 1, turnosDaPessoa: () => 1, drenar: () => undefined, buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0, relogio: () => 42, pedir: async (v) => { pedidos.push(v); } });
+    await a.agora();
+    expect(pedidos).toEqual([]);
+    a.parar();
+  });
+
   it("pede atualização quando só um processo do computador está diferente", async () => {
     const igual = await montar("// nod-motor.mjs\n");
     const computador = await mkdtemp(join(tmpdir(), "nod-motor-computador-"));

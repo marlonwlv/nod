@@ -59,6 +59,16 @@ describe("o campo da tarefa segue o estado dela (Paper 4k, 4l, 4m e 4n)", () => 
     expect(saida).toContain('data-act="encerrar-tarefa" data-id="t1">Encerrar a tarefa<');
   });
 
+  it("QA-201: bot excluído — o campo não envia, não oferece Continuar e diz o caminho (restaurar o bot)", () => {
+    for (const estado of ["parado", "terminado", "falhou", "precisa_de_voce"] as const) {
+      const c = campoDaTarefa(tarefa({ estado }), "Ada", 0, true);
+      expect(c).toMatchObject({ placeholder: "Bot excluído · restaure o bot para continuar", semEnvio: true, saida: false, parar: false, precisa: false });
+      expect(c.nota).toContain("restaure o bot para continuar");
+      expect(c.nota).not.toMatch(/continue a conversa|continua a tarefa/);
+    }
+    expect(campoDaTarefa(tarefa({ estado: "parado" }), "Ada").semEnvio).toBeFalsy();
+  });
+
   it("feita: pedir mais reabre; sem tarefa carregada, o campo neutro", () => {
     expect(campoDaTarefa(tarefa({ estado: "terminado" }), "Ada")).toMatchObject({ placeholder: "Pedir mais alguma coisa nesta tarefa…", parar: false, saida: false });
     expect(campoDaTarefa(undefined, "Ada")).toMatchObject({ parar: false, nota: "" });

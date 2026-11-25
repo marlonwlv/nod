@@ -490,11 +490,13 @@ describe("CSS da tela limpa", () => {
     expect(nav.split("\n").filter((l) => l.includes(".cl-mais-bt") && l.includes("opacity: 0"))).toEqual([".cl-linha .cl-mais-bt { opacity: 0; }"]);
   });
 
-  it("T7: o aviso de alerta é branco com borda fina; o âmbar só no ícone e o botão é o primário de sempre", () => {
-    const estilos = css("estilos.css");
-    expect(estilos).toContain(".tom-alerta { background: var(--surface); border-color: var(--line); color: var(--ink); }");
-    expect(estilos).toContain(".tom-alerta .aviso-estado-ic { color: var(--warning); }");
-    expect(estilos).toContain(".tom-alerta .bt.pri { background: var(--action); border-color: var(--action); color: var(--on-action); }");
+  it("T7 (revisto no lote B, 2026-11-22): todo aviso é a caixa branca do DS; o âmbar só no ponto e o botão é o primário de sempre", () => {
+    const ds = css("ds.css");
+    expect(ds).toContain("background: var(--surface-elevated); border: 1px solid var(--borda); border-radius: var(--raio-14);");
+    expect(ds).toContain(".tom-alerta .aviso-estado-ponto { background: var(--aguardando); }");
+    expect(ds).toContain(".aviso-estado-acoes .bt.pri { background: var(--action); border-color: var(--action); color: var(--on-action); }");
+    // Nenhum tom pinta a caixa: a cor do estado fica só no ponto.
+    expect(css("estilos.css")).not.toMatch(/^\.tom-(erro|alerta|ok|info) \{/m);
     expect(css("interface.css")).toContain(".linha-espera .linha-centro { flex-wrap: wrap; color: var(--ink-2); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }");
   });
 

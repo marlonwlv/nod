@@ -1,5 +1,6 @@
 import { ESTADO_MAX_BYTES_ARTEFATO, HTML_MAX_ARTEFATO, HTML_MAX_LEITURA_ARTEFATO, TITULO_MAX_ARTEFATO } from "../contracts/artefato.ts";
 import { ErroDeDominio } from "./erro.ts";
+import { acharTextoMalFormado } from "./texto-bem-formado.ts";
 
 /**
  * Regras puras do artefato do nod (ADR-051). O HTML é do bot e não é interpretado aqui: o servidor só
@@ -62,8 +63,9 @@ export function validarEstado(dados: unknown): string {
     throw new ErroDeDominio("entrada_invalida", { cause: "estado do artefato não é JSON" });
   }
   if (texto === undefined) throw new ErroDeDominio("entrada_invalida", { cause: "estado do artefato ausente" });
-  // JSON.stringify escreve o NUL como \u0000, que o jsonb recusa (22P05).
-  if (texto.includes("\\u0000")) throw new ErroDeDominio("entrada_invalida", { cause: "estado do artefato com NUL" });
+  // O jsonb recusa (22P05) o NUL e o surrogate solto. A procura é nos VALORES e nas chaves, não no texto serializado:
+  // ali uma barra digitada seguida de "u0000" (caminho, trecho de código) parecia NUL e era recusada (QA-219).
+  if (acharTextoMalFormado(dados) !== null) throw new ErroDeDominio("entrada_invalida", { cause: "estado do artefato com NUL ou surrogate solto" });
   if (bytesUtf8(texto) > ESTADO_MAX_BYTES_ARTEFATO) throw new ErroDeDominio("entrada_invalida", { cause: "estado do artefato > 64 KB" });
   return texto;
 }

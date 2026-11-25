@@ -21,7 +21,8 @@ export function podeVirarRegra(i: Pick<ItemAprovacao, "origemSensivel" | "destin
   // ADR-115 (PR 5, decisão 8 do Marlon): o item do revisor só vira regra onde ela serve (`sempreServe`, 0094) — a web
   // nem mostra o botão nos outros (`revisorSemSempre` em sua-vez.ts).
   if ((i.motivoManual === "revisor_pediu" || i.motivoManual === "revisor_falhou") && i.sempreServe !== true) return false;
-  return !i.origemSensivel && i.destino.conector !== "computador" && i.destino.conector !== "terminal" && !nuncaPermanente(i.destino.ferramenta);
+  // ADR-190: o navegador nunca vira regra por ferramenta ("não perguntar de novo" vale por destino de envio, A3).
+  return !i.origemSensivel && i.destino.conector !== "computador" && i.destino.conector !== "navegador" && i.destino.conector !== "terminal" && !nuncaPermanente(i.destino.ferramenta);
 }
 
 export type EntradaPermitirSempre = { decisaoId: string; itemIds: readonly string[] };
