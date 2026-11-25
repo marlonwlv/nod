@@ -57,6 +57,33 @@ describeIntegracao("pausar rotina até uma data (NOD-412)", () => {
     });
   });
 
+  it("QA r128: pelo chat, pausar sem data a pausada com data tira a data (até a pessoa reativar); pela tela segue sem efeito", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const agora = Date.parse("2026-11-11T15:00:00Z");
+      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Lia" });
+      const { deps, repos } = depsSobre(trx, MARLON, { agora: () => agora });
+      const r = await repos.rotinas.criar({ ...base, agenteId, conversaId, fusoIana: "America/Sao_Paulo", proximaExecucao: agora + 3_600_000 });
+      const id = r?.id ?? "";
+      const chat = (ate?: string) => pausarRotinaPeloAgente(deps, { agenteId, conversaId, turnoId: randomUUID(), rotina_id: id, ...(ate ? { ate } : {}) });
+      const segunda = instanteLocal("2026-11-16", "America/Sao_Paulo");
+
+      expect((await chat("2026-11-16")).data).toMatchObject({ estado: "pausada", ja_estava: false, retomar_em: segunda });
+      // A tela (rota, sem `semRetomada`) pausar de novo sem data não mexe na data, como sempre.
+      await pausarRotina(deps, { rotinaId: id, estado: "pausada" });
+      expect((await repos.rotinas.buscar(id))?.retomarEm).toBe(segunda);
+
+      // "Deixa pausada até eu reativar": a data sai, o bot não ouve "já estava" e o chat diz a frase sem data.
+      expect((await chat()).data).toMatchObject({ estado: "pausada", ja_estava: false, retomar_em: null });
+      expect((await repos.rotinas.buscar(id))?.retomarEm).toBeNull();
+      expect((await repos.mensagens.listarDaConversa(conversaId)).at(-1)?.texto).toBe("Rotina pausada: nada será disparado até você reativar.");
+
+      // Repetir agora é "já estava", sem linha nova.
+      const antes = (await repos.mensagens.listarDaConversa(conversaId)).length;
+      expect((await chat()).data).toMatchObject({ estado: "pausada", ja_estava: true, retomar_em: null });
+      expect((await repos.mensagens.listarDaConversa(conversaId)).length).toBe(antes);
+    });
+  });
+
   it("o CHECK recusa ativa com data (ativar sempre limpa)", async () => {
     await withRollback(MARLON, async (trx) => {
       const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Lia" });

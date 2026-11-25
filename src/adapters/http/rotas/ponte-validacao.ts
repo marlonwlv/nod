@@ -42,8 +42,9 @@ import { UUID } from "../roteador.ts";
 import type { TipoAnexo } from "../../../contracts/anexo.ts";
 import { HARNESSES, SEM_CAPACIDADES, type CapacidadesHarness, type IdHarness } from "../../../contracts/harness.ts";
 
-export function exigir(condicao: unknown): asserts condicao {
-  if (!condicao) throw new ErroDeDominio("entrada_invalida");
+/** `causa` (2026-11-23): o campo que falhou, para o log `requisicao_recusada` (nunca vai ao cliente). */
+export function exigir(condicao: unknown, causa?: string): asserts condicao {
+  if (!condicao) throw new ErroDeDominio("entrada_invalida", causa ? { cause: causa } : undefined);
 }
 export function objeto(v: unknown): Record<string, unknown> {
   exigir(v && typeof v === "object" && !Array.isArray(v));
@@ -675,15 +676,17 @@ export function resultadoComandoComputador(v: unknown): ResultadoComandoComputad
 /** A foto do computador. `computadorId` vazio = supervisor ainda sem computador (só a X25519 importa). */
 export function estadoComputadorRelatado(v: unknown): EstadoComputadorRelatado {
   const r = objeto(v);
-  exigir(typeof r.computadorId === "string" && (r.computadorId === "" || UUID.test(r.computadorId)));
-  exigir(typeof r.ligado === "boolean" && typeof r.supervisorPub === "string" && B64_CHAVE.test(r.supervisorPub));
-  exigir(Array.isArray(r.telas) && r.telas.length <= 64);
+  // 2026-11-23: cada recusa diz o campo (o log mostrou 46 mil 400 em 3 h nesta rota sem dizer o quê).
+  exigir(typeof r.computadorId === "string" && (r.computadorId === "" || UUID.test(r.computadorId)), "computadorId");
+  exigir(typeof r.ligado === "boolean", "ligado");
+  exigir(typeof r.supervisorPub === "string" && B64_CHAVE.test(r.supervisorPub), "supervisorPub");
+  exigir(Array.isArray(r.telas) && r.telas.length <= 64, "telas");
   const numero = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : null);
   const telas = (r.telas as unknown[]).map((t) => {
     const o = objeto(t);
-    exigir(typeof o.agenteId === "string" && UUID.test(o.agenteId));
+    exigir(typeof o.agenteId === "string" && UUID.test(o.agenteId), "telas.agenteId");
     const estado = ESTADOS_TELA_COMPUTADOR.find((e) => e === o.estado);
-    exigir(estado);
+    exigir(estado, `telas.estado=${typeof o.estado === "string" ? o.estado.slice(0, 20) : typeof o.estado}`);
     return { agenteId: o.agenteId, estado, ultimaAcaoEm: numero(o.ultimaAcaoEm), memoriaMb: numero(o.memoriaMb) };
   });
   const foto: EstadoComputadorRelatado = { computadorId: r.computadorId, ligado: r.ligado, supervisorPub: r.supervisorPub, telas };

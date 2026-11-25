@@ -10,7 +10,7 @@ import type { ContaNoLimite } from "./turno.ts";
 import type { PayloadTrocaDeIa } from "./troca-de-ia.ts";
 import type { PayloadRotinaEvento, PayloadRotinaRitmo } from "./rotina.ts";
 import type { PayloadPedidoRespondido, PayloadPeerPedido } from "./troca-entre-bots.ts";
-import type { AncoraDoConsentimento, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
+import type { AncoraDoConsentimento, PayloadPedidoDispensado, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
 import type { DesfechoItem, DesfechoRotina, MotivoFalhaComputador, MotivoNegacao, MotivoPasse } from "./motivos.ts";
 /** Marca de confiança é propriedade do CONTEÚDO, nunca do nome da ferramenta (ADR-026). */
 /**
@@ -156,12 +156,19 @@ export type PayloadMensagem =
   /** definido em 2026-10-12 (ADR-099, I2): a cópia, na conversa do dono, do recado que ele repassou a uma frente. */
   | { kind: "recado_a_frente"; trabalhoId: string; titulo: string }
   /** definido em 2026-10-12 (ADR-099, I3): a linha "3 frentes terminaram" (ou "A frente X terminou", com `avisar_a_cada_uma`) na conversa do dono. */
-  | { kind: "frentes_terminadas"; loteId: string; frentes: { trabalhoId: string; titulo: string; estado: EstadoTrabalho }[] }
+  /** ADR-192 (etapa 4): `tarefaId` = a Tarefa (objetivo) ligada à frente, quando houver; o retorno continua apontando para o trabalho. */
+  | { kind: "frentes_terminadas"; loteId: string; frentes: { trabalhoId: string; titulo: string; estado: EstadoTrabalho; tarefaId?: string }[] }
   /** ADR-099 (I3) e chat limpo (PR 3: `resposta`, `turnoRaizId`): troca-entre-bots.ts. */
   | PayloadPedidoRespondido
   /** Chat limpo, PR 4 (o cartão encolhido): cartao-encolhido.ts. */
   | PayloadRegraPermanente | import("./ferramentas-barra.ts").PayloadAjusteBarra | import("./ferramentas-nao-lidos.ts").PayloadNaoLidosLista | import("./ferramentas-nao-lidos.ts").PayloadReciboLeitura | import("./ferramentas-decisoes.ts").PayloadDecisoesResumo // NOD-119; NOD-449; NOD-414.
   | PayloadPropostaDecidida | { kind: "aviso_pessoa" } | import("./destino-no-chat.ts").PayloadTarefaLinha // NOD-114: a fala `texto` com que o bot avisou a pessoa por conta própria (avisar_pessoa); ADA-28: a linha que aponta para a tarefa.
+  | import("./navegador-do-bot.ts").PayloadNavegadorLugar // ADR-190 (N): o lugar do navegador do bot mudou sozinho; a linha diz onde e traz Desfazer/"Só na …".
+  | import("./navegador-do-bot.ts").PayloadNavegadorPergunta // ADR-190 (M2/J1, M3/K1): os cartões do Mac desligado; respondido, a linha com Desfazer.
+  /** ADR-191 (2026-11-20): o pedido que a pessoa deixou para trás ao seguir conversando (cartao-encolhido.ts). */
+  | PayloadPedidoDispensado
+  /** Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (src/domain/desvios-da-conversa.ts). */
+  | import("./desvio.ts").PayloadDesvio
   | { kind: "turno_preso"; maquinaId: string; /** QA do NOD-314: a IA em que o turno está fixado (harnessFixado); null/ausente = Automático. */ ia?: string | null }; // NOD-314: pendente preso 24 h a uma máquina sem contato saiu da fila.
 
 export type { Mensagem } from "./mensagem-modelo.ts";

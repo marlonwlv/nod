@@ -30,6 +30,8 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   // A proposta confirmada ou recusada com payload (`proposta_decidida`, chat limpo PR 4): é o cartão encolhido no lugar
   // do cartão da proposta. As de antes, sem payload, continuam `proposta.decidida` (Atividade).
   "proposta.resultado": { destino: "chat", categoria: null },
+  // ADR-191 (2026-11-20): o cartão que a pessoa deixou para trás vira uma linha no lugar dele, com o "Fazer agora".
+  "pedido.dispensado": { destino: "chat", categoria: null },
   artefato: { destino: "chat", categoria: null },
   ligacao: { destino: "chat", categoria: null },
   // /nova: a pessoa pediu e precisa ver que o bot começou do zero.
@@ -61,6 +63,10 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   "bot.criado": { destino: "atividade", categoria: null },
   "turno.orfao": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_orfao" },
   "turno.falhou": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_falhou" },
+  // Lote B das Jornadas da IA (2026-11-22, Paper B3): a recuperação silenciosa fica no chat como UMA linha discreta — é o
+  // que explica por que a resposta demorou ou veio de outra conta; o cartão do desvio pede ação da pessoa.
+  "desvio.recuperado": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_falhou" },
+  "desvio.parou": { destino: "chat", categoria: null, seBastidor: "bastidor.turno_falhou" },
   "turno.interrompido": { destino: "atividade", categoria: "bloqueios" },
   // A queda da máquina vem com o card "Retomar" e diz "você pode reabrir": pede ação (decidido pelo orquestrador em 18/10,
   // no lugar do Marlon, na QA do PR 1). Se o card for dispensado ou vencer, a linha continua dizendo o que houve.
@@ -76,13 +82,16 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   // Os quatro de destino temporal ficam no chat enquanto pedem ação e a Atividade os lista sempre, no filtro "Máquina e IA"
   // (plano, 1a; QA do PR 2: com categoria null eles só apareciam em "Tudo").
   "negacao.plano_ausente": { destino: "chat", categoria: "maquina_ia", temporal: true },
-  "ia.trocada": { destino: "atividade", categoria: "maquina_ia" },
+  // revisto em 2026-11-22 (lote B das Jornadas da IA, regra 3 e Paper B3): a troca que o nod fez sozinho volta ao chat como
+  // UMA linha discreta — é ela que explica por que a resposta veio de outra conta ou de outra IA. Antes (chat limpo,
+  // revisão 3 do #550) a pessoa recebia a resposta sem saber que a conta dela tinha parado.
+  "ia.trocada": { destino: "chat", categoria: "maquina_ia" },
   "ia.troca": { destino: "chat", categoria: "maquina_ia", temporal: true },
   "ia.limite_do_plano": { destino: "chat", categoria: "maquina_ia", temporal: true },
   // A fala da pessoa espera a hora do limite (NOD-268): ela não teve resposta e a linha diz quando volta.
   "ia.fala_espera": { destino: "chat", categoria: null },
-  "conta.trocada": { destino: "atividade", categoria: "maquina_ia" },
-  "conta.seguiu": { destino: "atividade", categoria: "maquina_ia" },
+  "conta.trocada": { destino: "chat", categoria: "maquina_ia" },
+  "conta.seguiu": { destino: "chat", categoria: "maquina_ia" },
   "conta.escolhida": { destino: "atividade", categoria: "maquina_ia" },
   "conta.nota": { destino: "atividade", categoria: "maquina_ia" },
   // "Seguir com" numa conta que não está na máquina: o clique não fez nada e a linha diz o que fazer.
@@ -96,6 +105,7 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   "computador.tela_fechada": { destino: "chat", categoria: "maquina_ia" },
   // NOD-97 PR 5: o Chrome preencheu a senha salva; a linha cinza no chat avisa que o bot não vê o que está escrito.
   "computador.senha_preenchida": { destino: "chat", categoria: "maquina_ia" },
+  "navegador.lugar": { destino: "chat", categoria: "maquina_ia" },
   "trabalho.aberto": { destino: "anexo", categoria: "frentes" },
   "frentes.abertas": { destino: "anexo", categoria: "frentes" },
   "frentes.terminadas": { destino: "anexo", categoria: "frentes" },
@@ -192,6 +202,8 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
         return "acesso.concedido";
       case "proposta_decidida":
         return "proposta.resultado";
+      case "pedido_dispensado":
+        return "pedido.dispensado";
       case "rotina_execucao":
         return payload.desfecho === "falhou" || payload.desfecho === "bloqueada" || payload.desfecho === "interrompida" ? "rotina.falhou" : "rotina.execucao";
       // NOD-313: o card que sugere espaçar ou pausar a rotina fica no chat, como as linhas da rotina.
@@ -226,8 +238,13 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
         return "computador.tela_fechada";
       case "computador_senha_preenchida":
         return "computador.senha_preenchida";
+      case "navegador_lugar":
+      case "navegador_pergunta":
+        return "navegador.lugar";
       case "turno_preso":
         return "turno.orfao";
+      case "desvio":
+        return payload.forma === "linha" ? "desvio.recuperado" : "desvio.parou";
       case "artefato":
         return "artefato";
       case "ligacao":

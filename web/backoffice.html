@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <title>nod · backoffice</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ADR-194: o backoffice interno. O servidor só entrega esta página em /backoffice/* a quem está na equipe
+         (equipe_backoffice; vazia, NOD_ADMINS) e as rotas /api/backoffice/* conferem de novo a cada pedido. -->
+    <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/estilos.css" />
+    <link rel="stylesheet" href="/ds.css" />
+    <link rel="stylesheet" href="/backoffice.css" />
+  </head>
+  <body class="bko-pagina">
+    <div id="backoffice"></div>
+    <script type="module" src="/backoffice.tsx"></script>
+  </body>
+</html>

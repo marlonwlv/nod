@@ -73,11 +73,27 @@ export function diaRelativo(ms: number, agora: number): string {
   return dataCurta(ms);
 }
 
-/** A coluna "Próxima vez": a hora e, embaixo, "em 12 min", "hoje", "amanhã" ou "seg, 24 nov". */
-export function proximaVez(ms: number, agora: number): { hora: string; quando: string } {
+/** O dia (AAAA-MM-DD) e a hora (HH:MM) do instante num fuso IANA; null se o fuso não existe. */
+function noFuso(ms: number, fuso: string): { dia: string; hora: string } | null {
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: fuso, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return { dia: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour}:${p.minute}` };
+  } catch { return null; }
+}
+
+/**
+ * A coluna "Próxima vez": a hora e, embaixo, "em 12 min", "hoje", "amanhã" ou "seg, 24 nov". Com `fuso` (o da rotina),
+ * a hora e o dia saem nele, os mesmos do "todo dia às 09:00 (America/Sao_Paulo)" do detalhe — QA do rc.10 no Windows
+ * (PR #333, achado 2): numa máquina em UTC, a rotina das 09:00 de São Paulo aparecia como "12:00".
+ */
+export function proximaVez(ms: number, agora: number, fuso?: string): { hora: string; quando: string } {
   const falta = ms - agora;
-  const quando = falta > 0 && falta < 60 * 60_000 ? `em ${Math.max(1, Math.round(falta / 60_000))} min` : diaRelativo(ms, agora);
-  return { hora: hora(ms), quando };
+  const emMin = falta > 0 && falta < 60 * 60_000 ? `em ${Math.max(1, Math.round(falta / 60_000))} min` : null;
+  const alvo = fuso ? noFuso(ms, fuso) : null;
+  const hojeNoFuso = fuso ? noFuso(agora, fuso) : null;
+  if (!alvo || !hojeNoFuso) return { hora: hora(ms), quando: emMin ?? diaRelativo(ms, agora) };
+  const rel = alvo.dia === hojeNoFuso.dia ? "hoje" : alvo.dia === somarDias(hojeNoFuso.dia, 1) ? "amanhã" : alvo.dia === somarDias(hojeNoFuso.dia, -1) ? "ontem" : dataCurta(data(alvo.dia).getTime());
+  return { hora: alvo.hora, quando: emMin ?? rel };
 }
 
 export const itemComProblema = (i: ItemAgenda): boolean => (i.tipo === "execucao" ? i.problema : i.tipo === "faixa" ? i.problemas > 0 : false);

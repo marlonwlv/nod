@@ -217,4 +217,11 @@ describe("a fila da conversa com a máquina acordando (situacaoNaFila)", () => {
     expect(situacaoNaFila(mensagem, fora)).toMatchObject({ tipo: "na_fila", turnoId: "t2", texto: "Ze 1 lê quando a máquina ligar" });
     expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toMatchObject({ texto: "Na fila" });
   });
+
+  it("bot sem máquina fixa e nenhuma máquina conectada (motor parado): diz que lê quando uma máquina ligar (PR #333)", () => {
+    const semAlvo = (maquinas: MaquinaDto[]): Estado => { const e = naFila(maquinas); return { ...e, frota: { agentes: [{ id: "a", nome: "Ze 1", conversaId: C, maquinaId: null }] } as never }; };
+    expect(situacaoNaFila(mensagem, semAlvo([maquina("pc", "PC", { conectada: false, plataforma: "win32" })]))).toMatchObject({ tipo: "na_fila", texto: "Ze 1 lê quando uma máquina sua ligar" });
+    expect(situacaoNaFila(mensagem, semAlvo([maquina("pc", "PC", { conectada: false }), maquina("vm", "vm-sp")]))).toMatchObject({ texto: "Na fila" });
+    expect(situacaoNaFila(mensagem, semAlvo([]))).toMatchObject({ texto: "Na fila" });
+  });
 });

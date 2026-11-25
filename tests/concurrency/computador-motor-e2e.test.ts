@@ -141,8 +141,18 @@ describeIntegracao("computador da pessoa: servidor → ponte → motor → super
     return srv.chamar("POST", `decisoes/${decisaoId}/decidir`, { itens: itens.map((i) => ({ id: i.id, selecionado: true })) });
   }
 
-  it("sem máquina conectada a ação falha na hora (sem contato), não espera os 60 s", async () => {
+  it("2026-11-25: sem máquina Linux, o plano sai sem computador_*; com uma Linux sem contato, a ação falha na hora", async () => {
     const [, auto] = bots;
+    // O computador só mora numa máquina Linux (COMPUTADOR_NO_MAC): sem nenhuma, o plano nem oferece o computador.
+    const semLinux = await srv.app.dentro(srv.pessoa, async (d) => {
+      await d.tx(async (trx) => { await trx`update agentes set confirmado = true where id = ${auto!.agente.id}`; });
+      const t = await d.repos.turnos.enfileirar({ executor: "catcher", agenteId: auto!.agente.id, conversaId: auto!.conversa.id, origem: "conversa", prazoEm: Date.now() + 600000, profundidade: 0, entradaTexto: "Use seu computador", entradaConfianca: "confiavel", modelo: "auto", harness: "auto" });
+      return (await emitirPlanoTurno(d, { turnoId: t!.id, machineId: randomUUID(), executor: "catcher" })).data;
+    });
+    expect(semLinux.catalogo.ferramentas.filter((f) => f.origem === "computador")).toEqual([]);
+    // Uma Linux que já se anunciou e agora está sem contato: o computador entra e a ação falha na hora.
+    await srv.json("POST", "maquinas/chaves", { nome: "linux-sem-contato" });
+    await srv.app.dentro(srv.pessoa, (d) => d.tx(async (trx) => { await trx`update maquina_tokens set plataforma = 'linux' where nome = 'linux-sem-contato'`; }));
     const antes = Date.now();
     const r = await ferramenta(auto!, "computador_observar");
     expect(Date.now() - antes).toBeLessThan(10_000);

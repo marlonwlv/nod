@@ -225,7 +225,7 @@ function iaDoTurnoSql(c: Conn) {
 }
 
 /**
- * definido em 2026-10-12 (ADR-099 §7, decisão do Marlon): a cota da IA segura o turno `t`? Com a IA do turno na reserva (99%
+ * definido em 2026-10-12 (ADR-099 §7, decisão do dono): a cota da IA segura o turno `t`? Com a IA do turno na reserva (99%
  * de uma janela), trabalho NOVO de fundo — task que nunca rodou, de qualquer origem, e rotina ou pedido de colega sem task —
  * espera: o 1% fica para a conversa com a pessoa. Com a IA no limite, TODO o fundo espera (o que já começou e a volta
  * marcada também), até a janela renovar, em vez de falhar. A conversa com a pessoa (conversa, sala, a retomada que ela
@@ -689,6 +689,38 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * da cota segue valendo: se o limite persistir, o turno acordado continua segurado. A volta marcada pelo bot
      * (`me_chame_as`, esperar comando) não tem o marcador e não acorda. Devolve os ids acordados.
      */
+    /**
+     * Lote B das Jornadas da IA (regra 1, 2026-11-22): a fala da pessoa que espera (o limite, o login, a conta sem acesso;
+     * `adiarFala`) sai assim que uma conta da IA dela fica pronta numa máquina — não na hora marcada. A da IA fixa em outra
+     * não acorda; a do Automático, sim.
+     */
+    async anteciparFalasEsperando(ia: string): Promise<string[]> {
+      const linhas = await conn<{ id: string }[]>`
+        update turnos t set acordar_em = null
+        where t.tenant_id = ${escopo.tenantId} and t.owner_id = ${escopo.pessoaId} and t.estado = 'pendente' and t.origem = 'conversa'
+          and t.acordar_em is not null and t.mensagem_origem_id is not null
+          and (t.harness = 'auto' or ${iaDoTurnoSql(conn)} = ${ia})
+        returning t.id`;
+      return linhas.map((l) => l.id);
+    },
+
+    /**
+     * Lote B das Jornadas da IA (desvio 9, auditoria de 2026-11-22): a fala refeita pelo "Reinstalar e tentar" espera a
+     * IA reinstalada e sai quando ela volta pronta numa máquina. Só ela: a cópia em espera da mesma fala cujo turno parou
+     * porque a IA não abriu (`lancamento_falhou`). As outras esperas (limite, login) têm os gatilhos delas.
+     */
+    async anteciparReinstaladas(ia: string): Promise<string[]> {
+      const linhas = await conn<{ id: string }[]>`
+        update turnos t set acordar_em = null
+        where t.tenant_id = ${escopo.tenantId} and t.owner_id = ${escopo.pessoaId} and t.estado = 'pendente' and t.origem = 'conversa'
+          and t.acordar_em is not null and t.mensagem_origem_id is not null
+          and (t.harness = 'auto' or ${iaDoTurnoSql(conn)} = ${ia})
+          and exists (select 1 from turnos o where o.tenant_id = t.tenant_id and o.mensagem_origem_id = t.mensagem_origem_id
+            and o.id <> t.id and o.criado_em <= t.criado_em and o.estado = 'interrompido' and o.motivo_interrupcao = 'lancamento_falhou')
+        returning t.id`;
+      return linhas.map((l) => l.id);
+    },
+
     async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}): Promise<string[]> {
       const porIa = modelosPorIa();
       const linhas = await conn<{ id: string }[]>`
@@ -1031,6 +1063,16 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     async registrarMotivoRecomeco(id: string, motivo: MotivoRecomeco): Promise<boolean> {
       const r = await conn`update turnos set motivo_recomeco = ${motivo} where tenant_id = ${escopo.tenantId} and id = ${id} and motivo_recomeco is null`;
       return r.count === 1;
+    },
+
+    /**
+     * Lote B das Jornadas da IA (2026-11-22): quantas vezes a mesma mensagem da pessoa já se repetiu por um motivo (a
+     * tabela de desvios conta a repetição por desvio, além do teto da mensagem). Sem a mensagem de origem: nenhuma.
+     */
+    async repeticoesDaMensagem(mensagemOrigemId: string | null | undefined, motivo: MotivoRecomeco): Promise<number> {
+      if (!mensagemOrigemId) return 0;
+      const [l] = await conn<{ n: number }[]>`select count(*)::int as n from turnos where tenant_id = ${escopo.tenantId} and mensagem_origem_id = ${mensagemOrigemId} and motivo_recomeco = ${motivo}`;
+      return l?.n ?? 0;
     },
 
     /** NOD-312 (revisão 4): a repetição da sessão recusada que acabou retomando uma sessão nova não recomeçou. */

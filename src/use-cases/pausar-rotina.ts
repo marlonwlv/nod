@@ -25,7 +25,7 @@ import type { CasoDeUso } from "./tipos.ts";
  * aqui (de agora + 1 min a 366 dias), para a tela e o chat recusarem igual. Pausar a já pausada com OUTRA data troca só a
  * data (sem corte de fila, que já foi feito); com a mesma data, ou sem data numa pausada, segue sem efeito como sempre.
  */
-export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; retomarEm?: number | null; ate?: string; retomadaAutomatica?: true; autoria?: Autoria; texto?: string; semLinha?: true }, { rotina: Rotina; corte?: { cortados: number; rodando: boolean } }> = async (deps, input) => {
+export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; retomarEm?: number | null; ate?: string; retomadaAutomatica?: true; semRetomada?: true; autoria?: Autoria; texto?: string; semLinha?: true }, { rotina: Rotina; corte?: { cortados: number; rodando: boolean } }> = async (deps, input) => {
   // QA r100 (2026-11-19): a linha fica TRAVADA até o fim da tx. Sem isso, oito "ativar" simultâneos liam todos "pausada" e
   // escreviam seis "Rotina ativa" no chat (e pausas repetidas cortavam a fila de novo). A segunda espera a primeira e relê o
   // estado já mudado, caindo no "sem efeito". Quem não é a dona não trava (policy de UPDATE) e segue pelo `buscar` de sempre.
@@ -35,6 +35,9 @@ export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; r
   const retomarEm = input.estado !== "pausada" ? null : input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : input.retomarEm ?? null;
   if (retomarEm !== null) validarRetomada(retomarEm, agora);
   if (atual.estado === input.estado) {
+    // QA r128: o chat pede "deixa pausada até eu reativar" numa pausada com data (`semRetomada`, da ferramenta sem `ate`):
+    // tira a data, senão ela voltava sozinha e o bot ouvia `ja_estava`. Pela tela, pausar sem data a pausada segue sem efeito.
+    if (input.estado === "pausada" && retomarEm === null && input.semRetomada && atual.retomarEm != null) return trocarRetomada(deps, atual, null, input);
     if (input.estado === "ativa" || retomarEm === null || retomarEm === (atual.retomarEm ?? null)) return { data: { rotina: atual } };
     return trocarRetomada(deps, atual, retomarEm, input);
   }
@@ -79,8 +82,8 @@ export function fraseDaPausa(rotina?: Pick<Rotina, "fusoIana" | "retomarEm">, ag
   return `Rotina pausada até ${textoRetomada(rotina.retomarEm, rotina.fusoIana, agora)}: volta sozinha. Execuções perdidas na pausa não são repostas.`;
 }
 
-/** A já pausada ganha outra data: só a data muda, com a linha no chat (o corte de fila já foi feito na pausa). */
-async function trocarRetomada(deps: Parameters<typeof pausarRotina>[0], atual: Rotina, retomarEm: number, input: Parameters<typeof pausarRotina>[1]) {
+/** A já pausada ganha outra data (ou perde a data, QA r128): só a data muda, com a linha no chat (o corte de fila já foi feito na pausa). */
+async function trocarRetomada(deps: Parameters<typeof pausarRotina>[0], atual: Rotina, retomarEm: number | null, input: Parameters<typeof pausarRotina>[1]) {
   const rotina = await deps.repos.rotinas.atualizarEstado(atual.id, "pausada", retomarEm);
   if (!rotina) throw new ErroDeDominio("nao_permitido", { cause: "só a dona pausa/ativa" });
   if (input.semLinha) return { data: { rotina } };
