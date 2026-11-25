@@ -4413,6 +4413,10 @@ function escreverNoCampo(ta: HTMLTextAreaElement, valor: string): void {
   atualizarParar();
 }
 
+/** O menu do seletor de IA aberto (um por vez) e se um clique dele ainda está gravando. */
+let menuIa: { fechar: () => void } | null = null;
+let gravandoIa = false;
+
 /**
  * O seletor de IA do campo (plano "tela limpa", 2026-10-16, T6): o miolo segue o bot e o uso da janela sem regravar o
  * campo (ADR-020) — como o chip de aprovações, só troca o que mudou.
@@ -4425,8 +4429,11 @@ function atualizarSeletorIa(): void {
   bt.hidden = false;
   const m = mioloDoSeletor(d, bt.getAttribute("aria-expanded") === "true");
   if (bt.dataset.miolo !== m.html) { bt.innerHTML = m.html; bt.dataset.miolo = m.html; }
-  if (bt.title !== m.titulo) { bt.title = m.titulo; bt.setAttribute("aria-label", m.titulo); }
-  bt.setAttribute("aria-disabled", String(!d.dona));
+  // O clique que não abre diz por quê (o título e o estado desligado): só a dona muda, ou a troca anterior ainda grava.
+  const titulo = gravandoIa ? `${m.titulo} · gravando a troca` : m.titulo;
+  if (bt.title !== titulo) { bt.title = titulo; bt.setAttribute("aria-label", titulo); }
+  bt.setAttribute("aria-disabled", String(!d.dona || gravandoIa));
+  bt.setAttribute("aria-busy", String(gravandoIa));
 }
 
 /**
@@ -4439,10 +4446,6 @@ function agenteDoSeletor(): string | null {
   if (t.tipo === "trabalho") return trabalhoPorId(estado, t.id)?.agenteId ?? null;
   return null;
 }
-
-/** O menu do seletor de IA aberto (um por vez) e se um clique dele ainda está gravando. */
-let menuIa: { fechar: () => void } | null = null;
-let gravandoIa = false;
 
 function fecharMenuIa(): void {
   menuIa?.fechar();
@@ -4457,7 +4460,9 @@ function fecharMenuIa(): void {
 function abrirSeletorIa(el: HTMLElement): void {
   const a = agenteDoSeletor() ? estado.frota?.agentes.find((b) => b.id === agenteDoSeletor()) : undefined;
   const d = agenteDoSeletor() ? dadosDoSeletor(estado, agenteDoSeletor()!) : null;
-  if (!a || !d || !d.dona || gravandoIa || estado.ocupado) return;
+  // Antes saía calado com qualquer ação da tela no ar (`estado.ocupado`): o clique ficava mudo sem motivo. A escolha já
+  // espera a gravação anterior (`gravandoIa`) e nunca grava noutra conversa (`composerDe`).
+  if (!a || !d || !d.dona || gravandoIa) return;
   const chave = composerDe;
   // ADR-179: o do Base UI quando o módulo dos diálogos chegou (o mesmo HTML); senão, o <dialog>.
   const abrir = moduloDosDialogos
