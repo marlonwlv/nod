@@ -119,7 +119,7 @@ export function botsSimulados(aMais = 0): BotDaVitrine[] {
   const extra = Array.from({ length: Math.max(0, aMais) }, (_, i): BotDaVitrine => ({ id: `bot-${i}`, nome: NOMES_A_MAIS[i % NOMES_A_MAIS.length]! + (i >= NOMES_A_MAIS.length ? ` ${Math.floor(i / NOMES_A_MAIS.length) + 1}` : ""), titulo: "Bot do time", forma: "shape-circle", cor: CORES_A_MAIS[i % CORES_A_MAIS.length]! }));
   return [...BOTS_SIMULADOS, ...extra];
 }
-const EMAILS_DO_GMAIL: Record<string, string> = { principal: "marlon@leapy.com.br", pessoal: "maria@gmail.com", familia: "familia.wanderllich@gmail.com", acme: "marlon@acme.com.br", vendas: "vendas@leapy.com.br" };
+const EMAILS_DO_GMAIL: Record<string, string> = { principal: "voce@empresa.example", pessoal: "maria@pessoal.example", familia: "familia@pessoal.example", acme: "voce@acme.example", vendas: "vendas@empresa.example" };
 
 type Conexao = { conectorId: string; niveis: Record<string, NivelVisto>; acessos: { padrao: NivelPedido; seguePadrao: Set<string> } };
 

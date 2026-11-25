@@ -1,6 +1,6 @@
 # ADR-196 — Duas contas do mesmo app: uma conta, um conector
 
-Status: proposta (2026-11-24, pedido do Marlon; implementada em 2026-11-25, com as revisões marcadas abaixo) · Revê o UNIQUE da 0009 (uma sessão Composio por pessoa e app) ·
+Status: proposta (2026-11-24, pedido do dono; implementada em 2026-11-25, com as revisões marcadas abaixo) · Revê o UNIQUE da 0009 (uma sessão Composio por pessoa e app) ·
 Relacionadas: [ADR-013](adr-013-o-proxy-mcp-e-o-ponto-de-decisao-do-produto.md) (o proxy decide por conector),
 [ADR-041](adr-041-chave-composio-do-tenant-catalogo-vindo-do-provedor.md) (sessões e contas são da pessoa),
 [ADR-057](adr-057-marketplace-com-o-catalogo-publico-do-composio.md) (Marketplace com o catálogo do Composio),
@@ -9,12 +9,12 @@ Spec: [docs/specs/apps-duas-contas.md](../specs/apps-duas-contas.md).
 
 ## Contexto
 
-O Marlon pediu: "quero que meu bot secretária se conecte no meu Gmail corporativo e também no meu Gmail pessoal". Hoje
+O dono pediu: "quero que meu bot secretária se conecte no meu Gmail corporativo e também no meu Gmail pessoal". Hoje
 não dá. `composio_sessoes` tem `UNIQUE (tenant_id, owner_id, toolkit)` (0009), `composioRepo.sessao(toolkit)` busca só
 pelo app, e conectar de novo troca a conta da linha que já existia. O conector é um só por slug
 (`conectores_slug_unico`), e as ferramentas dele chegam ao modelo como `${slug}__${tool}` (`src/domain/plano-turno.ts`).
 
-**O app de referência faz.** No Grok Bot (bundle em `~/nod/Copiador/grokbot-rea/app/dist`), cada conector MCP tem
+**O app de referência faz.** No Grok Bot (bundle do app analisado localmente), cada conector MCP tem
 contas com um `accountKey` (`default` mais as outras). Cada conta vira outro servidor: o identificador é `gmail` para a
 `default` e `gmail--<conta>` para as outras (`EKe(e,t){return t==="default"?e:\`${e}--${t}\`}`). O nome exibido é
 "Gmail (trabalho)", e a linha mostra o e-mail (`accountEmail`). A tela tem "Adicionar outra conta" e "Renomear conta".
@@ -45,7 +45,7 @@ por `connected_accounts`. Os dois foram medidos (ver "Medido").
    primeira conta sem mudar nada. A mesma chave anda pela rota (`/marketplace/gmail--pessoal/conectar` e `/verificar`)
    e pelo login que a web acompanha (`estado.conectando["gmail--pessoal"]`).
 4. **O nome da conta fica fixo; "Renomear" troca só o nome exibido.** O slug entra no nome da ferramenta, nas regras
-   permanentes e no histórico. Trocá-lo quebraria tudo isso. "Renomear" muda só `conectores.nome` ("Gmail (Leapy)"),
+   permanentes e no histórico. Trocá-lo quebraria tudo isso. "Renomear" muda só `conectores.nome` ("Gmail (Acme)"),
    por `PATCH /conectores/:id/nome`.
 5. **Acesso, aprovação, disjuntor e sonda não mudam.** São todos por conector. A secretária pode ter "Ler e alterar" no
    Gmail (pessoal) e "Nenhum" no Gmail, porque são dois conectores. O `gerir_acessos` já aceita o app por nome, slug ou

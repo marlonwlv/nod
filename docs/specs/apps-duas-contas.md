@@ -1,6 +1,6 @@
 # Apps do Marketplace com mais de uma conta
 
-Spec escrita em 2026-11-24, a partir do pedido do Marlon: "quero que meu bot secretária se conecte no meu Gmail
+Spec escrita em 2026-11-24, a partir do pedido do dono: "quero que meu bot secretária se conecte no meu Gmail
 corporativo e também no meu Gmail pessoal". Decisão técnica em [ADR-196](../adr/adr-196-duas-contas-do-mesmo-app.md).
 Implementada em 2026-11-25 (branch feat/multiconta-composio); o que mudou do rascunho está marcado como revisto.
 
@@ -31,16 +31,16 @@ aceita mais de uma conta do mesmo app para a mesma pessoa; a sonda de 2026-11-24
    *trabalho*; de 1 a 20 caracteres, `[a-z0-9-]` depois de normalizar acento e espaço) e abre o login do Google. A
    primeira conta não pede nome: segue como hoje.
 2. **Cada conta numa linha.** Logo do app, o nome ("Gmail", "Gmail (pessoal)"), o e-mail da conta embaixo
-   (`maria@gmail.com`) e o menu da linha: **Quem pode usar**, **Renomear**, **Desconectar**, **Remover esta conta**.
+   (`maria@pessoal.example`) e o menu da linha: **Quem pode usar**, **Renomear**, **Desconectar**, **Remover esta conta**.
 3. **"Quem pode usar o Gmail (pessoal)?"** é a tela de hoje, por conector. O padrão para bots novos também é por conta.
-4. **Renomear** troca só o nome que aparece ("Gmail (Leapy)"). O slug `gmail--pessoal` fica, porque é o nome das
+4. **Renomear** troca só o nome que aparece ("Gmail (Acme)"). O slug `gmail--pessoal` fica, porque é o nome das
    ferramentas, das regras permanentes e do histórico.
 5. **Remover esta conta** tira a conta a mais: apaga a conta no Composio, os acessos dos bots a ela e a sessão; o conector
    fica marcado (`removido_em`) porque as regras permanentes apontam para ele (ADR-196 §8). A confirmação (Paper M7)
    diz quantos bots perdem o acesso e lista até três, com "Ver todos". A primeira conta só sai pelo Desconectar de sempre.
 6. **No bot**, cada conta é um app à parte: a lista de apps do bot mostra "Gmail" e "Gmail (pessoal)", cada um com o seu
    nível. As ferramentas chegam ao modelo com o slug da conta (`gmail--pessoal__GMAIL_SEND_EMAIL`), e a descrição do
-   conector diz de que conta é ("Gmail (pessoal) · maria@gmail.com"), para o bot escolher a certa.
+   conector diz de que conta é ("Gmail (pessoal) · maria@pessoal.example"), para o bot escolher a certa.
 7. **Limite de 5 contas por app.** Na quinta, a linha "+ Adicionar outra conta" fica desligada com "Até 5 contas do
    Gmail".
 8. **Login que não terminou.** Fechar a janela do Google sem entrar não guarda nada. Tentar de novo com o mesmo nome
@@ -74,7 +74,7 @@ alterar" é `pessoa_confirma`, sempre da pessoa.
 é `arriscada`. Dar acesso continua cerca 3 (ADR-082): depois de conteúdo de fora, vira cartão.
 
 **Ambiguidade no `gerir_acessos`:** com duas contas, "Gmail" casa com mais de um conector. A ferramenta não escolhe:
-devolve `ambiguo` com a lista ("Gmail · marlon@leapy.com.br", "Gmail (pessoal) · maria@gmail.com") e o bot pergunta.
+devolve `ambiguo` com a lista ("Gmail · voce@empresa.example", "Gmail (pessoal) · maria@pessoal.example") e o bot pergunta.
 
 - [ ] Dá para fazer pelo chat com qualquer bot: a mesma ação pela tela e pelo chat chega ao mesmo estado, com o
   cartão que o risco e o modo pedem.

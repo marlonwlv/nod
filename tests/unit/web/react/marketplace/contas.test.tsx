@@ -38,7 +38,7 @@ describe("as contas de um app (ADR-196)", () => {
     abrir(contas(), { contasDoGmail: [] });
     expect(screen.getByRole("heading", { name: "Contas" })).toBeTruthy();
     const lista = screen.getByRole("list", { name: "Contas do Gmail" });
-    expect(lista.textContent).toContain("marlon@leapy.com.br");
+    expect(lista.textContent).toContain("voce@empresa.example");
     expect(lista.textContent).toContain("Clarice e mais 2 bots");
     expect(screen.getByRole("button", { name: /Adicionar outra conta/ }).textContent).toContain("1 de 5");
     expect(regiao.textContent).toContain("1 conta conectada");
@@ -112,7 +112,7 @@ describe("as contas de um app (ADR-196)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Opções do Gmail (pessoal)" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Remover esta conta" }));
     const alerta = screen.getByRole("alertdialog", { name: "Remover o Gmail (pessoal)?" });
-    expect(alerta.textContent).toContain("2 bots perdem o acesso a maria@gmail.com.");
+    expect(alerta.textContent).toContain("2 bots perdem o acesso a maria@pessoal.example.");
     expect(within(alerta).getByRole("list", { name: "Quem perde o acesso" }).textContent).toContain("ClariceLer e alterar");
     expect(document.activeElement?.textContent).toBe("Cancelar");
     fireEvent.keyDown(alerta, { key: "Escape" });
