@@ -227,6 +227,34 @@ const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" s
 
 const PARAR = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/></svg>';
 
+/**
+ * ADR-190 (Paper 5c, 3): um lugar onde o bot está agora (o navegador dele), como a pílula o lista: "● Navegador da Ada ·
+ * ao vivo". Clicar abre a aba do lugar (o modo abas, com ela à vista).
+ */
+export type LugarNaPilula = { agenteId: string; rotulo: string; estado: string; ponto: "vivo" | "precisa"; site: string };
+
+const pontoDoLugar = (l: LugarNaPilula): string => `<span class="pf-ponto-lugar" data-ponto="${l.ponto}" aria-hidden="true"></span>`;
+
+/** Os lugares na lista aberta da pílula (a seção "Lugares", antes das tarefas). */
+function secaoDosLugares(lugares: readonly LugarNaPilula[]): string {
+  if (!lugares.length) return "";
+  const itens = lugares.map((l) => `<li class="tv-item"><button type="button" class="tv-linha pf-lugar-linha" data-act="navegador-abrir-aba" data-agente="${esc(l.agenteId)}" data-estado="${l.ponto}">${pontoDoLugar(l)}<span class="tv-texto"><span class="tv-titulo">${esc(l.rotulo)}</span><span class="tv-estado">${esc([l.site, l.estado].filter(Boolean).join(" · "))}</span></span></button></li>`).join("");
+  return `<h3 class="pf-secao">Lugares</h3><ul class="pf-lista">${itens}</ul>`;
+}
+
+/**
+ * Paper 5c (3): sem tarefas, a pílula do campo é o lugar — "● Navegador da Ada · ao vivo ⌃" — e o clique abre a aba
+ * dele. Com a tarefa nova à mão, o "+" ao lado, como na aba que conta.
+ */
+export function htmlDaAbaDoLugar(lugares: readonly LugarNaPilula[], novaTarefa: NovaTarefaNaAba | null): string {
+  const [l] = lugares;
+  if (!l) return novaTarefa ? htmlDaAbaVazia(novaTarefa) : "";
+  const mais = lugares.length > 1 ? ` · +${lugares.length - 1}` : "";
+  return `<div class="pilula-frentes pf-vazia pf-com-lugar" data-estado="fechada"><div class="pf-fechada">`
+    + `<button type="button" class="pf-botao pf-lugar" data-act="navegador-abrir-aba" data-agente="${esc(l.agenteId)}" aria-label="${esc(`Abrir ${l.rotulo}, ${l.estado}`)}">${pontoDoLugar(l)}<span class="pf-texto">${esc(l.rotulo)}</span><span class="pf-resto">· ${esc(l.estado)}${esc(mais)}</span>${SETA_CIMA}</button>`
+    + `${novaTarefa ? htmlDoMais(novaTarefa) : ""}</div></div>`;
+}
+
 /** As partes que o desenho troca uma a uma (o botão e o painel ficam; só o miolo que mudou é regravado). */
 export type PartesDaPilula = {
   /** Muda quando é outro bot: o esqueleto é refeito, sem animação. */
@@ -300,10 +328,12 @@ const SETA_DIREITA = '<svg class="pf-prontas-seta" width="10" height="10" viewBo
  * As partes da pílula. `progresso` diz se a fala de algum grupo está na janela carregada: sem ela, "Ver na conversa" não
  * tem para onde levar e não aparece.
  */
-export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, novaTarefa: NovaTarefaNaAba | null = null): PartesDaPilula {
+export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, novaTarefa: NovaTarefaNaAba | null = null, lugares: readonly LugarNaPilula[] = []): PartesDaPilula {
   // P1: o resto começa com o separador ("12 tarefas · 1 precisa de você · 3 prontas"); com tarefas, o ícone diz o estado —
   // o ponto azul quando alguma precisa da pessoa, o anel quando alguma roda; sem tarefas (espera, fila), o ponto de antes.
-  const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(p.resto.join(" · "))}</span>` : "";
+  // Paper 5c (3): o lugar ativo entra no fim ("2 tarefas · rodando · Navegador da Ada ao vivo") e no topo da lista aberta.
+  const comLugares = [...p.resto, ...lugares.map((l) => `${l.rotulo} ${l.estado}`)];
+  const resto = comLugares.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(comLugares.join(" · "))}</span>` : "";
   const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
   const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
   const botao = `${icone}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
@@ -326,7 +356,7 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   ].join("");
   const rotulo = p.grupos.length ? `Tarefas de ${p.nome}` : `O que ${p.nome} está esperando`;
   const mais = novaTarefa ? htmlDoMais(novaTarefa) : "";
-  return { chave: mais ? `${p.agenteId}:mais` : p.agenteId, botao, ...(mais ? { mais } : {}), memoria, rotulo, cab, corpo: corpoDaPilula(p, novaTarefa), pe, telemetria: chaveDaTelemetria(p.grupos) };
+  return { chave: mais ? `${p.agenteId}:mais` : p.agenteId, botao, ...(mais ? { mais } : {}), memoria, rotulo, cab, corpo: secaoDosLugares(lugares) + corpoDaPilula(p, novaTarefa), pe, telemetria: chaveDaTelemetria(p.grupos) };
 }
 
 /**
@@ -399,14 +429,15 @@ export function htmlDaAbaVazia(n: NovaTarefaNaAba): string {
  * A pílula da conversa com o progresso medido na tela. Sem o dono no servidor (anterior ao I10), a faixa de tasks de antes.
  * `novaTarefa` (ADR-187 §5): a aba "+ Nova tarefa" quando não há o que contar, e o "+" ao lado da aba que conta.
  */
-export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: ProgressoNaTela, novaTarefa: NovaTarefaNaAba | null = null): PilulaNaConversa {
+export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: ProgressoNaTela, novaTarefa: NovaTarefaNaAba | null = null, lugares: readonly LugarNaPilula[] = []): PilulaNaConversa {
   const bot = agente(estado, agenteId);
+  // Paper 5c (3): sem tarefa a contar, o lugar ativo é a pílula; sem lugar, a aba "+ Nova tarefa" (ou nada).
+  const vazia: PilulaNaConversa = lugares.length ? { tipo: "vazia", html: htmlDaAbaDoLugar(lugares, novaTarefa) } : novaTarefa ? { tipo: "vazia", html: htmlDaAbaVazia(novaTarefa) } : { tipo: "nada" };
   if (!donoDoBot(estado, agenteId, bot?.conversaId)) {
-    if (soNaFila(estado, agenteId, { esperas: [] })) return { tipo: "nada" };
+    if (soNaFila(estado, agenteId, { esperas: [] })) return lugares.length ? vazia : { tipo: "nada" };
     const html = renderFaixaTrabalhos(estado, agenteId);
-    return html ? { tipo: "legado", html } : { tipo: "nada" };
+    return html ? { tipo: "legado", html } : lugares.length ? vazia : { tipo: "nada" };
   }
-  const vazia: PilulaNaConversa = novaTarefa ? { tipo: "vazia", html: htmlDaAbaVazia(novaTarefa) } : { tipo: "nada" };
   const pilula = pilulaDoBot(estado, agenteId);
   if (!pilula) return vazia;
   // Paper 05 (rodada 3 da casca, "igual ao Paper"): a frente só na fila, que ainda não começou, não ganha pílula acima do
@@ -419,6 +450,7 @@ export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: Pr
   // do PR 400). Com frentes, ela espera escondida o histórico; espera e fila não têm fala-âncora e aparecem já.
   const cid = bot?.conversaId;
   const semHistorico = !!cid && estado.conversas[cid] === undefined;
-  const escondida = pilulaEscondida(conteudo, progresso) || (semHistorico && pilulaEscondida(conteudo, { naTimeline: new Set(), aVista: new Set(pilula.grupos.flatMap((g) => g.ids)) }));
-  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso, novaTarefa), escondida };
+  // Um lugar ativo segura a pílula à vista, como a espera e a fila: ele não tem fala-âncora (a linha de atividade é outra).
+  const escondida = !lugares.length && (pilulaEscondida(conteudo, progresso) || (semHistorico && pilulaEscondida(conteudo, { naTimeline: new Set(), aVista: new Set(pilula.grupos.flatMap((g) => g.ids)) })));
+  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso, novaTarefa, lugares), escondida };
 }

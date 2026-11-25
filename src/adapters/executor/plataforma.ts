@@ -97,6 +97,27 @@ export function exeDoShimDoNpm(conteudo: string, pastaDoShim: string): string | 
 }
 
 /**
+ * O shim que o próprio instalador do Windows grava (`FixarNodeNosShims` em motor-instalacao-windows.ts) para fixar o
+ * Node portátil: `"C:\…\node.exe" "C:\…\bin\codex.js" %*`, com caminhos absolutos e `%` dobrado. Sem reconhecê-lo, o
+ * `codex.cmd` dava BinarioSemSuporte e a busca caía no `codex.ps1`, que o `powershell -File` quebra no `-` do prompt
+ * pelo stdin (`PSArgumentException`, "Argument,codex.ps1") — a primeira tarefa de toda instalação nova no Windows.
+ * Só o formato exato (uma linha útil, node.exe + script JS absolutos, `%*` no fim); o resto dá null.
+ */
+export function nodeEScriptDoShimDoNod(conteudo: string): { node: string; script: string } | null {
+  let achado: { node: string; script: string } | null = null;
+  for (const bruta of conteudo.split(/\r?\n/)) {
+    const linha = bruta.trim();
+    if (LINHAS_DO_CMD_SHIM.test(linha)) continue;
+    const m = /^"([A-Za-z]:\\[^"]+?\\node\.exe)"\s+"([A-Za-z]:\\[^"]+?\.(?:c|m)?js)"\s+%\*$/i.exec(linha);
+    if (!m || achado !== null) return null;
+    // `%` solto seria expansão de variável do cmd: só o `%%` (escapado pelo instalador) é literal.
+    if ([m[1]!, m[2]!].some((c) => c.replace(/%%/g, "").includes("%"))) return null;
+    achado = { node: m[1]!.replace(/%%/g, "%"), script: m[2]!.replace(/%%/g, "%") };
+  }
+  return achado;
+}
+
+/**
  * ADR-147: acha `nome` como o Windows acharia, mas sem a pasta atual (o `CreateProcess` olha a cwd antes do PATH, e a
  * cwd é a worktree do bot). PATH em ordem, e em cada pasta a ordem do PATHEXT (`.exe` antes do `.cmd`). O `.exe` roda
  * direto; o `.cmd` do npm vira `node <script>`; o `.ps1` vai pelo PowerShell; outro `.cmd` dá BinarioSemSuporte.
@@ -158,6 +179,8 @@ function alvoDoArquivo(arquivo: string, o: { env: Env; disco: Disco; plataforma:
     if (script === null) {
       const exe = exeDoShimDoNpm(conteudo, pasta);
       if (exe !== null && o.disco.existe(exe)) return { bin: exe, args: [] };
+      const doNod = nodeEScriptDoShimDoNod(conteudo);
+      if (doNod !== null && o.disco.existe(doNod.node) && o.disco.existe(doNod.script)) return { bin: doNod.node, args: [doNod.script] };
     }
     if (script === null) throw new BinarioSemSuporte(`${arquivo} não é um atalho do npm que o nod saiba rodar sem o cmd.exe. Instale a versão .exe da ferramenta ou pelo npm.`);
     const nodeAoLado = win32.join(pasta, "node.exe");

@@ -132,3 +132,16 @@ export function estadoDoMedidor(uso: UsoDoPlano, agora: EpochMs, fusoIana = "UTC
     semana: uso.semana ? estadoDaJanela(uso.semana, agora, fusoIana) : null,
   };
 }
+
+/**
+ * Lote B das Jornadas da IA (desvio 4, regra 4, definido em 2026-11-22): a hora real em que o limite passa, pela leitura de
+ * cota que o turno trouxe (o Codex lê `account/rateLimits/read` no fim do turno). A janela cheia (100%) que renova
+ * por último é a que segura; sem janela cheia com hora no futuro, null — nunca um palpite. O texto do Codex ("try again
+ * at 3:39 PM") não serve: a hora é a do relógio da máquina, sem fuso (uma VM em UTC erraria por horas).
+ */
+export function voltaPelaLeituraDaCota(uso: UsoDoPlano | null | undefined, agora: EpochMs): EpochMs | null {
+  if (!uso) return null;
+  // `utilizacao` é fração (1 = 100%; codex-app-server.ts divide o `usedPercent` por 100).
+  const cheias = [uso.cincoHoras, uso.semana].filter((j): j is JanelaDoPlano => j !== null && j.utilizacao >= 1 && j.renovaEm !== null && j.renovaEm > agora);
+  return cheias.length > 0 ? Math.max(...cheias.map((j) => j.renovaEm!)) : null;
+}

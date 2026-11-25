@@ -5,6 +5,19 @@ export const LEASE_MS = 90_000;
 /** Batida de renovação. definido em 2026-09-16: um terço do lease (ADR-010/021). */
 export const RENOVACAO_MS = 30_000;
 /**
+ * Rede de segurança do long-poll do `puxar` (src/adapters/http/rotas/ponte.ts). medido em 2026-11-23 em produção: o
+ * `puxar` perguntava ao banco a cada 250 ms por máquina (autorizar + reivindicar); a reivindicação era 26% das consultas
+ * ativas e o Cloud SQL de 2 vCPU ficou em 85–99% de CPU ("Reconectando…" na tela). definido em 2026-11-23: o puxar
+ * pergunta na entrada, logo depois do aviso do outbox da pessoa (sinal-outbox.ts) e, sem aviso, a cada isto — cobre o que
+ * fica pronto só com o tempo (acordar_em, espera máxima do fundo, faixa liberada por outro processo).
+ */
+export const RECHECAGEM_PUXAR_MS = 3_000;
+/**
+ * definido em 2026-11-23: segunda pergunta depois de um aviso do outbox. O aviso sai ANTES do commit de quem gravou; a
+ * primeira pergunta (na volta seguinte, até 250 ms) pode não ver o turno ainda, e esta o pega sem esperar a rede de 3 s.
+ */
+export const REFORCO_AVISO_PUXAR_MS = 1_000;
+/**
  * definido em 2026-10-12 (NOD-214): por quanto tempo a máquina segue o turno sem resposta do servidor (o deploy reinicia o
  * processo; o novo responde em ~10 s). Passado isso, a renovação vira `{ativo:false}` e o CLI para. Fica ABAIXO de
  * `LEASE_MS`: se o servidor não voltar, a máquina desiste antes de o varredor assentar o turno por lease vencido — nunca

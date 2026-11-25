@@ -99,7 +99,9 @@ export function donosRepo(conn: Conn, escopo: Escopo) {
           order by e.criado_em, e.id`,
         // A volta marcada para mais tarde (ADR-086); o motivo é o do turno que a marcou (o mesmo `despertar_em`).
         conn<{ agente_id: string; trabalho_id: string | null; motivo: string | null; criado_em: Date; acordar_em: Date }[]>`
-          select t.agente_id, t.trabalho_id, m.despertar_motivo as motivo, t.criado_em, t.acordar_em from turnos t
+          -- Lote B das Jornadas da IA (2026-11-22): a fala da pessoa adiada (adiarFala: o limite, o login, a conta sem acesso)
+          -- não é volta marcada pelo bot — ela espera uma conta da IA.
+          select t.agente_id, t.trabalho_id, coalesce(m.despertar_motivo, case when t.origem = 'conversa' and t.mensagem_origem_id is not null and t.retoma_turno_id is null then 'uma conta da IA voltar' end) as motivo, t.criado_em, t.acordar_em from turnos t
           left join lateral (
             select x.despertar_motivo from turnos x where x.tenant_id = t.tenant_id and x.despertar_em = t.acordar_em
               and (x.id = t.retoma_turno_id or x.retoma_turno_id = t.retoma_turno_id)

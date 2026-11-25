@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -56,5 +56,31 @@ describe("a sessão do Claude que mora em outra conta da máquina (2026-11-20)",
     expect(await trazerSessaoDeOutraConta({ sessao: "../../etc/passwd", configDir: m.atual, home: m.home })).toEqual({ trouxe: false, motivo: "id_invalido" });
     expect(await outrasPastasDeConta(undefined, m.home)).toEqual([]);
     expect((await outrasPastasDeConta(m.atual, m.home)).sort()).toEqual([join(m.home, ".claude"), m.antiga].sort());
+  });
+});
+
+describe("a conta antiga volta depois de outra continuar a conversa (QA r142)", () => {
+  it("A → B → A: a conta que volta retoma a cópia mais nova, não a própria velha", async () => {
+    const m = await maquina();
+    // turno 2 na conta atual: trouxe da antiga e a conversa seguiu nela
+    await trazerSessaoDeOutraConta({ sessao: SESSAO, configDir: m.atual, home: m.home });
+    const naAtual = join(m.atual, "projects", "-home-nod-nod-Clarice", `${SESSAO}.jsonl`);
+    await writeFile(naAtual, '{"type":"user"}\n{"type":"assistant","turno":2}\n');
+    const depois = new Date(Date.now() + 60_000);
+    await utimes(naAtual, depois, depois);
+    // turno 3 volta à conta antiga (o limite dela resetou): precisa do turno 2
+    expect(await trazerSessaoDeOutraConta({ sessao: SESSAO, configDir: m.antiga, home: m.home })).toEqual({ trouxe: true, de: "c-atual" });
+    expect(await readFile(join(m.antiga, "projects", "-home-nod-nod-Clarice", `${SESSAO}.jsonl`), "utf8")).toContain('"turno":2');
+  });
+
+  it("a cópia da conta do turno, se é a mais nova, fica como está", async () => {
+    const m = await maquina();
+    await trazerSessaoDeOutraConta({ sessao: SESSAO, configDir: m.atual, home: m.home });
+    const naAtual = join(m.atual, "projects", "-home-nod-nod-Clarice", `${SESSAO}.jsonl`);
+    await writeFile(naAtual, "mais nova\n");
+    const depois = new Date(Date.now() + 60_000);
+    await utimes(naAtual, depois, depois);
+    expect(await trazerSessaoDeOutraConta({ sessao: SESSAO, configDir: m.atual, home: m.home })).toEqual({ trouxe: false, motivo: "ja_estava" });
+    expect(await readFile(naAtual, "utf8")).toBe("mais nova\n");
   });
 });

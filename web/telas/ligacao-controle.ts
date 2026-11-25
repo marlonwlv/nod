@@ -87,6 +87,8 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
   let porFora = false;
   let instante: InstantaneoDaLigacao | null = null;
   const ouvintes = new Set<() => void>();
+  /** QA-151: onde estava o foco quando a ligação abriu; volta para lá quando a região esvazia com o foco dentro dela. */
+  let origemDoFoco: HTMLElement | null = null;
 
   function mudar(fn: (e: EstadoTelaLigacao) => EstadoTelaLigacao, foraDaRegiao = false): void {
     if (!t) return;
@@ -110,7 +112,34 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
 
   const SUBS = ["ligacao-mascote", "ligacao-info", "ligacao-aviso", "ligacao-legenda", "ligacao-card", "ligacao-teclado", "ligacao-controles", "ligacao-contagem"];
 
+  /**
+   * QA-151: redesenhar tira o botão do documento (Desligar, o 👍/👎, o × da avaliação, os controles regravados pela string)
+   * e o foco de quem usa o teclado cairia no body, com o próximo Tab no topo da página. Se o foco estava na região e saiu
+   * dela, ele vai ao mesmo controle redesenhado, à primeira ação da avaliação ou da recusa ou, com a região vazia, de
+   * volta a quem abriu a ligação (ou ao campo de mensagem). Foco fora da região (a pílula com a pessoa no nod) não é tocado.
+   */
   function render(): void {
+    const raiz = document.getElementById("ligacao");
+    const ativo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const tinhaFoco = !!raiz && !!ativo && raiz.contains(ativo);
+    const chave = tinhaFoco ? (ativo!.getAttribute("data-lig") ?? ativo!.getAttribute("data-act")) : null;
+    desenhar();
+    if (!tinhaFoco || !raiz) return;
+    const agora = document.activeElement;
+    if (agora && agora !== document.body && agora.isConnected) return;
+    const mesmo = chave ? raiz.querySelector<HTMLElement>(`[data-lig="${chave}"], [data-act="${chave}"]`) : null;
+    const alvo = mesmo ?? [".la-nota", ".la-motivos .chip-sugestao", ".la-fechar"].map((s) => raiz.querySelector<HTMLElement>(s)).find(Boolean);
+    if (alvo) { alvo.focus(); return; }
+    if (!raiz.hidden && raiz.childElementCount) return;
+    // Depois de quem chamou terminar: a .app só deixa de ser inerte no `aoMudar` que vem logo após o redesenho.
+    queueMicrotask(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const volta = origemDoFoco?.isConnected && !origemDoFoco.closest("[inert]") ? origemDoFoco : document.getElementById("composer-texto");
+      volta?.focus();
+    });
+  }
+
+  function desenhar(): void {
     const raiz = document.getElementById("ligacao");
     if (!raiz) return;
     if (porFora) {
@@ -321,6 +350,8 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
     avaliacao = null;
     recusa = null;
     saindoSemVoz = false;
+    const ativo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    origemDoFoco = ativo && ativo !== document.body && !document.getElementById("ligacao")?.contains(ativo) ? ativo : null;
     const agora = Date.now();
     t = {
       ligacao, agente, modo,

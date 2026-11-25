@@ -305,6 +305,8 @@ export type FatosTrabalho = {
    * máquina. Como a volta marcada, não é fila: o fim dele acorda o trabalho.
    */
   aguardandoComando?: boolean;
+  /** ADR-192 (emenda 5): o trabalho está `parado` (a pessoa apertou Parar). Lido junto com os fatos (fatosDeVarios). */
+  paradoPelaPessoa?: boolean;
   ultimo: { estado: EstadoTurno; motivo: MotivoInterrupcao | null } | null;
   /**
    * NOD-264 (C21): a última pergunta à pessoa (decisão que não é "Retomar") venceu sem resposta e foi feita pelo último

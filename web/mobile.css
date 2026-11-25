@@ -903,3 +903,45 @@
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .cfg-chave.chave-emitida .bt { min-width: 44px; min-height: 44px; }
 }
+
+/* ADR-190 (D6, C): no celular o botão da tela do navegador vira só o ícone de 44 px, à esquerda da lupa (o nome do bot fica
+   inteiro no centro); a vista abre na folha de baixo (web/telas/navegador.ts). */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .cabecalho.cabecalho-pilula .nv-canto { position: absolute; right: calc(max(12px, env(safe-area-inset-right)) + 50px); top: calc(env(safe-area-inset-top) + 4px); width: 44px; height: 44px; min-width: 44px; padding: 0; }
+  .cabecalho.cabecalho-pilula .nv-canto .nv-canto-txt { display: none; }
+  .cabecalho.cabecalho-pilula .nv-canto .nv-canto-ponto { position: absolute; top: 9px; right: 9px; }
+  .cabecalho.buscando .nv-canto { display: none; }
+  .nv-linha-ver { min-width: 44px; min-height: 44px; }
+  /* Conferência de 2026-11-21 (K3): com a pílula larga ("Aguardando você") e o botão de abas ao lado, o meio invadia o
+     botão da tela (fixo a 62 px da direita) e os dois ícones se sobrepunham. Com ele no cabeçalho, a direita reserva a
+     lupa e o botão da tela (12 + 44 + 6 + 44 + 6). */
+  .cabecalho.cabecalho-pilula:not(.buscando):has(.nv-canto) { padding-right: calc(max(12px, env(safe-area-inset-right)) + 100px); }
+}
+
+/* ADR-190 (K3, M4, L4, L5): no celular os cartões do navegador ocupam a largura e cada opção é um alvo de 44 px; o
+   formulário de login do Cofre empilha os campos. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .nvc, .nvc-guardar { max-width: none; }
+  .nvc.cc-cartao { width: 100%; }
+  .nvc .cc-bt, .nvc-codigo-campo { height: 44px; min-height: 44px; }
+  /* K3 (Paper YQC-0): no celular, "precisa do Mac ligado" (o "seu" é do M4, no computador). */
+  .nvc-so-largo { display: none; }
+  .nvc-guardar button, .nvc-link { min-width: 44px; min-height: 44px; }
+  .cofre-form { grid-template-columns: 1fr; }
+  .cofre-campo input { height: 44px; }
+  .cofre-olho { width: 44px; height: 44px; right: 0; }
+  /* M3/K1/K2 e M2/J1: os botões do cartão empilham com 44 px (Paper YNZ-0); a frase, o Desfazer e os itens da lista também. */
+  .nvl-cartao, .nvl-resposta, .nvl-aviso { max-width: none; }
+  .nvl-bts { flex-direction: column; }
+  .nvl-bt { min-height: 44px; }
+  .nvl-frase-txt, .nvl-trocar, .nvl-desfazer, .nvl-trava { min-height: 44px; }
+  .nvl-desfazer { min-width: 44px; }
+  .nvl-item, .nvl-mais { min-height: 44px; }
+  /* Achado 12 do crítico: a ação da faixa do site, o Desfazer do aviso, os itens do ⋯, o seletor de destino e a caixa
+     "Não perguntar de novo" também com 44 px no toque. */
+  .nv-aviso-acao, .nv-aviso-desfazer { min-height: 44px; min-width: 44px; }
+  .nv-menu-corpo > button, .nv-menu-bts > button { height: auto; min-height: 44px; }
+  .nvc-destino { min-height: 44px; }
+  .nvc-lembrar { min-height: 44px; }
+  .nvc-lembrar input { width: 22px; height: 22px; }
+}

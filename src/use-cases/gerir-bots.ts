@@ -250,6 +250,8 @@ async function executarEmOrdem(
       // lugar do código cru (estado_invalido).
       const causa = typeof e.cause === "string" ? e.cause : null;
       a.erro = causa && ((a.tipo === "restaurar_versao" && CAUSAS_DO_RESTAURAR.has(causa)) || (VEM_DE_OUTRO_BOT.has(a.tipo) && CAUSAS_DO_ACESSO.has(causa))) ? causa : e.codigo;
+      // QA r139: o card de remover aprovado depois que o computador já saiu da conta (pela tela ou por outro card).
+      if (a.tipo === "remover_computador" && e.codigo === "nao_encontrado") a.erro = "o computador já tinha saído da conta";
     }
   }
   return events;

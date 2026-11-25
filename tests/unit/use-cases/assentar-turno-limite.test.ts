@@ -1,3 +1,4 @@
+import { TETO_REENVIOS } from "../../../src/domain/inteligencia.ts";
 import { randomBytes, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { IdHarness } from "../../../src/contracts/harness.ts";
@@ -179,20 +180,20 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
 
     it("no teto (a fala já foi reenviada uma vez): não troca de novo — espera a hora do limite com UMA linha", async () => {
       const c = await cenario();
-      c.turno().reenvios = 1;
+      c.turno().reenvios = TETO_REENVIOS;
       const r = await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
       const novas = c.banco.mensagens.slice(c.antes);
       expect(novas).toHaveLength(1);
       expect(novas[0]).toMatchObject({ kind: "sistema", payload: null });
       expect(novas[0]?.texto).toMatch(ESPERA);
       const adiado = c.banco.turnos.filter((t) => t.id !== c.turnoId);
-      expect(adiado).toMatchObject([{ estado: "pendente", harness: "auto", reenvios: 2, acordarEm: T0 + DUAS_HORAS, mensagemOrigemId: c.turno().mensagemOrigemId }]);
+      expect(adiado).toMatchObject([{ estado: "pendente", harness: "auto", reenvios: TETO_REENVIOS + 1, acordarEm: T0 + DUAS_HORAS, mensagemOrigemId: c.turno().mensagemOrigemId }]);
       expect(r.events.map((e) => e.kind)).toEqual(["turno_interrompido", "turno_criado", "mensagem_criada"]);
     });
 
     it("a fala que já esperou a hora e bate de novo no limite não espera outra vez: o aviso de sempre, nada na fila", async () => {
       const c = await cenario();
-      c.turno().reenvios = 2;
+      c.turno().reenvios = TETO_REENVIOS + 1;
       c.turno().acordarEm = T0 - 1;
       await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
       expect(c.banco.mensagens.slice(c.antes).map((m) => m.payload?.kind)).toEqual(["limite_do_plano"]);
@@ -241,7 +242,7 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
 
     it("Parar pedido: nada espera nem repete", async () => {
       const c = await cenario();
-      c.turno().reenvios = 1;
+      c.turno().reenvios = TETO_REENVIOS;
       c.turno().pararSolicitadoEm = T0;
       await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
       expect(c.banco.turnos).toHaveLength(1);

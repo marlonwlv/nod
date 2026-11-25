@@ -74,7 +74,7 @@ async function comFraseDaAcao(deps: DepsSuaVez, decisaoId: string, itens: ItemAp
 async function comRascunho(deps: DepsSuaVez, itens: ItemAprovacao[], conectores: ConectoresDaLeitura): Promise<ItemAprovacao[]> {
   const saida: ItemAprovacao[] = [];
   for (const i of itens) {
-    if (i.destino.conector === "computador" || i.destino.conector === "terminal") { saida.push(i); continue; }
+    if (i.destino.conector === "computador" || i.destino.conector === "navegador" || i.destino.conector === "terminal") { saida.push(i); continue; }
     let busca = conectores.get(i.destino.conector);
     if (!busca) {
       busca = deps.repos.conectores.buscarPorSlug(i.destino.conector);

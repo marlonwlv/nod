@@ -15,7 +15,7 @@ export const TOKENS_MCP_VIVOS_MAX = 20;
 export const emitirTokenMcp: CasoDeUso<{ nome: unknown }, { token: string; dados: TokenMcpDto }> = async (deps, input) => {
   const nome = typeof input.nome === "string" ? input.nome.trim() : "";
   if (nome.length === 0 || nome.length > NOME_MAX) throw new ErroDeDominio("entrada_invalida", { cause: "nome do token MCP" });
-  const vivos = (await deps.repos.mcpTokens.listar()).filter((t) => t.revogadoEm === null).length;
+  const vivos = await deps.repos.mcpTokens.contarVivosTravando();
   if (vivos >= TOKENS_MCP_VIVOS_MAX) throw new ErroDeDominio("limite_atingido", { cause: "tokens MCP vivos" });
   const cunhado = cunharTokenMcp(deps.escopo);
   const dados = await deps.repos.mcpTokens.criar({ nome, prefixo: cunhado.prefixo, hash: cunhado.hash });

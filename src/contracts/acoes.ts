@@ -93,4 +93,6 @@ export type EfeitoAposCommit =
   | { tipo: "desligar_computador"; agenteId: string }
   | { tipo: "importar_linear"; importacaoId: string }
   /** ADA-245: o computador removido sem o app dele na frente (outra tela, o chat): ligado, a limpeza vai na puxada; desligado, sai da conta agora. */
-  | { tipo: "remover_computador"; maquinaId: string; manterIas: boolean; manterConexao: boolean };
+  | { tipo: "remover_computador"; maquinaId: string; manterIas: boolean; manterConexao: boolean }
+  /** ADR-191 no navegador (2026-11-22): a mensagem nova dispensou estes pedidos; a vista do bot solta o pedido e o controle. */
+  | { tipo: "pedidos_dispensados"; decisaoIds: string[] };
