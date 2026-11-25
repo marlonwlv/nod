@@ -323,7 +323,7 @@ export function renderTarefasPorBot(estado: Estado, tela: TelaTarefas = { tipo: 
   // definido em 2026-11-18 (Paper 5a: oito nomes numa linha): até 12 nomes, depois "e mais N".
   const nomes = livres.map((b) => b.nome);
   const livresHtml = nomes.length ? `<p class="tf-livres">Livres: ${esc(nomes.length > 12 ? `${nomes.slice(0, 11).join(", ")} e mais ${nomes.length - 11}` : nomes.join(", "))}</p>` : "";
-  const vazio = secoes || feitas ? "" : `<p class="tf-vazio">${mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>`;
+  const vazio = secoes || feitas ? "" : `<p class="tf-vazio">${mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>`;
   return `${secoes}${feitas}${vazio}${livresHtml}`;
 }
 
@@ -382,6 +382,6 @@ export function renderTarefasPorEstado(estado: Estado, tela: TelaTarefas = { tip
   const grupos = agrupar(filtrar(todos, tela.filtro).filter((t) => !tela.bot || t.agenteId === tela.bot), estado.agora);
   const secoes = GRUPOS_DO_ESTADO.filter((g) => (mostrar === "todas" || g.mostrar === mostrar) && grupos[g.chave].length > 0).map((g) =>
     `<section class="tf-grupo" data-grupo="${g.chave}"><h2 class="tf-rotulo">${g.titulo} · ${grupos[g.chave].length}</h2><div class="tf-tarefas">${grupos[g.chave].map((t) => linhaDaTarefa(estado, t, todos, g.chave)).join("")}</div></section>`).join("");
-  const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
+  const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
   return secoes || `<p class="tf-vazio">${vazio}</p>`;
 }

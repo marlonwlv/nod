@@ -125,7 +125,7 @@ function PorBot({ estado, tela, acoes, html }: { estado: Estado; tela: TelaTaref
           })}</div>
         </section>
       )}
-      {!secoes.length && !feitasPorBot.length && <p className="tf-vazio">{mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>}
+      {!secoes.length && !feitasPorBot.length && <p className="tf-vazio">{mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot ? "Este bot não está com nada agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui."}</p>}
       {nomes.length > 0 && <p className="tf-livres">{`Livres: ${nomes.length > 12 ? `${nomes.slice(0, 11).join(", ")} e mais ${nomes.length - 11}` : nomes.join(", ")}`}</p>}
     </>
   );
@@ -194,7 +194,7 @@ function PorEstado({ estado, tela, acoes, html }: { estado: Estado; tela: TelaTa
   const grupos = agrupar(filtrar(todos, tela.filtro).filter((t) => !tela.bot || t.agenteId === tela.bot), estado.agora);
   const secoes = GRUPOS_DO_ESTADO.filter((g) => (mostrar === "todas" || g.mostrar === mostrar) && grupos[g.chave].length > 0);
   if (!secoes.length) {
-    const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
+    const vazio = mostrar === "feitas" ? "Nenhuma tarefa terminou hoje." : tela.bot || (tela.filtro && tela.filtro !== "todos") ? "Nada com este filtro agora." : mostrar === "todas" ? "Nenhuma tarefa por aqui ainda. Quando um bot abrir uma tarefa, ela aparece aqui." : "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui.";
     return <p className="tf-vazio">{vazio}</p>;
   }
   return (

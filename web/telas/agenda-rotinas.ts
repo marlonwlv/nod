@@ -201,7 +201,7 @@ function metaDaLinha(ctx: Ctx, l: LinhaRotina, tipo: Tipo): { tom: Tom; texto: s
 function colunaDaDireita(ctx: Ctx, l: LinhaRotina, tipo: Tipo): string {
   if (tipo !== "proxima") return "";
   if (ehWebhook(l.dto)) return '<span class="ag-prox"><small>quando chamarem</small></span>';
-  const p = proximaVez(l.dto.proximaExecucao, ctx.agora);
+  const p = proximaVez(l.dto.proximaExecucao, ctx.agora, l.dto.rotina.fusoIana);
   return `<span class="ag-prox"><span class="ag-sr">Próxima vez: </span><b>${esc(p.hora)}</b><small>${esc(p.quando)}</small></span>`;
 }
 
@@ -242,7 +242,8 @@ function ondeRoda(r: RotinaDto): string | null {
 }
 
 function dados(ctx: Ctx, r: RotinaDto): string {
-  const fuso = ctx.estado.agenda.dto && r.rotina.fusoIana !== ctx.estado.agenda.dto.fuso ? ` (fuso ${r.rotina.fusoIana})` : "";
+  // PR #333 (achado 17): o resumo já pode trazer o fuso ("todo dia às 09:00 (America/Sao_Paulo)"); não repete.
+  const fuso = ctx.estado.agenda.dto && r.rotina.fusoIana !== ctx.estado.agenda.dto.fuso && !r.resumo.includes(r.rotina.fusoIana) ? ` (fuso ${r.rotina.fusoIana})` : "";
   const linhas: [string, string][] = [["Quando", `${r.resumo}${fuso}`]];
   const onde = ondeRoda(r);
   if (onde) linhas.push(["Onde roda", onde]);
@@ -270,6 +271,8 @@ function acoesDaRotina(ctx: Ctx, l: LinhaRotina): Acao[] {
     ...(ctx.estado.ocupado ? [] : [{ act: "executar-rotina", rotulo: "Testar agora", dados: { id: r.id, agente: r.agenteId } }]),
     { act: pausada ? "ativar-rotina" : "pausar-rotina", rotulo: pausada ? "Ativar" : "Pausar", dados: { id: r.id }, pri: pausada },
     { act: "abrir-conversa", rotulo: "Mudar pela conversa", dados: { conversa: r.conversaId, agente: r.agenteId } },
+    // PR #333 (achado 4): excluir pela tela, com a confirmação do diálogo; antes só pela conversa com o bot.
+    { act: "excluir-rotina", rotulo: "Excluir", dados: { id: r.id, titulo: titulo(l.dto) } },
   ];
 }
 

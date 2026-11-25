@@ -2551,6 +2551,18 @@ function pausarRotina(id: string, ate?: string): Promise<void> {
 function ativarRotina(id: string): Promise<void> {
   return agir(async () => void (await api!.ativarRotina(id), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
 }
+/** PR #333 (achado 4): Excluir pela tela de Rotinas, depois do "Excluir esta rotina?" (cancelar não muda nada). */
+function excluirRotinaPelaTela(id: string, titulo: string, ancora: HTMLElement): Promise<void> {
+  return agir(async () => {
+    const texto = `«${titulo}» para de rodar e sai da lista. As execuções passadas continuam na conversa do bot.`;
+    const sim = moduloDosDialogos
+      ? await moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "excluir-rotina-titulo", titulo: "Excluir esta rotina?", texto, cancelar: "Cancelar", confirmar: "Excluir", principal: "cancelar", origem: ancora })
+      : window.confirm(`Excluir esta rotina?\n\n${texto}`);
+    if (!sim) return;
+    await api!.excluirRotina(id);
+    dispatch({ tipo: "invalidar", quais: ["rotinas"] });
+  });
+}
 /** `ancora`: o botão que pediu (o diálogo "rodar mais uma" abre junto dele). */
 function executarRotina(id: string, agenteId: string, ancora: HTMLElement): Promise<void> {
   return agir(async () => {
@@ -9790,6 +9802,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     agir(async () => void (await api!.pausarRotina(el.dataset.id ?? "", ate.slice(0, 16)), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
   },
   "ativar-rotina": (el) => ativarRotina(el.dataset.id ?? ""),
+  "excluir-rotina": (el) => excluirRotinaPelaTela(el.dataset.id ?? "", el.dataset.titulo ?? "esta rotina", el),
   "ver-execucoes": (el) => alternarExecucoes(el.dataset.id ?? ""),
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),

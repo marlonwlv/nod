@@ -631,6 +631,8 @@ export function criarApi(escopo: Escopo) {
     gerarEnderecoWebhook: (id: string) => post<RespostaMutacao>(`rotinas/${id}/endereco`),
     testarWebhook: (id: string) => post<RespostaMutacao>(`rotinas/${id}/testar-webhook`),
     ativarRotina: (id: string) => post<RespostaMutacao>(`rotinas/${id}/ativar`),
+    /** PR #333 (achado 4): o Excluir de Configurações › Rotinas (a confirmação é do diálogo da tela). */
+    excluirRotina: (id: string) => post<RespostaMutacao>(`rotinas/${id}/excluir`),
     /** Desfazer a pausa em lote (2026-11-19): o lote volta para o Desfazer do aviso; null quando não havia ativa. */
     pausarTodasRotinas: () => post<{ ok: true; lote: { id: string; em: number } | null; rotinaIds: string[] }>("rotinas/pausar-todas"),
     reativarLoteDeRotinas: (loteId: string) => post<{ ok: true; reativadas: string[] }>(`rotinas/lotes/${encodeURIComponent(loteId)}/reativar`),

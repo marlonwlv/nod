@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **234**, mais 3 só de leitura. No chat: **81 vivas**, 7 parciais, 99 faltando e 50 que nunca vão para o chat. Piso de vivas: 81.
+Ações de pessoa que mudam algo: **235**, mais 3 só de leitura. No chat: **81 vivas**, 8 parciais, 99 faltando e 50 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -45,6 +45,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `rotinas.ativar` | Ativar uma rotina | muda | vivo (`reativar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/ativar$` |
 | `rotinas.pausar_todas` | Pausar todas as rotinas | muda | vivo (`pausar_todas_rotinas`) | `POST ^\/rotinas\/pausar-todas$` |
 | `rotinas.reativar_lote` | Reativar as rotinas pausadas juntas | muda | vivo (`reativar_lote_rotinas`) | `POST ^\/rotinas\/lotes\/(?<id>[^/]+)\/reativar$` |
+| `rotinas.excluir` | Excluir uma rotina | arriscada | parcial (`excluir_rotina`): o chat propõe o card (aplicarExclusaoRotina); a tela aplica direto pelo excluirRotina, sem teste de contrato comum | `POST ^\/rotinas\/(?<id>[^/]+)\/excluir$` |
 | `rotinas.mudar_ritmo` | Mudar o ritmo de uma rotina | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/ritmo$` |
 | `rotinas.gerar_endereco` | Gerar novo endereço do webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/endereco$` |
 | `rotinas.enviar_teste` | Enviar teste ao webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/testar-webhook$` |
