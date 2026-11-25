@@ -28,6 +28,8 @@ export type ControleLinha =
 
 export type LinhaConfig = {
   titulo: string;
+  /** Um selo em fonte mono ao lado do título (o nome da variável de uma chave do Cofre, "ORGO_API_KEY"). */
+  selo?: string;
   /** Texto simples (escapado). */
   detalhe?: string;
   /** HTML já escapado no lugar do detalhe (quando o detalhe precisa de marcação). */
@@ -213,7 +215,7 @@ function detalheDaLinha(l: LinhaConfig, html: string): Detalhe {
 function miolo(l: LinhaConfig): Detalhe {
   const detalhe = l.detalheHtml ?? (l.detalhe ? esc(l.detalhe) : "");
   const d = detalhe ? detalheDaLinha(l, detalhe) : { html: "", saiba: "" };
-  return { html: `${l.antes ?? ""}${l.icone ? `<span class="lc-ic" aria-hidden="true">${l.icone}</span>` : ""}<span class="lc-txt"><b>${esc(l.titulo)}</b>${d.html}</span>${l.status ? statusLinha(l.status) : ""}${l.quando ? `<span class="lc-quando">${esc(l.quando)}</span>` : ""}`, saiba: d.saiba };
+  return { html: `${l.antes ?? ""}${l.icone ? `<span class="lc-ic" aria-hidden="true">${l.icone}</span>` : ""}<span class="lc-txt"><b>${esc(l.titulo)}${l.selo ? `<code class="lc-selo">${esc(l.selo)}</code>` : ""}</b>${d.html}</span>${l.status ? statusLinha(l.status) : ""}${l.quando ? `<span class="lc-quando">${esc(l.quando)}</span>` : ""}`, saiba: d.saiba };
 }
 
 const SETA = `<span class="lc-seta" aria-hidden="true">${ICONE.seta}</span>`;

@@ -9769,7 +9769,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "nv-habilidades-reler": (el) => void habilidades.reler(el.dataset.agente ?? ""),
   // ADR-190 (decisão 6): Configurações › Cofre › Logins de sites.
   "cofre-adicionar-login": () => { telaCofre.adicionando(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.cofre-form input[name="site"]')?.focus()); },
-  "cofre-cancelar-login": () => { for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-form input')) c.value = ""; telaCofre.adicionando(false); document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus(); },
+  "cofre-cancelar-login": () => { for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-form input')) c.value = ""; telaCofre.adicionando(false); document.querySelector<HTMLElement>('[data-act="cofre-menu-novo"]')?.focus(); },
+  // Paper "Cofre · chaves e logins" (C1): Tudo/Chaves/Logins, o "Novo item" e o "…" de cada login.
+  "cofre-aba": (el) => telaCofre.aba(el.dataset.aba === "chaves" || el.dataset.aba === "logins" ? el.dataset.aba : "tudo"),
+  "cofre-menu-novo": () => { telaCofre.menu("novo"); if (telaCofre.estado().menu === "novo") requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-novo-menu [role="menuitem"]')?.focus()); },
+  "cofre-menu-item": (el) => { const qual = el.dataset.id ?? ""; telaCofre.menu(qual); if (telaCofre.estado().menu === qual) requestAnimationFrame(() => el.closest(".cl-mais")?.querySelector<HTMLElement>('.cl-menu [role^="menuitem"]')?.focus()); },
   "cofre-ver-todos": () => telaCofre.verTodos(),
   "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
   // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
@@ -10674,7 +10678,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     const senha = form.querySelector<HTMLInputElement>('input[name="senha"]');
     const ok = await telaCofre.guardarLogin({ site: String(d.get("site") ?? ""), usuario: String(d.get("usuario") ?? ""), senha: String(d.get("senha") ?? "") });
     if (senha) senha.value = "";
-    if (ok) document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus();
+    if (ok) document.querySelector<HTMLElement>('[data-act="cofre-menu-novo"]')?.focus();
     else document.querySelector<HTMLInputElement>('.cofre-form input[name="senha"]')?.focus();
   },
   // NOD-50: o valor sai do campo direto para POST propostas/:id/credencial e não passa por estado, storage nem conversa.
@@ -10850,6 +10854,7 @@ function alternarExplicacaoNoDom(botao: HTMLElement, aberta?: boolean): void {
 document.addEventListener("click", (ev) => {
   const u = estado.contasUi;
   if ((u.menu || u.maquinaMenu) && !(ev.target as HTMLElement).closest(".cl-mais")) dispatch({ tipo: "contas-ui", mudanca: { menu: null, maquinaMenu: null } });
+  if (telaCofre.estado().menu && !(ev.target as HTMLElement).closest(".cfg-cofre .cl-mais")) telaCofre.menu(null);
   if (estado.nuvem.sonoMenu && !(ev.target as HTMLElement).closest(".nv-ajuste-wrap")) dispatch({ tipo: "nuvem-ui", mudanca: { sonoMenu: null } });
   // NOD-58: o "…" da memória aberto é como um modal leve: o clique fora só fecha (no celular, o fundo escurecido da folha
   // não deixa o toque acertar a memória de baixo).
@@ -10921,6 +10926,16 @@ document.addEventListener("keydown", (ev) => {
     ev.stopPropagation();
     ev.preventDefault();
     telaMinhaConta.fecharJanela();
+    return;
+  }
+  // O Cofre: o Esc fecha primeiro o menu aberto, depois o diálogo "Novo login" (e a senha some com ele).
+  if (telaCofre.estado().menu || telaCofre.estado().adicionando) {
+    ev.stopPropagation();
+    const menu = telaCofre.estado().menu;
+    if (menu) {
+      telaCofre.menu(null);
+      document.querySelector<HTMLElement>(menu === "novo" ? '#espaco [data-act="cofre-menu-novo"]' : `#espaco [data-act="cofre-menu-item"][data-id="${CSS.escape(menu)}"]`)?.focus();
+    } else void ACOES["cofre-cancelar-login"]!(document.body);
     return;
   }
   // NOD-96: a confirmação do painel do computador fecha no Esc; as etapas vão para segundo plano.
@@ -11366,6 +11381,8 @@ document.addEventListener("input", (ev) => {
   // NOD-367: a busca de Agentes redesenha a lista a cada tecla (o foco volta pelo data-manter-foco).
   // Revisão 2: no meio de uma composição (acento, IME) o redesenho perderia o texto montado; a busca anda no compositionend.
   if ((ta as HTMLElement).matches?.("[data-config-busca]")) { if (!(ev as InputEvent).isComposing) buscarAgentes(ta.value); return; }
+  // Paper C1: a busca do Cofre redesenha a seção a cada tecla (o foco volta pelo data-manter-foco).
+  if ((ta as HTMLElement).matches?.("[data-cofre-busca]")) { if (!(ev as InputEvent).isComposing) telaCofre.buscar(ta.value); return; }
   // Revisão 4: o seletor que salva sozinho (data-act-change, a máquina do bot) não deixa a gaveta "suja" — salvou ou repôs.
   if (ta.closest?.("#detalhes") && estado.gaveta && mudancaSujaAGaveta(ta)) gavetaSuja = chaveDaGaveta();
   if (ta.id === "busca-marketplace") {

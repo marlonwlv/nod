@@ -934,9 +934,16 @@
   /* K3 (Paper YQC-0): no celular, "precisa do Mac ligado" (o "seu" é do M4, no computador). */
   .nvc-so-largo { display: none; }
   .nvc-guardar button, .nvc-link { min-width: 44px; min-height: 44px; }
-  .cofre-form { grid-template-columns: 1fr; }
+  .cofre-barra { flex-wrap: wrap; }
+  .cofre-busca { order: 3; width: 100%; height: 44px; }
   .cofre-campo input { height: 44px; }
-  .cofre-olho { width: 44px; height: 44px; right: 0; }
+  .cofre-olho { height: 44px; right: 0; }
+  .cofre-dialogo-pe { flex-wrap: wrap; }
+  .cofre-seguro { flex: 1 1 100%; white-space: normal; }
+  .cofre-dialogo-pe .bt { min-height: 44px; }
+  /* Como o status das outras linhas (configuracoes.css): o dono desce para baixo do título e o "…" fica sozinho à direita. */
+  .cfg-cofre .lc-linha .lc-quando { grid-column: 2; grid-row: 2; align-self: start; margin: 4px 0 0; }
+  .cofre-chave.lc-linha { padding-right: 14px; }
   /* M3/K1/K2 e M2/J1: os botões do cartão empilham com 44 px (Paper YNZ-0); a frase, o Desfazer e os itens da lista também. */
   .nvl-cartao, .nvl-resposta, .nvl-aviso { max-width: none; }
   .nvl-bts { flex-direction: column; }

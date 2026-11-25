@@ -8,13 +8,13 @@ const login = (id: string, site: string) => ({ id, site, usuario: "an…", criad
 const logins = [login("a", "a.com.br"), login("b", "b.com.br"), login("c", "c.com.br")];
 
 describe("Cofre › foco depois de a linha sumir (QA-206)", () => {
-  it("vai ao Apagar da seguinte, da anterior e, sem nenhuma, ao Adicionar login", () => {
+  it("vai ao “…” da seguinte, da anterior e, sem nenhuma, ao Novo item", () => {
     const t = { ...TELA_COFRE_INICIAL, logins };
-    expect(destinoAoApagar(t, "b")).toBe('.cofre-apagar[data-id="c"]');
-    expect(destinoAoApagar(t, "c")).toBe('.cofre-apagar[data-id="b"]');
-    expect(destinoAoApagar({ ...t, apagando: new Set(["a", "c"]) }, "b")).toBe('[data-act="cofre-adicionar-login"]');
-    expect(destinoAoApagar({ ...t, filtro: "c.com.br" }, "c")).toBe('[data-act="cofre-adicionar-login"]');
-    expect(destinoAoApagar({ ...t, apagando: new Set(["a", "c"]), adicionando: true }, "b")).toBe('.cofre-form input[name="site"]');
+    expect(destinoAoApagar(t, "b")).toBe('[data-act="cofre-menu-item"][data-id="login:c"]');
+    expect(destinoAoApagar(t, "c")).toBe('[data-act="cofre-menu-item"][data-id="login:b"]');
+    expect(destinoAoApagar({ ...t, apagando: new Set(["a", "c"]) }, "b")).toBe('[data-act="cofre-menu-novo"]');
+    expect(destinoAoApagar({ ...t, filtro: "c.com.br" }, "c")).toBe('[data-act="cofre-menu-novo"]');
+    expect(destinoAoApagar({ ...t, apagando: new Set(["a", "c"]), adicionando: true }, "b")).toBe('.cofre-dialogo input[name="site"]');
   });
 
   it("Apagar, Desfazer e Ver todos pedem o destino antes do desenho", async () => {
@@ -25,12 +25,13 @@ describe("Cofre › foco depois de a linha sumir (QA-206)", () => {
     });
     await tela.abrir();
     tela.apagarLogin("a");
-    expect(focos.at(-1)).toBe('.cofre-apagar[data-id="b"]');
+    expect(focos.at(-1)).toBe('[data-act="cofre-menu-item"][data-id="login:b"]');
     desfazer!();
-    expect(focos.at(-1)).toBe('.cofre-apagar[data-id="a"]');
+    expect(focos.at(-1)).toBe('[data-act="cofre-menu-item"][data-id="login:a"]');
     tela.filtrar("b.com.br");
     tela.verTodos();
-    expect(focos.at(-1)).toBe('[data-act="cofre-adicionar-login"]');
+    expect(focos.at(-1)).toBe('[data-act="cofre-menu-novo"]');
     expect(tela.estado().filtro).toBeNull();
+    expect(tela.estado().aba).toBe("tudo");
   });
 });

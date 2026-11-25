@@ -442,21 +442,57 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nvh-passos { margin: 0 12px 10px 40px; padding: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 18px; }
 
 /* Configurações › Cofre › Logins de sites (ADR-190, decisão 6). */
-.cofre-logins { margin-top: 24px; }
-.cofre-logins-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.cofre-logins-nota { margin: 4px 0 10px; }
-.cofre-filtro { margin: 0 0 10px; color: var(--ink-2); font-size: var(--fs-corpo-2); }
-.cofre-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; margin: 0 0 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); }
-.cofre-campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--ink-2); font-size: var(--fs-rotulo); }
-.cofre-campo input { width: 100%; height: 34px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--raio-8); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); }
+/* Configurações › Cofre (Paper "nod · Workspace e contas", página "Cofre · chaves e logins", C1/C4/C7): a barra, os
+   grupos em .lc-lista (configuracoes.css), o rodapé e o diálogo "Novo login" sobre o .cl-dialogo de Provedores. */
+.cofre-barra { display: flex; align-items: center; gap: 6px; margin: 4px 0 18px; }
+.cofre-abas { justify-content: flex-start; }
+.cofre-aba { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; font-weight: 400; color: var(--ink-2); }
+.cofre-aba[aria-selected="true"] { background: var(--ativo); color: var(--ink); font-weight: 500; }
+.cofre-conta { color: var(--ink-3); font-weight: 400; font-variant-numeric: tabular-nums; }
+.cofre-barra-vao { flex: 1; }
+.cofre-busca { display: flex; align-items: center; gap: 6px; flex: none; width: 200px; height: 32px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--borda); border-radius: var(--raio-full); color: var(--ink-3); }
+.cofre-busca:focus-within { border-color: var(--borda-forte); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cofre-busca svg { flex: none; }
+/* foco-ok: o contorno fica no .cofre-busca:focus-within, em volta da caixa inteira */
+.cofre-busca input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); outline: none; }
+.cofre-busca input::placeholder { color: var(--ink-3); }
+.cofre-busca input::-webkit-search-cancel-button { display: none; }
+.cofre-novo { flex: none; }
+.bt.pri.cofre-novo-bt { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 14px; border-radius: var(--raio-full); font-size: var(--fs-corpo); }
+.cofre-novo .cl-menu { right: 0; top: 38px; width: 260px; }
+.cofre-filtro { margin: -8px 2px 14px; color: var(--ink-2); font-size: var(--fs-corpo-2); }
+.cofre-grupo { margin-bottom: 18px; }
+/* O Paper (C1 e o quadro de Máquinas do arquivo principal) tem a divisória entre as linhas; o `.lc-linha { border: 0 }`
+   de configuracoes.css anula a do `.lc-lista > * + *` em todas as Configurações, então aqui ela volta com mais peso. */
+.cfg-cofre .lc-lista > .lc-linha + .lc-linha { border-top: 1px solid var(--line); }
+.lc-selo { margin-left: 6px; padding: 0 5px; border-radius: var(--raio-4); background: var(--hover); color: var(--ink-2); font: 400 var(--fs-legenda)/var(--lh-legenda) var(--font-mono); vertical-align: 1px; }
+.cofre-linha .lc-quando { margin-right: 2px; }
+/* A chave não tem "…" ainda: o recuo guarda a raia dele (30 px + o vão de 12), para o "Sua" alinhar com o dos logins. */
+.cofre-chave.lc-linha { padding-right: 58px; }
+.cofre-vazio p { margin: 0; padding: 16px 18px; font-size: var(--fs-corpo-2); line-height: 1.45; color: var(--ink-2); }
+.cofre-vazio b { display: block; margin-bottom: 4px; font-size: var(--fs-corpo); font-weight: 400; color: var(--ink); }
+.cofre-rodape { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0 0; padding: 14px 8px 0; border-top: 1px solid var(--borda-sutil); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-2); }
+.cofre-rodape svg { flex: none; margin-top: 2px; color: var(--ink-3); }
+.cofre-dialogo { display: flex; flex-direction: column; gap: 6px; width: min(480px, calc(100vw - 32px)); }
+.cofre-dialogo-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cofre-dialogo-cab h3 { margin: 0; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); font-weight: 500; }
+.cofre-fechar { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); cursor: pointer; }
+.cofre-fechar:hover { background: var(--hover); }
+.cofre-campo { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; min-width: 0; color: var(--ink); font-size: var(--fs-corpo-2); font-weight: 500; }
+.cofre-campo input { width: 100%; height: 40px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: var(--raio-10); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo); font-weight: 400; }
+.cofre-campo input:focus { border-color: var(--borda-forte); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cofre-dialogo .cofre-ajuda { margin: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
 .cofre-senha { position: relative; display: flex; }
-.cofre-senha input { padding-right: 36px; }
-.cofre-olho { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-3); cursor: pointer; }
+.cofre-senha input { padding-right: 76px; }
+.cofre-olho { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); height: 28px; margin: 0; padding: 0 8px; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); font-weight: 400; cursor: pointer; }
 .cofre-olho[aria-pressed="true"] { color: var(--ink); }
 .cofre-olho:hover { background: var(--hover); }
-.cofre-form-erro { grid-column: 1 / -1; margin: 0; color: var(--danger); font-size: var(--fs-rotulo); }
-.cofre-form-bts { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
-.cofre-apagar { color: var(--danger); }
+.cofre-dialogo .cofre-form-erro { margin: 6px 0 0; color: var(--danger); font-size: var(--fs-rotulo); }
+.cofre-dialogo-pe { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--borda-sutil); }
+.cofre-seguro { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; white-space: nowrap; font-size: var(--fs-rotulo); color: var(--ink-2); }
+.cofre-dialogo-pe .bt.cofre-cancelar { border: 0; background: none; font-size: var(--fs-corpo); font-weight: 400; color: var(--ink-2); }
+.cofre-dialogo-pe .bt.pri { border-radius: var(--raio-full); padding: 8px 16px; font-size: var(--fs-corpo); }
+@media (max-width: 520px) { .cofre-dialogo-pe { flex-wrap: wrap; } .cofre-seguro { flex: 1 1 100%; white-space: normal; } .cofre-barra { flex-wrap: wrap; } .cofre-barra-vao { display: none; } .cofre-busca { flex: 1 1 auto; width: auto; } }
 
 /* =====================================================================================
    Onde o navegador mora (ADR-190; Paper M, N, J, K): a linha do painel, a lista, os cartões e os avisos
