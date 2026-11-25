@@ -302,8 +302,11 @@ import { criarNavegadorNaTela, type LugarAtivo } from "./telas/navegador.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
 import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
+import { ligarAlturaDoCampo } from "./lib/altura-do-campo.ts";
 // NOD-117: as teclas dos atalhos mudam com o lugar (app do Mac, navegador no Mac, Windows/Linux): web/lib/atalhos.ts.
 const LUGAR_TECLADO = lugarAtual();
+// A timeline rola por trás do campo (web/chat.css): o palco publica a altura dele em --campo-h.
+ligarAlturaDoCampo(document);
 /** COP-12: ⌘/, "?", Suporte › Atalhos de teclado e a paleta abrem o diálogo de atalhos com as teclas deste lugar. */
 const abrirAtalhos = (): void => abrirFolhaDeAtalhos(linhasDaFolha(LUGAR_TECLADO));
 // ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa; o novo bot foi para ⌘⇧N e o chat em grupo ficou sem tecla.
