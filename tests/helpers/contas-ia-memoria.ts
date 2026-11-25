@@ -118,6 +118,13 @@ export function contasIaMemoria(e: EstadoContasIaMemoria, escopo: Escopo): Retur
       v.semAcessoEm ??= agora;
       return true;
     },
+    async marcarSemLogin(id, maquinaId, agora) {
+      const v = meusVinculos().find((x) => x.contaId === id && x.maquinaId === maquinaId);
+      if (!v) return false;
+      v.estado = "sem_login";
+      v.semAcessoEm ??= agora;
+      return true;
+    },
     async apagarVinculo(id, maquinaId) { e.vinculos = e.vinculos.filter((v) => !(v.tenantId === escopo.tenantId && v.ownerId === escopo.pessoaId && v.contaId === id && v.maquinaId === maquinaId)); },
     async modo() { return e.modos.get(chaveModo) ?? { modo: "perguntar", escolhidas: {} }; },
     async definirModo(modo) { const atual = e.modos.get(chaveModo) ?? { modo: "perguntar", escolhidas: {} }; e.modos.set(chaveModo, { ...atual, modo }); },

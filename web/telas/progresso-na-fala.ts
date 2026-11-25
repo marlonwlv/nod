@@ -1,9 +1,11 @@
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
+import type { EstadoTarefa } from "../../src/contracts/tarefa.ts";
 import type { EstadoTrabalho, TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { ConversaEstado, Estado } from "../estado/reducer.ts";
 import { seletoresDoFoco } from "../lib/foco-do-bloco.ts";
 import { esc, hora } from "../lib/render.ts";
 import { aberto, emEspera, passoDaFrente, tempoDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { ROTULO_DO_OBJETIVO } from "./tarefa-detalhada.ts";
 import { ANEL_FILA, ANEL_RODANDO, DISCO_FALHOU, DISCO_FEITA, PONTO_PRECISA, QUADRADO_PARADA } from "./icones-da-tarefa.ts";
 
 /**
@@ -50,15 +52,20 @@ export type FrenteNaFala = {
   inicio?: number | null;
   /** Esperando sem ter começado ("#831 na fila", Paper P1). */
   naFila?: boolean;
+  /** ADR-192 (emenda 5): o estado do objetivo, quando há Tarefa ligada — o fim diz "Entregue" ou "Resolvida", não "pronta". */
+  objetivo?: EstadoTarefa;
 };
 
-/** A abertura de frentes: `frentes_abertas`, ou `trabalho_aberto` da rede (a conversa que virou frente sozinha). */
+/**
+ * A abertura de frentes: `frentes_abertas`, ou `trabalho_aberto` da rede (a conversa que virou frente sozinha) e, desde a
+ * emenda 5 do ADR-192, o da pessoa (o "+ Nova tarefa"): os dois trazem a própria linha com o lugar do cartão (`rede`).
+ */
 type Abertura = { id: string; turnoId: string | null; rede: boolean; frentes: readonly { trabalhoId: string; titulo: string }[] };
 
 function aberturaDe(m: Mensagem): Abertura | null {
   const p = m.payload;
   if (p?.kind === "frentes_abertas" && p.frentes.length > 0) return { id: m.id, turnoId: m.turnoId, rede: p.origem === "rede", frentes: p.frentes };
-  if (p?.kind === "trabalho_aberto" && p.origem === "rede") return { id: m.id, turnoId: m.turnoId, rede: true, frentes: [{ trabalhoId: p.trabalhoId, titulo: p.titulo }] };
+  if (p?.kind === "trabalho_aberto" && (p.origem === "rede" || (p.origem === "pessoa" && m.trabalhoId === p.trabalhoId))) return { id: m.id, turnoId: m.turnoId, rede: true, frentes: [{ trabalhoId: p.trabalhoId, titulo: p.titulo }] };
   return null;
 }
 
@@ -131,7 +138,7 @@ export function frentesNaFala(abertura: Pick<Abertura, "frentes">, mensagens: re
       const vivo = e === "rodando" || e === "precisa" || e === "esperando";
       // Paper 15: a pronta mostra o último passo dela ("Corrigiu 2 testes · CI verde") embaixo do título.
       const anda = vivo && t.estado !== "na_fila";
-      return { trabalhoId: t.id, titulo: t.titulo, estado: e, passo: vivo ? passoDaFrente(estado, t, todos) : e === "pronta" ? (t.ultimoPasso ?? null) : null, tempo: anda ? tempoDe(t, estado.agora) : null, terminouEm: vivo ? null : t.terminadoEm, ...(anda ? { inicio: t.iniciadoEm ?? t.criadoEm } : {}), ...(t.estado === "na_fila" ? { naFila: true } : {}) };
+      return { trabalhoId: t.id, titulo: t.titulo, estado: e, passo: vivo ? passoDaFrente(estado, t, todos) : e === "pronta" ? (t.ultimoPasso ?? null) : null, tempo: anda ? tempoDe(t, estado.agora) : null, terminouEm: vivo ? null : t.terminadoEm, ...(anda ? { inicio: t.iniciadoEm ?? t.criadoEm } : {}), ...(t.estado === "na_fila" ? { naFila: true } : {}), ...(t.tarefa ? { objetivo: t.tarefa.estado } : {}) };
     }
     if (fim) return { trabalhoId: f.trabalhoId, titulo: fim.titulo || f.titulo, estado: ESTADO_DO_FIM[fim.estado] ?? "sem_noticia", passo: null, tempo: null, terminouEm: fim.em };
     return { trabalhoId: f.trabalhoId, titulo: f.titulo, estado: "sem_noticia", passo: null, tempo: null, terminouEm: null };
@@ -199,6 +206,9 @@ export type ModoDaLinha = "cartao" | "uma" | "lista";
 function textoDoEstado(f: FrenteNaFala, modo: ModoDaLinha): string {
   if (modo === "lista" && (f.estado === "pronta" || f.estado === "precisa")) return ROTULO[f.estado];
   const fim = f.terminouEm && (f.estado === "pronta" || f.estado === "parada" || f.estado === "falhou") ? ` às ${hora(f.terminouEm)}` : "";
+  // ADR-192 (emenda 5): com Tarefa, o fim é do objetivo — "Entregue às 16:13" (espera a avaliação) ou "Resolvida".
+  const doObjetivo = f.objetivo && f.objetivo !== "em_andamento" && f.objetivo !== "nao_iniciada" && f.estado === "pronta" ? ROTULO_DO_OBJETIVO[f.objetivo] : null;
+  if (doObjetivo) return f.objetivo === "entregue" ? `${doObjetivo}${fim}` : doObjetivo;
   const base = f.passo ?? (f.naFila ? "na fila" : `${ROTULO[f.estado]}${fim}`);
   return modo === "uma" && f.tempo ? `${base} · ${f.tempo}` : base;
 }

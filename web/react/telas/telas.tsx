@@ -2,6 +2,7 @@ import { StrictMode, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { Estado } from "../../estado/reducer.ts";
+import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
 import { MARCA_REGIAO } from "../regioes.tsx";
 import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
@@ -12,6 +13,7 @@ import { TelaTarefas, type AcoesDasTarefasDosBots } from "./tarefas.tsx";
 import { TelaNovaRotina, type AcoesDaNovaRotina } from "./nova-rotina.tsx";
 import { TelaNovaSala, type AcoesDaNovaSala } from "./nova-sala.tsx";
 import { TelaSuaVez, type AcoesDeSuaVez } from "./sua-vez.tsx";
+import { TelaConectoresAvancado, type AcoesDosConectores } from "./conectores-avancado.tsx";
 
 /**
  * ADR-179 (as telas no lugar da conversa): a tela que ocupa a região `#timeline` no lugar da conversa, em React. O main
@@ -23,10 +25,11 @@ import { TelaSuaVez, type AcoesDeSuaVez } from "./sua-vez.tsx";
  * a linha de Não lidos) acha os nós já no documento.
  *
  * As telas migradas até aqui: Sua vez, Não lidos, Rotinas, Nova rotina, a nova conversa (Novo bot), o novo chat em grupo
- * (Nova sala), Tarefas de todos (Cards) e Tarefas (`trabalhos`). As outras seguem pelo desenho por string.
+ * (Nova sala), Tarefas de todos (Cards), Tarefas (`trabalhos`) e a tela avançada dos Conectores (no computador). As outras
+ * seguem pelo desenho por string.
  */
-export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas" | "trabalhos" | "nova-rotina" | "nova-sala" | "sua-vez";
-export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas; trabalhos: AcoesDasTarefasDosBots; novaRotina: AcoesDaNovaRotina; novaSala: AcoesDaNovaSala; suaVez: AcoesDeSuaVez }
+export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas" | "trabalhos" | "nova-rotina" | "nova-sala" | "sua-vez" | "conectores-avancado";
+export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas; trabalhos: AcoesDasTarefasDosBots; novaRotina: AcoesDaNovaRotina; novaSala: AcoesDaNovaSala; suaVez: AcoesDeSuaVez; conectores: AcoesDosConectores }
 
 const CLASSE = "rx-tela";
 /** A classe do casco que o CSS da tela lê (`.timeline-wrap:has(> .tdt-casco)`), na própria vaga. */
@@ -66,7 +69,8 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
               : tela === "trabalhos" ? <TelaTarefas loja={loja} acoes={acoes.trabalhos} />
                 : tela === "nova-rotina" ? <TelaNovaRotina loja={loja} acoes={acoes.novaRotina} />
                   : tela === "nova-sala" ? <TelaNovaSala loja={loja} acoes={acoes.novaSala} />
-                    : <TelaSuaVez loja={loja} acoes={acoes.suaVez} />;
+                    : tela === "conectores-avancado" ? <TelaConectoresAvancado loja={loja} acoes={acoes.conectores} />
+                      : <TelaSuaVez loja={loja} acoes={acoes.suaVez} />;
       flushSync(() => raiz.render(<StrictMode>{conteudo}</StrictMode>));
     },
     antesDeRegravar(html) {
@@ -74,4 +78,24 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
     },
     montada: () => atual?.tela ?? null,
   };
+}
+
+/**
+ * ADR-179 (item 2): o quadro compartilhado (NOD-455, o `#qcp`) desenhado pelo React a partir do MESMO HTML do controle
+ * (web/lib/quadro-compartilhado-na-tela.ts), como as regiões da ADR-189: o controle segue dono das ações (a delegação
+ * no `#qcp`), da rolagem e do foco; o React reconcilia em vez de regravar, e o que a pessoa digita fica no campo. Um root
+ * por nó: o casco que o main recria ganha outro, e o do nó que saiu é desmontado.
+ */
+let doQcp: { el: HTMLElement; raiz: Root; conversor: ConversorDeHtml } | null = null;
+export function desenharHtmlNoNo(el: HTMLElement, html: string): void {
+  if (doQcp && doQcp.el !== el) { doQcp.raiz.unmount(); doQcp = null; }
+  if (!doQcp) {
+    el.replaceChildren();
+    el.setAttribute(MARCA_REGIAO, "qcp");
+    doQcp = { el, raiz: createRoot(el, { identifierPrefix: "qcp-" }), conversor: criarConversor() };
+  }
+  const { raiz, conversor } = doQcp;
+  const nos = conversor.converter(html);
+  conversor.fecharQuadro();
+  flushSync(() => raiz.render(<StrictMode>{nos}</StrictMode>));
 }

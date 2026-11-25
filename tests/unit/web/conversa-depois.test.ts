@@ -380,10 +380,13 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
   });
 });
 
-describe("3. o pedido fica junto do turno que o pediu", () => {
-  it("logo depois da última fala do turno; as mensagens seguintes vêm depois dele, e a seção do fim some", () => {
+// revisto em 2026-11-21 (teste do dono): o pedido fica embaixo da última fala do turno que pediu; com o turno rodando, fica
+// segurado e aparece de uma vez embaixo da fala final (antes surgia embaixo da mensagem da pessoa e pulava).
+const iso = (ms: number) => new Date(ms).toISOString();
+describe("3. o pedido fica embaixo da fala do turno que o pediu", () => {
+  it("depois da última mensagem anterior a ele; as mensagens seguintes vêm depois, e a seção do fim some", () => {
     const mensagens = [msg("m1", "pessoa", 1), msg("m2", "agente", 2, { turnoId: "t1" }), msg("m3", "pessoa", 3), msg("m4", "agente", 4, { turnoId: "t2" })];
-    const { e, c } = cenario(mensagens, [pedido("d1", { turnoId: "t1" })]);
+    const { e, c } = cenario(mensagens, [pedido("d1", { turnoId: "t1", criadoEm: iso(2) })]);
     const chaves = blocosDoHistorico(c, e).map((b) => b.chave);
     expect(chaves).toEqual(["sep:m1", "m1", "m2", "decisao:d1", "m3", "m4"]);
     expect(renderTimeline(c, e)).not.toContain("Preciso da sua decisão para continuar");
@@ -403,13 +406,26 @@ describe("3. o pedido fica junto do turno que o pediu", () => {
   it("o pedido de uma rotina recolhida numa linha fica depois da linha", () => {
     const rotina = (id: string, criadoEm: number) => msg(id, "agente", criadoEm, { turnoId: "tr1", origemTurno: "rotina", trabalhoId: "tb-r1", fimDoTurno: true });
     const mensagens = [msg("m1", "pessoa", 1, { origemTurno: null, trabalhoId: null, fimDoTurno: false }), rotina("r1", 2), msg("m3", "pessoa", 3, { origemTurno: null, trabalhoId: null, fimDoTurno: false })];
-    const { e, c } = cenario(mensagens, [pedido("d1", { turnoId: "tr1" })]);
+    const { e, c } = cenario(mensagens, [pedido("d1", { turnoId: "tr1", criadoEm: iso(2) })]);
     expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "linha:r1", "decisao:d1", "m3"]);
   });
 
-  it("com o turno ainda rodando, fica embaixo da mensagem que o disparou", () => {
-    const { e, c } = cenario([msg("m1", "pessoa", 1), msg("m2", "pessoa", 2)], [pedido("d1", { turnoId: "t9" })], { turnosEmCurso: [{ id: "t9", estado: "despachando", desde: 1, mensagemId: "m1" }] as never });
-    expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "decisao:d1", "m2"]);
+  it("nasceu com o turno rodando: fica segurado e aparece embaixo da fala final do bot, sem pular", () => {
+    const rodando = cenario([msg("m1", "pessoa", 1)], [pedido("d1", { turnoId: "t9", criadoEm: iso(2), tipo: "pergunta" })], { turnosEmCurso: [{ id: "t9", estado: "despachando", desde: 1, mensagemId: "m1" }] as never });
+    expect(blocosDoHistorico(rodando.c, rodando.e).map((b) => b.chave)).toEqual(["sep:m1", "m1"]);
+    expect(renderTimeline(rodando.c, rodando.e)).not.toContain('<section class="decisoes-chat"');
+    const acabou = cenario([msg("m1", "pessoa", 1), msg("m2", "agente", 3, { turnoId: "t9" })], [pedido("d1", { turnoId: "t9", criadoEm: iso(2) })]);
+    expect(blocosDoHistorico(acabou.c, acabou.e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "m2", "decisao:d1"]);
+  });
+
+  it("a aprovação aparece na hora, com o turno vivo e sem fala: o turno espera por ela antes de falar", () => {
+    const { e, c } = cenario([msg("m1", "pessoa", 1)], [pedido("d1", { turnoId: "t9", criadoEm: iso(2), tipo: "aprovacao" })], { turnosEmCurso: [{ id: "t9", estado: "executando", desde: 1, mensagemId: "m1" }] as never });
+    expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "decisao:d1"]);
+  });
+
+  it("o turno que segue vivo esperando a decisão (aprovação, rascunhos) já falou: o cartão aparece embaixo da fala", () => {
+    const { e, c } = cenario([msg("m1", "pessoa", 1), msg("m2", "agente", 3, { turnoId: "t9" })], [pedido("d1", { turnoId: "t9", criadoEm: iso(2) })], { turnosEmCurso: [{ id: "t9", estado: "executando", desde: 1, mensagemId: "m1" }] as never });
+    expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "m2", "decisao:d1"]);
   });
 });
 

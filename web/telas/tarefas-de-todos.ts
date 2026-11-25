@@ -1,5 +1,5 @@
 import { esc } from "../lib/escape.ts";
-import type { FiltrosDasTarefas, GrupoDasTarefas, LinhaDaTarefa, VistaDasTarefas } from "../lib/tarefas-de-todos.ts";
+import { iniciaisDeVoce, rotuloDaLinha, type FiltrosDasTarefas, type GrupoDasTarefas, type LinhaDaTarefa, type VistaDasTarefas } from "../lib/tarefas-de-todos.ts";
 import { iconeDaPrioridade } from "./opcoes-quadro.ts";
 
 /**
@@ -19,6 +19,8 @@ export type OpcoesDaTela = {
   filtros: FiltrosDasTarefas;
   /** O mascote do bot (o controlador recebe do main; o tamanho é do CSS). */
   avatar: (agenteId: string | null) => string;
+  /** QA-181: o nome de quem lê, para as iniciais do "Você" (ausente = "V"). */
+  voceNome?: string | null;
 };
 
 const svg = (d: string, w = 16, extra = ""): string =>
@@ -34,16 +36,16 @@ const IC = {
 
 const VISTAS: readonly [VistaDasTarefas, string][] = [["quadro", "Por quadro"], ["bot", "Por bot"], ["minhas", "Minhas"]];
 
-function linha(l: LinhaDaTarefa, avatar: OpcoesDaTela["avatar"]): string {
-  const quem = l.agenteId ? `<span class="tdt-av" aria-hidden="true">${avatar(l.agenteId)}</span><span class="tdt-quem-nome">${esc(l.agenteNome ?? "")}</span>` : `<span class="tdt-voce" aria-hidden="true">MW</span><span class="tdt-quem-nome">Você</span>`;
-  return `<li class="tdt-linha"><button type="button" class="tdt-linha-bt" data-act="tdt-abrir" data-tarefa="${esc(l.id)}" data-quadro="${esc(l.quadroId)}" data-dono="${esc(l.donoId)}" aria-label="${esc(`${l.codigo} ${l.titulo}, ${l.coluna}${l.agenteNome ? `, ${l.agenteNome}` : ""}, ${l.direita.texto}`)}">` +
+function linha(l: LinhaDaTarefa, avatar: OpcoesDaTela["avatar"], voce: string): string {
+  const quem = l.agenteId ? `<span class="tdt-av" aria-hidden="true">${avatar(l.agenteId)}</span><span class="tdt-quem-nome">${esc(l.agenteNome ?? "")}</span>` : `<span class="tdt-voce" aria-hidden="true">${esc(voce)}</span><span class="tdt-quem-nome">Você</span>`;
+  return `<li class="tdt-linha"><button type="button" class="tdt-linha-bt" data-act="tdt-abrir" data-tarefa="${esc(l.id)}" data-quadro="${esc(l.quadroId)}" data-dono="${esc(l.donoId)}" aria-label="${esc(rotuloDaLinha(l))}">` +
     `${iconeDaPrioridade(l.prioridade)}<span class="tdt-cod">${esc(l.codigo)}</span><span class="tdt-tit">${esc(l.titulo)}</span>` +
     `<span class="tdt-col"><i class="tdt-ponto tdt-ponto-${l.tom}" aria-hidden="true"></i>${esc(l.coluna)}</span>` +
     `<span class="tdt-quem">${quem}</span>` +
     `<span class="tdt-dir${l.direita.tom === "aguardando" ? " tdt-dir-aguardando" : ""}">${esc(l.direita.texto)}</span></button></li>`;
 }
 
-function grupo(g: GrupoDasTarefas, avatar: OpcoesDaTela["avatar"]): string {
+function grupo(g: GrupoDasTarefas, avatar: OpcoesDaTela["avatar"], voce: string): string {
   const dono = g.agenteId ? `<span class="tdt-av" aria-hidden="true">${avatar(g.agenteId)}</span><span class="tdt-pagina">página Quadro de ${esc(g.agenteNome)}</span>` : "";
   const prog = g.progresso !== null
     ? `<span class="tdt-prog" role="img" aria-label="${g.progresso}% feito"><i style="width:${g.progresso}%"></i></span><span class="tdt-pct" aria-hidden="true">${g.progresso}%</span>` : "";
@@ -51,7 +53,7 @@ function grupo(g: GrupoDasTarefas, avatar: OpcoesDaTela["avatar"]): string {
   const cab = g.agenteId
     ? `<button type="button" class="tdt-cab" data-act="tdt-pagina" data-agente="${esc(g.agenteId)}"${g.quadroId ? ` data-quadro="${esc(g.quadroId)}"` : ""}>${IC.quadro}${nome}${dono}<span class="tdt-esp"></span>${prog}${IC.seta}</button>`
     : `<div class="tdt-cab">${IC.quadro}${nome}<span class="tdt-esp"></span></div>`;
-  const corpo = g.linhas.length ? `<ul class="tdt-linhas">${g.linhas.map((l) => linha(l, avatar)).join("")}</ul>` : `<p class="tdt-vazio-grupo">Nada em aberto neste quadro.</p>`;
+  const corpo = g.linhas.length ? `<ul class="tdt-linhas">${g.linhas.map((l) => linha(l, avatar, voce)).join("")}</ul>` : `<p class="tdt-vazio-grupo">Nada em aberto neste quadro.</p>`;
   return `<section class="tdt-grupo" aria-label="${esc(g.projeto ? `${g.projeto} / ${g.nome}` : g.nome)}">${cab}${corpo}</section>`;
 }
 
@@ -70,6 +72,6 @@ export function renderTarefasDeTodos(o: OpcoesDaTela): string {
   else if (c.tipo === "erro") corpo = `<p class="tdt-erro" role="alert">${esc(c.mensagem)} <button type="button" class="tdt-link" data-act="tdt-reler">Tentar de novo</button></p>`;
   else if (c.total === 0) corpo = `<p class="tdt-vazio">Nenhum bot tem quadro ainda. Peça a um bot para criar o dele, ou abra a página Quadro de um bot.</p>`;
   else if (!c.grupos.some((g) => g.linhas.length)) corpo = `<p class="tdt-vazio">Nenhum card ${o.vista === "minhas" ? "com você" : "com esse filtro"}.</p>`;
-  else corpo = c.grupos.map((g) => grupo(g, o.avatar)).join("");
+  else corpo = c.grupos.map((g) => grupo(g, o.avatar, iniciaisDeVoce(o.voceNome))).join("");
   return `<div class="tdt"><div class="tdt-coluna">${cab}${filtros}<div class="tdt-grupos">${corpo}</div></div></div>`;
 }

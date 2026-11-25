@@ -1,4 +1,5 @@
 import type { Computadores } from "../../fundo/computadores.ts";
+import type { Navegadores } from "../../fundo/navegadores.ts";
 import type { Workspaces } from "../../fundo/workspaces.ts";
 import type { ClasseNegacao } from "../../../contracts/negacao.ts";
 import { MOTIVOS_NEGACAO, type MotivoNegacao } from "../../../contracts/motivos.ts";
@@ -33,6 +34,8 @@ import { executar, type DentroDeTx } from "./dentro-de-tx.ts";
 export type DepsRotasInternas = {
   workspaces?: Workspaces;
   computadores?: Computadores;
+  /** ADR-190: o navegador do bot; ausente = as navegador_* caem no caminho comum (fora do catálogo). */
+  navegadores?: Navegadores;
   dentro: DentroDeTx;
   /**
    * revisto em 2026-10-12 (NOD-214): o plano sai de `planoOuRecompor` — o do turno adotado depois de um reinício do
@@ -179,7 +182,7 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
         const plano = await deps.tokens.planoOuRecompor(turnoId);
         // definido em 2026-09-24 (revisão da ADR-047): computador e pasta também deixam a chamada na trilha —
         // o que eles devolvem é conteúdo de fora, e a trilha é o registro do que o turno tocou (E8.4).
-        if (plano && ((ctx.params.nome?.startsWith("workspace_") && deps.workspaces) || (ctx.params.nome?.startsWith("computador_") && deps.computadores))) {
+        if (plano && ((ctx.params.nome?.startsWith("workspace_") && deps.workspaces) || (ctx.params.nome?.startsWith("computador_") && deps.computadores) || (ctx.params.nome?.startsWith("navegador_") && deps.navegadores))) {
           await deps.dentro(ctx.escopo, (d) => d.repos.trilha.registrar({ agenteId: plano.agenteId, turnoId, ferramenta: nomeParaTrilha(ctx.params.nome ?? ""), kind: "tool_call", regra: REGRA_CHAMADA, regraVersao: VERSAO_REGRA_CHAMADA }));
         }
         if (ctx.params.nome?.startsWith("workspace_") && plano && deps.workspaces) {
@@ -188,6 +191,10 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
         }
         if (ctx.params.nome?.startsWith("computador_") && plano && deps.computadores) {
           ctx.json(200, await deps.computadores.chamar(ctx.escopo, plano, ctx.params.nome, corpo?.argumentos ?? {}));
+          return;
+        }
+        if (ctx.params.nome?.startsWith("navegador_") && plano && deps.navegadores) {
+          ctx.json(200, await deps.navegadores.chamar(ctx.escopo, plano, ctx.params.nome, corpo?.argumentos ?? {}));
           return;
         }
         // NOD-263 (emenda ao ADR-001): três tempos. FASE 1 numa tx curta (portões, trilha, decisão do lote); o EFEITO fora de
@@ -272,7 +279,7 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
               if (decisao.estado === "decidida" && (await d.repos.decisoes.reivindicarContinuacao(decisaoId, "turno", deps.agora())) === "retomada") return { estado: "da_retomada" as const };
               // Item 10, rodada 2: a mensagem nova substituiu o pedido (src/use-cases/substituir-aprovacoes.ts); o hook diz isso ao modelo.
               const substituida = decisao.desfecho?.tipo === "decidida_por_regra" && decisao.desfecho.regra === REGRA_APROVACAO_SUBSTITUIDA;
-              return { estado: "decidida" as const, substituida, itens: itens.map((i) => ({ idx: i.idx, desfecho: i.desfecho, acaoId: i.destino.conector === "computador" && typeof i.destino.argumentos?.acaoId === "string" ? i.destino.argumentos.acaoId : null })) };
+              return { estado: "decidida" as const, substituida, itens: itens.map((i) => ({ idx: i.idx, desfecho: i.desfecho, de: i.destino.conector === "navegador" ? "navegador" as const : "computador" as const, acaoId: (i.destino.conector === "computador" || i.destino.conector === "navegador") && typeof i.destino.argumentos?.acaoId === "string" ? i.destino.argumentos.acaoId : null })) };
             }
             return { estado: "pendente" as const, desde: Date.parse(decisao.criadoEm) };
           });
@@ -301,9 +308,10 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
           }
           if (olhada.estado === "decidida") {
             // 0032: o resultado da ação aprovada no computador volta junto (cifrado até aqui, entregue uma vez).
-            const itens = await Promise.all(olhada.itens.map(async ({ acaoId, ...i }) => {
-              const resultado = acaoId && deps.computadores ? await deps.computadores.resultadoDaAcao(ctx.escopo, acaoId) : null;
-              return resultado ? { ...i, resultado } : i;
+            // ADR-190: o da ação aprovada no navegador também (em memória, cifrado, entregue uma vez).
+            const itens = await Promise.all(olhada.itens.map(async ({ acaoId, de, ...i }) => {
+              const resultado = !acaoId ? null : de === "navegador" ? deps.navegadores?.resultadoDaAcao(ctx.escopo, acaoId) ?? null : deps.computadores ? await deps.computadores.resultadoDaAcao(ctx.escopo, acaoId) : null;
+              return resultado ? { ...i, resultado, ...(de === "navegador" ? { origem: "navegador" as const } : {}) } : i;
             }));
             ctx.json(200, { estado: "decidida", ...(olhada.substituida ? { substituida: true } : {}), itens });
             return;

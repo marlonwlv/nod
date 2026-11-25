@@ -185,8 +185,9 @@ describe("erro do fornecedor em classe fechada (NOD-174)", () => {
     const agora = Date.UTC(2026, 9, 6, 15, 0); // 12:00 em SP
     expect(horaDaFrase(Date.UTC(2026, 9, 6, 13, 20, 54), agora)).toBe("10:20");
     expect(horaDaFrase(Date.UTC(2026, 9, 5, 14, 46), agora)).toBe("05/10 às 11:46");
-    const texto = redigir("executor-indisponivel", agora, { motivo: "claude-cli: conta sem acesso", desde: horaDaFrase(agora, agora) });
-    expect(texto).toBe("Nenhum trabalho começa: executor indisponível (claude-cli: conta sem acesso) desde 12:00.");
+    // Lote B (desvios 6 e 8, 2026-11-22): a frase não diz "executor" e avisa que a mensagem espera.
+    const texto = redigir("executor-indisponivel", agora, { motivo: "a conta do Claude entrou, mas está sem acesso", desde: horaDaFrase(agora, agora) });
+    expect(texto).toBe("Nenhum trabalho começou: a conta do Claude entrou, mas está sem acesso (desde 12:00). A mensagem fica guardada e sai sozinha quando uma IA ficar pronta.");
     expect(texto).not.toMatch(/\d{4}-\d{2}-\d{2}T|Z\./);
   });
 
@@ -221,5 +222,16 @@ describe("Jornadas da IA (2026-11-19): o texto real de produção", () => {
     expect(horaDeVoltaNoTexto("try again in 30 days", agora)).toBeNull();
     expect(horaDeVoltaNoTexto("You've hit your usage limit.", agora)).toBeNull();
     expect(horaDeVoltaNoTexto(null, agora)).toBeNull();
+  });
+});
+
+describe("QA-145: a hora da volta no fuso do dia da volta (horário de verão)", () => {
+  it("a volta depois da troca de horário usa o deslocamento daquele dia", () => {
+    // 30/10 em Nova York ainda é EDT (-4); 2/11 já é EST (-5): 3pm EST = 20:00 UTC.
+    expect(horaDeVoltaNoTexto("Weekly limit reached · resets Nov 2, 3pm (America/New_York)", Date.UTC(2026, 9, 30, 12))).toBe(Date.UTC(2026, 10, 2, 20, 0));
+    // Londres entra em BST em 28/03/2027: 3am BST = 02:00 UTC.
+    expect(horaDeVoltaNoTexto("resets Mar 29, 3am (Europe/London)", Date.UTC(2027, 2, 25, 12))).toBe(Date.UTC(2027, 2, 29, 2, 0));
+    // Sem dia, na própria madrugada da troca (1/11 01:30 EDT): 3pm EST.
+    expect(horaDeVoltaNoTexto("resets 3pm (America/New_York)", Date.UTC(2026, 10, 1, 5, 30))).toBe(Date.UTC(2026, 10, 1, 20, 0));
   });
 });

@@ -26,40 +26,59 @@ export function dialogo(html: string, menu = false, fechar?: (d: HTMLDialogEleme
   return d;
 }
 
+/** Os desenhos dos itens do menu do bot (o `d` do `<path>`). */
+export const CAMINHOS_DO_MENU: Record<AcaoGestao, string> = {
+  fixar: "M16 3l5 5-4 1-4 4v4l-2 2-3-5-5-3 2-2h4l4-4z M8 16l-5 5",
+  mover: "M3 5h6l2 3h10v12H3z",
+  "nao-lido": "M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4",
+  renomear: "M16 3l5 5-12 12-6 1 1-6z M13 6l5 5",
+  perfil: "M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 10h6 M9 12h6 M17 16h6",
+  duplicar: "M8 8h13v13H8z M4 16H3V3h13v1",
+  copiar: "M8 8h13v13H8z M4 16H3V3h13v1",
+  "ver-perfil": "M12 12a4 4 0 100-8 4 4 0 000 8 M4 21c0-4 4-6 8-6s8 2 8 6",
+  ocultar: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12 M3 3l18 18 M10 10a3 3 0 004 4",
+  excluir: "M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7",
+  restaurar: "M3 4v6h6 M3 10a9 9 0 119 11",
+};
+
+/** Uma linha do menu do bot: um item, um separador ou a nota do fim (o do Nod). O texto é cru (quem desenha escapa). */
+export type LinhaDoMenu = { tipo: "item"; acao: AcaoGestao; texto: string; perigo: boolean } | { tipo: "hr" } | { tipo: "nota"; texto: string };
+
 /**
- * O corpo do menu do bot (os itens). NOD-382: `celular` dá o menu curto (no máximo 5); fora dele, os 9 de sempre.
+ * As linhas do menu do bot. NOD-382: `celular` dá o menu curto (no máximo 5); fora dele, os 9 de sempre.
  */
-export function corpoDoMenu(a: BotGerido, dona: boolean, celular: boolean): string {
-  const caminhos: Record<AcaoGestao, string> = {
-    fixar: "M16 3l5 5-4 1-4 4v4l-2 2-3-5-5-3 2-2h4l4-4z M8 16l-5 5",
-    mover: "M3 5h6l2 3h10v12H3z",
-    "nao-lido": "M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4",
-    renomear: "M16 3l5 5-12 12-6 1 1-6z M13 6l5 5",
-    perfil: "M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 10h6 M9 12h6 M17 16h6",
-    duplicar: "M8 8h13v13H8z M4 16H3V3h13v1",
-    copiar: "M8 8h13v13H8z M4 16H3V3h13v1",
-    "ver-perfil": "M12 12a4 4 0 100-8 4 4 0 000 8 M4 21c0-4 4-6 8-6s8 2 8 6",
-    ocultar: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12 M3 3l18 18 M10 10a3 3 0 004 4",
-    excluir: "M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7",
-    restaurar: "M3 4v6h6 M3 10a9 9 0 119 11",
-  };
-  const item = (acao: AcaoGestao, _icone: string, texto: string, perigo = false) => `<button type="button" role="menuitem" data-gestao="${acao}"${perigo ? ' class="danger"' : ""}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${caminhos[acao]}"/></svg>${texto}</button>`;
-  const rotulo: Partial<Record<AcaoGestao, [string, string, boolean?]>> = {
-    fixar: ["♧", a.papel === "nod" ? (a.fixado ? "Deixar discreto" : "Voltar ao topo") : a.fixado ? "Desafixar" : "Fixar"],
-    "nao-lido": ["◉", a.naoLido ? "Marcar como lido" : "Marcar como não lido"],
-    mover: ["▱", `Time · ${esc(a.secao?.trim() || "Sem time")}`],
-    "ver-perfil": ["◎", "Ver perfil"],
-    ocultar: ["◌", "Mostrar na lista"],
-    excluir: ["♲", "Excluir", true],
+export function linhasDoMenu(a: BotGerido, dona: boolean, celular: boolean): LinhaDoMenu[] {
+  const item = (acao: AcaoGestao, texto: string, perigo = false): LinhaDoMenu => ({ tipo: "item", acao, texto, perigo });
+  const hr: LinhaDoMenu = { tipo: "hr" };
+  const time = `Time · ${a.secao?.trim() || "Sem time"}`;
+  const naoLido = a.naoLido ? "Marcar como lido" : "Marcar como não lido";
+  const rotulo: Partial<Record<AcaoGestao, [string, boolean?]>> = {
+    fixar: [a.papel === "nod" ? (a.fixado ? "Deixar discreto" : "Voltar ao topo") : a.fixado ? "Desafixar" : "Fixar"],
+    "nao-lido": [naoLido],
+    mover: [time],
+    "ver-perfil": ["Ver perfil"],
+    ocultar: ["Mostrar na lista"],
+    excluir: ["Excluir", true],
   };
   // NOD-382: no celular o menu tem no máximo 5 itens; o resto mora no perfil do bot. O desktop segue com os 9 de antes.
   // definido em 2026-10-07 (ADR-081): o Nod tem o menu dele — fixar vira "Voltar ao topo"/"Deixar discreto" (desafixado ele
   // mora na barra de cima da lateral) e não há mover, renomear, duplicar, ocultar nem excluir; a linha final diz por quê.
-  return celular
-    ? itensDoMenuCelular(a, dona).map((acao) => { const [ic, txt, perigo] = rotulo[acao]!; return item(acao, ic, txt, perigo); }).join("")
-    : a.papel === "nod"
-    ? item("fixar", "♧", a.fixado ? "Deixar discreto" : "Voltar ao topo") + item("nao-lido", "◉", a.naoLido ? "Marcar como lido" : "Marcar como não lido") + '<hr>' + item("perfil", "⚙", "Editar perfil") + item("copiar", "▢", "Copiar ID da conversa") + '<hr><p class="menu-nota">O Nod fica sempre com você: não dá para excluir, ocultar nem renomear.</p>'
-    : `${dona ? item("fixar", "♧", a.fixado ? "Desafixar" : "Fixar") + item("mover", "▱", `Time · ${esc(a.secao?.trim() || "Sem time")}`) + item("nao-lido", "◉", a.naoLido ? "Marcar como lido" : "Marcar como não lido") + '<hr>' + item("renomear", "✎", "Renomear bot") + item("perfil", "⚙", "Editar perfil") : ""}${item("duplicar", "▣", "Duplicar")}<hr>${item("copiar", "▢", "Copiar ID da conversa")}${dona ? '<hr>' + item("ocultar", "◌", a.oculto ? "Mostrar na barra lateral" : "Ocultar da barra lateral") + item("excluir", "♲", "Excluir", true) : ""}`;
+  if (celular) return itensDoMenuCelular(a, dona).map((acao) => { const [txt, perigo] = rotulo[acao]!; return item(acao, txt, perigo); });
+  if (a.papel === "nod") {
+    return [item("fixar", a.fixado ? "Deixar discreto" : "Voltar ao topo"), item("nao-lido", naoLido), hr, item("perfil", "Editar perfil"), item("copiar", "Copiar ID da conversa"), hr,
+      { tipo: "nota", texto: "O Nod fica sempre com você: não dá para excluir, ocultar nem renomear." }];
+  }
+  return [
+    ...(dona ? [item("fixar", a.fixado ? "Desafixar" : "Fixar"), item("mover", time), item("nao-lido", naoLido), hr, item("renomear", "Renomear bot"), item("perfil", "Editar perfil")] : []),
+    item("duplicar", "Duplicar"), hr, item("copiar", "Copiar ID da conversa"),
+    ...(dona ? [hr, item("ocultar", a.oculto ? "Mostrar na barra lateral" : "Ocultar da barra lateral"), item("excluir", "Excluir", true)] : []),
+  ];
+}
+
+/** O corpo do menu do bot (os itens), em HTML: o desenho do `<dialog>` nativo. */
+export function corpoDoMenu(a: BotGerido, dona: boolean, celular: boolean): string {
+  return linhasDoMenu(a, dona, celular).map((l) => (l.tipo === "hr" ? "<hr>" : l.tipo === "nota" ? `<p class="menu-nota">${esc(l.texto)}</p>`
+    : `<button type="button" role="menuitem" data-gestao="${l.acao}"${l.perigo ? ' class="danger"' : ""}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${CAMINHOS_DO_MENU[l.acao]}"/></svg>${esc(l.texto)}</button>`)).join("");
 }
 
 export function abrirMenu(a: BotGerido, dona: boolean, ancora: HTMLElement, executar: (acao: AcaoGestao) => void, ponto?: { x: number; y: number }): void {
@@ -90,9 +109,14 @@ export function abrirMenu(a: BotGerido, dona: boolean, ancora: HTMLElement, exec
  * ADR-125 (NOD-349): o Compartilhar do topo da gaveta — o que já existia no menu do bot, num menu pequeno ancorado no
  * botão: Copiar ID da conversa e Duplicar bot (o Nod não se duplica, ADR-081).
  */
-export function abrirMenuCompartilhar(a: BotGerido, ancora: HTMLElement, executar: (acao: "copiar" | "duplicar") => void): void {
+/** O HTML do Compartilhar da gaveta (o `<dialog>` nativo e o menu do Base UI leem o mesmo). */
+export function htmlMenuCompartilhar(a: BotGerido): string {
   const item = (acao: "copiar" | "duplicar", texto: string) => `<button type="button" role="menuitem" data-gestao="${acao}"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h13v13H8z M4 16H3V3h13v1"/></svg>${texto}</button>`;
-  const d = dialogo(`<div role="menu" aria-label="Compartilhar ${esc(a.nome)}">${item("copiar", "Copiar ID da conversa")}${a.papel === "nod" ? "" : item("duplicar", "Duplicar bot")}</div>`, true);
+  return `<div role="menu" aria-label="Compartilhar ${esc(a.nome)}">${item("copiar", "Copiar ID da conversa")}${a.papel === "nod" ? "" : item("duplicar", "Duplicar bot")}</div>`;
+}
+
+export function abrirMenuCompartilhar(a: BotGerido, ancora: HTMLElement, executar: (acao: "copiar" | "duplicar") => void): void {
+  const d = dialogo(htmlMenuCompartilhar(a), true);
   d.classList.add("menu-compartilhar");
   ancora.setAttribute("aria-expanded", "true");
   d.addEventListener("close", () => ancora.setAttribute("aria-expanded", "false"));

@@ -74,6 +74,15 @@ describe("Tarefas de todos em React", () => {
     });
   }
 
+  it("QA-181: o Você leva as iniciais de quem lê, como a tela por string", () => {
+    const d = { quadros: QS, erro: null };
+    const { container } = render(<TelaTarefasDeTodos acoes={{ ...acoesDe(d), voce: () => "Beatriz Souza" }} />);
+    expect([...container.querySelectorAll(".tdt-voce")].map((e) => e.textContent)).toEqual(["BS"]);
+    const el = document.createElement("div");
+    el.innerHTML = renderTarefasDeTodos({ carga: { tipo: "pronto", grupos: gruposDasTarefas(QS, "quadro", { busca: "", emAberto: true, porPrioridade: false }, AGORA), resumo: resumoDosQuadros(QS), perguntaram: quantasPerguntaram(QS, AGORA), total: QS.length }, vista: "quadro", filtros: { busca: "", emAberto: true, porPrioridade: false }, avatar, voceNome: "Beatriz Souza" });
+    expect(normalizar(container.firstElementChild!)).toBe(normalizar(el.firstElementChild!));
+  });
+
   it("a vista, a busca e os filtros são da tela: o mesmo DOM que a por string com as mesmas escolhas", () => {
     const acoes = acoesDe({ quadros: QS, erro: null });
     const { container } = render(<TelaTarefasDeTodos acoes={acoes} />);

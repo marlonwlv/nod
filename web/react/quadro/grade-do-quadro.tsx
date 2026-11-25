@@ -20,6 +20,8 @@ export type ItemDaGrade = { tipo: "coluna"; coluna: ColunaDaGrade } | { tipo: "e
 export interface AcoesDaGrade {
   /** A pessoa soltou (ou escolheu no menu) a tarefa numa coluna; a mesma coluna também chega (a ordem decide). */
   soltar: (tarefa: string, coluna: string) => void;
+  /** A pessoa escolheu a coluna no "Mover para…" do card (o foco segue o card); sem isto, `soltar`. */
+  mover?: (tarefa: string, coluna: string) => void;
   /** A linha sob o cabeçalho da coluna sob o card ("Começa com Fulano"); null = nada a dizer. */
   dica: (tarefa: string, coluna: string) => string | null;
   destinos: (tarefa: string) => readonly DestinoDoMover[];
@@ -80,7 +82,7 @@ export function GradeDoQuadro({ rotulo, classe, trilhas, itens, acoes }: PropsDa
         </div>
         <DragOverlay dropAnimation={null}>{ativo ? <CardFlutuante card={ativo.card} /> : null}</DragOverlay>
       </DndContext>
-      <MenuDoMover menu={menu} titulo={(t) => cardDe.get(t)?.card.titulo ?? ""} destinos={acoes.destinos} aoMover={acoes.soltar} />
+      <MenuDoMover menu={menu} titulo={(t) => cardDe.get(t)?.card.titulo ?? ""} destinos={acoes.destinos} aoMover={acoes.mover ?? acoes.soltar} />
     </div>
   );
 }

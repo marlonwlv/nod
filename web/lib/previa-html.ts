@@ -83,3 +83,7 @@ export const contagemPdf = (n: number): string => (n === 1 ? "1 página" : `${n}
 
 /** As opções do getDocument: só bytes (nada de URL, nada de rede), sem XFA e sem eval. */
 export const OPCOES_PDF = { isEvalSupported: false, enableXfa: false, useWorkerFetch: false, stopAtErrors: false } as const;
+
+/** Os ícones do topo da prévia (Baixar e ×), para a prévia em React (web/react/dialogos/previa-arquivo.tsx). */
+export const NUVEM_DA_PREVIA = NUVEM;
+export const X_DA_PREVIA = X;

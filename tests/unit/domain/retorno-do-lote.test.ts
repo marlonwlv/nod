@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RESPOSTA_NA_TROCA_MAX } from "../../../src/contracts/troca-entre-bots.ts";
-import { caiuDeVez, decidirFecho, destinoDoLote, entradaComplementar, entradaDoRetorno, INSTRUCAO_DO_RETORNO, motivoDaFrente, PERGUNTA_DA_QUEDA, PERGUNTA_DA_RECONEXAO, recusouDeVez, respostaAoColega, respostaComplementarAoColega, resumoMudou, respostaNaTroca, textoFrentesTerminadas, textoPedidoRespondido, type FrenteNoFecho } from "../../../src/domain/retorno-do-lote.ts";
+import * as fechar from "../../../src/use-cases/fechar-lote.ts";
+import { caiuDeVez, decidirFecho, destinoDoLote, entradaComplementar, entradaDoRetorno, INSTRUCAO_DO_RETORNO, INSTRUCAO_JA_NA_CONVERSA, ENTREGA_NO_RETORNO, motivoDaFrente, PERGUNTA_DA_QUEDA, PERGUNTA_DA_RECONEXAO, recusouDeVez, respostaAoColega, respostaComplementarAoColega, resumoMudou, respostaNaTroca, textoFrentesTerminadas, textoPedidoRespondido, type FrenteNoFecho } from "../../../src/domain/retorno-do-lote.ts";
 
 const frente = (id: string, extra: Partial<FrenteNoFecho> = {}): FrenteNoFecho => ({ id, titulo: `Frente ${id}`, estado: "terminado", resumo: { feito: `fiz ${id}` }, deFora: false, motivoInterrupcao: null, ...extra });
 
@@ -75,6 +76,17 @@ describe("retorno do lote (ADR-099, I3): os textos", () => {
     expect(entradaDoRetorno({ frentes: [frente("a")], faltam: 0, total: 1 })).toContain("A frente que você abriu para este pedido terminou.");
     expect(entradaDoRetorno({ frentes: [frente("a")], faltam: 2, total: 3 })).toContain('A frente "Frente a" deste pedido terminou; faltam 2.');
     expect(entradaDoRetorno({ frentes: [frente("a")], faltam: 0, total: 3 })).toContain("era a última");
+  });
+
+  it("ponto 11 dos cenários (22/11): o próprio turno virou a tarefa e já falou o resultado — o retorno só fecha numa linha", () => {
+    const e = entradaDoRetorno({ frentes: [frente("a")], faltam: 0, total: 1, jaNaConversa: true });
+    expect(e).toContain(INSTRUCAO_JA_NA_CONVERSA);
+    expect(e).not.toContain(INSTRUCAO_DO_RETORNO);
+    const { ehOProprioTurnoQueVirouTarefa } = fechar;
+    expect(ehOProprioTurnoQueVirouTarefa({ trabalhoId: "a" }, [frente("a")])).toBe(true);
+    expect(ehOProprioTurnoQueVirouTarefa({ trabalhoId: null }, [frente("a")])).toBe(false);
+    expect(ehOProprioTurnoQueVirouTarefa({ trabalhoId: "a" }, [frente("a"), frente("b")])).toBe(false);
+    expect(ehOProprioTurnoQueVirouTarefa({ trabalhoId: "a" }, [frente("a", { estado: "falhou", motivoInterrupcao: "erro_execucao" })])).toBe(false);
   });
 
   it("o motivo legível: parada pela pessoa, a falha traduzida, nada para a que terminou", () => {
@@ -205,5 +217,15 @@ describe("NOD-282 (G7): o retorno complementar", () => {
     const texto = respostaComplementarAoColega(frente("x", { titulo: "Publicar", resumo: { feito: "Publiquei" } }));
     expect(texto).toMatch(/^Complemento: a frente "Publicar", que tinha ficado pendente, terminou agora\. /);
     expect(texto).toContain("Publiquei");
+  });
+});
+
+describe("emenda 5 do ADR-192: o retorno da frente com Tarefa fala em entrega", () => {
+  const f = { id: "w1", titulo: "Haicai", estado: "terminado" as const, resumo: { feito: "Escrevi o haicai." }, deFora: false };
+  it("com Tarefa, a instrução diz 'entregue, espera a avaliação'; sem, segue a de antes", () => {
+    expect(entradaDoRetorno({ frentes: [f], faltam: 0, total: 1, comObjetivo: true })).toContain(ENTREGA_NO_RETORNO);
+    expect(entradaDoRetorno({ frentes: [f], faltam: 0, total: 1 })).not.toContain(ENTREGA_NO_RETORNO);
+    expect(entradaComplementar(f, true)).toContain(ENTREGA_NO_RETORNO);
+    expect(entradaComplementar(f)).not.toContain(ENTREGA_NO_RETORNO);
   });
 });

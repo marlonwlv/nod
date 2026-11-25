@@ -12,7 +12,7 @@ import { sincronizarDasDecisoes } from "./trabalhos.ts";
  * e elas não têm decisão própria em "Sua vez" para alguém recusar depois. Usada também pela recusa por perfil
  * mudado (NOD-190, confirmar-perfil.ts), que não grava a frase genérica de recusa.
  */
-export async function recusarRotinasDoCard(deps: Deps, p: PayloadPropostaPerfil): Promise<void> {
+export async function recusarRotinasDoCard(deps: Pick<Deps, "repos">, p: PayloadPropostaPerfil): Promise<void> {
   for (const id of p.rotinas ?? []) {
     const rp = await deps.repos.propostas.buscar(id);
     if (rp?.estado === "pendente") await deps.repos.propostas.decidir(id, "recusada");

@@ -235,14 +235,14 @@ export function criarRotasAgentes(d: DepsRotas, prontosPorMaquina?: (escopo: Esc
       padrao: new RegExp(`^/agentes/${ID}/memoria/(?<mid>[^/]+)$`),
       async handler(ctx) {
         const corpo = corpoObjeto(await ctx.corpo());
-        ctx.json(200, await executar(ctx.escopo, editarMemoria, { memoriaId: ctx.params.mid ?? "", texto: textoOpcional(corpo.texto), tipo: textoOpcional(corpo.tipo) as TipoMemoria | undefined }));
+        ctx.json(200, await executar(ctx.escopo, editarMemoria, { agenteId: ctx.params.id ?? "", memoriaId: ctx.params.mid ?? "", texto: textoOpcional(corpo.texto), tipo: textoOpcional(corpo.tipo) as TipoMemoria | undefined }));
       },
     },
     {
       metodo: "DELETE", acao: "memoria.apagar",
       padrao: new RegExp(`^/agentes/${ID}/memoria/(?<mid>[^/]+)$`),
       async handler(ctx) {
-        const r = await executar(ctx.escopo, apagarMemoria, { memoriaId: ctx.params.mid ?? "" });
+        const r = await executar(ctx.escopo, apagarMemoria, { agenteId: ctx.params.id ?? "", memoriaId: ctx.params.mid ?? "" });
         ctx.json(200, { ok: true, ids: { memoria: ctx.params.mid ?? "", agente: r.agenteId } });
       },
     },

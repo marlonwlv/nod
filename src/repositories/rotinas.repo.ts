@@ -123,8 +123,12 @@ export function rotinasRepo(conn: Conn, escopo: Escopo) {
       return linhas.map(paraRotina);
     },
 
-    /** Para podeCriarRotina (50 por bot, src/domain/rotina-limites.ts). */
+    /**
+     * Para podeCriarRotina (50 por bot, src/domain/rotina-limites.ts). QA-169: trava o bot até o fim da tx antes de
+     * contar — sem ela, criar (ou ativar a proposta) em paralelo passava do teto (48 + 6 ao mesmo tempo davam 54).
+     */
     async contarDoAgente(agenteId: string): Promise<number> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`rotinas:${escopo.tenantId}:${agenteId}`}, 0))`;
       const [l] = await conn<{ n: number }[]>`select count(*)::int as n from rotinas where tenant_id = ${escopo.tenantId} and agente_id = ${agenteId} and excluido_em is null`;
       return l?.n ?? 0;
     },

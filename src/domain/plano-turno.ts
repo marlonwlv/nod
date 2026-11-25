@@ -36,6 +36,7 @@ import { FERRAMENTA_RESPONDER_PEDIDO, temPedidosNoTurno, type PedidoPendenteNoPr
 import { janelaDoModelo, orcamentoDoTurno, precisaEnxugar, type OrcamentoContexto } from "./orcamento-contexto.ts";
 import { partesDoPromptSistema, trechoComClone, trechoDoClone, type BastidorNoPrompt, type EntradaPromptSistema, type RotinaNoPrompt, type TrabalhoNoPrompt } from "./prompt-sistema.ts";
 import { FERRAMENTAS_COMPUTADOR } from "../contracts/ferramentas-computador.ts";
+import { FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA } from "../contracts/ferramentas-navegador.ts";
 import { FERRAMENTA_ANEXAR_MIDIA, FERRAMENTA_LER_MAIS } from "../contracts/ferramentas-proxy.ts";
 import type { ComputadorFora } from "./prompt-sistema.ts";
 import { FERRAMENTAS_WORKSPACE } from "../contracts/ferramentas-workspace.ts";
@@ -125,6 +126,8 @@ const aPedidoDeOutroBot = (t: { sobProcuracaoDe?: string | null }) => !!t.sobPro
 export const FORA_DO_PEDIDO_DE_OUTRA_PESSOA: readonly NomeFerramentaNod[] = [
   "pedir_a_bot", "encaminhar", "pedir_credencial", "pedir_acesso", "lembrar", "abrir_frentes", "mandar_para_frente", "me_chame_as", "publicar_artefato",
   "criar_rotina", "atualizar_rotina", "excluir_rotina", "executar_rotina", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_perfil", "ajustar_barra_lateral",
+  // ADR-190 (N): onde o navegador do bot roda é escolha da dona.
+  "ajustar_navegador",
   // Revisão 6 do PR #628, achados 2 e 4: nem lê o que é da dona — os bots dela com rotinas e apps (ver_colegas), as rotinas
   // do bot (listar_rotinas) e os artefatos da conversa dela (ler_artefato).
   "ver_colegas", "listar_rotinas", "ler_artefato",
@@ -143,9 +146,9 @@ export function permitidaAPedidoDeOutraPessoa(f: Pick<FerramentaPlano, "nome" | 
 }
 
 export const FERRAMENTAS_NOD_POR_MODO: Record<ModoTurno, readonly NomeFerramentaNod[]> = {
-  criacao: ["atualizar_perfil", "lembrar", "pedir_aprovacao", "pedir_acesso", "pedir_credencial", "criar_rotina", "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "ver_colegas", "pedir_a_bot", "pedir_a_pessoa", "publicar_artefato", "ler_artefato", "abrir_frentes", "mandar_para_frente", "me_chame_as", "avisar_pessoa", "mostrar_cartoes", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "nao_lidos", "decisoes", "gerir_times", "gerir_acessos", "gerir_maquinas", "remover_computador"],
+  criacao: ["atualizar_perfil", "lembrar", "pedir_aprovacao", "pedir_acesso", "pedir_credencial", "criar_rotina", "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "ver_colegas", "pedir_a_bot", "pedir_a_pessoa", "publicar_artefato", "ler_artefato", "abrir_frentes", "mandar_para_frente", "me_chame_as", "avisar_pessoa", "mostrar_cartoes", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "nao_lidos", "decisoes", "gerir_times", "gerir_acessos", "gerir_maquinas", "remover_computador", "ajustar_navegador"],
   // NOD-119: o card da barra lateral só onde a pessoa olha o chat (conversa e criação). NOD-449: nao_lidos também (o card e o recibo). ADA-243: gerir_maquinas também (a máquina padrão é a pedido da pessoa).
-  conversa: ["lembrar", "pedir_aprovacao", "pedir_acesso", "pedir_credencial", "criar_rotina", "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "ver_colegas", "pedir_a_bot", "pedir_a_pessoa", "publicar_artefato", "ler_artefato", "abrir_frentes", "mandar_para_frente", "me_chame_as", "avisar_pessoa", "mostrar_cartoes", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "nao_lidos", "decisoes", "gerir_times", "gerir_acessos", "gerir_maquinas", "remover_computador"],
+  conversa: ["lembrar", "pedir_aprovacao", "pedir_acesso", "pedir_credencial", "criar_rotina", "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "ver_colegas", "pedir_a_bot", "pedir_a_pessoa", "publicar_artefato", "ler_artefato", "abrir_frentes", "mandar_para_frente", "me_chame_as", "avisar_pessoa", "mostrar_cartoes", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "nao_lidos", "decisoes", "gerir_times", "gerir_acessos", "gerir_maquinas", "remover_computador", "ajustar_navegador"],
   sala: ["lembrar", "pedir_aprovacao", "pedir_acesso", "pedir_credencial", "criar_rotina", "listar_rotinas", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "ver_colegas", "pedir_a_bot", "pedir_a_pessoa", "passar", "encaminhar", "buscar_conversas", "ler_conversa"],
   // NOD-50 (revisão 6 do PR #553): rotina sem pedir_credencial — o cartão não segura a execução seguinte, que abriria outro a cada
   // disparo; a rotina que precisa de chave pede pela pessoa (pedir_a_pessoa) ou pela conversa.
@@ -251,6 +254,11 @@ export type EntradaPlano = {
    * prompt ganha uma linha (antes o plano as oferecia até com o computador desligado).
    */
   computadorFora?: ComputadorFora | null;
+  /**
+   * definido em 2026-11-20 (ADR-190): o navegador do bot roda em algum lugar agora (nesta etapa, o servidor com
+   * NOD_NAVEGADOR_NO_SERVIDOR=1). Só as 12 ferramentas diretas entram; o catálogo fica atrás de navegador_buscar/usar.
+   */
+  navegador?: boolean;
   turno: Turno;
   agente: Agente;
   memorias: readonly Memoria[];
@@ -405,6 +413,8 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
     .filter((n) => (n !== "abrir_frentes" || podeAbrirTask(entrada.trabalho ?? null)) && (n !== "mandar_para_frente" || podeMandarParaTask(entrada.trabalho ?? null)))
     .filter((n) => !frente || !FERRAMENTAS_FORA_DA_FRENTE.includes(n))
     .filter((n) => n !== "remover_computador" || entrada.onboardingTexto === true)
+    // ADR-190 (N): ajustar_navegador só com o navegador no plano (sem navegador, não há onde mudar).
+    .filter((n) => n !== "ajustar_navegador" || entrada.navegador === true)
     // NOD-61 (revisões 2 e 3 do PR #594): pedido de outro bot (sobProcuracaoDe, herdado por frente/retomada/lote) não leva o
     // histórico. Aceito na revisão 5: o turno da conversa com responder_pedido mantém — a pessoa está ali e responde ela.
     .filter((n) => !aPedidoDeOutroBot(entrada.turno) || !FERRAMENTAS_DO_HISTORICO.includes(n))
@@ -425,6 +435,10 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // ninguém olhando, já tinha. Só o peer legado fica sem.
   const temComputador = entrada.computador === true && modo !== "peer" && !deOutraPessoa;
   const computador: FerramentaPlano[] = temComputador && !entrada.computadorFora ? Object.entries(FERRAMENTAS_COMPUTADOR).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "computador", conectorId: null, readOnlyHint: ["computador_observar", "computador_arquivos", "computador_ler_arquivo", "computador_ler_texto"].includes(nome), tocaDadoPessoal: true, schema })) : [];
+  // ADR-190: o navegador acompanha o computador (mesmo critério de modo e de pedido de outra pessoa).
+  const navegador: FerramentaPlano[] = entrada.navegador === true && modo !== "peer" && !deOutraPessoa
+    ? Object.entries(FERRAMENTAS_NAVEGADOR_DIRETAS).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "navegador", conectorId: null, readOnlyHint: (NAVEGADOR_SO_LEITURA as readonly string[]).includes(nome), tocaDadoPessoal: true, schema }))
+    : [];
   /**
    * definido em 2026-09-18: sem projeto autorizado o agente só enxerga consultar e propor. Ver um
    * martelo que ainda não pode usar era o que o levava a tentar, falhar e virar tutorial de menu.
@@ -441,7 +455,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // punha label no Gmail na rotina (0 de 269 turnos, contra 67 de 67 na conversa) e o Chico não movia task no ClickUp
   // na rotina de 10 min: a fonte citava um app "de fora" e as ferramentas de escrita sumiam caladas. Conteúdo de fora
   // agora só pesa no modo manual, na hora de decidir cada ação (aprovacao-permanente.ts).
-  let ferramentas = montarFerramentas({ catalogo: [...nod, ...deConectores, ...computador, ...workspace], allowlistAgente: null, alcanceCanal: null, profundidade: entrada.profundidade });
+  let ferramentas = montarFerramentas({ catalogo: [...nod, ...deConectores, ...computador, ...navegador, ...workspace], allowlistAgente: null, alcanceCanal: null, profundidade: entrada.profundidade });
   const decididoPor: `regra:${string}` = REGRA_MONTAGEM;
   // definido em 2026-09-28: quem pode receber resposta grande (conector, computador, pasta) recebe também
   // `ler_mais`, atendida pelo proxy. Leitura pura, em todo turno. NOD-61 (revisão do /codex no PR #594, P2): ler_conversa

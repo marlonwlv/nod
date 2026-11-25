@@ -1,3 +1,4 @@
+import { TETO_REENVIOS } from "../../../src/domain/inteligencia.ts";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { ResultadoTurno } from "../../../src/contracts/turno.ts";
@@ -158,7 +159,7 @@ describe("NOD-287: conta sem acesso e barrados por IA levam a marca da web", () 
 describe("NOD-268: conta sem acesso no teto de reenvios", () => {
   it("a fala já reenviada uma vez não é repetida de novo: a negação com a causa", async () => {
     const c = await cenario();
-    c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = 1;
+    c.banco.turnos.find((t) => t.id === c.turnoId)!.reenvios = TETO_REENVIOS;
     await c.entregar("codex-cli", RECUSA);
     expect(c.banco.turnos.filter((t) => t.estado === "pendente")).toEqual([]);
     expect(c.banco.mensagens.slice(c.antes).some((m) => m.payload?.kind === "ia_trocada")).toBe(false);

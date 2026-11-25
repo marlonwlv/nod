@@ -24,7 +24,7 @@ function montar() {
     prazoDecisaoMs: 60_000,
     executor: "catcher",
     rodarAposCommit: async (_escopo, e) => {
-      diario.push(`efeito ${e.tipo === "desligar_computador" ? e.agenteId : e.tipo === "remover_computador" ? e.maquinaId : e.importacaoId}`);
+      diario.push(`efeito ${e.tipo === "desligar_computador" ? e.agenteId : e.tipo === "remover_computador" ? e.maquinaId : e.tipo === "importar_linear" ? e.importacaoId : e.decisaoIds.join(",")}`);
     },
   };
   return { executar: criarExecutor(d), diario };

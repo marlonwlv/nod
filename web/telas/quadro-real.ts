@@ -256,9 +256,11 @@ export function cabecalhoMinimo(q: QuadroDto, o: { nome: string; projeto?: strin
 /**
  * Se a coluna começa recolhida (a pessoa inverte com um clique). A padrão recolhida fica fechada enquanto vazia. NOD-422
  * (decisão 5 da Ada): no quadro que veio do Linear (11 colunas), a vazia e a sem responsável também começam recolhidas;
- * a coluna da pessoa fica aberta quando tem tarefa.
+ * a coluna da pessoa fica aberta quando tem tarefa. Paper K6-a (decisão do Marlon, 2026-11-20): Feito e Cancelado (os
+ * grupos feito e fechado) começam recolhidos mesmo com tarefa; o Backlog segue fechado só enquanto vazio.
  */
-export function recolhidaPorPadrao(c: Pick<ColunaDto, "recolhida" | "responsavel" | "daPessoa">, tarefas: number, importado: boolean): boolean {
+export function recolhidaPorPadrao(c: Pick<ColunaDto, "recolhida" | "responsavel" | "daPessoa" | "grupo">, tarefas: number, importado: boolean): boolean {
+  if (c.grupo === "feito" || c.grupo === "fechado") return true;
   if (tarefas === 0) return c.recolhida || importado;
   return importado && !c.responsavel && !c.daPessoa;
 }

@@ -138,12 +138,13 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
   }
 
   /** A decisão e, por item, o que a ação aprovada no computador devolveu: cortado e moldurado como não confiável. */
-  function decididaComResultados(itens: readonly { idx: number; desfecho: unknown; resultado?: string }[], orcamento: number): ConteudoMcp {
-    const partes = [JSON.stringify({ estado: "decidida", itens: itens.map(({ resultado: _resultado, ...i }) => i) })];
+  function decididaComResultados(itens: readonly { idx: number; desfecho: unknown; resultado?: string; origem?: string }[], orcamento: number): ConteudoMcp {
+    const partes = [JSON.stringify({ estado: "decidida", itens: itens.map(({ resultado: _resultado, origem: _origem, ...i }) => i) })];
     for (const i of itens) {
       if (!i.resultado) continue;
-      const conteudo = neutralizarDelimitadores(cortarGuardando(i.resultado, orcamento, { origem: "computador", naoConfiavel: true, computador: true }));
-      partes.push(envolverNaoConfiavel(`Resultado do item ${i.idx + 1}:\n${conteudo}`, "computador", true));
+      const origem = i.origem === "navegador" ? "navegador" : "computador";
+      const conteudo = neutralizarDelimitadores(cortarGuardando(i.resultado, orcamento, { origem, naoConfiavel: true, computador: true }));
+      partes.push(envolverNaoConfiavel(`Resultado do item ${i.idx + 1}:\n${conteudo}`, origem, true));
     }
     return texto(partes.join("\n\n"));
   }
@@ -233,8 +234,10 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
     }
     const naoConfiavel = r.confianca === "nao_confiavel";
     const origem = ferramenta.origem === "conector" ? (v.plano.catalogo.servidores.find((s) => s.conectorId === ferramenta.conectorId)?.nome ?? nome) : nome;
-    let conteudo = neutralizarDelimitadores(cortarGuardando(r.conteudo, orcamento, { origem, naoConfiavel, computador: ferramenta.origem === "computador" }));
-    if (naoConfiavel) conteudo = envolverNaoConfiavel(conteudo, origem, ferramenta.origem === "computador");
+    // ADR-190: o navegador do bot ganha a moldura sempre, como o computador (página de fora, mesmo curta).
+    const forcar = ferramenta.origem === "computador" || ferramenta.origem === "navegador";
+    let conteudo = neutralizarDelimitadores(cortarGuardando(r.conteudo, orcamento, { origem, naoConfiavel, computador: forcar }));
+    if (naoConfiavel) conteudo = envolverNaoConfiavel(conteudo, origem, forcar);
     return resposta(id, { content: [{ type: "text", text: conteudo }, ...(r.imagem ? [{ type: "image", ...r.imagem }] : []), ...(r.audio ? [{ type: "audio", ...r.audio }] : [])], ...(r.isError ? { isError: true } : {}) });
   }
 

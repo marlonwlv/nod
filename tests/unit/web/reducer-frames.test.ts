@@ -36,6 +36,14 @@ function comConversa(): Estado {
  * A tabela POR_FRAME é total: um tipo novo no contrato não compila sem entrar aqui.
  */
 describe("aplicarFrame por TipoFrame", () => {
+  it("navegador.mudou (ADR-190) marca a vista do navegador daquele bot para reler; hidratar guarda a resposta (null = 404)", () => {
+    const e = aplicarFrame(estadoInicial, frame("navegador.mudou", { agenteId: "a1", mudou: ["controle"] }), AGORA);
+    expect(e.invalidacoes).toEqual(["navegador:a1"]);
+    expect(aplicarFrame(estadoInicial, frame("navegador.mudou", { mudou: ["controle"] }), AGORA).invalidacoes).toEqual([]);
+    const hidratado = reduzir(e, { tipo: "hidratar-navegador", agenteId: "a1", navegador: null });
+    expect(hidratado.navegadores).toEqual({ a1: null });
+  });
+
   it("mensagem.nova invalida a conversa do frame e os não lidos (0039); sem conversaId não invalida nada", () => {
     const e = aplicarFrame(estadoInicial, frame("mensagem.nova", { conversaId: CONVERSA, kind: "mensagem_criada" }), AGORA);
     expect(e.invalidacoes).toEqual([`conversa:${CONVERSA}`, "nao-lidos"]);
