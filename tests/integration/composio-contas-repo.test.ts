@@ -33,8 +33,9 @@ describeIntegracao("contas do mesmo app no banco", () => {
       expect(await m.composio.sessao("gmail--outra")).toBeNull();
       expect(await m.composio.sessao("gmail--")).toBeNull();
       expect((await m.composio.sessoesDoApp("gmail")).map((s) => s.conta)).toEqual([null, "pessoal"]);
-      // O CHECK da coluna barra o nome fora do formato, mesmo vindo de outro caminho.
-      await expectRejected(tx, () => tx`insert into composio_sessoes (tenant_id, owner_id, toolkit, conta, sessao_id, conta_id, conector_id) values (${marlon.tenantId}, ${marlon.pessoaId}, 'gmail', 'Com Espaço', 's', 'c', ${pessoal})`, "23514");
+      // A chave da conta mora no `toolkit`: o UNIQUE (tenant, owner, toolkit) da 0009 fica e o servidor antigo segue casando.
+      expect((await tx<{ toolkit: string }[]>`select toolkit from composio_sessoes order by toolkit`).map((r) => r.toolkit)).toEqual(["gmail", "gmail--pessoal"]);
+      await expectRejected(tx, () => tx`insert into composio_sessoes (tenant_id, owner_id, toolkit, sessao_id, conta_id, conector_id) values (${marlon.tenantId}, ${marlon.pessoaId}, 'gmail--pessoal', 's', 'c', ${pessoal})`, "23505");
     });
   });
 
@@ -47,6 +48,7 @@ describeIntegracao("contas do mesmo app no banco", () => {
       await m.composio.salvarSessao({ toolkit: "gmail", conta: "pessoal", sessaoId: "trs_2", contaId: "ca_2", conectorId: pessoal });
       await m.composio.salvarEmail(pessoal, "maria@pessoal.example");
       await tx`insert into acessos_padrao (tenant_id, owner_id, conector_id, nivel) values (${marlon.tenantId}, ${marlon.pessoaId}, ${pessoal}, 'leitura')`;
+      await tx`insert into niveis_ferramenta (tenant_id, owner_id, conector_slug, tipo, nivel) values (${marlon.tenantId}, ${marlon.pessoaId}, 'gmail--pessoal', 'escrita', 'sempre_permitir')`;
 
       const lista = await m.conectores.listar();
       expect(lista.filter((c) => c.slug.startsWith("gmail")).map((c) => [c.slug, c.contaEmail ?? null])).toEqual([["gmail", null], ["gmail--pessoal", "maria@pessoal.example"]]);
@@ -57,6 +59,12 @@ describeIntegracao("contas do mesmo app no banco", () => {
       expect(await m.conectores.buscar(pessoal)).toMatchObject({ habilitado: false, removidoEm: Date.UTC(2026, 10, 25) });
       expect(await m.composio.sessao("gmail--pessoal")).toBeNull();
       expect(await tx`select 1 from acessos_padrao where conector_id = ${pessoal}`).toEqual([]);
+      // Um "Sempre permitir" de antes não vale para a conta que vier com o mesmo nome (revisão do PR).
+      expect(await tx`select 1 from niveis_ferramenta where conector_slug = 'gmail--pessoal'`).toEqual([]);
+      // A conta tirada não se liga de novo por fora do conectar, nem pela sonda.
+      expect(await m.conectores.habilitar(pessoal, true)).toMatchObject({ habilitado: false });
+      expect(await m.conectores.registrarSonda(pessoal, { ok: true, catalogo: [], agora: Date.UTC(2026, 10, 25) })).toMatchObject({ habilitado: false });
+      expect((await m.conectores.listarHabilitados()).map((c) => c.id)).not.toContain(pessoal);
       // Tirada não renomeia nem se tira de novo.
       expect(await m.conectores.renomear(pessoal, "Outro")).toBeNull();
       expect(await m.conectores.remover(pessoal, Date.UTC(2026, 10, 26))).toBe(false);

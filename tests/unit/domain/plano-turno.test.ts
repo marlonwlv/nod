@@ -449,7 +449,7 @@ describe("ADR-196: duas contas do mesmo app no plano", () => {
     const p = montarPlano({ ...base, conectores: [gmail("g1", "gmail", "Gmail"), gmail("g2", "gmail--pessoal", "Gmail (pessoal)", { contaEmail: "maria@pessoal.example" })], concessoes: [conceder("g1"), conceder("g2")] });
     expect(nomes(p)).toEqual(expect.arrayContaining(["gmail__GMAIL_SEND_EMAIL", "gmail--pessoal__GMAIL_SEND_EMAIL"]));
     expect(descricao(p, "gmail__GMAIL_SEND_EMAIL")).toBe("Conta Gmail. Envia um e-mail");
-    expect(descricao(p, "gmail--pessoal__GMAIL_SEND_EMAIL")).toBe("Conta Gmail (pessoal) (maria@pessoal.example). Envia um e-mail");
+    expect(descricao(p, "gmail--pessoal__GMAIL_SEND_EMAIL")).toBe("Conta Gmail (pessoal). Envia um e-mail");
   });
 
   it("sem acesso a uma conta, a ferramenta dela nem entra; com uma conta só, a descrição fica como era", () => {

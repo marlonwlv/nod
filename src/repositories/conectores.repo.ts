@@ -115,6 +115,24 @@ export type NovoConector = {
 
 /** Conector = servidor MCP registrado pela pessoa; nasce desabilitado (ADR-013). CHECKs vivem no banco. */
 export function conectoresRepo(conn: Conn, escopo: Escopo) {
+  /**
+   * Tudo o que dá a um bot o acesso a este conector sai (ADR-196): concessões, níveis escolhidos, o padrão, os lotes que
+   * o Desfazer reaplicaria, as liberações dispensadas e os níveis por app (`niveis_ferramenta`, guardados pelo slug: um
+   * "Sempre permitir" de antes não pode valer para a conta que vier com o mesmo nome). As regras permanentes ativas ficam
+   * inativas (ADR-004: marca, nunca DELETE). Roda no remover e de novo ao reconectar a conta tirada, porque um cartão
+   * antigo pode ter concedido no meio.
+   */
+  async function limparAcessos(id: string, slug: string, agora: number): Promise<void> {
+    await conn`update permissoes_permanentes set inativo_em = ${data(agora)}, inativo_motivo = 'conector_desabilitado'
+      where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id} and inativo_em is null`;
+    await conn`delete from concessoes where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
+    await conn`delete from acessos_definidos where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
+    await conn`delete from acessos_padrao where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
+    await conn`delete from acessos_lotes where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
+    await conn`delete from liberacoes_dispensadas where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
+    await conn`delete from niveis_ferramenta where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_slug = ${slug}`;
+  }
+
   return {
     async criar(c: NovoConector): Promise<ConectorGuardado | null> {
       const [l] = await conn<Linha[]>`
@@ -159,13 +177,13 @@ export function conectoresRepo(conn: Conn, escopo: Escopo) {
      */
     async listar(): Promise<ConectorGuardado[]> {
       const linhas = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)},
-          (select s.email from composio_sessoes s where s.tenant_id = conectores.tenant_id and s.conector_id = conectores.id limit 1) as conta_email
+          (select s.email from composio_sessoes s where s.tenant_id = conectores.tenant_id and s.owner_id = conectores.owner_id and s.conector_id = conectores.id limit 1) as conta_email
         from conectores where tenant_id = ${escopo.tenantId} and removido_em is null order by criado_em`;
       return linhas.map(paraConector);
     },
 
     async listarHabilitados(): Promise<ConectorGuardado[]> {
-      const linhas = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from conectores where tenant_id = ${escopo.tenantId} and habilitado = true order by criado_em`;
+      const linhas = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from conectores where tenant_id = ${escopo.tenantId} and habilitado = true and removido_em is null order by criado_em`;
       return linhas.map(paraConector);
     },
 
@@ -176,7 +194,7 @@ export function conectoresRepo(conn: Conn, escopo: Escopo) {
     ): Promise<ConectorGuardado | null> {
       const [l] = r.ok
         ? await conn<Linha[]>`
-            update conectores set catalogo = ${conn.json(r.catalogo)}, habilitado = true, sondado_em = ${data(r.agora)}, ultima_falha = null, ${conn.unsafe(DISJUNTOR_LIMPO)}
+            update conectores set catalogo = ${conn.json(r.catalogo)}, habilitado = removido_em is null, sondado_em = ${data(r.agora)}, ultima_falha = null, ${conn.unsafe(DISJUNTOR_LIMPO)}
             where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning ${conn.unsafe(COLUNAS)}`
         : await conn<Linha[]>`
             update conectores set sondado_em = ${data(r.agora)},
@@ -201,19 +219,15 @@ export function conectoresRepo(conn: Conn, escopo: Escopo) {
      * Devolve o id da conta do Composio a apagar depois do commit (null = não havia sessão) ou false (não é da pessoa).
      */
     async remover(id: string, agora: number): Promise<{ contaComposio: string | null } | false> {
-      const [l] = await conn<{ id: string }[]>`update conectores set habilitado = false, removido_em = ${data(agora)}, ultima_falha = null, ${conn.unsafe(DISJUNTOR_LIMPO)}
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and removido_em is null returning id`;
+      const [l] = await conn<{ slug: string }[]>`update conectores set habilitado = false, removido_em = ${data(agora)}, ultima_falha = null, ${conn.unsafe(DISJUNTOR_LIMPO)}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and removido_em is null returning slug`;
       if (!l) return false;
-      await conn`update permissoes_permanentes set inativo_em = ${data(agora)}, inativo_motivo = 'conector_desabilitado'
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id} and inativo_em is null`;
-      await conn`delete from concessoes where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
-      await conn`delete from acessos_definidos where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
-      await conn`delete from acessos_padrao where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
-      await conn`delete from acessos_lotes where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
-      await conn`delete from liberacoes_dispensadas where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id}`;
+      await limparAcessos(id, l.slug, agora);
       const [s] = await conn<{ conta_id: string }[]>`delete from composio_sessoes where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conector_id = ${id} returning conta_id`;
       return { contaComposio: s?.conta_id ?? null };
     },
+
+    limparAcessos,
 
     /** Conectar de novo uma conta tirada: volta às listas (o resto do conector o `atualizarEndpoint` já zera). */
     async restaurar(id: string): Promise<boolean> {
@@ -222,7 +236,8 @@ export function conectoresRepo(conn: Conn, escopo: Escopo) {
     },
 
     async habilitar(id: string, habilitado: boolean): Promise<ConectorGuardado | null> {
-      const [l] = await conn<Linha[]>`update conectores set habilitado = ${habilitado} where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning ${conn.unsafe(COLUNAS)}`;
+      // ADR-196: a conta tirada não se liga de novo por aqui (só conectando outra vez, que a restaura).
+      const [l] = await conn<Linha[]>`update conectores set habilitado = ${habilitado} and removido_em is null where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraConector(l) : null;
     },
 

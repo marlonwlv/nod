@@ -1,6 +1,6 @@
 import type { NivelPedido, NivelVisto } from "../../lib/acessos-otimistas.ts";
 import { notasGenericas } from "./modelo.ts";
-import { separarChave } from "./contas.ts";
+import { aceitaContas, separarChave } from "./contas.ts";
 import type { AcessosDoConector, ApiDoMarketplace, AppDaVitrine, BotDaVitrine, CampoNaTela, ContaDaVitrine, FormularioDaChave, FotoDoMarketplace, ResultadoDaChave } from "./tipos.ts";
 
 /**
@@ -184,7 +184,7 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
       const login = logins.get(a.slug);
       if (c) acessos[c.conectorId] = { padrao: c.acessos.padrao, seguePadrao: new Set(c.acessos.seguePadrao) };
       const situacao = login ? "conectando" : atencao.has(a.slug) ? "atencao" : c && !desligados.has(a.slug) ? "conectado" : "nao_conectado";
-      const multiconta = !a.chave && a.slug !== "github";
+      const multiconta = aceitaContas(a.slug, a.chave);
       let contas: ContaDaVitrine[] | undefined;
       if (multiconta && c && situacao === "conectado") {
         const extras = contasAMais.get(a.slug) ?? [];

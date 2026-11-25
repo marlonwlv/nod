@@ -65,7 +65,8 @@ export const concederLote: CasoDeUso<EntradaConcederLote, SaidaConcederLote> = a
   const agente = await deps.repos.agentes.buscarParaAtualizar(input.agenteId);
   if (!agente) throw new ErroDeDominio("nao_encontrado", { cause: "agente" });
   const conector = await deps.repos.conectores.buscar(input.conectorId);
-  if (!conector) throw new ErroDeDominio("nao_encontrado", { cause: "conector" });
+  // ADR-196: a conta tirada não recebe acesso (um cartão "Permitir" antigo clicado depois do remover).
+  if (!conector || conector.removidoEm) throw new ErroDeDominio("nao_encontrado", { cause: "conector" });
   if (capacidades.some((cap) => !conector.catalogo.some((c) => c.nome === cap))) throw new ErroDeDominio("entrada_invalida", { cause: "capacidade fora do catálogo do conector" });
   const conversa = await deps.repos.conversas.buscarPropriaDoAgente(agente.id);
   if (!conversa) throw new ErroDeDominio("estado_invalido", { cause: "agente sem conversa própria" });

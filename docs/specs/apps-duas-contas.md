@@ -2,7 +2,7 @@
 
 Spec escrita em 2026-11-24, a partir do pedido do Marlon: "quero que meu bot secretária se conecte no meu Gmail
 corporativo e também no meu Gmail pessoal". Decisão técnica em [ADR-196](../adr/adr-196-duas-contas-do-mesmo-app.md).
-Rascunho.
+Implementada em 2026-11-25 (branch feat/multiconta-composio); o que mudou do rascunho está marcado como revisto.
 
 ## Contexto
 
@@ -35,9 +35,9 @@ aceita mais de uma conta do mesmo app para a mesma pessoa; a sonda de 2026-11-24
 3. **"Quem pode usar o Gmail (pessoal)?"** é a tela de hoje, por conector. O padrão para bots novos também é por conta.
 4. **Renomear** troca só o nome que aparece ("Gmail (Leapy)"). O slug `gmail--pessoal` fica, porque é o nome das
    ferramentas, das regras permanentes e do histórico.
-5. **Remover esta conta** apaga a conta no Composio, o conector e os acessos dos bots a ela, com a confirmação "Remover
-   o Gmail (pessoal)? A Secretária e mais 1 bot perdem o acesso a esta conta." A primeira conta só sai depois das outras,
-   ou pelo Desconectar de hoje.
+5. **Remover esta conta** tira a conta a mais: apaga a conta no Composio, os acessos dos bots a ela e a sessão; o conector
+   fica marcado (`removido_em`) porque as regras permanentes apontam para ele (ADR-196 §8). A confirmação (Paper M7)
+   diz quantos bots perdem o acesso e lista até três, com "Ver todos". A primeira conta só sai pelo Desconectar de sempre.
 6. **No bot**, cada conta é um app à parte: a lista de apps do bot mostra "Gmail" e "Gmail (pessoal)", cada um com o seu
    nível. As ferramentas chegam ao modelo com o slug da conta (`gmail--pessoal__GMAIL_SEND_EMAIL`), e a descrição do
    conector diz de que conta é ("Gmail (pessoal) · maria@gmail.com"), para o bot escolher a certa.
@@ -51,14 +51,15 @@ aceita mais de uma conta do mesmo app para a mesma pessoa; a sonda de 2026-11-24
 | Ação (id) | O que faz | Risco | cartaoNoChat | Estado | Em que bot |
 | --- | --- | --- | --- | --- | --- |
 | `apps.conectar` | Conectar um app, agora com `conta` opcional (a conta a mais) | muda | sim | falta (NOD-394) | — |
-| `apps.renomear_conta` | Trocar o nome exibido de uma conta | muda | não | vivo, `gerir_acessos` (`renomear_conta`) | todos, em todo modo em que o `gerir_acessos` entra |
-| `apps.remover_conta` | Apagar uma conta a mais (Composio, conector e acessos) | arriscada | sim | vivo, `gerir_acessos` (`remover_conta`) | todos, em todo modo em que o `gerir_acessos` entra |
+| `apps.renomear_conta` | Trocar o nome exibido de uma conta | muda | não | falta (NOD-394) | — |
+| `apps.remover_conta` | Tirar uma conta a mais (Composio, acessos e sessão) | arriscada | sim | falta (NOD-394) | — |
 | `acessos.dar_em_lote` | (já existe) dar o nível de uma conta a um ou mais bots | muda / pessoa_confirma | sim | vivo | já é |
 
-**`apps.conectar` fica `falta` (decisão a confirmar pela Ada):** o login é do Google, numa janela do navegador, e
-não passa pela conversa. O caminho que já existe é o card "Conecte o X" do `pedir-acesso`. Esta spec só faz o card
-levar o nome da conta: "Conecte o Gmail (pessoal)", com o mesmo botão que abre o login. Ligar o `apps.conectar` no chat
-continua com a NOD-394.
+**`apps.conectar`, `apps.renomear_conta` e `apps.remover_conta` ficam `falta` (revisto na implementação):** o login é do
+Google, numa janela do navegador, e não passa pela conversa; renomear e remover entram no chat junto do conectar, na
+NOD-394, como as outras ações `apps.*` desta onda. O que já vale no chat nesta entrega: o `gerir_acessos` pergunta qual
+conta quando "Gmail" casa com mais de uma (devolve `nome_ambiguo` com cada conta, o slug que resolve e o e-mail), e a
+descrição de cada ferramenta diz de que conta ela é, para o bot mandar "pelo pessoal" pela conta certa.
 
 **Como a pessoa pede:**
 - "Conecta meu Gmail pessoal também, além do corporativo, e deixa a Secretária usar os dois."
@@ -102,18 +103,20 @@ devolve `ambiguo` com a lista ("Gmail · marlon@leapy.com.br", "Gmail (pessoal) 
 - Rotinas que escolhem a conta por gatilho ("e-mail novo em qualquer das contas"): cada rotina segue apontando para um
   conector.
 - Trocar o nome técnico (slug) de uma conta.
+- Contas a mais no GitHub e nos apps de chave de API (ADR-196 §9).
+- O cartão "Conecte o Gmail (pessoal)" no chat (Paper C1): depende do `apps.conectar` no chat (NOD-394).
 
 ## Ações
 
-- `apps.renomear_conta`: registro em `src/domain/acoes/acessos.ts` · rota `PATCH /conectores/:id/nome` em
-  `src/adapters/http/rotas/conectores.ts` · executor em `src/use-cases/acoes/acessos.ts` · ferramenta: `gerir_acessos`
-  ganha `renomear_conta` (`src/contracts/ferramentas-acessos.ts`) · contrato em
-  `tests/integration/paridade-acessos.test.ts` · piso +1.
-- `apps.remover_conta`: registro em `src/domain/acoes/acessos.ts` · rota `DELETE /marketplace/:slug/contas/:conectorId`
-  em `src/adapters/http/rotas/marketplace.ts` · executor em `src/use-cases/acoes/acessos.ts`, com o DELETE do Composio
-  em `Deps.aposCommit` (efeito novo `remover_conta_composio` em `rodarAposCommit`) · ferramenta: `gerir_acessos` ganha
-  `remover_conta` · cartão pelo modo (`arriscada`) · contrato em `tests/integration/paridade-acessos.test.ts` · piso +1.
-- `apps.conectar`: a rota que já existe recebe `conta` no corpo; segue `falta` (NOD-394), sem piso.
+- `apps.renomear_conta`: registro em `src/domain/acoes/acessos.ts` (falta, NOD-394) · rota `PATCH /conectores/:id/nome`
+  em `src/adapters/http/rotas/conectores.ts` · repositório `conectores.renomear` · teste em
+  `tests/integration/marketplace-contas.test.ts`.
+- `apps.remover_conta`: registro em `src/domain/acoes/acessos.ts` (falta, NOD-394) · rota
+  `DELETE /marketplace/contas/:id` em `src/adapters/http/rotas/marketplace.ts` · repositório `conectores.remover` (a
+  marca e o que sai na transação) e o DELETE do Composio depois do commit · testes em
+  `tests/integration/marketplace-contas.test.ts` e `tests/integration/composio-contas-repo.test.ts`.
+- `apps.conectar`: a rota que já existe aceita a chave da conta (`gmail--pessoal`) e `rotulo` no corpo; segue `falta`
+  (NOD-394), sem piso.
 
 ## Plano curto
 

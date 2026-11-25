@@ -141,8 +141,11 @@ it("renomear troca só o nome; remover tira a conta a mais, apaga no Composio e 
     expect((await srv.chamar(sessao, "DELETE", "marketplace/contas/nao-e-uuid")).status).toBe(404);
     expect((await srv.chamar(sessao, "DELETE", `marketplace/contas/${pessoal!.id}`)).status).toBe(200);
     expect(m.apagadas).toEqual(["ca_2"]);
-    expect(m.memoria.banco.conectores.map((c) => c.slug)).toEqual(["gmail"]);
+    const lista = await (await srv.chamar(sessao, "GET", "conectores")).json() as { conectores: { slug: string }[] };
+    expect(lista.conectores.map((c) => c.slug)).toEqual(["gmail"]);
     expect([...m.memoria.banco.composioSessoes.values()].map((s) => s.conta ?? null)).toEqual([null]);
+    // Remover de novo, ou um conector que não é conta do Marketplace (MCP manual com `--`), não passa.
+    expect((await srv.chamar(sessao, "DELETE", `marketplace/contas/${pessoal!.id}`)).status).toBe(404);
   } finally { await srv.close(); }
 });
 
@@ -159,5 +162,41 @@ it("outra pessoa não renomeia nem remove a conta de quem conectou", async () =>
     expect((await srv.chamar(ana, "DELETE", `marketplace/contas/${pessoal.id}`)).status).toBe(404);
     expect(pessoal.nome).toBe("Gmail (pessoal)");
     expect(m.apagadas).toEqual([]);
+  } finally { await srv.close(); }
+});
+
+it("conectar de novo a conta tirada, com o mesmo nome, reusa o conector e volta sem acesso nenhum", async () => {
+  const m = montar();
+  const { srv, sessao } = await m.subir();
+  try {
+    await srv.chamar(sessao, "POST", "marketplace/gmail/conectar");
+    m.logar(null);
+    await srv.chamar(sessao, "POST", "marketplace/gmail/verificar");
+    await srv.chamar(sessao, "POST", "marketplace/gmail--pessoal/conectar", { rotulo: "pessoal" });
+    m.logar(null);
+    await srv.chamar(sessao, "POST", "marketplace/gmail--pessoal/verificar");
+    const pessoal = m.memoria.banco.conectores.find((c) => c.slug === "gmail--pessoal")!;
+    expect((await srv.chamar(sessao, "DELETE", `marketplace/contas/${pessoal.id}`)).status).toBe(200);
+    // Um cartão antigo concedeu depois do remover (o caminho que a revisão do PR achou): a volta limpa de novo.
+    m.memoria.banco.concessoes.push({ tenantId: sessao.tenantId, id: "g-velha", ownerId: sessao.pessoaId, agenteId: "a", conectorId: pessoal.id, capacidade: "GMAIL_SEND_EMAIL", mensagemId: "m", criadoEm: 0 });
+    expect((await srv.chamar(sessao, "POST", "marketplace/gmail--pessoal/conectar", { rotulo: "Pessoal" })).status).toBe(200);
+    expect(m.memoria.banco.conectores.filter((c) => c.slug === "gmail--pessoal")).toHaveLength(1);
+    expect(pessoal).toMatchObject({ nome: "Gmail (Pessoal)" });
+    expect(pessoal.removidoEm).toBeUndefined();
+    expect(m.memoria.banco.concessoes.filter((g) => g.conectorId === pessoal.id)).toEqual([]);
+    m.logar(null);
+    expect(await (await srv.chamar(sessao, "POST", "marketplace/gmail--pessoal/verificar")).json()).toMatchObject({ conectado: true });
+  } finally { await srv.close(); }
+});
+
+it("um MCP registrado à mão com `--` no slug não sai pelo Remover conta", async () => {
+  const m = montar();
+  const { srv, sessao } = await m.subir();
+  try {
+    const r = await srv.chamar(sessao, "POST", "conectores", { nome: "Meu MCP", slug: "meu--mcp", transporte: "http", url: "https://exemplo.invalid/mcp", declaracao: "nao-toca" });
+    expect(r.status).toBe(201);
+    const id = (await r.json() as { ids: { conector: string } }).ids.conector;
+    expect((await srv.chamar(sessao, "DELETE", `marketplace/contas/${id}`)).status).toBe(400);
+    expect(m.memoria.banco.conectores.find((c) => c.id === id)?.removidoEm).toBeUndefined();
   } finally { await srv.close(); }
 });

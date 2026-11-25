@@ -7,7 +7,7 @@ import type { AcessosDoApp } from "../../telas/acessos-do-app.ts";
 import { conectorDoApp, meusBots, nivelDoBot, situacaoDoApp, type SituacaoApp } from "../../telas/app-acesso.ts";
 import { fonteDoLogo } from "../../telas/marketplace.ts";
 import { notasGenericas, resultadoDoErro } from "./modelo.ts";
-import { separarChave } from "./contas.ts";
+import { aceitaContas, separarChave } from "./contas.ts";
 import { ErroDoFormulario, type AcessosDoConector, type ApiDoMarketplace, type AppDaVitrine, type BotDaVitrine, type ContaDaVitrine, type FotoDoMarketplace, type ReciboDoLote } from "./tipos.ts";
 
 /**
@@ -149,8 +149,8 @@ export function montarFoto(e: Estado, acessos: (conectorId: string) => AcessosDo
       niveis: c && (situacao !== "nao_conectado" || desligado) ? Object.fromEntries(bots.map((b) => [b.id, nivelDoBot(e, b.id, c)])) : SEM_NIVEIS,
       // A curadoria (APPS_MARKETPLACE) é o que o nod recomenda; o catálogo público do Composio fica para a busca.
       recomendado: app.doCatalogo !== true,
-      ...(!chave && app.slug !== "github" ? { multiconta: true } : {}),
-      ...(!chave && app.slug !== "github" && c && (situacao !== "nao_conectado" || desligado) ? { contas: contasDoApp(e, app, c, bots, acessos, porConector) } : {}),
+      ...(aceitaContas(app.slug, chave) ? { multiconta: true } : {}),
+      ...(aceitaContas(app.slug, chave) && c && (situacao !== "nao_conectado" || desligado) ? { contas: contasDoApp(e, app, c, bots, acessos, porConector) } : {}),
     };
   });
   return { apps, total: e.marketplace.length, bots, acessos: porConector, composioConfigurado: e.composioConfigurado };

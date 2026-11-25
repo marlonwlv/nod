@@ -239,7 +239,8 @@ function ferramentasDeConectores(conectores: readonly Conector[], concessoes: re
     if (caps.length === 0) continue;
     // definido em 2026-09-16: todo conteúdo de conector é não confiável (ADR-026), logo o servidor é 'untrusted' sempre
     servidores.push({ conectorId: c.id, nome: c.slug, trust: "untrusted", transporte: c.transporte });
-    const daConta = (contasPorApp.get(separarChave(c.slug)?.app ?? c.slug) ?? 0) > 1 ? `Conta ${c.nome}${c.contaEmail ? ` (${c.contaEmail})` : ""}. ` : null;
+    // Só o nome da conta, sem o e-mail: o plano pode servir a um turno pedido por um colega (revisão do PR).
+    const daConta = (contasPorApp.get(separarChave(c.slug)?.app ?? c.slug) ?? 0) > 1 ? `Conta ${c.nome}. ` : null;
     for (const cap of caps) {
       const nome = `${c.slug}__${cap.nome}`;
       // ADR-068: o campo de arquivo do app (`s3key`) diz ao bot que aceita o caminho do Mac.

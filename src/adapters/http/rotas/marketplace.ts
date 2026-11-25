@@ -113,6 +113,12 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
         return g.id;
       }
       const slugDoConector = chaveDaConta(p.slug, p.conta ?? null);
+      if (p.conta) {
+        // Revisão do PR: a contagem do limite e a gravação na mesma transação, com a trava por pessoa e app.
+        await d.repos.composio.travarApp(p.slug);
+        const outras = (await d.repos.composio.sessoesDoApp(p.slug)).filter((s) => s.conta !== p.conta).length;
+        if (outras + 1 > LIMITE_CONTAS_POR_APP) throw new ErroDeDominio("estado_invalido", { cause: "limite de contas do app" });
+      }
       const existente = await d.repos.conectores.buscarPorSlug(slugDoConector);
       if (existente && existente.ownerId !== escopo.pessoaId) throw new ErroDeDominio("nao_permitido");
       const anterior = await d.repos.composio.sessao(slugDoConector);
@@ -124,6 +130,8 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
         : await executar(d, registrarConector, { nome: p.nome, slug: slugDoConector, transporte: "http", url: p.sessao.url, env, declaracao: "toca", cifrar: op.cifrar });
       if (!conector) throw new ErroDeDominio("estado_invalido");
       if (tirada) {
+        // Um cartão antigo pode ter concedido depois do remover: a conta volta sem acesso nenhum.
+        await d.repos.conectores.limparAcessos(conector.id, slugDoConector, agora());
         await d.repos.conectores.restaurar(conector.id);
         await d.repos.conectores.renomear(conector.id, p.nome);
       }
@@ -227,6 +235,8 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       if (conta && app.slug === SLUG_GITHUB) throw new ErroDeDominio("entrada_invalida");
       let rotulo: string | null = null;
       if (conta) {
+        // O slug da conta entra em niveis_ferramenta.conector_slug, que aceita até 64 (0173).
+        if (chaveDaConta(app.slug, conta).length > 64) throw new ErroDeDominio("entrada_invalida");
         const body = await ctx.corpo() as { rotulo?: unknown } | null;
         const bruto = typeof body?.rotulo === "string" ? body.rotulo.trim() : conta;
         if (!rotuloValido(bruto) || normalizarConta(bruto) !== conta) throw new ErroDeDominio("entrada_invalida");
@@ -365,6 +375,8 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
         if (!conector || conector.ownerId !== ctx.escopo.pessoaId || conector.removidoEm) throw new ErroDeDominio("nao_encontrado");
         const partes = separarChave(conector.slug);
         if (!partes?.conta) throw new ErroDeDominio("entrada_invalida", { cause: "a primeira conta sai pelo Desconectar" });
+        // Só conta do Composio: um MCP registrado à mão com `--` no slug não sai por aqui (revisão do PR).
+        if ((await d.repos.composio.sessao(conector.slug))?.conectorId !== conector.id) throw new ErroDeDominio("entrada_invalida", { cause: "não é uma conta do Marketplace" });
         const removido = await d.repos.conectores.remover(id, agora());
         if (!removido) throw new ErroDeDominio("nao_encontrado");
         return { ...removido, cifrada: await d.repos.composio.chave(), toolkit: partes.app };

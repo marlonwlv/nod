@@ -33,6 +33,12 @@ export function rotuloValido(rotulo: string): boolean {
 
 export const chaveDaConta = (app: string, conta: string): string => `${app}${SEPARADOR_DE_CONTA}${conta}`;
 
+/**
+ * ADR-196 §9: só o app de login do Composio tem contas a mais (o GitHub e o app de chave seguem com uma). O slug da conta
+ * (`<app>--<conta>`, até 20 na conta) cabe nos 64 de `niveis_ferramenta.conector_slug`: o app passa de 42, fica com uma.
+ */
+export const aceitaContas = (slug: string, chave: boolean): boolean => !chave && slug !== "github" && slug.length + SEPARADOR_DE_CONTA.length + TAMANHO_MAXIMO_DA_CONTA <= 64;
+
 /** O que vai entre parênteses no nome da conta ("Gmail (Família)" → "Família"); a primeira sem parênteses → "". */
 export function rotuloDoNome(nomeDoApp: string, nome: string): string {
   const prefixo = `${nomeDoApp} (`;

@@ -558,7 +558,8 @@
 .rx-mk-conta-linha { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
 .rx-mk-conta-texto { display: flex; flex-direction: column; flex: 1 1 auto; gap: 1px; min-width: 0; }
 .rx-mk-conta-texto > b { font-size: var(--fs-corpo-2); font-weight: 500; line-height: var(--lh-corpo-2); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rx-mk-conta-texto > span { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rx-mk-conta-texto > span { display: block; min-width: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rx-mk-conta-texto > span.rx-mk-conta-estado { display: flex; align-items: center; gap: 6px; }
 .rx-mk-conta-texto > span b { color: var(--ink); font-weight: 500; }
 .rx-mk-conta-quem { flex-shrink: 0; width: 150px; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rx-mk-conta-mais { position: relative; flex-shrink: 0; width: 28px; height: 28px; }
@@ -581,7 +582,8 @@
 .rx-mk-conta-recuo { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 0 58px; }
 .rx-mk-conta-recuo .rx-mk-conta-acoes { padding-top: 4px; }
 .rx-mk-conta-editando > .rx-mk-conta-nota, .rx-mk-conta-editando > .rx-mk-erro { margin: 0 14px 0 58px; }
-.rx-mk-conta-campo { flex: 1 1 auto; height: 36px; }
+.rx-mk-conta-campo { flex: 1 1 auto; height: 36px; gap: 0; }
+.rx-mk-conta-campo input { padding: 0; }
 .rx-mk-conta-recuo .rx-mk-campo { height: 36px; }
 .rx-mk-sugestoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .rx-mk-sugestao { height: 24px; padding: 0 10px; border: 0; border-radius: var(--raio-full); background: var(--chat-chip-fundo); color: var(--ink); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); cursor: pointer; }
@@ -621,7 +623,8 @@
 .rx-mk-alerta-bot > small { color: var(--ink-2); font-size: var(--fs-rotulo); }
 .rx-mk-alerta-bot nod-mascote, .rx-mk-alerta-bot nod-mascote.icon.sm { flex-shrink: 0; width: 20px; height: 20px; min-width: 20px; --mascote-tam: 20px; }
 .rx-mk-alerta-mais { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--divisoria); color: var(--ink-2); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
-.rx-mk-alerta-nota { margin: 0; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.rx-mk-alerta-corpo > .rx-mk-alerta-nota { margin: 0; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.rx-mk-alerta-corpo > p b { font-weight: 500; }
 .rx-mk-alerta-rodape { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 12px 12px 16px; border-top: 1px solid var(--borda); }
 .rx-mk-link { padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-rotulo); font-weight: 500; cursor: pointer; }
 .rx-mk-link:hover { text-decoration: underline; }

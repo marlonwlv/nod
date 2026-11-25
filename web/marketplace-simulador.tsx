@@ -7,7 +7,7 @@ import type { InicialDoMarketplace } from "./react/marketplace/tipos.ts";
 /**
  * Só no dev: /marketplace-simulador.html?estado=<id> abre o Marketplace em modal com o adaptador simulado, já no estado
  * de um artboard do Paper ("Apps por chave de API · jornada"). `&controle=0` esconde o controle do canto (para a foto),
- * `&tema=escuro` força o tema escuro e `&latencia=<ms>` muda a "rede" (1500 por padrão).
+ * `&tema=escuro` força o tema escuro, `&latencia=<ms>` muda a "rede" (1500 por padrão) e `&bots=<n>` dá um time de n bots.
  */
 
 const CHAVE_FIREFLIES = "ff_live_8Jq2mW7xKp4nR9sT3v"; // 24 caracteres: os 24 pontos do T4 e do T5
@@ -43,7 +43,8 @@ const api = criarApiSimulada({
   latenciaMs: Number.isFinite(latencia) && latencia >= 0 ? latencia : 1500,
   firefliesConectado: atual.firefliesConectado === true,
   ...(atual.contasDoGmail ? { contasDoGmail: atual.contasDoGmail } : {}),
-  ...(atual.botsAMais ? { botsAMais: atual.botsAMais } : {}),
+  // `&bots=<n>`: o total de bots do time (para medir a lista de um time grande; o M4 do Paper tem 32).
+  ...(Number(parametros.get("bots")) > 5 ? { botsAMais: Number(parametros.get("bots")) - 5 } : atual.botsAMais ? { botsAMais: atual.botsAMais } : {}),
   aoAbrirAvancado: () => { aviso = "No app, Avançado fecha o modal e abre a tela de sempre (chave do Composio, MCP próprio)."; abrir(); },
 });
 

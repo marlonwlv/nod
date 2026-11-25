@@ -1,6 +1,6 @@
 # ADR-196 — Duas contas do mesmo app: uma conta, um conector
 
-Status: proposta (2026-11-24, pedido do Marlon) · Revê o UNIQUE da 0009 (uma sessão Composio por pessoa e app) ·
+Status: proposta (2026-11-24, pedido do Marlon; implementada em 2026-11-25, com as revisões marcadas abaixo) · Revê o UNIQUE da 0009 (uma sessão Composio por pessoa e app) ·
 Relacionadas: [ADR-013](adr-013-o-proxy-mcp-e-o-ponto-de-decisao-do-produto.md) (o proxy decide por conector),
 [ADR-041](adr-041-chave-composio-do-tenant-catalogo-vindo-do-provedor.md) (sessões e contas são da pessoa),
 [ADR-057](adr-057-marketplace-com-o-catalogo-publico-do-composio.md) (Marketplace com o catálogo do Composio),
@@ -30,27 +30,42 @@ por `connected_accounts`. Os dois foram medidos (ver "Medido").
 1. **Uma conta conectada é um conector.** A primeira conta de um app continua sendo o conector de sempre (slug `gmail`,
    nome "Gmail"); nada muda para quem já conectou. Cada conta a mais é um conector novo com slug `<app>--<conta>`
    (`gmail--pessoal`) e nome "Gmail (pessoal)". A ferramenta chega ao modelo como `gmail--pessoal__GMAIL_SEND_EMAIL`.
-   O `--` só fica livre com duas travas: o `toolkitAceito` passa a recusar também o slug remoto com `__` (que a tradução
-   `_`→`-` de `toolkits-composio.ts` viraria `--`), e o toolkit de um conector sai sempre de `composio_sessoes.toolkit`,
-   nunca do slug (`toolkitComposio("gmail--pessoal")` daria `gmail__pessoal`).
+   O `--` só fica livre com uma trava: o `toolkitAceito` passa a recusar também o slug remoto com `__` (que a tradução
+   `_`→`-` de `toolkits-composio.ts` viraria `--`). Com ela, `separarChave("gmail--pessoal")` (src/domain/contas-do-app.ts)
+   sempre dá o app e a conta sem ambiguidade, e o toolkit sai da parte do app.
 2. **Cada conector tem a sua sessão do Composio, presa à conta dele.** A sessão nasce como hoje (sem `multi_account`,
-   com `preload`) e o `fixarConta` prende `connected_accounts: { gmail: [ca_…] }`. A conta nasce pelo `link` com
-   `alias` = o nome da conta (`"pessoal"`). A primeira conta segue sem alias.
-3. **`composio_sessoes` passa a ser uma linha por conector.** O UNIQUE vira `(tenant_id, conector_id)`, e a tabela
-   ganha `conta text` (null = a primeira) e `email text` (o `state.val.displayName` da conta, só para a tela), com
-   `UNIQUE (tenant_id, owner_id, toolkit, coalesce(conta, ''))`. `sessao(toolkit)` vira `sessaoDoConector(id)`. Quem
-   lia o app pela sessão (importar Linear, pedir e guardar credencial) lê a primeira conta, com `conta is null`.
+   com `preload`) e o `fixarConta` prende `connected_accounts: { gmail: [ca_…] }`. **Sem `alias`** (revisto na
+   implementação, 2026-11-25): o Composio recusa alias repetido para o mesmo `user_id` e app, contando a conta
+   `INITIALIZING` de um login abandonado (medido), e o nome da conta já mora no nod (o slug e o `conectores.nome`). O
+   alias não daria nada à tela e arriscaria um 400 no "Tentar de novo".
+3. **`composio_sessoes` passa a ser uma linha por pessoa, app e conta.** A tabela ganha `conta text` (null = a primeira,
+   todas as linhas de antes) e `email text` (só para a tela), e o UNIQUE vira o índice
+   `(tenant_id, owner_id, toolkit, coalesce(conta, ''))`. `sessao(chave)` passa a receber a chave do conector
+   ("gmail" ou "gmail--pessoal"): quem lia o app pelo slug (importar o Linear, pedir e guardar credencial) segue lendo a
+   primeira conta sem mudar nada. A mesma chave anda pela rota (`/marketplace/gmail--pessoal/conectar` e `/verificar`)
+   e pelo login que a web acompanha (`estado.conectando["gmail--pessoal"]`).
 4. **O nome da conta fica fixo; "Renomear" troca só o nome exibido.** O slug entra no nome da ferramenta, nas regras
-   permanentes e no histórico. Trocá-lo quebraria tudo isso. "Renomear" muda só `conectores.nome` ("Gmail (Leapy)").
+   permanentes e no histórico. Trocá-lo quebraria tudo isso. "Renomear" muda só `conectores.nome` ("Gmail (Leapy)"),
+   por `PATCH /conectores/:id/nome`.
 5. **Acesso, aprovação, disjuntor e sonda não mudam.** São todos por conector. A secretária pode ter "Ler e alterar" no
    Gmail (pessoal) e "Nenhum" no Gmail, porque são dois conectores. O `gerir_acessos` já aceita o app por nome, slug ou
-   id. Com duas contas, "Gmail" deixa de ser único: a resposta lista as contas e pede qual.
-6. **Conta pela metade não segura o nome.** O Composio recusa alias repetido para o mesmo `user_id` e app, contando a
-   conta `INITIALIZING` de um login abandonado. Antes de um `link` novo para a mesma conta, o nod apaga a conta que ele
-   mesmo guardou e que não ficou `ACTIVE` (`removerConta`, que já existe). Isso vale também para o "Conectar" de hoje,
-   que deixa uma conta `INITIALIZING` sobrando a cada clique.
+   id. Com duas contas, "Gmail" deixa de ser único: a resposta lista as contas, cada uma com o slug que resolve e o
+   e-mail, e o bot pergunta. A descrição de cada ferramenta de um app com mais de uma conta ligada começa com a conta
+   ("Conta Gmail (pessoal) (maria@…). Envia um e-mail"), para o bot escolher a certa.
+6. **Conta pela metade não fica no Composio.** Antes de um `link` novo para a mesma chave, o nod apaga a conta que ele
+   mesmo guardou e que não ficou `ACTIVE` (`removerConta`, que já existia). A ativa fica: quem troca a conta é o login
+   novo. Isso vale também para o "Conectar" da primeira conta, que deixava uma conta `INITIALIZING` sobrando a cada
+   clique.
 7. **Limite de 5 contas por app e pessoa**, como o padrão do Composio para `multi_account`. Passou disso, "Adicionar
-   outra conta" fica desligado com a frase do limite.
+   outra conta" some da tela e a rota responde 409.
+8. **Remover uma conta a mais é marca, não DELETE** (revisto na implementação). As regras permanentes apontam para o
+   conector e a revogação delas é marca (ADR-004), então o conector fica com `removido_em`, desligado e fora das listas.
+   Na mesma transação saem as concessões, os níveis escolhidos, o padrão, os lotes (o Desfazer não reaplica nada), as
+   liberações dispensadas e a sessão; as regras ativas ficam inativas por `conector_desabilitado`. Depois do commit, a
+   conta é apagada no Composio. Conectar de novo com o mesmo nome reusa o conector, sem acesso nenhum. A primeira conta
+   não se remove: sai pelo Desconectar de sempre.
+9. **Só os apps de login do Composio têm contas a mais.** O GitHub tem os jeitos próprios (ADR-048) e o app de chave de
+   API conecta pelo formulário da chave; os dois seguem com uma conta.
 
 ## Alternativas descartadas
 

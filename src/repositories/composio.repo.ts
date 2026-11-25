@@ -1,4 +1,4 @@
-import { separarChave } from "../domain/contas-do-app.ts";
+import { chaveDaConta, separarChave } from "../domain/contas-do-app.ts";
 import type { Conn, Escopo } from "../shared/types.ts";
 
 /**
@@ -7,8 +7,15 @@ import type { Conn, Escopo } from "../shared/types.ts";
  */
 export type SessaoComposio = { toolkit: string; sessaoId: string; contaId: string; conectorId: string; conta?: string | null; email?: string | null };
 
-type LinhaSessao = { toolkit: string; sessao_id: string; conta_id: string; conector_id: string; conta: string | null; email: string | null };
-const daLinha = (r: LinhaSessao): SessaoComposio => ({ toolkit: r.toolkit, sessaoId: r.sessao_id, contaId: r.conta_id, conectorId: r.conector_id, conta: r.conta, email: r.email });
+/**
+ * ADR-196: a coluna `toolkit` guarda a chave do conector — o slug do app na primeira conta ("gmail"), `<app>--<conta>` na
+ * conta a mais ("gmail--pessoal"). O UNIQUE (tenant, owner, toolkit) da 0009 vale para as duas sem mudar.
+ */
+type LinhaSessao = { toolkit: string; sessao_id: string; conta_id: string; conector_id: string; email: string | null };
+const daLinha = (r: LinhaSessao): SessaoComposio => {
+  const partes = separarChave(r.toolkit);
+  return { toolkit: partes?.app ?? r.toolkit, conta: partes?.conta ?? null, sessaoId: r.sessao_id, contaId: r.conta_id, conectorId: r.conector_id, email: r.email };
+};
 
 export function composioRepo(conn: Conn, escopo: Escopo) {
   return {
@@ -33,22 +40,29 @@ export function composioRepo(conn: Conn, escopo: Escopo) {
      * a mais. Quem lê o app inteiro (importar o Linear, pedir e guardar credencial) passa o slug do app e recebe a primeira.
      */
     async sessao(chave: string): Promise<SessaoComposio | null> {
-      const partes = separarChave(chave);
-      if (!partes) return null;
-      const [r] = await conn<LinhaSessao[]>`select toolkit, sessao_id, conta_id, conector_id, conta, email from composio_sessoes
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and toolkit = ${partes.app} and coalesce(conta, '') = ${partes.conta ?? ""}`;
+      if (!separarChave(chave)) return null;
+      const [r] = await conn<LinhaSessao[]>`select toolkit, sessao_id, conta_id, conector_id, email from composio_sessoes
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and toolkit = ${chave}`;
       return r ? daLinha(r) : null;
     },
     /** As contas da pessoa num app, a primeira antes (ADR-196 §7: o limite conta todas). */
-    async sessoesDoApp(toolkit: string): Promise<SessaoComposio[]> {
-      const linhas = await conn<LinhaSessao[]>`select toolkit, sessao_id, conta_id, conector_id, conta, email from composio_sessoes
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and toolkit = ${toolkit} order by conta nulls first, conta`;
-      return linhas.map(daLinha);
+    async sessoesDoApp(app: string): Promise<SessaoComposio[]> {
+      const linhas = await conn<LinhaSessao[]>`select toolkit, sessao_id, conta_id, conector_id, email from composio_sessoes
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and (toolkit = ${app} or left(toolkit, ${app.length + 2}) = ${`${app}--`})
+        order by (toolkit = ${app}) desc, toolkit`;
+      return linhas.map(daLinha).filter((s) => s.toolkit === app);
+    },
+    /**
+     * Revisão do PR (corrida no limite): duas abas conectando contas diferentes ao mesmo tempo contariam cada uma quatro e
+     * criariam a sexta. A trava vale até o fim da transação, por pessoa e app.
+     */
+    async travarApp(app: string): Promise<void> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`composio-contas:${escopo.tenantId}:${escopo.pessoaId}:${app}`}, 0))`;
     },
     async salvarSessao(s: SessaoComposio): Promise<void> {
-      const conta = s.conta ?? null;
-      await conn`insert into composio_sessoes (tenant_id, owner_id, toolkit, conta, sessao_id, conta_id, conector_id) values (${escopo.tenantId}, ${escopo.pessoaId}, ${s.toolkit}, ${conta}, ${s.sessaoId}, ${s.contaId}, ${s.conectorId})
-        on conflict (tenant_id, owner_id, toolkit, coalesce(conta, '')) do update set sessao_id = excluded.sessao_id, conta_id = excluded.conta_id, conector_id = excluded.conector_id, email = null`;
+      const chave = chaveDaConta(s.toolkit, s.conta ?? null);
+      await conn`insert into composio_sessoes (tenant_id, owner_id, toolkit, sessao_id, conta_id, conector_id) values (${escopo.tenantId}, ${escopo.pessoaId}, ${chave}, ${s.sessaoId}, ${s.contaId}, ${s.conectorId})
+        on conflict (tenant_id, owner_id, toolkit) do update set sessao_id = excluded.sessao_id, conta_id = excluded.conta_id, conector_id = excluded.conector_id, email = null`;
     },
     /** O e-mail que o Composio devolveu para a conta (só para a tela); null apaga o que havia. */
     async salvarEmail(conectorId: string, email: string | null): Promise<void> {

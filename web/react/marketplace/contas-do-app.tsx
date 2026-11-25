@@ -183,7 +183,7 @@ function ConfirmarRemocao({ conta, foto, aoCancelar, aoRemover, removendo, erro 
           <button type="button" className="rx-mk-fechar" aria-label="Fechar" onClick={aoCancelar} disabled={removendo}><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg></button>
         </div>
         <div className="rx-mk-alerta-corpo">
-          <p id="rx-mk-alerta-d">{fraseDeQuemPerde(perdem.length, conta.email ?? "esta conta")} O nod esquece a conta; nada muda na conta em si.</p>
+          <p id="rx-mk-alerta-d">{perdem.length > 0 ? <><b>{perdem.length === 1 ? "1 bot" : `${perdem.length} bots`}</b> {perdem.length === 1 ? "perde" : "perdem"} o acesso a {conta.email ?? "esta conta"}.</> : fraseDeQuemPerde(0, conta.email ?? "esta conta")} O nod esquece a conta; nada muda na conta em si.</p>
           {perdem.length > 0 ? (
             <ul className="rx-mk-caixa rx-mk-alerta-lista" aria-label="Quem perde o acesso">
               {visiveis.map((p) => {
@@ -218,6 +218,9 @@ export function ContasDoApp({ app, foto, api, aoVoltar, aoFechar, aoAbrirAcessos
   const noLimite = contas.length >= LIMITE_CONTAS_POR_APP;
   const usadas = contas.flatMap((c) => { const p = separarChave(c.chave); return p?.conta ? [p.conta] : []; });
   const segunda = contas.find((c) => !c.principal);
+  // Paper M3: enquanto o login de uma conta nova não volta, a linha de adicionar sai e a nota diz o que acontece se a
+  // pessoa fechar a janela.
+  const novaEsperando = contas.some((c) => !c.principal && esperandoLogin(c));
   const fecharMenu = (chave: string) => { setMenu(null); botoes.current.get(chave)?.focus(); };
 
   async function confirmarRemocao(): Promise<void> {
@@ -264,7 +267,7 @@ export function ContasDoApp({ app, foto, api, aoVoltar, aoFechar, aoAbrirAcessos
                 <span className={espera ? "rx-mk-esmaecido" : undefined}><Logo app={app} tamanho="media" /></span>
                 <div className="rx-mk-conta-texto">
                   <b>{c.nome}</b>
-                  <span aria-live={espera ? "polite" : undefined}>{detalhe}</span>
+                  <span className={espera || (c.situacao === "atencao" && c.falha) ? "rx-mk-conta-estado" : undefined} aria-live={espera ? "polite" : undefined}>{detalhe}</span>
                 </div>
                 {espera ? (
                   <div className="rx-mk-conta-acoes">
@@ -292,7 +295,7 @@ export function ContasDoApp({ app, foto, api, aoVoltar, aoFechar, aoAbrirAcessos
             </li>
           );
         })}
-        {adicionando && !noLimite ? (
+        {novaEsperando ? null : adicionando && !noLimite ? (
           <NovaConta app={app} usadas={usadas} aoCancelar={() => setAdicionando(false)}
             aoContinuar={(rotulo) => { setAdicionando(false); aoAdicionar(chaveDaConta(app.slug, normalizarConta(rotulo)), rotulo); }} />
         ) : noLimite ? (
@@ -316,8 +319,13 @@ export function ContasDoApp({ app, foto, api, aoVoltar, aoFechar, aoAbrirAcessos
         )}
       </ul>
       <p className="rx-mk-conta-nota rx-mk-conta-nota-fora">
-        Para os bots, cada conta aparece como um app: <b>{contas[0]?.nome ?? app.nome}</b>{segunda ? <> e <b>{segunda.nome}</b></> : <> e <b>{app.nome} (pessoal)</b></>}, cada um com o seu nível.
+        {novaEsperando
+          ? `Fechou a janela do ${provedorDoLogin(app)} sem entrar? Nada fica guardado, e dá para tentar de novo com o mesmo nome.`
+          : <>Para os bots, cada conta aparece como um app: <b>{contas[0]?.nome ?? app.nome}</b>{segunda ? <> e <b>{segunda.nome}</b></> : <> e <b>{app.nome} (pessoal)</b></>}, cada um com o seu nível.</>}
       </p>
+      <div className="rx-mk-rodape">
+        <button type="button" className="rx-mk-bt rx-mk-pri" onClick={aoVoltar}>Pronto</button>
+      </div>
       {contaRemover && remover ? (
         <ConfirmarRemocao conta={contaRemover} foto={foto} removendo={remover.removendo} erro={remover.erro}
           aoCancelar={() => { setRemover(null); botoes.current.get(contaRemover.chave)?.focus(); }} aoRemover={() => void confirmarRemocao()} />

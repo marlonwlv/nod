@@ -1936,6 +1936,9 @@ function desenharModalDoMarketplace(): void {
     renomear: async (conectorId, nome) => { await api!.renomearConector(conectorId, nome); dispatch({ tipo: "invalidar", quais: ["conectores"] }); },
     removerConta: async (conectorId) => {
       await api!.removerContaDoApp(conectorId);
+      // Revisão do PR: um login que ficou pendurado nesta conta não vira uma linha sem conector.
+      const slug = estado.conectores.find((c) => c.id === conectorId)?.slug;
+      if (slug) conexoes.cancelar(slug);
       dispatch({ tipo: "invalidar", quais: ["conectores", "frota", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] });
     },
     cancelarConexao: (slug) => conexoes.cancelar(slug),
