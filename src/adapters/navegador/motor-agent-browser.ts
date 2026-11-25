@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, hkdfSync, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -360,6 +360,33 @@ export function nomeDeArquivo(nome: string): string {
   return base + ext;
 }
 
+/**
+ * revisto em 2026-11-25 (QA-216): um nome que já existe na pasta vira "nome-2.ext" — antes o
+ * segundo `navegador_baixar`/`navegador_pdf` com o mesmo nome apagava o primeiro calado e o bot ouvia "ok". Hífen e
+ * não parênteses, porque o `nomeDeArquivo` troca parênteses por "_" e o bot não acharia o arquivo no envio.
+ */
+export function nomeComNumero(nome: string, n: number): string {
+  if (n < 2) return nome;
+  const ponto = nome.lastIndexOf(".");
+  const ext = ponto > 0 && Buffer.byteLength(nome.slice(ponto)) <= 16 ? nome.slice(ponto) : "";
+  return `${cortarEmBytes(ext ? nome.slice(0, ponto) : nome, LIMITE_NOME_BYTES - Buffer.byteLength(ext) - 12)}-${n}${ext}`;
+}
+
+/**
+ * revisto em 2026-11-25 (QA-216): o agent-browser grava no caminho pedido e não devolve o nome que o site sugeriu; sem
+ * nome do bot o arquivo saía "download-<ms>", sem extensão, e o `navegador_enviar_arquivo` seguinte era recusado pelos
+ * sites que olham a extensão. A extensão sai da assinatura do conteúdo, só nos formatos que ela identifica sem dúvida.
+ */
+export function extensaoPeloConteudo(inicio: Buffer): string | null {
+  const comeca = (...b: number[]) => b.every((x, i) => inicio[i] === x);
+  if (comeca(0x25, 0x50, 0x44, 0x46, 0x2d)) return ".pdf";
+  if (comeca(0x89, 0x50, 0x4e, 0x47)) return ".png";
+  if (comeca(0xff, 0xd8, 0xff)) return ".jpg";
+  if (comeca(0x47, 0x49, 0x46, 0x38)) return ".gif";
+  if (comeca(0x50, 0x4b, 0x03, 0x04)) return ".zip";
+  return null;
+}
+
 const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
@@ -542,6 +569,29 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     const n = nomeDeArquivo(nome);
     return { nome: n, caminho: join(pasta(s), "arquivos", n) };
   }
+  /** Reserva um nome livre na pasta (cria o arquivo vazio com `wx`, sem corrida entre dois downloads do mesmo bot). */
+  async function arquivoNovoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
+    const base = nomeDeArquivo(nome);
+    await mkdir(join(pasta(s), "arquivos"), { recursive: true });
+    for (let n = 1; n <= 999; n++) {
+      const candidato = nomeComNumero(base, n);
+      const caminho = join(pasta(s), "arquivos", candidato);
+      try { await (await open(caminho, "wx")).close(); return { nome: candidato, caminho }; } catch (e) { if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; }
+    }
+    throw new FalhaNavegador("alvo_invalido", `já há 999 arquivos chamados ${base}; escolha outro nome`);
+  }
+  /** Sem extensão no nome, põe a que o conteúdo mostra (se mostrar) e devolve o nome final. */
+  async function comExtensao(s: SessaoNavegador, a: { nome: string; caminho: string }): Promise<{ nome: string; caminho: string }> {
+    if (/\.[\p{L}\p{N}]{1,10}$/u.test(a.nome)) return a;
+    const fd = await open(a.caminho, "r");
+    const inicio = Buffer.alloc(8);
+    try { await fd.read(inicio, 0, 8, 0); } finally { await fd.close(); }
+    const ext = extensaoPeloConteudo(inicio);
+    if (!ext) return a;
+    const novo = await arquivoNovoNaPasta(s, `${a.nome}${ext}`);
+    await rename(a.caminho, novo.caminho);
+    return novo;
+  }
 
   return {
     lugar: { tipo: "nod" },
@@ -608,8 +658,9 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async quadro(s, alvo) { await rodar(s, ["frame", alvo === null ? "main" : alvoOuFalha(alvo)]); },
     async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
     async baixar(s, alvo, nome) {
-      const a = await arquivoNaPasta(s, nome);
-      await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
+      let a = await arquivoNovoNaPasta(s, nome);
+      try { await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS); } catch (e) { await rm(a.caminho, { force: true }); throw e; }
+      a = await comExtensao(s, a);
       return { nome: a.nome, bytes: (await stat(a.caminho)).size };
     },
     async enviarArquivo(s, alvo, nomes) {
@@ -621,8 +672,8 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       await rodar(s, ["upload", alvoOuFalha(alvo), ...caminhos]);
     },
     async pdf(s, nome) {
-      const a = await arquivoNaPasta(s, nome.toLowerCase().endsWith(".pdf") ? nome : `${nome}.pdf`);
-      await rodar(s, ["pdf", a.caminho], PRAZO_ABRIR_MS);
+      const a = await arquivoNovoNaPasta(s, nome.toLowerCase().endsWith(".pdf") ? nome : `${nome}.pdf`);
+      try { await rodar(s, ["pdf", a.caminho], PRAZO_ABRIR_MS); } catch (e) { await rm(a.caminho, { force: true }); throw e; }
       return { nome: a.nome, bytes: (await stat(a.caminho)).size };
     },
     async procurar(s, p) {
