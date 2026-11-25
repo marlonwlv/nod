@@ -15,11 +15,14 @@ const negacao: Mensagem = { tenantId: "t", id: "m1", conversaId: "c1", turnoId: 
 const com = (inventario: Estado["inventario"]): Estado => ({ ...estadoInicial, sessao: { tenantId: "t", pessoaId: "marlon" }, inventario });
 
 describe("aviso de estado", () => {
-  it("leva ícone, escapa o texto e põe o botão depois dele", () => {
+  it("leva o ponto com a palavra do estado, escapa o texto e põe o botão na linha de botões depois dele", () => {
     const html = avisoDeEstado({ tom: "erro", titulo: "Parou.", texto: "<b>x</b>", acao: "<button>Resolver</button>" });
     expect(html).toContain('class="aviso-estado tom-erro"');
-    expect(html).toContain("<svg");
-    expect(html).toContain("<b>Parou.</b> &lt;b&gt;x&lt;/b&gt;");
+    expect(html).toContain('<span class="aviso-estado-ponto"><span class="sr-only">Erro: </span></span>');
+    expect(html).toContain('<b class="aviso-estado-tit">Parou.</b></div><p class="aviso-estado-txt">&lt;b&gt;x&lt;/b&gt;</p>');
+    expect(html).toContain('<div class="aviso-estado-acoes"><button>Resolver</button></div>');
+    // O neutro não tem ponto.
+    expect(avisoDeEstado({ tom: "info", texto: "x" })).not.toContain("aviso-estado-ponto");
     expect(html.indexOf("Resolver")).toBeGreaterThan(html.indexOf("&lt;b&gt;"));
     expect(html).not.toContain("role=");
   });

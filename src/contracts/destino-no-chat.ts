@@ -22,6 +22,8 @@ export const ASSUNTOS = [
   "aprovacao.total_credenciais",
   "proposta.obsoleta",
   "proposta.resultado",
+  // ADR-191: o pedido que a pessoa deixou para trás ao seguir conversando (a linha cinza no lugar do cartão).
+  "pedido.dispensado",
   "artefato",
   "ligacao",
   "sessao.nova",
@@ -39,6 +41,9 @@ export const ASSUNTOS = [
   "turno.interrompido",
   "turno.queda_da_maquina",
   "turno.retomado",
+  // Lote B das Jornadas da IA (2026-11-22): a linha de quando o nod resolveu um desvio sozinho e o cartão de quando parou.
+  "desvio.recuperado",
+  "desvio.parou",
   "lote.retorno_caiu",
   "passe",
   "parada",
@@ -67,6 +72,8 @@ export const ASSUNTOS = [
   "computador.tela_fechada",
   // NOD-97 PR 5: o Chrome preencheu uma senha salva; o bot não vê o que está escrito.
   "computador.senha_preenchida",
+  // ADR-190 (N): o navegador do bot mudou de lugar sozinho (outra máquina, o nod); a linha traz Desfazer.
+  "navegador.lugar",
   // Frentes e tasks: a web precisa delas na janela para desenhar outra coisa (anexo).
   "trabalho.aberto",
   "frentes.abertas",

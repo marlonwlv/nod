@@ -1,3 +1,4 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { varrerPessoa } from "../../src/adapters/fundo/varredor-lease.ts";
@@ -21,12 +22,14 @@ describeIntegracao("retomada por frase humana (E5.4, ADR-009): turno NOVO com re
       await deps.repos.conversas.atualizarSessaoCli(criado.conversa.id, "sessao-antiga");
       await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "revise", inventario: PRONTO });
       const original = (await executar(deps, despacharTurno, { machineId: randomUUID(), inventario: PRONTO })).data.plano?.turnoId ?? "";
+      // Lote B (desvio 12, 2026-11-22): a conversa volta sozinha uma vez; o Retomar é o do teto da mensagem.
+      await trx`update turnos set reenvios = ${TETO_TENTATIVAS_DA_MENSAGEM} where id = ${original}`;
       const varrido = await varrerPessoa(deps.tx, MARLON, agora + LEASE_MS + 1);
       const decisaoId = varrido.decisoes[0] ?? "";
 
       await esperarErro(() => retomarTurno(deps, { decisaoId, texto: "  " }), "texto_vazio");
       const { data, events } = await executar(deps, retomarTurno, { decisaoId, texto: "o PR é o 12, siga" });
-      expect(data.turno).toMatchObject({ origem: "retomada", estado: "pendente", retomaTurnoId: original, reenvios: 1, entradaTexto: "o PR é o 12, siga", agenteId: criado.agente.id });
+      expect(data.turno).toMatchObject({ origem: "retomada", estado: "pendente", retomaTurnoId: original, reenvios: TETO_TENTATIVAS_DA_MENSAGEM + 1, entradaTexto: "o PR é o 12, siga", agenteId: criado.agente.id });
       expect(data.original.estado).toBe("interrompido");
       expect(data.sessaoCli).toBe("sessao-antiga");
       expect(data.decisao).toMatchObject({ estado: "decidida", desfecho: { tipo: "decidida", por: MARLON.pessoaId } });

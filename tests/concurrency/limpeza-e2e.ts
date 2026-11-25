@@ -57,6 +57,11 @@ export async function limparPessoaE2E(db: Db, dbDono: Db, escopo: Escopo, ids: {
     await trx`delete from turnos where owner_id = ${p}`;
     // ADR-083 (0060): o trabalho aponta para agente, conversa e rotina, e os turnos apontam para ele — sai entre os dois.
     await trx`delete from trabalhos where owner_id = ${p}`;
+    // ADR-192 (0180): a Thread aponta para a Tarefa e para a conversa; a Tarefa, para o agente. Os turnos (thread_id) e os
+    // trabalhos (tarefa_objetivo_id) já saíram; o Card solta sozinho (ON DELETE SET NULL).
+    await trx`delete from threads where owner_id = ${p}`;
+    await trx`delete from tarefa_eventos where owner_id = ${p}`;
+    await trx`delete from tarefas where owner_id = ${p}`;
     // ADR-075 (0048): a ligação aponta para agente e conversa, e os turnos apontam para ela — sai entre os dois.
     await trx`delete from ligacao_falas where owner_id = ${p}`;
     await trx`delete from ligacoes where owner_id = ${p}`;

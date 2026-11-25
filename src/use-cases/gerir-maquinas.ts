@@ -20,7 +20,7 @@ const INSTRUCAO: Record<ErroGerirMaquinas, string> = {
   fora_da_conversa: "Nada mudou. gerir_maquinas só muda a máquina padrão na conversa com a pessoa, a pedido dela.",
   entrada_invalida: "Nada mudou. Mande acao listar, ou definir_padrao com maquina (o nome) ou qualquer_uma: true.",
   nao_encontrado: "Nada mudou. Essa máquina não é da pessoa (ou foi desconectada). As opções estão em opcoes: pergunte qual.",
-  nome_ambiguo: "Nada mudou. Há mais de uma máquina com esse nome: pergunte à pessoa qual e chame de novo com o id.",
+  nome_ambiguo: "Nada mudou. Há mais de uma opção com esse nome: pergunte à pessoa qual e chame de novo com o id.",
 };
 
 const falha = (erro: ErroGerirMaquinas, o: { detalhe?: string; opcoes?: string[] } = {}): SaidaCasoDeUso<ResultadoGerirMaquinas> => ({
@@ -66,8 +66,13 @@ export const gerirMaquinas: CasoNod<Deps, "gerir_maquinas"> = async (deps, input
     if (typeof input.bot === "string" && input.bot.trim() !== "") {
       const agentes = await deps.repos.agentes.listar();
       const porId = agentes.find((a) => a.id === input.bot);
-      const porNome = agentes.filter((a) => normalizar(a.nome) === normalizar(input.bot ?? ""));
-      const a = porId ?? (porNome.length === 1 ? porNome[0] : undefined);
+      // QA-140: "Cecilia" e "Cecília" convivem; o nome como foi escrito (sem diferenciar maiúsculas) vem antes do sem acento,
+      // e o empate pergunta em vez de dizer que o bot não existe.
+      const pedido = (input.bot ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+      const exatos = agentes.filter((a) => a.nome.trim().replace(/\s+/g, " ").toLowerCase() === pedido);
+      const porNome = exatos.length > 0 ? exatos : agentes.filter((a) => normalizar(a.nome) === normalizar(input.bot ?? ""));
+      if (!porId && porNome.length > 1) return falha("nome_ambiguo", { detalhe: `Há mais de um bot chamado "${input.bot}".`, opcoes: porNome.map((x) => `${x.nome} (${x.id})`) });
+      const a = porId ?? porNome[0];
       if (!a) return falha("nao_encontrado", { detalhe: `"${input.bot}" não é um bot da pessoa.`, opcoes: agentes.map((x) => x.nome).slice(0, 50) });
       const alvo = await alvoDoBot(deps, a.id);
       bot = { nome: a.nome, trabalha_em: alvo?.nome ?? null, ligada: alvo ? (maquinas.find((m) => m.id === alvo.id)?.ligada ?? false) : null };

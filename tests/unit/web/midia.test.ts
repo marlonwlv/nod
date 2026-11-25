@@ -118,6 +118,7 @@ describe("renderMidiasDoBot (NOD-323)", () => {
 describe("linha do que não entrou (j5-6)", () => {
   it("singular, plural e vários motivos, sem caminho", () => {
     expect(textoRecusas([{ motivo: "fora_da_pasta", n: 1 }], "Chico")).toBe("1 arquivo não foi anexado: fica fora da pasta do Chico.");
+    expect(textoRecusas([{ motivo: "fora_da_pasta", n: 1 }], "Bia")).toBe("1 arquivo não foi anexado: fica fora da pasta da Bia.");
     expect(textoRecusas([{ motivo: "credencial", n: 2 }])).toBe("2 arquivos não foram anexados: são arquivos de credencial.");
     expect(textoRecusas([{ motivo: "nao_existe", n: 1 }, { motivo: "vazio", n: 2 }])).toBe("3 arquivos não foram anexados: 1 não foi encontrado; 2 estão vazios.");
     expect(textoRecusas([])).toBeNull();

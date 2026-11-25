@@ -37,3 +37,10 @@ condition = "AND"
 paths = ['''tests/unit/(web/chave-ssh|nuvem-gcp)\.test\.ts$''']
 regexes = ['''\$\{corpo\}''', '''Proc-Type: 4,ENCRYPTED''', '''\\nlixo\\n''']
 regexTarget = "line"
+
+[[allowlists]]
+description = "chave PÚBLICA da extensão do nod no Chrome (o `key` do manifesto fixa o id; a privada fica fora do repo)"
+condition = "AND"
+paths = ['''extensao-chrome/manifest\.json$''']
+regexes = ['''"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA''']
+regexTarget = "line"

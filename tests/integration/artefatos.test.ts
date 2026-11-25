@@ -163,6 +163,10 @@ describeIntegracao("rotas do artefato (ADR-051)", () => {
       expect(await semDados.json()).toEqual({ codigo: "entrada_invalida", mensagem: "Algum dado do pedido não está certo. Confira e tente de novo." });
       const grande = await servidor.chamar(marlon, "PUT", `artefatos/${artefato_id}/estado`, { dados: { x: "é".repeat(40_000) } });
       expect(grande.status).toBe(400);
+      // QA-219: barra digitada seguida de "u0000" não é NUL — a nota é gravada como veio, sem 400.
+      const barra = await servidor.chamar(marlon, "PUT", `artefatos/${artefato_id}/estado`, { dados: { nota: "C:\\u0000\\pasta" } });
+      expect(barra.status).toBe(200);
+      expect((await c.repos.artefatos.estado(artefato_id))?.dados).toEqual({ nota: "C:\\u0000\\pasta" });
       const ok = await servidor.chamar(marlon, "PUT", `artefatos/${artefato_id}/estado`, { dados: { a: true } });
       expect(ok.status).toBe(200);
       expect(await ok.json()).toMatchObject({ ok: true });

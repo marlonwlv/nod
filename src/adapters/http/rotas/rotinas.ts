@@ -7,6 +7,7 @@ import { assertUuid } from "../../../use-cases/apoio-l7.ts";
 import { criarRotinaPelaPessoa } from "../../../use-cases/criar-rotina.ts";
 import { listarExecucoes, listarRotinas } from "../../../use-cases/listar-rotinas.ts";
 import { EXECUTORES_ROTINAS } from "../../../use-cases/acoes/rotinas.ts";
+import { excluirRotina } from "../../../use-cases/excluir-rotina.ts";
 import { decidirRitmoRotina } from "../../../use-cases/ritmo-rotina.ts";
 import type { CasoDeUso, Deps, Services, UseCasesNod } from "../../../use-cases/tipos.ts";
 import type { Rota } from "../roteador.ts";
@@ -161,6 +162,16 @@ export function criarRotasRotinas(deps: DepsRotasL7): Rota[] {
       async handler(ctx) {
         const r = await executar(deps, ctx.escopo, EXECUTORES_ROTINAS["rotinas.reativar_lote"], { loteId: uuid(ctx.params.id, "id") });
         ctx.json(200, { ok: true, reativadas: r.reativadas });
+      },
+    },
+    {
+      // PR #333 (achado 4): o Excluir de Configurações › Rotinas. A confirmação é do diálogo da tela.
+      metodo: "POST", acao: "rotinas.excluir",
+      padrao: /^\/rotinas\/(?<id>[^/]+)\/excluir$/,
+      async handler(ctx) {
+        const { rotina } = await executar(deps, ctx.escopo, excluirRotina, { rotinaId: uuid(ctx.params.id, "id") });
+        const resposta: RespostaMutacao = { ok: true, ids: { rotinaId: rotina.id } };
+        ctx.json(200, resposta);
       },
     },
     {
