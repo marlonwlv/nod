@@ -364,6 +364,10 @@ else {
   // A bandeja segue com as janelas fechadas; só o Sair (ou o reinício da atualização) encerra.
   app.on("window-all-closed", () => { if (saindo) app.quit(); });
   app.on("before-quit", () => { saindo = true; });
+  // PR #333 (achado 15): o atalho do Menu Iniciar abre o app com a pasta de trabalho na instalação (Programs\nod), e o
+  // seletor de arquivo do anexo abria lá na primeira vez. A pasta do usuário é o lugar certo; nada aqui depende da
+  // pasta de trabalho (os caminhos saem de import.meta.url e do ambiente).
+  try { process.chdir(app.getPath("home")); } catch { /* fica onde estava */ }
   void app.whenReady().then(() => {
     arquivoDoLog = criarArquivoDeLog({ dir: pastaDeLogs(), maxBytes: MAX_BYTES_LOG });
     instalarOuvintesDeQueda({ app, processo: process, registrar: (campos) => registrar("app_processo_caiu", campos), encerrando: () => saindo, ehJanelaPrincipal: (conteudo) => !!janela && !janela.isDestroyed() && conteudo === janela.webContents });

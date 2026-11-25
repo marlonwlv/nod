@@ -28,6 +28,7 @@ export type FaseDoCartao =
   | { fase: "fechado"; marca: "ok" | "sem-resposta" | null; resultado: string };
 
 const ABERTO: FaseDoCartao = { fase: "aberto" };
+const RESULTADO_GENERICO = "A conversa seguiu";
 
 export function faseDoCartao(m: Pick<Mensagem, "id" | "conversaId" | "criadoEm">, botoes: readonly BotaoDoDesvio[], estado: Pick<Estado, "conversas" | "cancelando" | "desviosAgindo">): FaseDoCartao {
   const c = estado.conversas[m.conversaId];
@@ -39,7 +40,9 @@ export function faseDoCartao(m: Pick<Mensagem, "id" | "conversaId" | "criadoEm">
   const fase = espera ? estado.cancelando[espera]?.fase : undefined;
   if (espera && (c?.turnosCancelados.some((t) => t.id === espera) || fase === "cancelando" || fase === "cancelada" || fase === "voltou")) return { fase: "fechado", marca: null, resultado: "Cancelada" };
   // A fala do bot depois do cartão: a mensagem saiu (pelo botão, pela espera ou pela outra conta).
-  if (depois.some((x) => x.autoria.autor_tipo === "agente" && x.kind === "texto" && !x.parcial)) return { fase: "fechado", marca: "ok", resultado: local?.feito ?? "A mensagem saiu" };
+  // PR #333 (achado 14): sem o clique desta aba, o genérico é "A conversa seguiu", não "A mensagem saiu": o bot pode ter
+  // respondido uma mensagem posterior, e "✓ A mensagem saiu · Lia não conseguiu recomeçar" se contradizia.
+  if (depois.some((x) => x.autoria.autor_tipo === "agente" && x.kind === "texto" && !x.parcial)) return { fase: "fechado", marca: "ok", resultado: local?.feito ?? RESULTADO_GENERICO };
   // A mensagem nova da pessoa: ela seguiu sem o cartão (a espera, se havia, foi junto com a nova).
   if (depois.some((x) => x.autoria.autor_tipo === "pessoa" && x.kind === "texto")) return { fase: "fechado", marca: "sem-resposta", resultado: "Você seguiu a conversa" };
   // O turno refeito já roda (o clique deu certo, ou a espera saiu): o cartão fecha e o bot mostra que está trabalhando.
@@ -66,7 +69,7 @@ export function desvioNaConversa(m: Pick<Mensagem, "id" | "conversaId">, p: Payl
     // Só o link que muda a conversa tem ciclo; o de navegação ("Entrar de novo") fica, porque a conta continua precisando.
     const b = p.botoes[0];
     const comCiclo = !!b && resultadoDoBotao(b) !== null;
-    const escolhido = fase.fase === "fechado" && fase.marca === "ok" && !fase.resultado.startsWith("A mensagem saiu");
+    const escolhido = fase.fase === "fechado" && fase.marca === "ok" && !fase.resultado.startsWith("A mensagem saiu") && fase.resultado !== RESULTADO_GENERICO;
     const link = !b ? ""
       : !comCiclo ? ` ${linkDaLinha(m, b)}`
       : fase.fase === "agindo" ? ` <span class="linha-agindo" role="status"><span class="bt-girando" aria-hidden="true"></span>${esc(fase.agora)}…</span>`

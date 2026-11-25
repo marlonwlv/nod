@@ -507,7 +507,7 @@ function guardarEscolhasDosDesvios(d: Estado["desviosAgindo"]): void {
   try {
     window.sessionStorage.setItem(CHAVE_DESVIOS_ESCOLHIDOS, JSON.stringify(Object.fromEntries(Object.entries(d).filter(([, x]) => !x.agindo))));
   } catch {
-    // Sem storage (aba privada): a linha encolhida diz o genérico ("A mensagem saiu").
+    // Sem storage (aba privada): a linha encolhida diz o genérico ("A conversa seguiu").
   }
 }
 
@@ -8289,8 +8289,10 @@ function linhaProvisoria(): string {
   const p = botProvisorio;
   if (!p) return "";
   if (p.agenteId) {
+    // PR #333 (achado 18): com o bot já na frota, a linha dele aparece na barra; esperar as boas-vindas deixava as duas
+    // ("Criando…" e a do bot) por uns segundos. A linha real, selecionada, ocupa o lugar assim que chega.
     const agente = estado.frota?.agentes.find((a) => a.id === p.agenteId);
-    if (agente && faseDasBoasVindasDe(agente) !== "vazia") { botProvisorio = null; return ""; }
+    if (agente) { botProvisorio = null; return ""; }
   }
   return `<div class="bot-row bot-provisorio selecionado" aria-busy="true"><span class="row" role="status" aria-label="${esc(p.nome)}, criando…"><span class="provisorio-av" aria-hidden="true">${IC_PESSOA_PROVISORIO}</span><span class="txt"><span class="nome-linha"><b>${esc(p.nome)}</b></span><span class="sub">Criando…</span></span></span></div>`;
 }

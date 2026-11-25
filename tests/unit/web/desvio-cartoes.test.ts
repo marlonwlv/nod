@@ -75,7 +75,7 @@ describe("os cartões da tela são os da tabela única", () => {
       expect(fase(estado({ cancelados: ["t2"] }))).toEqual({ fase: "fechado", marca: null, resultado: "Cancelada" });
       expect(fase(estado({ cancelando: { t2: { fase: "cancelando" } } }))).toMatchObject({ fase: "fechado", resultado: "Cancelada" });
       expect(fase(estado({ depois: [fala("m2", "pessoa")] }))).toEqual({ fase: "fechado", marca: "sem-resposta", resultado: "Você seguiu a conversa" });
-      expect(fase(estado({ depois: [fala("m2", "agente")] }))).toEqual({ fase: "fechado", marca: "ok", resultado: "A mensagem saiu" });
+      expect(fase(estado({ depois: [fala("m2", "agente")] }))).toEqual({ fase: "fechado", marca: "ok", resultado: "A conversa seguiu" });
       const local = { m1: { acao: "responder_com_outra_ia", agora: "Respondendo pelo Claude", feito: "Respondido pelo Claude", agindo: false } };
       expect(fase(estado({ depois: [fala("m2", "agente")], local }))).toMatchObject({ resultado: "Respondido pelo Claude" });
       expect(fase(estado({ emCurso: [{ id: "t3", desde: AGORA + 500 }], local }))).toMatchObject({ fase: "fechado", resultado: "Respondendo pelo Claude" });
