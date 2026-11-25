@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
+import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoMalformado, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
@@ -340,6 +340,9 @@ describe("ler → agir por referência", () => {
     expect(ops()).not.toContain("abrir");
     expect(enderecoPermitido("https://www.exemplo.com.br/x")).toBe(true);
     for (const u of ["file:///etc/passwd", "http://localhost:3000", "http://169.254.169.254/latest", "http://10.0.0.5", "http://192.168.1.1", "http://[::1]/", "javascript:alert(1)", "http://metadata.google.internal/", "http://2130706433/"]) expect(enderecoPermitido(u), u).toBe(false);
+    // QA do Windows (2026-11-25): o endereço que nem é URL ganha recusa própria; localhost e file: seguem com a de rede.
+    for (const u of ["htps//g1 globo com", "g1 globo com", "https://g1 globo.com", "https://g1", "www.g1.com.br"]) expect(enderecoMalformado(u), u).toBe(true);
+    for (const u of ["https://g1.globo.com", "http://localhost:3000", "file:///etc/passwd", "http://[::1]/", "javascript:alert(1)"]) expect(enderecoMalformado(u), u).toBe(false);
   });
 
   it("navegador_ver devolve o print em JPEG", async () => {

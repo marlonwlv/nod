@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, ARGS_CHROME_DO_BOT, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, ARGS_CHROME_DO_BOT, cookieVale, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -260,5 +260,46 @@ describe("socket do daemon cabe no sun_path do macOS", () => {
     expect(await prepararDirSocket(link)).toBeNull();
     await motor(link).abrir(s, "https://example.com");
     expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+});
+
+describe("baixar: o download direto quando o do agent-browser falha (QA do navegador no Windows, 2026-11-25)", () => {
+  const falha = (erro: string) => () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: erro }) });
+  const respondeA = (args: readonly string[]) => {
+    if (args[0] === "get" && args[1] === "attr") return { codigo: 0, saida: ok({ origin: "https://www.exemplo.com.br/docs/", value: "relatorio.pdf" }) };
+    if (args[0] === "cookies") return { codigo: 0, saida: ok({ cookies: [{ name: "sessao", value: "abc", domain: ".exemplo.com.br", path: "/", secure: true }, { name: "outro", value: "x", domain: "outro.com", path: "/" }] }) };
+    return { codigo: 0, saida: ok({}) };
+  };
+
+  it("\"Download was canceled\": segue o href do alvo com os cookies do perfil que valem para o site e grava em arquivos/", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const pedidos: { url: string; cookie: string | null }[] = [];
+    const buscar = (async (url: string, init?: RequestInit) => {
+      pedidos.push({ url, cookie: new Headers(init?.headers).get("cookie") });
+      return new Response(Buffer.from("%PDF-1.4 teste"), { status: 200, headers: { "content-length": "14" } });
+    }) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    const r = await m.baixar(s, "@e5", "relatorio.pdf");
+    expect(r).toEqual({ nome: "relatorio.pdf", bytes: 14 });
+    expect(pedidos).toEqual([{ url: "https://www.exemplo.com.br/docs/relatorio.pdf", cookie: "sessao=abc" }]);
+    expect((await stat(join(dados, pastaDoBot(A), "arquivos", "relatorio.pdf"))).size).toBe(14);
+  });
+
+  it("redirecionamento para a rede de dentro é recusado; alvo inválido não cai no download direto", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const buscar = (async () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest" } })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "x.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/endereço que o navegador do bot não abre/) });
+    respostas.push(falha("Unknown ref: e99"));
+    await expect(m.baixar(s, "@e99", "x.pdf")).rejects.toMatchObject({ motivo: "alvo_invalido" });
+  });
+
+  it("cookieVale: domínio com e sem ponto, caminho e seguro só em https", () => {
+    const u = new URL("https://app.exemplo.com.br/a/b");
+    expect(cookieVale({ domain: ".exemplo.com.br", path: "/" }, u)).toBe(true);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/a" }, u)).toBe(true);
+    expect(cookieVale({ domain: "exemplo.com", path: "/" }, u)).toBe(false);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/c" }, u)).toBe(false);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/", secure: true }, new URL("http://app.exemplo.com.br/"))).toBe(false);
   });
 });

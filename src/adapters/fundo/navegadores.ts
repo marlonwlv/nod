@@ -31,6 +31,8 @@ import type { MacDaPessoa } from "../navegador/mac-da-pessoa.ts";
 import { inserirCodigo, preencherLogin } from "../navegador/preencher-login.ts";
 import { turnoPermitido } from "./computadores.ts";
 import { retomarAposDevolverNavegador } from "../../use-cases/retomar-apos-devolver.ts";
+import { enderecoMalformado, enderecoPermitido } from "../navegador/endereco.ts";
+export { enderecoMalformado, enderecoPermitido } from "../navegador/endereco.ts";
 
 /**
  * O portão do navegador do bot (ADR-190), no molde de `computadores.chamar`: catálogo, validade do plano, parada,
@@ -202,27 +204,6 @@ const LEEM_A_PAGINA: ReadonlySet<string> = new Set(["navegador_ler", "navegador_
 /** O que pode mudar de página: as referências antigas deixam de valer. */
 const NAVEGAM: ReadonlySet<string> = new Set(["navegador_abrir", "navegador_historico", "navegador_abas", "navegador_quadro"]);
 
-/**
- * definido em 2026-11-20: o Chrome no servidor alcança a rede de dentro (o próprio nod, o metadata da nuvem). `abrir` e
- * a aba nova recusam endereço que não seja http(s) público. TODO(2026-11-20): bloquear também na rede (proxy ou
- * firewall do processo) — um link clicado ou um redirect ainda chegam à rede de dentro, e DNS que aponta para dentro
- * passa pelo nome.
- */
-export function enderecoPermitido(url: string): boolean {
-  let u: URL;
-  try { u = new URL(url); } catch { return false; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
-  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (!h || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h === "metadata.google.internal") return false;
-  if (h === "::1" || h === "::" || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe80:/.test(h)) return false;
-  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224) return false;
-  }
-  if (/^\d+$/.test(h)) return false;
-  return true;
-}
 
 /**
  * definido em 2026-11-20: `navegador_avaliar` não lê campo protegido, cookie nem armazenamento, e não manda nada para
@@ -926,6 +907,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     switch (ferramenta) {
       case "navegador_abrir": {
         const url = String(args.url);
+        // QA do Windows (2026-11-25): "htps//g1 globo com" levava a mesma recusa do localhost e o bot explicava rede interna.
+        if (enderecoMalformado(url)) return { conteudo: { erro: "endereco_malformado", instrucao: "Isto não é um endereço válido. Corrija para a forma https://site.com.br (com https:// e pontos, sem espaços) se a intenção for clara; senão, pergunte à pessoa." }, isError: true };
         if (!enderecoPermitido(url)) return { conteudo: { erro: "endereco_recusado", instrucao: "Só endereços http(s) da internet abrem no navegador do bot (nada de localhost, rede interna ou file:)." }, isError: true };
         const r = await m.abrir(s, url, args.nova_aba === true);
         c.est.url = r.url;

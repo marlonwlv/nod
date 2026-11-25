@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, hkdfSync, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -8,6 +8,7 @@ import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { CookieNavegador, MotivoFalhaNavegador } from "../../contracts/navegador-maquina.ts";
 import { relayPadrao } from "./stream-local.ts";
 import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
+import { enderecoPermitido } from "./endereco.ts";
 
 /**
  * O motor do navegador do bot (ADR-190): o agent-browser 0.43.0 (binário nativo do pacote npm, versão fixa), um daemon
@@ -164,6 +165,8 @@ export type OpcoesMotorAgentBrowser = {
   dirSocket?: string | null;
   /** O `POST /api/command` do daemon (padrão: o relay local de stream-local.ts); o teste troca por um falso. */
   relay?: (porta: number, comando: Readonly<Record<string, unknown>>) => Promise<boolean>;
+  /** O fetch do download direto (padrão: o global); o teste troca por um falso. */
+  buscar?: typeof fetch;
 };
 
 /** Onde `camposDeLogin` marcou cada campo (o atributo é do nod; o site pode vê-lo, e só diz "este é o campo"). */
@@ -208,7 +211,13 @@ export const ARGS_CHROME_DO_BOT = [
   // Ponto 09 dos cenários (2026-11-22): o cache de cada perfil fica em até 64 MB e o Chrome não baixa os modelos do
   // "optimization guide" (41 MB por bot no teste).
   "--disk-cache-size=67108864",
-  "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints",
+  // QA do navegador no Windows (2026-11-25): o agent-browser já passa `--disable-features=Translate`, e o Chrome só lê
+  // o último `--disable-features` da linha, então o Translate voltava ligado. Vai junto aqui.
+  "--disable-features=Translate,OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints",
+  // Idem: sem idioma, o perfil nascia em en-US e os sites (Google, Google Flights) respondiam como para os EUA. O nod
+  // fala português (o OpenMausBot passa `--lang` com o idioma do app).
+  "--lang=pt-BR",
+  "--accept-lang=pt-BR",
 ] as const;
 
 /**
@@ -223,6 +232,19 @@ export function identificacaoComJanela(semJanela: string): string | null {
 
 /** A sessão à parte (perfil próprio, nenhum bot) que pergunta ao Chrome como ele se apresenta. */
 export const SESSAO_IDENTIDADE = "identidade";
+/** definido em 2026-11-25: o download direto (quando o do agent-browser falha) segue até 5 redirecionamentos e 200 MB. */
+const SALTOS_DO_DOWNLOAD = 5;
+const LIMITE_DOWNLOAD_BYTES = 200 * 1024 * 1024;
+
+/** O cookie do perfil vale para o endereço: domínio (com ou sem ponto), caminho e, se seguro, só em https. */
+export function cookieVale(c: Record<string, unknown>, u: URL): boolean {
+  const dominio = str(c.domain).replace(/^\./, "").toLowerCase();
+  const host = u.hostname.toLowerCase();
+  if (!dominio || (host !== dominio && !host.endsWith(`.${dominio}`))) return false;
+  if (!u.pathname.startsWith(str(c.path) || "/")) return false;
+  return c.secure !== true || u.protocol === "https:";
+}
+
 /** medido em 2026-11-20: `wait --text` sem casar só volta aos 25 s ("Wait timed out after 25000ms"); o contrato é 10 s. */
 const PRAZO_ESPERAR_MS = 12_000;
 /** definido em 2026-11-20: a árvore de uma página grande cabe folgada; o proxy corta para o modelo (ler_mais). */
@@ -505,6 +527,39 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     if (!a) throw new FalhaNavegador("alvo_invalido", "alvo vazio");
     return a;
   };
+  /** O endereço absoluto que um alvo aponta: o próprio alvo, se já é um http(s), ou o `href` do elemento. */
+  async function linkDoAlvo(s: SessaoNavegador, alvo: string): Promise<string | null> {
+    if (/^https?:\/\//i.test(alvo.trim())) return alvo.trim();
+    const d = await rodar(s, ["get", "attr", alvoOuFalha(alvo), "href"]);
+    const href = str(d.value);
+    if (!href) return null;
+    const base = str(d.origin) || str((await rodar(s, ["get", "url"])).url);
+    try { return new URL(href, base || undefined).toString(); } catch { return null; }
+  }
+  /** O download direto: cookies do perfil do bot que valem para o endereço, redirecionamento conferido salto a salto. */
+  async function baixarDireto(s: SessaoNavegador, inicio: string, caminho: string): Promise<number> {
+    const buscar = o.buscar ?? fetch;
+    const lidos = (await rodar(s, ["cookies"]).catch(() => ({} as Record<string, unknown>))).cookies;
+    const cookies = (Array.isArray(lidos) ? lidos : []).map(obj);
+    const agente = await identificacaoDoChrome();
+    let url = inicio;
+    for (let salto = 0; salto <= SALTOS_DO_DOWNLOAD; salto++) {
+      if (!enderecoPermitido(url)) throw new FalhaNavegador("acao_falhou", "o download aponta para um endereço que o navegador do bot não abre");
+      const u = new URL(url);
+      const cabecalho = cookies.filter((c) => cookieVale(c, u)).map((c) => `${str(c.name)}=${str(c.value)}`).join("; ");
+      const r = await buscar(url, { redirect: "manual", signal: AbortSignal.timeout(PRAZO_ABRIR_MS), headers: { ...(cabecalho ? { cookie: cabecalho } : {}), ...(agente ? { "user-agent": agente } : {}), "accept-language": "pt-BR,pt;q=0.9" } });
+      const proximo = r.headers.get("location");
+      if (r.status >= 300 && r.status < 400 && proximo) { url = new URL(proximo, url).toString(); continue; }
+      if (!r.ok) throw new FalhaNavegador("acao_falhou", `o site respondeu ${r.status} ao download`);
+      const tamanho = Number(r.headers.get("content-length") ?? "0");
+      if (tamanho > LIMITE_DOWNLOAD_BYTES) throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB");
+      const dados = Buffer.from(await r.arrayBuffer());
+      if (dados.length > LIMITE_DOWNLOAD_BYTES) throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB");
+      await writeFile(caminho, dados);
+      return dados.length;
+    }
+    throw new FalhaNavegador("acao_falhou", "o download redirecionou vezes demais");
+  }
   async function portaDoStream(s: SessaoNavegador): Promise<number | null> {
     let d = await rodar(s, ["stream", "status"]);
     if (d.enabled !== true) {
@@ -584,8 +639,20 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
     async baixar(s, alvo, nome) {
       const a = await arquivoNaPasta(s, nome);
-      await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
-      return { nome: a.nome, bytes: (await stat(a.caminho)).size };
+      try {
+        await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
+        return { nome: a.nome, bytes: (await stat(a.caminho)).size };
+      } catch (e) {
+        // medido em 2026-11-25 (QA do navegador no Windows; agent-browser 0.43.0 no Windows e no Linux): o `download`
+        // devolve "Download was canceled" (ou estoura o prazo) até para um link simples, e o arquivo nunca chega. Se o
+        // alvo é um link, baixa direto daqui com os cookies do próprio perfil do bot (o openbot também salva o download
+        // fora do Chrome, numa pasta dele). Cada salto passa pela mesma regra do `abrir`.
+        if (!(e instanceof FalhaNavegador) || (e.motivo !== "acao_falhou" && e.motivo !== "tempo_esgotado")) throw e;
+        const url = await linkDoAlvo(s, alvo).catch(() => null);
+        if (!url) throw e;
+        const bytes = await baixarDireto(s, url, a.caminho);
+        return { nome: a.nome, bytes };
+      }
     },
     async enviarArquivo(s, alvo, nomes) {
       const caminhos = await Promise.all(nomes.map(async (n) => {
