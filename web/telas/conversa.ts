@@ -2208,7 +2208,9 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   const acao = o.irParaConversa
     ? `data-act="aba-conversa" data-agente="${esc(agenteId)}" aria-label="${esc(`Voltar para a conversa com ${nome}`)}"`
     : `data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}"`;
-  const pilula = `<button type="button" class="pilula-bot" ${acao} title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
+  // XUM-3: o título longo trunca com "…" na pílula; o title leva o nome inteiro ("Nome · Título · presença").
+  const dica = a?.titulo ? `${nome} · ${a.titulo} · ${texto}` : rotulo;
+  const pilula = `<button type="button" class="pilula-bot" ${acao} title="${esc(dica)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];

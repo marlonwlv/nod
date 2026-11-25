@@ -406,7 +406,11 @@
   border: 1px solid var(--divisoria); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle);
   font-size: 13px; line-height: 18px; font-weight: var(--peso-medio); color: var(--chat-tinta-2); white-space: nowrap; cursor: pointer; }
 .abas-tarefa .at-pilula .pilula-bot .icon { width: 22px; height: 22px; min-width: 22px; margin: 0; }
-.abas-tarefa .at-pilula .pilula-txt { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap; }
+.abas-tarefa .at-pilula .pilula-txt { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap; min-width: 0; overflow: hidden; }
+/* XUM-3: na fileira a pílula tem teto (320 px, ou 45% da fileira) para não empurrar as abas; o texto trunca dentro dela.
+   Ela segue sem encolher (flex: none): quem cede espaço são as abas, e o nome do bot fica à vista. */
+.abas-tarefa .at-pilula { min-width: 0; max-width: min(320px, 45%); }
+.abas-tarefa .at-pilula :is(.pilula-bot, .qd-pil) { min-width: 0; max-width: 100%; }
 .abas-tarefa .at-pilula .pilula-bot:hover { color: var(--chat-tinta); border-color: var(--borda); }
 .abas-tarefa .at-pilula.ativa .pilula-bot { color: var(--chat-tinta); }
 .abas-tarefa .at-pilula .qd-pil { box-shadow: var(--sombra-controle); }

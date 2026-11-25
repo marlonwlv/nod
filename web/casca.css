@@ -132,6 +132,13 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .cabecalho-pilula .pilula-nome { font-weight: var(--peso-medio); font-size: var(--fs-corpo); }
 .pilula-titulo::before { content: " · "; white-space: pre; }
 .pilula-titulo { font-weight: var(--peso-medio); }
+/* XUM-3 (2026-11-25): "Nome · Título" longo saía pela borda da pílula (o .pilula-txt, nowrap e sem min-width: 0, não
+   encolhia dentro do max-width). O texto fica dentro: o título trunca primeiro com "…" e o nome só encolhe (também com
+   "…") quando sozinho não cabe; o texto inteiro vai no title. */
+.pilula-bot { min-width: 0; }
+.cabecalho-pilula .pilula-txt { min-width: 0; overflow: hidden; }
+.cabecalho-pilula .pilula-txt > .pilula-nome { flex: none; max-width: 100%; }
+.pilula-titulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cabecalho-pilula .pilula-frentes { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: var(--fs-rotulo); font-weight: var(--peso-regular); color: var(--ink-3); }
 .cabecalho-pilula .pilula-frentes .ponto-aguardando { width: 6px; height: 6px; }
 .cabecalho-pilula :is(.abrir-bots, .buscar-celular, .pilula-sub, .pilula-presenca) { display: none; }
