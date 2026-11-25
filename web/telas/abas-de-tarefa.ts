@@ -39,6 +39,13 @@ export type FileiraDeAbas = {
   pilula?: { html: string; conversaAtiva: boolean; botaoDeAbas?: string };
   /** A aba com o menu aberto: o chevron dela fica à vista (validação de 2026-11-18). */
   menuAberto?: string | null;
+  /**
+   * ADR-190 (Paper D7): a aba de lugar (o navegador do bot), depois da conversa e das tarefas; com o bot precisando da
+   * pessoa (`frente`) ela passa à frente das tarefas. O HTML vem de web/lib/navegador-vista.ts (htmlAbaDeLugar).
+   */
+  lugares?: { html: string; frente: boolean; ativa?: boolean };
+  /** 5e: lugares cuja aba a pessoa fechou com o bot ainda nele; entram em "N outras" (o ponto diz se algum está vivo). */
+  lugaresFechados?: { quantos: number; ponto: "vivo" | "precisa" | null };
 };
 
 // Paper 4p: seta ‹ de 12 (traço 1,4), seta ⌄ de 10 (traço 1,3), "+" de 14 (traço 1,5) e o quadrado da parada (o do Parar).
@@ -119,42 +126,60 @@ export function renderFileiraDeAbas(estado: Estado, f: FileiraDeAbas): string {
     ? `<div class="at-pilula${f.pilula.conversaAtiva ? " ativa" : ""}">${f.pilula.html}${f.pilula.botaoDeAbas ?? ""}</div>${traco}`
     : `<button type="button" class="at-conversa" data-act="aba-conversa" data-agente="${esc(f.agenteId)}" aria-label="Voltar para a conversa com ${esc(nomeDoBot)}">${SETA_VOLTAR}<span>Conversa</span></button>${traco}`;
   const abas = aVista.map((a) => htmlDaAba(estado, a, a.id === f.ativa, f)).join("");
-  const nova = f.ativa === null && !f.pilula?.conversaAtiva ?'<div class="at-aba ativa at-nova"><span class="at-ir" aria-current="page"><span class="at-titulo">Nova tarefa</span></span></div>' : "";
+  const nova = f.ativa === null && !f.pilula?.conversaAtiva && !f.lugares?.ativa ?'<div class="at-aba ativa at-nova"><span class="at-ir" aria-current="page"><span class="at-titulo">Nova tarefa</span></span></div>' : "";
   // Paper 10b (3b): se uma escondida precisa da pessoa (mais delas do que cabem), "N outras" ganha o ponto.
-  const outraPrecisa = outras.some((t) => precisaDaPessoa(estado, t.id));
-  const maisOutras = outras.length
-    ? `<button type="button" class="at-outras${outraPrecisa ? " precisa" : ""}" data-act="abas-outras" data-agente="${esc(f.agenteId)}" aria-haspopup="menu">${outras.length} ${outras.length === 1 ? "outra" : "outras"}${SETA_MENU}${outraPrecisa ? '<span class="at-sr">, uma precisa de você</span>' : ""}</button>`
+  const fechados = f.lugaresFechados?.quantos ?? 0;
+  const outraPrecisa = outras.some((t) => precisaDaPessoa(estado, t.id)) || f.lugaresFechados?.ponto === "precisa";
+  const total = outras.length + fechados;
+  // 5e: um lugar fechado com o bot vivo nele leva o ponto verde ("● 1 outra").
+  const pontoLugar = f.lugaresFechados?.ponto && !outraPrecisa ? `<i class="nv-aba-lugar-ponto" data-ponto="${f.lugaresFechados.ponto}" aria-hidden="true"></i>` : "";
+  const maisOutras = total
+    ? `<button type="button" class="at-outras${outraPrecisa ? " precisa" : ""}" data-act="abas-outras" data-agente="${esc(f.agenteId)}" aria-haspopup="menu">${pontoLugar}${total} ${total === 1 ? "outra" : "outras"}${SETA_MENU}${outraPrecisa ? '<span class="at-sr">, uma precisa de você</span>' : ""}</button>`
     : "";
   const mais = f.novaTarefa
     ? `<button type="button" class="at-mais" data-act="nova-tarefa" aria-label="Nova tarefa com ${esc(nomeDoBot)}" aria-keyshortcuts="${esc(f.novaTarefa.aria)}">${MAIS}<span class="at-dica" aria-hidden="true">Nova tarefa com ${esc(nomeDoBot)}<kbd>${esc(f.novaTarefa.texto)}</kbd></span></button>`
     : "";
   // Paper 10b: "Fechar abas" é o único jeito de sair do modo abas (e Esc com o foco na fileira); não para nenhuma tarefa.
   const fechar = f.pilula ? `<button type="button" class="at-fechar-abas" data-act="fechar-abas" data-agente="${esc(f.agenteId)}" title="Volta para a pílula; as tarefas continuam">${XIS}<span>Fechar abas</span></button>` : "";
-  return `<nav class="abas-tarefa${f.pilula ? " abas-com-pilula" : ""}" aria-label="Tarefas abertas de ${esc(nomeDoBot)}">${conversa}${abas}${nova}${maisOutras}${mais}<span class="at-espaco"></span>${fechar}${f.fim ? `<span class="at-fim">${f.fim}</span>` : ""}</nav>`;
+  const lugarFrente = f.lugares?.frente ? f.lugares.html : "";
+  const lugarFim = f.lugares && !f.lugares.frente ? f.lugares.html : "";
+  return `<nav class="abas-tarefa${f.pilula ? " abas-com-pilula" : ""}" aria-label="Tarefas abertas de ${esc(nomeDoBot)}">${conversa}${lugarFrente}${abas}${lugarFim}${nova}${maisOutras}${mais}<span class="at-espaco"></span>${fechar}${f.fim ? `<span class="at-fim">${f.fim}</span>` : ""}</nav>`;
 }
 
 /**
  * O botão de abas ao lado da pílula do bot (Paper 9i A e 10b): só o ícone, sem número — quantas e em que estado quem diz é
  * a pílula sobre o campo. O ponto quando alguma precisa da pessoa; o número (`.ba-num`) o CSS só mostra fora da página
- * Conversa (Paper 10b, 2d), onde a pílula do campo não existe. `null` = nada a mostrar (nenhuma aba nem tarefa aberta).
+ * Conversa (Paper 10b, 2d), onde a pílula do campo não existe. `null` = nada a mostrar (nenhuma aba, tarefa nem lugar).
+ * ADR-190 (Paper 5c, 2): conta também os lugares ativos (o navegador do bot), com o ponto verde quando algum está ao vivo
+ * (o azul de quem precisa da pessoa vence).
  */
-export function botaoDeAbas(estado: Pick<Estado, "trabalhos" | "conversas" | "trabalhoDetalhe">, abas: readonly AbaDeTarefa[], agenteId: string): string | null {
+export function botaoDeAbas(estado: Pick<Estado, "trabalhos" | "conversas" | "trabalhoDetalhe">, abas: readonly AbaDeTarefa[], agenteId: string, lugares: readonly { ponto: "vivo" | "precisa" }[] = []): string | null {
   const ids = new Set(abasDoBot(estado, abas, agenteId, null).map((a) => a.id));
   for (const t of trabalhosConhecidos(estado)) if (t.agenteId === agenteId && aberto(t)) ids.add(t.id);
-  if (ids.size === 0) return null;
-  const precisa = [...ids].some((id) => precisaDaPessoa(estado, id));
-  const rotulo = `Mostrar as tarefas em abas, ${ids.size} ${ids.size === 1 ? "tarefa" : "tarefas"}${precisa ? ", uma precisa de você" : ""}`;
-  return `<button type="button" class="botao-abas${precisa ? " precisa" : ""}" data-act="mostrar-em-abas" data-agente="${esc(agenteId)}" aria-label="${esc(rotulo)}" title="Mostrar em abas">${ICONE_ABAS}<span class="ba-num" aria-hidden="true">${ids.size}</span><span class="ba-ponto" aria-hidden="true"></span></button>`;
+  const total = ids.size + lugares.length;
+  if (total === 0) return null;
+  const tarefaPrecisa = [...ids].some((id) => precisaDaPessoa(estado, id));
+  const lugarPrecisa = lugares.some((l) => l.ponto === "precisa");
+  const precisa = tarefaPrecisa || lugarPrecisa;
+  const vivo = !precisa && lugares.some((l) => l.ponto === "vivo");
+  const tarefas = `${ids.size} ${ids.size === 1 ? "tarefa" : "tarefas"}`;
+  const quem = tarefaPrecisa ? ", uma precisa de você" : lugarPrecisa ? ", o navegador precisa de você" : "";
+  const rotulo = lugares.length
+    ? `Mostrar em abas, ${[ids.size ? tarefas : "", `${lugares.length} ${lugares.length === 1 ? "lugar" : "lugares"}${vivo ? " ao vivo" : ""}`].filter(Boolean).join(" e ")}${quem}`
+    : `Mostrar as tarefas em abas, ${tarefas}${quem}`;
+  return `<button type="button" class="botao-abas${precisa ? " precisa" : vivo ? " vivo" : ""}" data-act="mostrar-em-abas" data-agente="${esc(agenteId)}" aria-label="${esc(rotulo)}" title="Mostrar em abas">${ICONE_ABAS}<span class="ba-num" aria-hidden="true">${total}</span><span class="ba-ponto" aria-hidden="true"></span></button>`;
 }
 
 /**
  * Os itens de "N outras ⌄" (no menu da barra): o ícone do estado e o título curto; depois, com feitas na fileira, "Tirar as
  * N feitas das abas" (Paper 10b, 3c), e o último leva à tela Tarefas.
  */
-export function htmlDoMenuDasOutras(outras: readonly TrabalhoDto[], feitasNaFileira = 0): string {
+export function htmlDoMenuDasOutras(outras: readonly TrabalhoDto[], feitasNaFileira = 0, lugares = ""): string {
   const itens = outras.map((t) => `<button type="button" role="menuitem" class="at-item" data-id="${esc(t.id)}">${iconeDaAba(t).html}<span class="at-item-titulo">${esc(tituloCurto(t.titulo))}</span></button>`).join("");
   const tirar = feitasNaFileira > 0 ? `<button type="button" role="menuitem" data-tirar-feitas>Tirar ${feitasNaFileira === 1 ? "a feita" : `as ${feitasNaFileira} feitas`} das abas</button>` : "";
-  return `<div role="menu" class="menu-aba-corpo" aria-label="Outras tarefas"><p class="menu-nome">Outras tarefas</p>${itens}<hr>${tirar}<button type="button" role="menuitem" data-tela-tarefas>Ver todas na tela Tarefas</button></div>`;
+  // 5e: os lugares fechados vêm primeiro, com a dica do ⌘⇧T; sem outras tarefas, o menu é só deles.
+  const tarefas = outras.length || !lugares ? `<p class="menu-nome">Outras tarefas</p>${itens}<hr>${tirar}<button type="button" role="menuitem" data-tela-tarefas>Ver todas na tela Tarefas</button>` : "";
+  return `<div role="menu" class="menu-aba-corpo" aria-label="${lugares && !outras.length ? "Lugares fechados" : "Outras tarefas"}">${lugares}${lugares && tarefas ? "<hr>" : ""}${tarefas}</div>`;
 }
 
 /** As abas do bot cuja tarefa terminou de vez (para "Tirar as feitas das abas"). */

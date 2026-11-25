@@ -356,15 +356,18 @@ describe("a fiação no main", () => {
   it("NOD-363: o Ir passa por irParaFalaDaBiblioteca; a gaveta fecha antes do levarAo; fechar solta o alvo; aria-disabled barra o clique", () => {
     const corpo = main.slice(main.indexOf("function abrirMenuDaBiblioteca("), main.indexOf("function escolherAba("));
     expect(corpo).toContain("espera = irParaFalaDaBiblioteca(mundoDaFala, ui, conversa, mensagemDe)");
-    const ir = corpo.slice(corpo.indexOf("irAte: (fala, vizinha) =>"));
+    // ADR-179: os passos moram em irAteDaBiblioteca, que o menu nativo e o do Base UI chamam.
+    const ir = corpo.slice(corpo.indexOf("const irAteDaBiblioteca = (fala: HTMLElement, vizinha: boolean): void => {"));
     // Revisão 3 (M3): cada passo tem de existir (indexOf -1 passaria no toBeLessThan) e vir antes do levarAo.
     const levar = ir.indexOf("levarAo(fala, !vizinha)");
     expect(levar).toBeGreaterThan(-1);
-    for (const passo of ['fecharPerfil("chat", false)', 'classList.remove("detalhes-abertos")', "marcarPainelNaPilula()", "d.close()", "abrirDetalhesAcima(fala)"]) {
+    for (const passo of ['fecharPerfil("chat", false)', 'classList.remove("detalhes-abertos")', "marcarPainelNaPilula()", "abrirDetalhesAcima(fala)"]) {
       const i = ir.indexOf(passo);
       expect(i, passo).toBeGreaterThan(-1);
       expect(i, passo).toBeLessThan(levar);
     }
+    // O nativo fecha o <dialog> antes de ir; o do Base UI fecha pelo próprio menu (menu-da-biblioteca.tsx).
+    expect(corpo).toMatch(/irAte: \(fala, vizinha\) => \{\s*if \(d\.open\) d\.close\(\);\s*irAteDaBiblioteca\(fala, vizinha\);/);
     expect(corpo).toContain("espera?.soltar();");
     // Revisão 2 (achado 2): a âncora redesenhada é reencontrada para posicionar, aria-expanded e foco.
     expect(corpo).toContain('[data-act="biblioteca-menu"][data-id="${CSS.escape(id)}"]');

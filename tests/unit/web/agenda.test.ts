@@ -19,27 +19,29 @@ const em = (dia: string, h = 0, min = 0): number => {
 };
 const HOJE = "2026-10-29"; // quinta
 const AGORA = em(HOJE, 10, 30);
+/** A rotina e a leitura no fuso de quem roda o teste: a coluna "Próxima vez" sai no fuso da rotina (PR #333). */
+const FUSO_LOCAL = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const BOTS: BotDaAgenda[] = [
   { id: "b-otto", nome: "Otto", cor: "#3355ff", forma: "shape-circle" } as unknown as BotDaAgenda,
   { id: "b-ada", nome: "Ada", cor: "#ff5533", forma: "shape-circle" } as unknown as BotDaAgenda,
 ];
 const naAgenda = (id: string, agenteId: string, extra: Partial<RotinaNaAgenda> = {}): RotinaNaAgenda => ({
-  id, agenteId, conversaId: `c-${agenteId}`, instrucao: `Instrução da ${id}`, resumo: "Todo dia às 09:00", fusoIana: "America/Sao_Paulo", estado: "ativa", registroDesde: null, cortado: false, minha: true, ...extra,
+  id, agenteId, conversaId: `c-${agenteId}`, instrucao: `Instrução da ${id}`, resumo: "Todo dia às 09:00", fusoIana: FUSO_LOCAL, estado: "ativa", registroDesde: null, cortado: false, minha: true, ...extra,
 });
 const exec = (rotinaId: string, dia: string, h: number, desfecho: Extract<ItemAgenda, { tipo: "execucao" }>["desfecho"] = "executou", motivo: string | null = null): ItemAgenda => ({
   tipo: "execucao", rotinaId, dia, instante: em(dia, h), desfecho, motivo, problema: ["falhou", "interrompida", "bloqueada", "nao_rodou"].includes(desfecho), turnoId: null, em: em(dia, h) + 5_000,
 });
 
 const janela = janelaDaLista(HOJE);
-const dto = (rotinas: RotinaNaAgenda[], itens: ItemAgenda[]): AgendaDto => ({ de: inicioDoDia(janela.de), ate: inicioDoDia(janela.ate), agora: AGORA, fuso: "America/Sao_Paulo", rotinas, itens });
+const dto = (rotinas: RotinaNaAgenda[], itens: ItemAgenda[]): AgendaDto => ({ de: inicioDoDia(janela.de), ate: inicioDoDia(janela.ate), agora: AGORA, fuso: FUSO_LOCAL, rotinas, itens });
 
 const ONTEM = somarDias(HOJE, -1);
 const BASE_DTO = dto([naAgenda("r1", "b-otto"), naAgenda("r2", "b-ada")], [exec("r1", ONTEM, 9, "falhou"), exec("r1", HOJE, 9), exec("r2", somarDias(HOJE, -7), 11, "passou_em_branco")]);
 
 const rotinaDto = (id: string, agenteId: string, extra: Record<string, unknown> = {}, rotina: Record<string, unknown> = {}) =>
   ({
-    rotina: { id, agenteId, conversaId: `c-${agenteId}`, ownerId: "p", estado: "ativa", instrucao: `Instrução da ${id}`, fusoIana: "America/Sao_Paulo", exigeAprovacao: false, gatilho: "horario", ...rotina },
+    rotina: { id, agenteId, conversaId: `c-${agenteId}`, ownerId: "p", estado: "ativa", instrucao: `Instrução da ${id}`, fusoIana: FUSO_LOCAL, exigeAprovacao: false, gatilho: "horario", ...rotina },
     proximaExecucao: em(HOJE, 14),
     resumo: "Todo dia às 09:00",
     bloqueio: null,
@@ -59,6 +61,16 @@ describe("datas da lista", () => {
     expect(proximaVez(em(HOJE, 17), AGORA)).toEqual({ hora: "17:00", quando: "hoje" });
     expect(proximaVez(em(somarDias(HOJE, 1), 8), AGORA)).toEqual({ hora: "08:00", quando: "amanhã" });
     expect(proximaVez(em("2026-11-02", 9), AGORA)).toEqual({ hora: "09:00", quando: "seg, 2 nov" });
+  });
+
+  it("com o fuso da rotina, a hora e o dia saem nele, não no da máquina (PR #333, achado 2)", () => {
+    // 25/11 12:00 UTC = 09:00 em São Paulo; agora = 24/11 23:41 em São Paulo (25/11 02:41 UTC).
+    const agoraUtc = Date.UTC(2026, 10, 25, 2, 41);
+    const proxima = Date.UTC(2026, 10, 25, 12, 0);
+    expect(proximaVez(proxima, agoraUtc, "America/Sao_Paulo")).toEqual({ hora: "09:00", quando: "amanhã" });
+    expect(proximaVez(proxima, agoraUtc, "UTC")).toEqual({ hora: "12:00", quando: "hoje" });
+    expect(proximaVez(agoraUtc + 12 * 60_000, agoraUtc, "America/Sao_Paulo")).toEqual({ hora: "23:53", quando: "em 12 min" });
+    expect(proximaVez(proxima, agoraUtc, "Fuso/Inexistente").quando).toBeTruthy();
   });
 
   it("a última vez em palavras, e a linha de Últimas vezes", () => {
@@ -236,6 +248,8 @@ describe("a tela de Rotinas", () => {
     expect(h).toContain('class="ag-det" id="ag-det-r1"');
     expect(h).toContain('aria-expanded="true"');
     expect(h).toContain("<dt>Quando</dt><dd>Todo dia às 09:00</dd>");
+    // PR #333 (achado 4): o Excluir está na rotina aberta, com o título para a confirmação.
+    expect(h).toMatch(/data-act="excluir-rotina" data-id="r1" data-titulo="Instrução da r1"[^>]*>Excluir</);
     expect(h).toContain("<dt>Antes de agir</dt><dd>Faz sem perguntar</dd>");
     expect(h).toContain("<h4>Últimas vezes</h4>");
     expect(h).toContain('<span class="ag-quando">ontem, 09:00</span><span>Falhou</span>');

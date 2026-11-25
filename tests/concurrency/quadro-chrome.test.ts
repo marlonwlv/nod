@@ -200,7 +200,10 @@ descrever("NOD-429 no Chrome real", () => {
   const estadoFinal = () => avaliar<{ atual: string; quadroOculto: boolean; timelineVis: string; timelineInert: boolean; selecionada: string | null }>(cdp, `(() => {
     const n = ${JSON.stringify(NOME)};
     return { atual: n[Number(document.querySelector("#cabecalho .qd-pil").dataset.pagina)], quadroOculto: document.getElementById("quadro").hidden,
-      timelineVis: getComputedStyle(document.getElementById("timeline")).visibility, timelineInert: document.getElementById("timeline").inert,
+      // Fase 5 da ADR-179: a conversa escondida sai por content-visibility (fora do estilo, do foco e do clique), não por
+      // visibility + inert (herdados: recalculavam os ~40 mil nós dela a cada troca). "hidden" e "fora de alcance" seguem.
+      timelineVis: getComputedStyle(document.getElementById("timeline")).contentVisibility === "hidden" ? "hidden" : getComputedStyle(document.getElementById("timeline")).visibility,
+      timelineInert: document.getElementById("timeline").inert || getComputedStyle(document.getElementById("timeline")).contentVisibility === "hidden",
       selecionada: n[Number(document.querySelector('#cabecalho .pg-ic[aria-selected="true"]')?.dataset.pagina)] ?? null };
   })()`);
   const pontoAtual = () => avaliar<number>(cdp, `Number(document.querySelector("#cabecalho .pg-pt.pg-pt-atual")?.dataset.pagina ?? -1)`);

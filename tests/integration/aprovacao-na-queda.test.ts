@@ -1,3 +1,5 @@
+import { TETO_TENTATIVAS_DA_MENSAGEM } from "../../src/domain/desvios-da-conversa.ts";
+// Lote B (desvios 11 e 12, 2026-11-22): a conversa volta sozinha uma vez; o "Retomar" deste teste é o do teto da mensagem.
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { varrerPessoa } from "../../src/adapters/fundo/varredor-lease.ts";
@@ -30,7 +32,7 @@ describeIntegracao("aprovação decidida com o turno caído segue numa continua�
     await repos.conectores.registrarSonda(email?.id ?? "", { ok: true, catalogo: [{ nome: "enviar", descricao: "envia", schema: { type: "object" }, readOnlyHint: false }], agora: Date.now() });
     const consentimento = await repos.mensagens.criar({ conversaId, autoria: autoriaPessoa(PESSOA_MARLON), kind: "consentimento", texto: "ok", confianca: "confiavel" });
     await repos.concessoes.conceder({ agenteId, conectorId: email?.id ?? "", capacidade: "enviar", mensagemId: consentimento?.id ?? "" });
-    const turno = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "monte e envie", entradaConfianca: "confiavel", modelo: "m" });
+    const turno = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "monte e envie", entradaConfianca: "confiavel", modelo: "m", reenvios: TETO_TENTATIVAS_DA_MENSAGEM });
     const machineId = randomUUID();
     expect((await repos.turnos.reivindicar({ machineId, agora: Date.now() }))?.id).toBe(turno?.id);
     const deps = depsSobre(repos, MARLON, { services: servicosDeTeste({}), trx });

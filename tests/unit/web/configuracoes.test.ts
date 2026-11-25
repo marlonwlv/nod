@@ -4,7 +4,8 @@ import { CONFIG_UI_INICIAL, estadoInicial, reduzir, secaoDoPedido } from "../../
 import { normalizarBusca } from "../../../web/lib/linha-config.ts";
 import { renderConta, type DadosConta } from "../../../web/telas/config-conta.ts";
 import { renderGeral, type DadosGeral } from "../../../web/telas/config-geral.ts";
-import { renderEspaco, SECOES_ESPACO } from "../../../web/telas/espaco.ts";
+import { marcaDoItemIa, renderEspaco, secaoInicialDasConfiguracoes, SECOES_ESPACO } from "../../../web/telas/espaco.ts";
+import type { ContaIa } from "../../../src/contracts/contas-ia.ts";
 import { htmlMenuConta } from "../../../web/telas/menu-conta.ts";
 
 /** NOD-367 (protótipo v2 do Gil): o menu do avatar enxuto e as Configurações com 6 seções e a linha única. */
@@ -80,8 +81,8 @@ describe("as 6 seções (critério 2)", () => {
       const html = renderEspaco(estado, avisos, volta, extras);
       expect(html).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
       expect(html).toContain('aria-label="Seções das Configurações"');
-      // ADR-167 (Paper 07): a ordem do Paper (Geral, Conta, Máquinas, Aprovações, [Apps], IA) e depois as que o Paper não desenhou.
-      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "computador", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "sobre", "feedback"]);
+      // Jornadas da IA (Paper M): IA sobe para o bloco de onde os bots trabalham, logo depois de Conta.
+      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "conexao", "maquinas", "computador", "aprovacoes", "cofre", "agentes", "rotinas", "sobre", "feedback"]);
       expect(html).not.toContain("espaco-banco");
     }
   });
@@ -211,5 +212,48 @@ describe("busca sem acento e sem caixa (critério 8)", () => {
   it("normaliza", () => {
     expect(normalizarBusca("  Téo ")).toBe("teo");
     expect(normalizarBusca("CECÍLIA")).toBe(normalizarBusca("cecilia"));
+  });
+});
+
+describe("o item IA no menu (Jornadas da IA, Paper M)", () => {
+  const conta = (o: Partial<ContaIa> = {}): ContaIa => ({ id: "c1", ia: "claude-cli", impressao: "x", apelido: "Pessoal", email: null, organizacao: null, plano: null, corporativa: false, posicao: 0, entraNaTrocaAutomatica: true, noLimiteAte: null, maquinas: [{ maquinaId: "m1", nome: "Mac", estado: "pronta" }], ...o });
+  const comContas = (contas: ContaIa[]) => ({ contasIa: { disponivel: true, modo: "automatico" as const, contas }, executor: null, inventario: null });
+  const extras = { conta: { contas: false, minhaConta: false, nome: null, email: null, senha: false, legado: false }, contaPagina: null, tema: "sistema" as const };
+  const avisos = { onde: "mac" as const, situacao: "ligados" as const };
+  const volta = { rotulo: "Início", icone: "" };
+  const itemIa = (contas: ContaIa[]) => {
+    const e = { ...reduzir(estadoInicial, { tipo: "espaco", secao: "geral" }), contasIa: { disponivel: true, modo: "automatico" as const, contas } };
+    return renderEspaco(e, avisos, volta, extras).match(/<button[^>]*data-secao="conexao"[\s\S]*?<\/button>/)?.[0] ?? "";
+  };
+
+  it("tudo certo: os logos dos provedores na fila, sem destaque", () => {
+    expect(marcaDoItemIa(comContas([conta(), conta({ id: "c2", ia: "codex-cli" })]))).toEqual({ tipo: "ok", ias: ["claude-cli", "codex-cli"] });
+    const html = itemIa([conta()]);
+    expect(html).toContain("ia-marca-provs");
+    expect(html).not.toContain("espaco-item-ia-sem");
+  });
+
+  it("uma conta da fila com máquina sem login: a contagem em âmbar", () => {
+    const m = marcaDoItemIa(comContas([conta({ maquinas: [{ maquinaId: "m1", nome: "Mac", estado: "sem_login" }] }), conta({ id: "c2" })]));
+    expect(m).toEqual({ tipo: "atencao", n: 1 });
+    expect(itemIa([conta({ maquinas: [] })])).toContain('aria-label="1 conta precisa de você"');
+  });
+
+  it("conta fora da fila não conta como pendência", () => {
+    expect(marcaDoItemIa(comContas([conta({ entraNaTrocaAutomatica: false, maquinas: [] }), conta({ id: "c2" })]))).toEqual({ tipo: "ok", ias: ["claude-cli"] });
+  });
+
+  it("nenhuma conta: destaque forte com Conectar e o brilho, e as Configurações abrem em IA", () => {
+    expect(marcaDoItemIa(comContas([]))).toEqual({ tipo: "sem_ia" });
+    const html = itemIa([]);
+    expect(html).toContain("espaco-item-ia-sem");
+    expect(html).toContain("Conectar");
+    expect(html).toContain("ia-brilho");
+    expect(secaoInicialDasConfiguracoes(comContas([]))).toBe("conexao");
+    expect(secaoInicialDasConfiguracoes(comContas([conta()]))).toBe("geral");
+  });
+
+  it("sem a lista de contas e sem executor: nenhuma marca", () => {
+    expect(marcaDoItemIa({ contasIa: null, executor: null, inventario: null })).toBeNull();
   });
 });

@@ -145,27 +145,30 @@ describe("instalar → entrar → testar dentro do cartão", () => {
     expect(html).toContain('<span class="ia-passo-marca falha" aria-hidden="true">!</span>');
   });
 
-  it("Codex entrando: o código no cartão, 'Copiar' e 'Abrir a página da OpenAI'", () => {
+  it("Paper C2: Codex entrando — a página já abriu; o código, só 'Copiar' e 'A página não abriu? Abrir de novo'", () => {
     const v = vistaDaIa("codex-cli", comFluxo(mac("codex-cli", "entrando", { login: login({ host: "auth.openai.com", codigoDoDispositivo: "NP6Z-V3598" }) })));
     const entrar = v.passos?.find((p) => p.id === "entrar");
     expect(entrar?.codigo).toBe("NP6Z-V3598");
     const html = renderCartaoIa(v, UI_IAS_INICIAL);
     expect(html).toContain("<code>NP6Z-V3598</code>");
     expect(html).toContain('data-act="ia-copiar-codigo" data-ia="codex-cli" data-texto="NP6Z-V3598" aria-live="polite">Copiar');
-    expect(html).toContain('data-act="ia-abrir-link" data-ia="codex-cli">Abrir a página da OpenAI');
-    expect(html).toContain("Esperando você entrar…");
+    expect(html).toContain("Abrimos a página da OpenAI no seu navegador. Digite lá este código:");
+    expect(html).toContain('A página não abriu? <button type="button" class="ob-link" data-act="ia-abrir-link" data-ia="codex-cli">Abrir de novo');
+    expect(html).toContain("Nada para colar de volta: o nod percebe quando você confirmar.");
+    expect(html).not.toContain("Abrir a página da OpenAI");
     // O instalar ficou feito; o entrar é o passo atual.
     expect(v.passos?.map((p) => p.marca)).toEqual(["feito", "ativo", "depois"]);
   });
 
-  it("Claude entrando: 'Abrir a página da Anthropic' e o campo de colar o código, com o que a pessoa já colou", () => {
+  it("Paper A2: Claude entrando — a página já abriu; o campo de colar o código, com o que a pessoa já colou, e o 'Abrir de novo'", () => {
     const c = ctx({ ui: naApp({ "claude-cli": mac("claude-cli", "entrando", { login: login({ host: "claude.com", pedeCodigo: true }) }) }, { fluxo: { "claude-cli": { instalar: false } }, codigo: { "claude-cli": "abc#def" } }) });
     const v = vistaDaIa("claude-cli", c);
     expect(v.passos?.map((p) => p.id)).toEqual(["entrar", "testar"]);
     const html = renderCartaoIa(v, c.ui);
     expect(html).toContain('<form class="ia-colar" data-form="ia-colar-codigo" data-ia="claude-cli">');
     expect(html).toContain('value="abc#def"');
-    expect(html).toContain("Abrir a página da Anthropic");
+    expect(html).toContain("Abrimos a página da Anthropic no seu navegador. Entre e cole aqui o código que ela mostrar.");
+    expect(html).toContain("Abrir de novo");
   });
 
   it("login expirado: passo âmbar com 'Tentar de novo'; passados os 2 min, 'Verificar de novo'", () => {

@@ -386,10 +386,11 @@
 /* O caminho "‹ Quadro NOD / NOD-514" sobe para a linha da pílula (y 30), como no Paper; o cabeçalho deixa o clique passar
    fora da pílula. */
 .qd-vista:has(.qd-tarefa.ta) { padding-top: 14px; }
-.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula { pointer-events: none; }
-/* ADR-189: sem o `:has()` — com o pai em `auto` os filhos já são `auto`; o `> *` com `:has()` invalidava a página inteira. */
-.stage.qd-no-quadro > .cabecalho-pilula > * { pointer-events: auto; }
-.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula::before { display: none; }
+.stage.qd-no-quadro.palco-tarefa-aberta > .cabecalho-pilula { pointer-events: none; }
+/* Fase 5 da ADR-179: sem o `.stage.qd-no-quadro` na frente — um sujeito universal sob uma classe que troca no `.stage`
+   invalidava o palco inteiro a cada ida e volta do quadro. Com o pai em `auto`, `auto` nos filhos não muda nada. */
+.cabecalho.cabecalho-pilula > * { pointer-events: auto; }
+.stage.qd-no-quadro.palco-tarefa-aberta > .cabecalho-pilula::before { display: none; }
 .ta .qd-t-cab { min-height: 32px; margin-bottom: 18px; }
 
 /* ---------- Rodada 3 (tela 18b do Paper) ----------

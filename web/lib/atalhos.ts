@@ -215,7 +215,15 @@ export const SELETOR_CAMPO =
  * aberto com show() que fica ao lado como painel: não trava os atalhos. Sem `dialog:modal`, que quebra o querySelector
  * no Safari antes do 15.4.
  */
-export const SELETOR_MODAL = 'dialog[open]:not(.raio-x), [role="dialog"]:not(.cfg-espaco)';
+export const SELETOR_MODAL = 'dialog[open]:not(.raio-x), [role="dialog"]:not(.cfg-espaco), [data-rx-modal]';
+
+/**
+ * ADR-179: uma sobreposição nossa aberta — o `<dialog>` nativo ou o host de um diálogo/menu do Base UI (`data-rx-modal`,
+ * que fica no documento enquanto ele existe; o popup mesmo vai para um portal no `body`).
+ */
+export const SELETOR_SOBREPOSICAO = "dialog[open], [data-rx-modal]";
+/** O alvo de uma tecla está dentro de uma sobreposição (o `<dialog>`, o host ou um popup do Base UI no portal). */
+export const SELETOR_DENTRO_DA_SOBREPOSICAO = "dialog, [data-rx-modal], .rx-menu, .rx-dlg, .rx-ho, .rx-prv, .rx-luz, .rx-art";
 
 /** Uma linha da barra para o atalho: `atual` é o bot da conversa aberta (aria-current). */
 export type LinhaDoAtalho = LinhaDaBarra & { atual: boolean };

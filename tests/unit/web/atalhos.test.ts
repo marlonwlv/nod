@@ -169,7 +169,8 @@ describe("NOD-117: bots que contam na barra", () => {
     expect(SELETOR_CAMPO).toMatch(/input:not\([^)]*\[type='checkbox'\][^)]*\[type='radio'\]/);
     expect(SELETOR_CAMPO).toContain("textarea");
     expect(SELETOR_CAMPO).toContain("[contenteditable]:not([contenteditable='false'])");
-    expect(SELETOR_MODAL.split(", ")).toEqual(["dialog[open]:not(.raio-x)", '[role="dialog"]:not(.cfg-espaco)']);
+    // ADR-179: e o host dos diálogos e menus do Base UI (que não são <dialog>).
+    expect(SELETOR_MODAL.split(", ")).toEqual(["dialog[open]:not(.raio-x)", '[role="dialog"]:not(.cfg-espaco)', "[data-rx-modal]"]);
   });
 });
 

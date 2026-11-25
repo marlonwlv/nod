@@ -49,6 +49,9 @@ export const NOTA_DO_CODIGO: Record<"codigo_invalido" | "sem_login_aberto" | "ja
   nao_pede_codigo: "Este login não pede código: termine na página da Anthropic.",
 };
 
+/** Paper A2/C2 (Jornadas da IA, 2026-11-19): o código vencido renova sozinho até 2 vezes (3 códigos ao todo). */
+export const RENOVACOES_DO_CODIGO = 2;
+
 export function criarIasDoMac(d: DepsIasDoMac) {
   const comNota = (ia: IaDesktop, nota: string | null): Partial<UiIas> => {
     const resto = { ...d.ui().nota };
@@ -105,6 +108,11 @@ export function criarIasDoMac(d: DepsIasDoMac) {
     d.mudar({ estados: Object.fromEntries(estados.map((e) => [e.ia, e])) });
   }
 
+  /** Os códigos do Codex cuja página o nod já abriu (Paper C2). */
+  const paginasAbertas = new Set<string>();
+  /** Quantas vezes o código de cada IA já renovou sozinho neste fluxo (Paper A2/C2). */
+  const renovacoes = new Map<IaDesktop, number>();
+
   /**
    * Cada mudança que o app manda. No fim do fluxo (a IA ficou pronta depois de instalar ou entrar), o teste de uma frase
    * mostra que a conta responde — o terceiro passo; o onboarding tem o dele.
@@ -114,6 +122,23 @@ export function criarIasDoMac(d: DepsIasDoMac) {
     guardarEstado(e);
     conferirTroca(e);
     const ui = d.ui();
+    const login = e.login;
+    // Jornadas da IA (Paper C2, 2026-11-19): o Codex não abre o navegador sozinho; o nod abre a página assim que o código
+    // aparece, uma vez por código. Sem abrir (link ainda não pronto), o "Abrir de novo" do cartão resolve.
+    if (e.ia === "codex-cli" && login?.fase === "aguardando" && login.host && login.codigoDoDispositivo && !paginasAbertas.has(login.codigoDoDispositivo)) {
+      paginasAbertas.add(login.codigoDoDispositivo);
+      void d.mac()?.ias?.abrirLink(e.ia).catch(() => false);
+    }
+    // Paper A2/C2: o código que venceu com a pessoa no meio do login renova sozinho, até RENOVACOES_DO_CODIGO vezes.
+    if (login?.fase === "expirou" && antes?.login?.fase === "aguardando" && ui.fluxo[e.ia]) {
+      const n = renovacoes.get(e.ia) ?? 0;
+      if (n < RENOVACOES_DO_CODIGO) {
+        renovacoes.set(e.ia, n + 1);
+        void entrar(e.ia);
+        return;
+      }
+    }
+    if (login?.fase === "sucesso") renovacoes.delete(e.ia);
     if (e.login?.fase === "cancelado" && ui.fluxo[e.ia] && e.estado !== "instalando") d.mudar(semFluxo(e.ia));
     // Na troca, só depois do login novo: antes dele, a IA "pronta" ainda é a conta antiga.
     const trocaAberta = ui.troca[e.ia]?.fase === "abrindo" || ui.troca[e.ia]?.fase === "entrando";

@@ -16,7 +16,7 @@ const BARRA = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" strok
 const TECLADO = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8" rx="1.6"/><path d="M4 6.5h.01M6.5 6.5h.01M9 6.5h.01M11.5 6.5h.01M5 9.5h6"/></svg>';
 const TRABALHOS = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="14" height="11" rx="2.2"/><path d="M7.5 5.5V4.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2v1.3"/><path d="M3 10h14"/></svg>';
 
-const ICONES: Record<NonNullable<ItemPaleta["icone"]>, string> = {
+export const ICONES: Record<NonNullable<ItemPaleta["icone"]>, string> = {
   conversa: ICONE.balao,
   ajuste: ICONE.ajustes,
   mais: ICONE.mais,

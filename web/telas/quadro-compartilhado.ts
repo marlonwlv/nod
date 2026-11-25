@@ -5,7 +5,7 @@ import { codigoDaTarefa, opcoesDeStatus, tarefasPorStatus } from "../lib/quadro-
 import {
   assinaturaDoCard, campoDePedir, linhaDaTarefaAlheia, nomeDaDona, podeDesfazer, podeEditar, podeMudarStatus, podeResponder, rotuloCurtoDoModo, soComenta, textoDoVazio,
 } from "../lib/quadro-compartilhado.ts";
-import { cardDaTarefa, esperandoOutro, type AgenteDoQuadro } from "./quadro-real.ts";
+import { cardDaTarefa, esperandoOutro, recolhidaPorPadrao, type AgenteDoQuadro } from "./quadro-real.ts";
 import { anel, card, confiar, ICONE, linha, lista, quadro, type Coluna, type Html } from "./quadro.ts";
 
 /**
@@ -85,7 +85,7 @@ function grade(q: QuadroDto, v: VistaDoCompartilhado, agente: AgenteDoQuadro, m:
   const cs = comColunas(q).colunas;
   const cols = cs.map((c) => {
     const ts = por[c.id] ?? [];
-    const padrao = c.recolhida && ts.length === 0;
+    const padrao = recolhidaPorPadrao(c, ts.length, false);
     return { c, ts, recolhida: padrao !== v.alternadas.has(c.id) };
   });
   const colunas: Coluna[] = cols.map(({ c, ts, recolhida }) => ({

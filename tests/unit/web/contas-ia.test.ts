@@ -165,15 +165,22 @@ describe("criarContasDoMac", () => {
     expect(aceita.avisos).toHaveLength(1);
   });
 
-  it("o aviso dos termos (v4, Gil): cada frase com a fonte certa, links, Cancelar primário e com foco", () => {
-    const claude = htmlDoAvisoDosTermos("claude-cli");
-    expect(claude).toContain("Trocar de conta sozinho no Claude Code?");
+  it("o aviso dos termos (Paper G3): a conta no topo, cada frase com a fonte certa, links e 'Deixar fora da fila' primário e com foco", () => {
+    const claude = htmlDoAvisoDosTermos("claude-cli", { nome: "Claude · Leapy", ordem: 2 });
+    expect(claude).toContain("<b>Claude · Leapy</b><small>2ª conta do Claude na fila</small>");
+    expect(claude).toContain("Deixar o nod passar sozinho para esta conta?");
+    expect(claude).toContain("Com duas contas do Claude na fila");
     expect(claude).toContain(TERMOS_DA_TROCA["claude-cli"].texto);
     expect(TERMOS_DA_TROCA["claude-cli"].texto).toContain("Pro e Max");
     expect(claude).toContain('href="https://code.claude.com/docs/en/legal-and-compliance"');
     expect(claude).toContain('href="https://www.anthropic.com/legal/consumer-terms"');
-    expect(claude).toMatch(/<button class="bt pri" data-nao type="button" autofocus>Cancelar<\/button>/);
-    expect(claude).toMatch(/<button class="bt" data-sim type="button">Ligar mesmo assim<\/button>/);
+    expect(claude).toMatch(/<button class="termos-nao" data-nao type="button" autofocus>Deixar fora da fila<\/button>/);
+    expect(claude).toMatch(/<button class="termos-sim" data-sim type="button">Ligar mesmo assim<\/button>/);
+    // Sem a conta (o "Trocar sozinho" do app do Mac de antes): a pergunta pela IA e o Cancelar.
+    const antigo = htmlDoAvisoDosTermos("claude-cli");
+    expect(antigo).toContain("Deixar o nod trocar de conta sozinho no Claude Code?");
+    expect(antigo).toContain(">Cancelar</button>");
+    expect(antigo).not.toContain("termos-conta");
     const codex = htmlDoAvisoDosTermos("codex-cli");
     expect(codex).toContain("Os Termos de Uso da OpenAI proíbem contornar limites de uso");
     expect(codex).toContain('href="https://openai.com/policies/terms-of-use/"');

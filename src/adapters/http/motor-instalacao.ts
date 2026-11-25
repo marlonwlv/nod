@@ -28,6 +28,8 @@ export { ARQUIVOS_DO_MOTOR, type ArquivoDoMotor } from "../../domain/atualizacao
 
 /** O Node que o motor usa (o mesmo do .mise.toml e do Dockerfile). */
 export const NODE_DO_MOTOR = "24.19.0";
+/** ADR-190: o agent-browser do navegador do bot na máquina (a mesma versão fixa do package.json; um teste confere). */
+export const AGENT_BROWSER_DO_MOTOR = "0.43.0";
 
 /** Só https (ou http em loopback, dev) e um host sem nada que o shell interprete. */
 export function servidorParaScript(proto: string, host: string): string | null {
@@ -171,6 +173,17 @@ done
 rm -rf "$BAIXADOS"
 passo "motor $NOD_VERSAO"
 ${o.computador ? blocoDoComputador() : ""}
+# ADR-190 (definido em 2026-11-20): o navegador do bot nesta máquina, o agent-browser fixo em $PASTA/navegador (o motor o
+# acha lá, agentBrowserDoLinux). O Chrome é o Chromium do computador quando ele está instalado (chromeDoLinux). Falhar
+# aqui não derruba a instalação: o bot diz que o navegador não está nesta máquina.
+if [ ! -f "$PASTA/navegador/node_modules/agent-browser/package.json" ] || ! grep -q '"version": "${AGENT_BROWSER_DO_MOTOR}"' "$PASTA/navegador/node_modules/agent-browser/package.json"; then
+  $SUDO mkdir -p "$PASTA/navegador"
+  echo '{"name":"nod-navegador","private":true}' | $SUDO tee "$PASTA/navegador/package.json" >/dev/null
+  if $SUDO env PATH="$PASTA/node/bin:$PATH" "$PASTA/node/bin/npm" install --prefix "$PASTA/navegador" --no-fund --no-audit --ignore-scripts --loglevel=error agent-browser@${AGENT_BROWSER_DO_MOTOR} >/dev/null; then
+    $SUDO chmod -R a+rX "$PASTA/navegador"
+  else printf 'Aviso: o navegador do bot não instalou agora. Rode a instalação de novo depois para tentar outra vez.\n'; fi
+fi
+[ -f "$PASTA/navegador/node_modules/agent-browser/package.json" ] && passo "navegador do bot (agent-browser ${AGENT_BROWSER_DO_MOTOR})"
 # ADR-097 (fase 0b): sem swap, um pico de memória trava a máquina por minutos (medido na VM dos bots em 11/10: ~20 min
 # trocando páginas). Swap comprimido em memória (zram), o padrão do Fedora: metade da memória, até 8 GB. Sem o módulo
 # zram no kernel, um arquivo de swap de 4 GB no disco, se sobra espaço. Só quando não há swap nenhum: quem já tem o seu
