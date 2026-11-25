@@ -527,6 +527,13 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     if (!a) throw new FalhaNavegador("alvo_invalido", "alvo vazio");
     return a;
   };
+  /** Seleciona de novo a aba ativa, para o stream se prender a ela (ver abaNova). Falhar aqui não desfaz a ação. */
+  async function reselecionarAtiva(s: SessaoNavegador): Promise<void> {
+    try {
+      const ativa = lerAbas(await rodar(s, ["tab"])).find((a) => a.ativa);
+      if (ativa?.id) await rodar(s, ["tab", ativa.id]);
+    } catch { /* a aba nova já está aberta; o quadro só demora a acompanhar */ }
+  }
   /** O endereço absoluto que um alvo aponta: o próprio alvo, se já é um http(s), ou o `href` do elemento. */
   async function linkDoAlvo(s: SessaoNavegador, alvo: string): Promise<string | null> {
     if (/^https?:\/\//i.test(alvo.trim())) return alvo.trim();
@@ -632,9 +639,12 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     },
     async historico(s, acao) { await rodar(s, [acao === "voltar" ? "back" : acao === "avancar" ? "forward" : "reload"], PRAZO_ABRIR_MS); },
     async abas(s) { return lerAbas(await rodar(s, ["tab"])); },
-    async abaNova(s, url) { await rodar(s, ["tab", "new", ...(url ? [url] : [])], PRAZO_ABRIR_MS); },
+    // observado em 2026-11-25 (QA do navegador no Windows): depois de `tab new` (e de fechar a aba ativa), o stream do
+    // agent-browser seguia com os quadros da aba anterior — a barra dizia Wikipedia e a imagem era o Climatempo, até no
+    // "Assumir o controle". Trocar de aba à mão consertava; o motor faz o mesmo: seleciona de novo a aba ativa.
+    async abaNova(s, url) { await rodar(s, ["tab", "new", ...(url ? [url] : [])], PRAZO_ABRIR_MS); await reselecionarAtiva(s); },
     async abaTrocar(s, id) { await rodar(s, ["tab", id]); },
-    async abaFechar(s, id) { await rodar(s, ["tab", "close", ...(id ? [id] : [])]); },
+    async abaFechar(s, id) { await rodar(s, ["tab", "close", ...(id ? [id] : [])]); await reselecionarAtiva(s); },
     async quadro(s, alvo) { await rodar(s, ["frame", alvo === null ? "main" : alvoOuFalha(alvo)]); },
     async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
     async baixar(s, alvo, nome) {

@@ -303,3 +303,16 @@ describe("baixar: o download direto quando o do agent-browser falha (QA do naveg
     expect(cookieVale({ domain: "app.exemplo.com.br", path: "/", secure: true }, new URL("http://app.exemplo.com.br/"))).toBe(false);
   });
 });
+
+describe("abas: o stream acompanha a aba nova (QA do navegador no Windows, 2026-11-25)", () => {
+  it("depois de abrir ou fechar, seleciona de novo a aba ativa; se a lista falhar, a aba nova continua aberta", async () => {
+    const lista = () => ({ codigo: 0, saida: ok({ tabs: [{ tabId: "t1", title: "A", url: "https://a.com/", active: false }, { tabId: "t2", title: "B", url: "https://b.com/", active: true }] }) });
+    respostas.push(() => ({ codigo: 0, saida: ok({}) }), lista, () => ({ codigo: 0, saida: ok({}) }));
+    await motor().abaNova(s, "https://b.com/");
+    expect(recebidos.map((r) => r.args.slice(0, 3))).toEqual([["tab", "new", "https://b.com/"], ["tab", "--session", nomeDaSessao(A)], ["tab", "t2", "--session"]]);
+    recebidos = [];
+    respostas.push(() => ({ codigo: 0, saida: ok({}) }), () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "falhou" }) }));
+    await expect(motor().abaFechar(s, "t1")).resolves.toBeUndefined();
+    expect(recebidos.map((r) => r.args[1])).toEqual(["close", "--session"]);
+  });
+});
