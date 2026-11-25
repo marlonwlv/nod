@@ -154,6 +154,21 @@ describe("as frases (regra 7): sem termos internos, com a conta e a máquina cer
     expect(c.titulo).toBe("A ChatGPT · Pessoal chegou ao limite · volta sem hora");
     expect(c.texto).not.toMatch(/\d{1,2}:\d{2}/);
   });
+  it("4 · sem hora e sem o nome da IA: o pronome concorda (o limite passa, não 'ele voltar' para 'a sua IA')", () => {
+    const c = cartaoDoDesvio("limite", { bot: "Dino", ia: IA_SEM_NOME }, { agora: AGORA, ate: null, turnoId: "t1" });
+    expect(c.texto).toBe("A sua IA não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele passar.");
+    expect(cartaoDoDesvio("limite", { bot: "Dino", ia: "Claude" }, { agora: AGORA, ate: null, turnoId: "t1" }).texto).toBe("O Claude não disse quando o limite passa. O nod confere a cada hora e a mensagem sai sozinha quando ele passar.");
+  });
+  it("as frases também valem sem hora de volta (a varredura acima só passa com hora)", () => {
+    for (const id of IDS_DESVIO) for (const n of nomes) {
+      const cartao = cartaoDoDesvio(id, n, { agora: AGORA, ate: null, turnoId: "t1", turnoEsperandoId: "t2", contaId: "c1", maquinaId: "m1", relatado: false });
+      expect(`${cartao.titulo} ${cartao.texto} ${cartao.botoes.map((b) => b.rotulo).join(" ")}`, id).not.toMatch(PROIBIDO);
+    }
+  });
+  it("10 · o cartão fala do nod na terceira pessoa, como os outros ('O nod tentou…'), não 'Já tentei'", () => {
+    expect(cartaoDoDesvio("erro_desconhecido", nomes[0]!, { agora: AGORA, relatado: false }).texto).toBe("O nod já tentou de novo uma vez.");
+    expect(cartaoDoDesvio("erro_desconhecido", nomes[0]!, { agora: AGORA, relatado: true }).texto).toBe("O nod já tentou de novo uma vez. O relato foi para o time do nod com o erro anexado.");
+  });
   it("todo cartão de espera traz a espera (a mensagem sai sozinha)", () => {
     for (const id of IDS_DESVIO) {
       if (DESVIOS[id].semSaida !== "espera") continue;
