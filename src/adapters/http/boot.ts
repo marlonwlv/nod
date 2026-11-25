@@ -236,6 +236,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     ...(app.contas ? { contas: { guarda: app.contas.guarda, google: app.contas.google !== null, bootstrap: app.contas.bootstrap, minhaConta: !!app.contas.minhaConta, onboardingTexto: app.contas.onboardingTexto, rotas: app.contas.rotas } } : {}),
     verificarSaude,
     estadoSaude,
+    // ADR-194: a guarda do backoffice interno (equipe_backoffice; vazia, NOD_ADMINS), para a API e para a tela.
+    backoffice: app.backoffice,
     // ADR-071: os canais WebSocket da ligação (mídia e cérebro) no mesmo servidor.
     upgrade: (server, resolverEscopo) => {
       canaisVoz = app.anexarVoz(server, resolverEscopo);

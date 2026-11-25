@@ -130,10 +130,10 @@ function haQuanto(ms: number): string {
   return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} ${Math.round(h / 24) === 1 ? "dia" : "dias"}`;
 }
 
-/** Paper 17b: "Lista · a Ada atualiza pelo Gmail · há 12 min" (a fonte de conector pelo nome do app, com a inicial maiúscula). */
+/** Paper 17b: "Lista · Ada atualiza pelo Gmail · há 12 min" (a fonte de conector pelo nome do app, com a inicial maiúscula). */
 function subtituloDoApp(a: AppDto, bot: string, agora: number): string {
   const fonte = a.fonte === "conector" && a.fonteRef ? ` pelo ${a.fonteRef.charAt(0).toUpperCase()}${a.fonteRef.slice(1)}` : a.fonte === "tarefas" ? " pelo quadro" : a.fonte === "arquivo" ? " por um arquivo" : "";
-  return [NOME_DA_FORMA[a.forma], `${bot.includes(" ") ? bot : `a ${bot}`} atualiza${fonte}`, a.atualizadoEm ? haQuanto(agora - a.atualizadoEm) : ""].filter(Boolean).join(" · ");
+  return [NOME_DA_FORMA[a.forma], `${bot} atualiza${fonte}`, a.atualizadoEm ? haQuanto(agora - a.atualizadoEm) : ""].filter(Boolean).join(" · ");
 }
 
 /**

@@ -114,6 +114,16 @@ describeIntegracao("navegador.lugar: tela × chat (ADR-190, N; ADR-135)", () => 
       const deFora = await turnoDaConversa(trx, ada, { confianca: "nao_confiavel" });
       expect((await ajustarNavegador(d, { ...contexto(ada.agenteId, ada.conversaId, deFora.id), continuar_sem_mac: true })).data).toMatchObject({ ok: false, erro: "fora_do_turno" });
       expect(await d.repos.navegadorPreferencias.buscar(ada.agenteId)).toBeNull();
+      // QA-235: duas máquinas com o mesmo nome (o nome não é único). A recusa não diz "não está na conta": diz que há duas
+      // e dá o id de cada uma, que o bot pode mandar no lugar do nome.
+      const vmSp = (await d.repos.maquinaTokens.vivasComPlataforma()).find((v) => v.nome === "vm-sp")!.id;
+      const outraSp = await maquina(trx, "vm-sp", "linux");
+      const ambigua = (await ajustarNavegador(d, { ...contexto(ada.agenteId, ada.conversaId, turno.id), maquina: "vm-sp" })).data;
+      expect(ambigua).toMatchObject({ ok: false, erro: "maquina_inexistente" });
+      expect(JSON.stringify(ambigua)).not.toContain("não está na conta");
+      expect(JSON.stringify(ambigua)).toContain(vmSp);
+      expect(JSON.stringify(ambigua)).toContain(outraSp);
+      expect((await ajustarNavegador(d, { ...contexto(ada.agenteId, ada.conversaId, turno.id), maquina: outraSp })).data).toMatchObject({ ok: true });
     });
     trxAtual = null;
   });

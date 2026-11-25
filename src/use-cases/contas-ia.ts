@@ -202,6 +202,10 @@ export const ESPERA_DA_REINSTALACAO_MS = 10 * 60_000;
 export async function reinstalarETentar(d: Deps, p: { conversaId: string; turnoId: string; ia: IdHarness; maquina: string }): Promise<SaidaDaNota> {
   await d.repos.contasIa.travar();
   const turno = await turnoDaNota(d, p);
+  // QA-198: a fala refeita aqui espera a IA (pendente com `acordarEm`) e o núcleo a toma pela cópia adiada à espera da
+  // conta, que ele cancela e refaz. O 2º clique (outra aba, recarregar) cancelava a 1ª, gravava outra linha e empurrava a
+  // espera mais 10 min. A linha "Reinstalando…" deste turno já na conversa = este botão já foi usado.
+  if (await jaReinstalando(d, turno)) return { data: { turnoId: null, motivo: "ja_refeito" }, events: [] };
   const r = await refazerTurnoDaNota(d, {
     turno,
     acordarEm: d.agora() + ESPERA_DA_REINSTALACAO_MS,
@@ -213,6 +217,12 @@ export async function reinstalarETentar(d: Deps, p: { conversaId: string; turnoI
   });
   log("info", "reinstalar_e_tentar", { turno_id: turno.id, novo_turno_id: r.data.turnoId, ia: p.ia, motivo: r.data.motivo });
   return r;
+}
+
+/** QA-198: o "Reinstalar e tentar" deste turno já deixou a linha do desvio 9 na conversa. */
+export async function jaReinstalando(d: Deps, turno: Turno): Promise<boolean> {
+  const recentes = await d.repos.mensagens.listarDaConversa(turno.conversaId, 30);
+  return recentes.some((m) => m.turnoId === turno.id && m.payload?.kind === "desvio" && m.payload.desvio === "ia_nao_abriu" && m.payload.forma === "linha");
 }
 
 /** O turno da nota: pelo `turnoId` do botão (NOD-284), na conversa dele. Outro id, ou de outra conversa = não encontrado. */
@@ -245,6 +255,9 @@ export async function refazerTurnoDaNota(
   const { turno } = p;
   const agora = d.agora();
   const nada = (motivo: MotivoNaoRefez): SaidaDaNota => ({ data: { turnoId: null, motivo }, events: [] });
+  // QA-199 (r198): o cartão ficou na tela e o bot saiu (outra aba). Sem isto, o gatilho do banco recusa o turno novo com
+  // "agente inativo" e a pessoa via "Algo deu errado" (500) — tentar de novo nunca funciona. Não encontrado, como o chat.
+  if (!(await d.repos.agentes.buscar(turno.agenteId))) throw new ErroDeDominio("nao_encontrado", { cause: "bot excluído" });
   if (turno.estado !== "interrompido" || !(paradoPelaConta(turno) || presoSemContato(turno) || (await paradoNumDesvio(d, turno))) || !ORIGENS_REFAZIVEIS.includes(turno.origem)) return nada("turno_nao_interrompido");
   const mesmaFala = (t: Turno) => t.id !== turno.id && t.agenteId === turno.agenteId && t.criadoEm >= turno.criadoEm
     && (turno.mensagemOrigemId ? t.mensagemOrigemId === turno.mensagemOrigemId : t.entradaTexto === turno.entradaTexto);

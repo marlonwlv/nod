@@ -75,7 +75,7 @@ describe("os cartões da tela são os da tabela única", () => {
       expect(fase(estado({ cancelados: ["t2"] }))).toEqual({ fase: "fechado", marca: null, resultado: "Cancelada" });
       expect(fase(estado({ cancelando: { t2: { fase: "cancelando" } } }))).toMatchObject({ fase: "fechado", resultado: "Cancelada" });
       expect(fase(estado({ depois: [fala("m2", "pessoa")] }))).toEqual({ fase: "fechado", marca: "sem-resposta", resultado: "Você seguiu a conversa" });
-      expect(fase(estado({ depois: [fala("m2", "agente")] }))).toEqual({ fase: "fechado", marca: "ok", resultado: "A mensagem saiu" });
+      expect(fase(estado({ depois: [fala("m2", "agente")] }))).toEqual({ fase: "fechado", marca: "ok", resultado: "A conversa seguiu" });
       const local = { m1: { acao: "responder_com_outra_ia", agora: "Respondendo pelo Claude", feito: "Respondido pelo Claude", agindo: false } };
       expect(fase(estado({ depois: [fala("m2", "agente")], local }))).toMatchObject({ resultado: "Respondido pelo Claude" });
       expect(fase(estado({ emCurso: [{ id: "t3", desde: AGORA + 500 }], local }))).toMatchObject({ fase: "fechado", resultado: "Respondendo pelo Claude" });
@@ -85,6 +85,30 @@ describe("os cartões da tela são os da tabela única", () => {
       expect(fase(estado({ depois: [{ ...fala("m2", "pessoa"), kind: "sistema" }] }))).toEqual({ fase: "aberto" });
       const fechado = encolhidoDoDesvio(msgCartao, cartao.titulo, fase(estado({ cancelados: ["t2"] })));
       expect(fechado).toMatchObject({ titulo: cartao.titulo, resultado: "Cancelada", marca: null });
+    });
+
+    // QA-226 (r229): a cópia que esperava já saiu (acordou e caiu de novo no desvio). O Cancelar dá 409 ("tarde") ou falha,
+    // e o cartão piscava "Cancelada" e voltava a abrir calado, prometendo que a mensagem sairia.
+    it("Cancelar tarde: fecha dizendo que a mensagem já tinha saído, não volta a abrir calado", () => {
+      expect(fase(estado({ cancelando: { t2: { fase: "tarde" } } }))).toEqual({ fase: "fechado", marca: null, resultado: "Já tinha saído · não deu para cancelar" });
+    });
+
+    it("Cancelar com erro: o cartão segue aberto e diz que não conseguiu cancelar", () => {
+      const f = fase(estado({ cancelando: { t2: { fase: "erro" } } }));
+      expect(f).toEqual({ fase: "aberto", erro: "Não consegui cancelar. Tente de novo." });
+      const html = desvioNaConversa(m, cartao, { fase: f });
+      expect(html).toContain('role="status"');
+      expect(html).toContain("Não consegui cancelar. Tente de novo.");
+      expect(html).toContain('data-act="cancelar-turno" data-id="t2"');
+    });
+
+    it("a cópia que esperava já rodou (deixou aviso ou outro cartão): o cartão antigo fecha", () => {
+      const aviso = { ...fala("m2", "agente"), kind: "sistema", turnoId: "t2", texto: "Turno interrompido: … nada foi reenviado." };
+      expect(fase(estado({ depois: [aviso] }))).toEqual({ fase: "fechado", marca: null, resultado: "Tentou de novo e não saiu" });
+      const outro = { ...fala("m2", "agente"), kind: "sistema", turnoId: "t2", payload: cartao };
+      expect(fase(estado({ depois: [outro] }))).toMatchObject({ fase: "fechado", resultado: "Tentou de novo e não saiu" });
+      // Linha de sistema de outro turno não fecha.
+      expect(fase(estado({ depois: [{ ...aviso, turnoId: "t9" }] }))).toEqual({ fase: "aberto" });
     });
 
     it("9 · reinstalando: com a linha 'Reinstalando…' depois do cartão, o botão gira até a IA abrir", () => {

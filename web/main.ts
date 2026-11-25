@@ -1,3 +1,4 @@
+import { comFraseDoTeto, FRASE_TETO_ROTINAS, FRASE_TETO_TOKENS_MCP } from "./lib/frase-do-teto.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
 import { marcarEstadoDaPagina } from "./lib/estado-da-pagina.ts";
@@ -91,6 +92,7 @@ import { botCasaComBusca } from "./telas/config-agentes.ts";
 import type { AlvoAviso, IaDesktop } from "../src/contracts/desktop.ts";
 import type { Experimentos } from "../src/contracts/raio-x.ts";
 import type { Escopo } from "../src/shared/types.ts";
+import { caminhoDeVolta, PARAMETRO_VOLTA } from "./lib/backoffice.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
@@ -214,6 +216,7 @@ import { umaPorVez } from "./lib/uma-por-vez.ts";
 import { inventarioEmUso, motorDesatualizado, situacaoMotorFora } from "./telas/frota.ts";
 import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas/ia-fora.ts";
 import { renderRotinas } from "./telas/rotinas.ts";
+import { destinoAoExcluirRotina } from "./telas/agenda-rotinas.ts";
 import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sala.ts";
 import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
 import { aparenciaDoComposer, topoDoComposer } from "./telas/pergunta.ts";
@@ -271,6 +274,7 @@ import { gavetaPrendeFoco, irmaosAteARaiz, seletoresDaOrigem, voltaDoTab } from 
 import type { Ligacao } from "../src/contracts/ligacao.ts";
 import type { MotivoAvaliacaoLigacao } from "./lib/api.ts";
 import { aceitaDoBot } from "./lib/capacidades.ts";
+import { FRASE_CREDENCIAIS_INVALIDAS, lerCredenciaisJson } from "./lib/credenciais-json.ts";
 import { mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
 import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
 import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
@@ -280,7 +284,7 @@ import { criarPaleta, type DepsPaleta } from "./lib/paleta-na-tela.ts";
 import { itensDaPaleta, type ItemPaleta } from "./lib/paleta.ts";
 import { aguardandoPorAgente, contadorDosTrabalhos, rotuloDosTrabalhos, textoAguardando } from "./lib/aguardando.ts";
 import { pedidosAbertos } from "./lib/avisos.ts";
-import { aberto, abertosDoBot, acoesDeFazer, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos, trabalhosDaTela } from "./lib/trabalhos.ts";
 import type { EventoTrilhaQuadro } from "../src/contracts/trilha-quadro.ts";
 import { criarTelemetria } from "./lib/telemetria-linhas.ts";
 import { chaveDaAtividade, criarVigiaDaAtividade, diaLocal, ehFiltroAtividade, fusoLocal, rotuloDoDia } from "./lib/atividade-do-bot.ts";
@@ -507,7 +511,7 @@ function guardarEscolhasDosDesvios(d: Estado["desviosAgindo"]): void {
   try {
     window.sessionStorage.setItem(CHAVE_DESVIOS_ESCOLHIDOS, JSON.stringify(Object.fromEntries(Object.entries(d).filter(([, x]) => !x.agindo))));
   } catch {
-    // Sem storage (aba privada): a linha encolhida diz o genérico ("A mensagem saiu").
+    // Sem storage (aba privada): a linha encolhida diz o genérico ("A conversa seguiu").
   }
 }
 
@@ -615,7 +619,7 @@ if (telasNoReact) {
         enviar: () => escolherNaNovaConversa(),
         aoDesenhar: () => filtrarBots((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value ?? "", ".contact-picker"),
       },
-      tarefas: { fonte: tarefasDeTodos, avatar: depsDasTarefas.avatar, abrirTarefa: depsDasTarefas.abrirTarefa, abrirPagina: depsDasTarefas.abrirPagina },
+      tarefas: { fonte: tarefasDeTodos, avatar: depsDasTarefas.avatar, voce: depsDasTarefas.voce, abrirTarefa: depsDasTarefas.abrirTarefa, abrirPagina: depsDasTarefas.abrirPagina },
       trabalhos: {
         vista: (porEstado, botEscolhido) => {
           const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
@@ -694,6 +698,7 @@ const telaCofre = criarTelaCofre({
   render: () => render(),
   avisar: (texto, desfazer) => { mostrarAvisoDesfazer(desfazer ? { texto, aoDesfazer: desfazer } : { texto }); },
   aoErro: (e) => mostrarErro(e),
+  focar: (seletor) => focoPendente.lembrar(seletor),
 });
 /** ADR-190 (T3): Ajustes do bot › Habilidades — as tarefas ensinadas no navegador (web/lib/habilidades.ts). */
 const habilidades = registrarHabilidades({
@@ -1563,6 +1568,7 @@ const depsDasTarefas: DepsDasTarefas = {
     return api;
   },
   avatar: (id) => { const b = id ? botGerido(id) : undefined; return b ? iconeAgente(b, "sm") : ""; },
+  voce: () => nomeParaAsIniciais(),
   abrirTarefa: (dono, tarefa, quadro) => {
     const bot = botGerido(dono);
     if (!bot) return;
@@ -2551,13 +2557,41 @@ function pausarRotina(id: string, ate?: string): Promise<void> {
 function ativarRotina(id: string): Promise<void> {
   return agir(async () => void (await api!.ativarRotina(id), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
 }
+/** PR #333 (achado 4): Excluir pela tela de Rotinas, depois do "Excluir esta rotina?" (cancelar não muda nada). */
+function excluirRotinaPelaTela(id: string, titulo: string, ancora: HTMLElement): Promise<void> {
+  // QA r235: o "ocupado" do agir redesenha a linha (o Excluir que pediu sai do documento) e, excluída, a linha some; sem
+  // destino, o foco caía no <body> nos dois casos. Cancelar volta ao Excluir redesenhado; excluir vai à rotina vizinha.
+  const seletorDoExcluir = `#espaco [data-act="excluir-rotina"][data-id="${CSS.escape(id)}"]`;
+  const destino = destinoAoExcluirRotina(document, id);
+  return agir(async () => {
+    const texto = `«${titulo}» para de rodar e sai da lista. As execuções passadas continuam na conversa do bot.`;
+    const sim = moduloDosDialogos
+      ? await moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "excluir-rotina-titulo", titulo: "Excluir esta rotina?", texto, cancelar: "Cancelar", confirmar: "Excluir", principal: "cancelar", origem: ancora, reencontrar: () => document.querySelector<HTMLElement>(seletorDoExcluir) })
+      : window.confirm(`Excluir esta rotina?\n\n${texto}`);
+    if (!sim) return;
+    await api!.excluirRotina(id);
+    // O diálogo ainda pode estar fechando (o foco segue nele e o próximo desenho descartaria o destino). Depois, enquanto
+    // a lista não relê, o foco fica no Excluir (casa com o seletor); quando a linha some, vai ao destino.
+    await esperarDialogoFechar();
+    focoPendente.lembrar(`${seletorDoExcluir}, ${destino}`);
+    dispatch({ tipo: "invalidar", quais: ["rotinas"] });
+  });
+}
+/** QA r235: até o diálogo de confirmação sair da página (a animação de fechar devolve o foco); no máximo 1,5 s. */
+function esperarDialogoFechar(): Promise<void> {
+  const fim = Date.now() + 1500;
+  return new Promise((ok) => {
+    const ver = (): void => { if (!document.querySelector(".rx-dlg") || Date.now() > fim) ok(); else requestAnimationFrame(ver); };
+    ver();
+  });
+}
 /** `ancora`: o botão que pediu (o diálogo "rodar mais uma" abre junto dele). */
 function executarRotina(id: string, agenteId: string, ancora: HTMLElement): Promise<void> {
   return agir(async () => {
     // NOD-272: com execução já aberta, pergunta antes no diálogo próprio (A1 do Gil no #335); cancelar não roda nada.
     // ADR-179 (item 4): a confirmação pelo Dialog do Base UI (o mesmo texto); sem o módulo, o diálogo nativo.
     const perguntar = (p: string): Promise<boolean> => (moduloDosDialogos
-      ? moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: TITULO_JA_NA_FILA, texto: p, cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: ancora })
+      ? moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: TITULO_JA_NA_FILA, texto: p, cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: ancora, reencontrar: () => document.querySelector<HTMLElement>(`#espaco [data-act="executar-rotina"][data-id="${CSS.escape(id)}"], [data-act="executar-rotina"][data-id="${CSS.escape(id)}"]`) })
       : abrirRodarMaisUma(p, ancora));
     const r = await executarRotinaComConfirmacao((o) => api!.executarRotina(id, o), perguntar);
     if (!r) return;
@@ -3496,7 +3530,7 @@ function renderSidebar(estado: Estado): string {
   // ADR-167 (tela 16): "Trabalhos" vira linha fixa da barra, abaixo dos fixados, com o contador discreto ("N aguardando" em
   // laranja quando algo pede a pessoa). O sino e o ícone de Trabalhos do topo saíram: o que eles diziam mora aqui e na
   // linha de cada bot. "N aguardando" é um botão à parte que leva ao pedido (um só: a conversa no cartão; vários: Sua vez).
-  const nAbertos = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
+  const nAbertos = trabalhosDaTela(estado).filter(aberto).length; // QA-222: o mesmo número que a tela Tarefas mostra
   const contTrab = contadorDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length });
   const primeiroPedido = pedidos[0]?.decisao;
   const irAoPedido = pedidos.length === 1 && primeiroPedido
@@ -4274,7 +4308,8 @@ async function carregarArquivadas(): Promise<void> {
   try {
     dispatch({ tipo: "tarefas-arquivadas", tarefas: api ? (await api.tarefasArquivadas()).tarefas : [] });
   } catch {
-    dispatch({ tipo: "tarefas-arquivadas", tarefas: [] });
+    // Erro não é lista vazia: "Nenhuma tarefa arquivada" mentia com arquivadas no servidor (QA r225).
+    dispatch({ tipo: "tarefas-arquivadas", tarefas: "erro" });
   }
 }
 
@@ -4282,9 +4317,11 @@ async function carregarArquivadas(): Promise<void> {
 function campoDaTela(id: string): CampoDaTarefa {
   const d = estado.trabalhoDetalhe[id];
   const tr = d?.trabalho ?? trabalhoPorId(estado, id);
-  const bot = tr ? (botGerido(tr.agenteId)?.nome ?? "o bot") : "o bot";
+  // QA-201: a frota não traz o bot excluído; o detalhe da tarefa diz.
+  const excluido = tr && !botGerido(tr.agenteId) ? d?.botExcluido : undefined;
+  const bot = tr ? (botGerido(tr.agenteId)?.nome ?? excluido?.nome ?? "o bot") : "o bot";
   const guardadas = (d?.falasNaFila ?? []).filter((f) => f.situacao === "guardada").length;
-  return campoDaTarefa(tr, bot, guardadas);
+  return campoDaTarefa(tr, bot, guardadas, !!excluido);
 }
 
 /**
@@ -4942,6 +4979,13 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   conexoes.cancelarTodas();
   // NOD-106: outra pessoa ou outro tenant, a leitura da sessão velha para (o reducer zera o estado, o som ia seguir).
   if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) tocador.parar("saiu");
+  // ADR-194: quem chegou pelo /backoffice sem sessão entrou por aqui com `?volta=`; com a sessão aberta, volta para lá.
+  // A promessa não resolve: a página já está indo embora, e nada do app (SSE, leituras) precisa começar.
+  const volta = tirarVoltaDoBackoffice();
+  if (volta) {
+    window.location.assign(volta);
+    return new Promise<void>(() => undefined);
+  }
   // NOD-407: o retry do Acordar é da sessão que clicou; nunca acorda o computador de outra pessoa.
   cancelarRetryDoComputador();
   // Os rascunhos são da pessoa: outra sessão, outros rascunhos.
@@ -5099,6 +5143,18 @@ const CHAVE_CODIGO_MAQUINA = "nod-parear-maquina";
 /** NOD-416 (ADR-144): o link da tarefa (`?tarefa=ZE-12`), guardado até a sessão existir. */
 const CHAVE_TAREFA_LINK = "nod-tarefa-link";
 const CHAVE_QUADRO_LINK = "nod-quadro-link";
+/** ADR-194: o caminho do backoffice para onde a pessoa volta depois de entrar (só caminhos do backoffice, validados). */
+const CHAVE_VOLTA_BACKOFFICE = "nod-volta-backoffice";
+function voltaDoBackofficePendente(): boolean {
+  try { return caminhoDeVolta(window.sessionStorage.getItem(CHAVE_VOLTA_BACKOFFICE)) !== null; } catch { return false; }
+}
+function tirarVoltaDoBackoffice(): string | null {
+  try {
+    const volta = caminhoDeVolta(window.sessionStorage.getItem(CHAVE_VOLTA_BACKOFFICE));
+    window.sessionStorage.removeItem(CHAVE_VOLTA_BACKOFFICE);
+    return volta;
+  } catch { return null; }
+}
 const CAMINHO_TAREFAS = "/tarefas";
 const CHAVE_VOLTA_NUVEM = "nod-volta-nuvem";
 async function boot(): Promise<void> {
@@ -5132,6 +5188,14 @@ async function boot(): Promise<void> {
   if (url.searchParams.has(PARAMETROS_DO_PEDIDO[0])) {
     if (pedidoNaUrl) { try { window.sessionStorage.setItem(CHAVE_GUARDADA, JSON.stringify(pedidoNaUrl)); } catch { /* sem storage: o diálogo não abre e o app espera até o prazo */ } }
     for (const k of PARAMETROS_DO_PEDIDO) url.searchParams.delete(k);
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }
+  // ADR-194: `/?volta=/backoffice/...` (o servidor manda para cá quem abriu o backoffice sem sessão). Fica na aba até a
+  // sessão existir — inclusive na ida e volta do Google — e só vale caminho do backoffice (caminhoDeVolta).
+  if (url.searchParams.has(PARAMETRO_VOLTA)) {
+    const volta = caminhoDeVolta(url.searchParams.get(PARAMETRO_VOLTA));
+    if (volta) { try { window.sessionStorage.setItem(CHAVE_VOLTA_BACKOFFICE, volta); } catch { /* sem storage: entra no app */ } }
+    url.searchParams.delete(PARAMETRO_VOLTA);
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }
   // ADR-090: o link que o motor mostra no terminal (`?parear-maquina=K7QM-4F2X`) abre Máquinas › Conectar com o código,
@@ -5212,7 +5276,7 @@ async function boot(): Promise<void> {
         // tela, sem executor. Sessão do app que caiu volta à tela de entrar.
         // NOD-406: a volta recusada do Google da equipe fica na tela de entrada, com o motivo, sem abrir um provisório.
         // A marca da equipe: quem já entrou pelo Google da equipe neste navegador volta à tela de entrar.
-        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() });
+        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() || voltaDoBackofficePendente() });
         // #81: na primeira visita deste navegador, pergunta "Já usa o nod?" antes de abrir um espaço provisório novo.
         // #84: quem chega pelo QR já escolheu entrar numa conta; segue direto para a confirmação do pareamento.
         if (!codigoDoLinkGuardado(window) && mostrarEntrarPrimeiro({ abreProvisorio: abre, temVerificador: temVerificador() })) {
@@ -5676,8 +5740,25 @@ function abrirTrabalho(id: string): void {
 }
 
 function fecharTask(): void {
-  const voltar = telaAoFechar(estado.tela);
-  if (voltar) navegar(voltar);
+  const atual = estado.tela;
+  const voltar = telaAoFechar(atual);
+  if (!voltar) return;
+  const origem = document.activeElement ?? document.body;
+  navegar(voltar);
+  // QA r230: fechar (Esc ou Fechar) e voltar à tela Tarefas punha o foco no <body>; ele volta à linha da tarefa ou,
+  // se ela não está à vista (outro filtro, grupo), ao filtro ativo.
+  if (voltar.tipo === "trabalhos" && atual.tipo === "trabalho") focarNaVoltaDasTarefas(atual.id, origem);
+}
+
+function focarNaVoltaDasTarefas(id: string, origem: Element, ate = Date.now() + 3000): void {
+  const ativo = document.activeElement;
+  if (ativo && ativo !== document.body && ativo !== origem && document.contains(ativo)) return;
+  const tela = document.querySelector(".tela-tarefas");
+  const sel = CSS.escape(id);
+  const linha = tela?.querySelector<HTMLElement>(`.tf-tarefa[data-id="${sel}"], .tf-tarefa-bot[data-id="${sel}"]`);
+  const alvo = linha ?? (tela && Date.now() >= ate - 2500 ? tela.querySelector<HTMLElement>('.tf-chip[aria-pressed="true"]') : null);
+  if (alvo) { alvo.focus(); return; }
+  if (Date.now() < ate) window.setTimeout(() => focarNaVoltaDasTarefas(id, origem, ate), 100);
 }
 
 // ---- ADR-187 §6 (lote B, passo 3, 2026-11-18): a fileira de abas da tarefa (Paper 4j opção 1, 4o e 4p) ----------------
@@ -6087,10 +6168,13 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
   if (!ta || !api || !texto) return;
   const a = api;
   const levar = levarContextoNaTarefa;
-  await enviarUmaVez(envios, `nova-tarefa:${tela.agenteId}`, texto, () => agir(async () => {
+  // QA-196: o idEnvio vai como chave de idempotência. A resposta perdida deixa o texto no campo e o aviso "confira e tente
+  // de novo"; o reenvio da mesma fala reusa a chave e o servidor devolve a tarefa já criada (sem tarefa nem turno em dobro).
+  let criada = false;
+  await enviarUmaVez(envios, `nova-tarefa:${tela.agenteId}`, texto, async (idEnvio) => { await agir(async () => {
     let id: string;
     try {
-      id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids)).trabalho.id;
+      id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids, idEnvio)).trabalho.id;
     } catch (e) {
       if (e instanceof ErroApi && e.codigo === "cota_provisorio") {
         await telaConta.abrir("cota", false);
@@ -6098,13 +6182,14 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
       }
       throw e;
     }
+    criada = true;
     limparDepoisDeEnviar(ta, chave, texto);
     if (fila.length) limparAnexos(filaChave);
     // ADR-187 §6: a aba "Nova tarefa" vira a aba dela já, antes de a lista relida trazer a tarefa.
     guardarAbas(abrirAba(abasDeTarefa, { id, agenteId: tela.agenteId }));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
     if (estado.tela === tela) navegar({ tipo: "trabalho", id, voltar: tela.voltar });
-  }));
+  }); return criada; }, ids);
 }
 
 async function mudarGestao(fn: () => Promise<unknown>): Promise<void> {
@@ -6350,6 +6435,8 @@ async function enviarParaTrabalho(id: string): Promise<void> {
   if (fila.some((i) => i.estado === "enviando")) return;
   const ids = fila.flatMap((i) => (i.estado === "pronto" && i.meta ? [i.meta.id] : []));
   if (!ta || !api || (!texto && ids.length === 0)) return;
+  // QA-201: o bot da tarefa foi excluído — o servidor recusa; o campo já diz o caminho (restaurar o bot).
+  if (campoDaTela(id).semEnvio) return;
   const a = api;
   rolagem.colar();
   // Paper 4n: com a tarefa esperando a pessoa, a resposta livre do campo responde a pergunta dela (como o campo da conversa).
@@ -6590,7 +6677,8 @@ function cancelarDaFila(turnoId: string, doCartao: { conversaId: string; mensage
     invalidar: (conversaId) => dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] }),
     mostrarErro,
     focarDesfazer: (id) => focarQuandoAparecer(seletorDaLinha("desfazer-cancelamento", id), origem),
-    focarTentarDeNovo: (id) => focarQuandoAparecer(seletorDaLinha("cancelar-turno", id), origem),
+    // QA-226: o Cancelar do cartão do desvio não fica numa `.fila-linha`; o foco volta ao botão onde ele estiver.
+    focarTentarDeNovo: (id) => focarQuandoAparecer(doCartao ? `[data-act="cancelar-turno"][data-id="${CSS.escape(id)}"]` : seletorDaLinha("cancelar-turno", id), origem),
     focarCampoSeSaiu: (id) => window.setTimeout(() => {
       const ativo = document.activeElement as HTMLElement | null;
       const perdeu = !ativo || ativo === document.body || !ativo.isConnected || ativo.matches(seletorDaLinha("desfazer-cancelamento", id));
@@ -8277,8 +8365,10 @@ function linhaProvisoria(): string {
   const p = botProvisorio;
   if (!p) return "";
   if (p.agenteId) {
+    // PR #333 (achado 18): com o bot já na frota, a linha dele aparece na barra; esperar as boas-vindas deixava as duas
+    // ("Criando…" e a do bot) por uns segundos. A linha real, selecionada, ocupa o lugar assim que chega.
     const agente = estado.frota?.agentes.find((a) => a.id === p.agenteId);
-    if (agente && faseDasBoasVindasDe(agente) !== "vazia") { botProvisorio = null; return ""; }
+    if (agente) { botProvisorio = null; return ""; }
   }
   return `<div class="bot-row bot-provisorio selecionado" aria-busy="true"><span class="row" role="status" aria-label="${esc(p.nome)}, criando…"><span class="provisorio-av" aria-hidden="true">${IC_PESSOA_PROVISORIO}</span><span class="txt"><span class="nome-linha"><b>${esc(p.nome)}</b></span><span class="sub">Criando…</span></span></span></div>`;
 }
@@ -9642,7 +9732,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADR-190 (decisão 6): Configurações › Cofre › Logins de sites.
   "cofre-adicionar-login": () => { telaCofre.adicionando(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.cofre-form input[name="site"]')?.focus()); },
   "cofre-cancelar-login": () => { for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-form input')) c.value = ""; telaCofre.adicionando(false); document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus(); },
-  "cofre-ver-todos": () => telaCofre.filtrar(""),
+  "cofre-ver-todos": () => telaCofre.verTodos(),
   "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
   // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
   "cofre-mostrar-senha": (el) => {
@@ -9689,6 +9779,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     await api!.acaoNaTarefa(tarefaId, acao, { ...(Number.isInteger(versao) && versao > 0 ? { versao } : {}), ...(turnoVivo ? { turnoVivo } : {}) });
     const trabalhoId = estado.tela.tipo === "trabalho" ? estado.tela.id : null;
     dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(trabalhoId ? [`trabalho:${trabalhoId}` as Invalidacao] : [])] });
+    // A lista do chip "Arquivadas" é lida só no clique: arquivar ou desarquivar aqui e voltar mostrava a lista de antes (QA r225).
+    if ((acao === "arquivar" || acao === "desarquivar") && estado.tarefasArquivadas !== null) void carregarArquivadas();
   })])),
   "trabalho-depois": (el) => estado.ocupado ? undefined : agir(async () => {
     await api!.trabalhoDepois(el.dataset.id ?? "", el.dataset.depois ?? "");
@@ -9750,6 +9842,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (m === "abertas" || m === "feitas" || m === "todas" || m === "arquivadas") navegar({ ...t, mostrar: m });
     if (m === "arquivadas") void carregarArquivadas();
   },
+  // O botão sai com o redesenho: o foco vai ao chip "Arquivadas", que fica (sem isso caía no <body>).
+  "arquivadas-tentar": () => { document.querySelector<HTMLElement>('.tela-tarefas .tf-chip[aria-pressed="true"]')?.focus(); dispatch({ tipo: "tarefas-arquivadas", tarefas: null }); void carregarArquivadas(); },
   "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {
@@ -9790,6 +9884,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     agir(async () => void (await api!.pausarRotina(el.dataset.id ?? "", ate.slice(0, 16)), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
   },
   "ativar-rotina": (el) => ativarRotina(el.dataset.id ?? ""),
+  "excluir-rotina": (el) => excluirRotinaPelaTela(el.dataset.id ?? "", el.dataset.titulo ?? "esta rotina", el),
   "ver-execucoes": (el) => alternarExecucoes(el.dataset.id ?? ""),
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
@@ -10310,16 +10405,16 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "responder-com-outra-ia": (el) => agirNoCartao(el, async () => {
     const conversaId = el.dataset.conversa ?? "";
     const r = await api!.responderComOutraIa(conversaId, el.dataset.turno ?? "", el.dataset.ia ?? "");
-    avisarMotivoDaNota(r?.data?.motivo);
+    avisarMotivoDaNota(r?.motivo);
     dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
-    return r?.data?.motivo;
+    return r?.motivo;
   }),
   "reinstalar-e-tentar": (el) => agirNoCartao(el, async () => {
     const conversaId = el.dataset.conversa ?? "";
     const r = await api!.reinstalarETentar(conversaId, el.dataset.turno ?? "", el.dataset.maquina ?? "", el.dataset.ia ?? "");
-    avisarMotivoDaNota(r?.data?.motivo);
+    avisarMotivoDaNota(r?.motivo);
     dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}` as Invalidacao] });
-    return r?.data?.motivo;
+    return r?.motivo;
   }),
   // NOD-314: a task na fila de uma máquina sem contato roda em outra, desta vez; relê a task e a lista.
   "rodar-trabalho-desta-vez": (el) => agir(async () => {
@@ -10423,7 +10518,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   "gerar-token-mcp": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
-      const emitido = await api!.gerarTokenMcp(nome);
+      const emitido = await api!.gerarTokenMcp(nome).catch((e: unknown) => { throw comFraseDoTeto(e, FRASE_TETO_TOKENS_MCP); });
       form.reset();
       dispatch({ tipo: "mcp-token-emitido", emitido });
     }),
@@ -10439,7 +10534,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     }),
   "criar-rotina": (form) => { const d = new FormData(form); const naGaveta = !!form.closest("#detalhes"); return agir(async () => {
     const [hora, minuto] = String(d.get("horario")).split(":").map(Number);
-    await api!.criarRotina({ agenteId: String(d.get("agenteId")), cron: String(d.get("frequencia")).startsWith("intervalo:") ? `*/${String(d.get("frequencia")).split(":")[1]} * * * *` : d.get("frequencia") === "hora" ? "0 * * * *" : `${minuto} ${hora} * * ${d.get("frequencia")}`, fusoIana: String(d.get("fusoIana")), instrucao: String(d.get("instrucao")), fonte: String(d.get("fonte")), entregavel: String(d.get("entregavel")), limitesAprovacao: String(d.get("limitesAprovacao")), politicaSemDado: String(d.get("politicaSemDado")) });
+    await api!.criarRotina({ agenteId: String(d.get("agenteId")), cron: String(d.get("frequencia")).startsWith("intervalo:") ? `*/${String(d.get("frequencia")).split(":")[1]} * * * *` : d.get("frequencia") === "hora" ? "0 * * * *" : `${minuto} ${hora} * * ${d.get("frequencia")}`, fusoIana: String(d.get("fusoIana")), instrucao: String(d.get("instrucao")), fonte: String(d.get("fonte")), entregavel: String(d.get("entregavel")), limitesAprovacao: String(d.get("limitesAprovacao")), politicaSemDado: String(d.get("politicaSemDado")) }).catch((e: unknown) => { throw comFraseDoTeto(e, FRASE_TETO_ROTINAS); });
     dispatch({ tipo: "invalidar", quais: ["rotinas"] });
     // Da gaveta, a rotina criada aparece na visão geral do bot; da tela cheia, na lista de rotinas.
     if (naGaveta) fecharNivel();
@@ -10579,9 +10674,8 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   }),
   "credenciais-conector": (form) => agir(async () => {
     const d = new FormData(form);
-    let env: Record<string, string>;
-    try { env = JSON.parse(String(d.get("env") ?? "{}")) as Record<string, string>; }
-    catch { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Informe as credenciais como um objeto JSON válido." } }); return; }
+    const env = lerCredenciaisJson(String(d.get("env") ?? ""), "obrigatorio");
+    if (!env) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: FRASE_CREDENCIAIS_INVALIDAS } }); return; }
     await api!.atualizarCredenciais(form.dataset.id ?? "", env);
     form.reset();
     dispatch({ tipo: "invalidar", quais: ["conectores"] });
@@ -10590,9 +10684,8 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     agir(async () => {
       const d = new FormData(form);
       const args = String(d.get("args") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
-      let env: Record<string, string> = {};
-      const envTexto = String(d.get("env") ?? "").trim();
-      if (envTexto) env = JSON.parse(envTexto) as Record<string, string>;
+      const env = lerCredenciaisJson(String(d.get("env") ?? ""), "vale-vazio");
+      if (!env) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: FRASE_CREDENCIAIS_INVALIDAS } }); return; }
       await api!.registrarConector({ nome: d.get("nome"), slug: d.get("slug"), transporte: d.get("transporte"), comando: String(d.get("comando") ?? "") || null, args, url: String(d.get("url") ?? "") || null, env, declaracao: d.get("declaracao") });
       form.reset();
       dispatch({ tipo: "invalidar", quais: ["conectores"] });

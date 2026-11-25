@@ -52,6 +52,30 @@ async function validarRoteiroDaReconfiguracao(deps: Parameters<UseCasesNod["atua
   if (perguntas.length > 4 || !umaPorFala || !resumoValido || !confirmou) throw new ErroDeDominio("estado_invalido", { cause: `roteiro da reconfiguracao incompleto: perguntas=${perguntas.length}, uma=${umaPorFala}, resumo=${Boolean(resumoValido)}, confirmou=${confirmou}` });
 }
 
+/** QA r143: o que a rotina do card pede, sem o que varia com o relógio (próxima execução). */
+function chaveDaRotina(r: PayloadPropostaRotina): string {
+  return JSON.stringify([r.cron, r.fusoIana, r.instrucao, r.fonte, r.entregavel, r.limitesAprovacao, r.politicaSemDado, r.acessos ?? null, r.gatilho ?? null, r.provedor ?? null, r.eventos ?? null]);
+}
+
+/**
+ * QA r143: o MESMO perfil (com as mesmas rotinas) pedido de novo com o card ainda aberto — o bot repete a chamada —
+ * devolve o card aberto, como em criar_rotina e atualizar_rotina. Antes nascia um segundo card igual, com rotinas
+ * pendentes em dobro; confirmado o primeiro, o outro virava "o perfil mudou" ao clicar.
+ */
+async function cardIgualAberto(deps: Parameters<UseCasesNod["atualizarPerfil"]>[0], conversaId: string, agenteId: string, payload: PayloadPropostaPerfil, rotinas: readonly PayloadPropostaRotina[]): Promise<string | null> {
+  const chaves = rotinas.map(chaveDaRotina);
+  for (const p of await deps.repos.propostas.pendentesDaConversa(conversaId)) {
+    if (p.agenteId !== agenteId || p.payload.kind !== "perfil") continue;
+    const q = p.payload;
+    if (q.nome !== payload.nome || q.titulo !== payload.titulo || q.descricao !== payload.descricao || q.revisao !== payload.revisao) continue;
+    const ids = q.rotinas ?? [];
+    if (ids.length !== chaves.length) continue;
+    const doCard = await Promise.all(ids.map((id) => deps.repos.propostas.buscar(id)));
+    if (doCard.every((rp, i) => rp?.estado === "pendente" && rp.payload.kind === "rotina" && chaveDaRotina(rp.payload) === chaves[i])) return p.id;
+  }
+  return null;
+}
+
 /**
  * Ferramenta nod `atualizar_perfil` (EMENDA 5, E1.1): o modelo PROPÕE nome/título/descrição; nada
  * muda no agente antes de confirmarProposta pela pessoa. Vira Proposta kind 'perfil' + evento
@@ -85,6 +109,12 @@ export const atualizarPerfil: UseCasesNod["atualizarPerfil"] = async (deps, inpu
     throw e;
   }
 
+  // NOD-190: a revisão do perfil de agora vai no payload; a confirmação só aplica se ele ainda for este.
+  const agente = await deps.repos.agentes.buscar(input.agenteId);
+  if (agente) payload.revisao = revisaoAtualDoPerfil(agente);
+  const aberto = await cardIgualAberto(deps, input.conversaId, input.agenteId, payload, rotinas);
+  if (aberto) return { data: { proposta_id: aberto, rotinas: rotinas.map((r) => ({ resumo: r.resumo })) } };
+
   const ids: string[] = [];
   for (const r of rotinas) {
     const criada = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: input.agenteId, payload: r });
@@ -92,10 +122,6 @@ export const atualizarPerfil: UseCasesNod["atualizarPerfil"] = async (deps, inpu
     ids.push(criada.id);
   }
   if (ids.length > 0) payload.rotinas = ids;
-
-  // NOD-190: a revisão do perfil de agora vai no payload; a confirmação só aplica se ele ainda for este.
-  const agente = await deps.repos.agentes.buscar(input.agenteId);
-  if (agente) payload.revisao = revisaoAtualDoPerfil(agente);
 
   const proposta = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: input.agenteId, payload });
   if (!proposta) throw new ErroDeDominio("nao_permitido");

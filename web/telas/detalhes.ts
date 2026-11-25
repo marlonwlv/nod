@@ -350,6 +350,8 @@ function blocoFrentes(estado: Estado, a: Bot): string {
  * do ar, "Tentar de novo" é um link no status. Os estados e as esperas moram em web/lib/computador-estados.ts.
  */
 export function blocoComputador(estado: Estado, a: Bot, opcoes: { titulo?: boolean } = {}): string {
+  // 2026-11-25: sem máquina Linux, a pessoa não tem computador (só o navegador, ADR-190); o bloco nem aparece.
+  if (a.semComputador) return "";
   const e = entradaDoCartao(estado, a);
   const situacao = estadoDoCartaoDoBot(a.id, e);
   const tentar = estado.computadorPessoa ? TENTAR_V2 : `data-act="religar-computador" data-id="${esc(a.id)}"`;

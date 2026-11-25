@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, ARGS_CHROME_DO_BOT, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, ARGS_CHROME_DO_BOT, cookieVale, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -27,7 +27,7 @@ const executor: ExecutorProcesso = async (p) => {
   const r = respostas.shift()?.(p.args) ?? { codigo: 0, saida: ok({}) };
   return { codigo: r.codigo, saida: r.saida, erro: "", estourou: r.estourou === true };
 };
-const motor = () => criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome" });
+const motor = (dirSocket?: string | null) => criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: dirSocket === undefined ? null : dirSocket });
 const s = { agenteId: A };
 
 beforeEach(async () => {
@@ -58,7 +58,7 @@ describe("argv e ambiente", () => {
     expect(r.env).not.toHaveProperty("DATABASE_URL");
     expect(r.env).not.toHaveProperty("NOD_CREDENTIAL_KEY");
     expect(r.env).toMatchObject({
-      AGENT_BROWSER_SESSION: nomeDaSessao(A), AGENT_BROWSER_PROFILE: join(dados, nomeDaSessao(A), "perfil"), AGENT_BROWSER_ENCRYPTION_KEY: chaveDoBot(SEGREDO, A),
+      AGENT_BROWSER_SESSION: nomeDaSessao(A), AGENT_BROWSER_PROFILE: join(dados, pastaDoBot(A), "perfil"), AGENT_BROWSER_ENCRYPTION_KEY: chaveDoBot(SEGREDO, A),
       AGENT_BROWSER_IDLE_TIMEOUT_MS: "600000", AGENT_BROWSER_NO_VERSION_CHECK: "1", AGENT_BROWSER_EXECUTABLE_PATH: "/chrome",
     });
     expect(Object.values(r.env).join("\n")).not.toContain(SEGREDO.toString("hex"));
@@ -89,8 +89,12 @@ describe("argv e ambiente", () => {
 
 
   it("a sessão só tem [A-Za-z0-9_-] e a chave é por bot, hex de 64, estável", () => {
-    expect(nomeDaSessao("ab/../c d;rm")).toBe("nod-abcdrm");
+    expect(nomeDaSessao("ab/../c d;rm")).toMatch(/^nod-[0-9a-f]{12}$/);
+    expect(nomeDaSessao("ab/../c d;rm")).toBe(nomeDaSessao("abcdrm"));
+    expect(nomeDaSessao(A)).toBe(nomeDaSessao(A));
+    expect(nomeDaSessao(A)).not.toBe(nomeDaSessao("00000000-0000-4000-8000-00000000000b"));
     expect(() => nomeDaSessao("../")).toThrow(FalhaNavegador);
+    expect(() => pastaDoBot("../")).toThrow(FalhaNavegador);
     expect(chaveDoBot(SEGREDO, A)).toMatch(/^[0-9a-f]{64}$/);
     expect(chaveDoBot(SEGREDO, A)).toBe(chaveDoBot(SEGREDO, A));
     expect(chaveDoBot(SEGREDO, A)).not.toBe(chaveDoBot(SEGREDO, "outro"));
@@ -116,7 +120,7 @@ describe("argv e ambiente", () => {
 describe("o disco do perfil (cenários 22/11, ponto 09)", () => {
   it("limpar tira os caches e mantém cookies, logins e dados dos sites; apagar tira a pasta do bot", async () => {
     const m = motor();
-    const perfil = join(dados, nomeDaSessao(A), "perfil");
+    const perfil = join(dados, pastaDoBot(A), "perfil");
     const { mkdir } = await import("node:fs/promises");
     for (const c of CACHES_DO_PERFIL) { await mkdir(join(perfil, c), { recursive: true }); await writeFile(join(perfil, c, "x"), "0".repeat(1000)); }
     await mkdir(join(perfil, "Default", "IndexedDB"), { recursive: true });
@@ -127,7 +131,7 @@ describe("o disco do perfil (cenários 22/11, ponto 09)", () => {
     expect(existsSync(join(perfil, "Default", "Cookies"))).toBe(true);
     expect(existsSync(join(perfil, "Default", "Cache"))).toBe(false);
     await m.apagarPerfil!(s);
-    expect(existsSync(join(dados, nomeDaSessao(A)))).toBe(false);
+    expect(existsSync(join(dados, pastaDoBot(A)))).toBe(false);
   });
 });
 
@@ -167,7 +171,7 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
     const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => { if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false }; recebidos.push(p); await writeFile(p.args[1]!, Buffer.from([0xff, 0xd8, 0xff])); return { codigo: 0, saida: ok({ path: p.args[1] }), erro: "", estourou: false }; } });
     expect(await m.print(s)).toEqual({ jpeg: Buffer.from([0xff, 0xd8, 0xff]).toString("base64") });
     expect(recebidos.at(-1)!.args[0]).toBe("screenshot");
-    expect(await readdir(join(dados, nomeDaSessao(A), "prints"))).toEqual([]);
+    expect(await readdir(join(dados, pastaDoBot(A), "prints"))).toEqual([]);
   });
 
   it("eval vai em base64; get url, stream status e abas", async () => {
@@ -203,5 +207,169 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
     await expect(sem.ler(s)).rejects.toMatchObject({ motivo: "indisponivel" });
     expect(recebidos).toEqual([]);
     expect(sem.lugar).toEqual({ tipo: "nod" });
+  });
+});
+
+// 2026-11-24: no Mac (app desktop), todo navegador_abrir falhava com "Session name 'nod-<uuid>' is too long. Socket path
+// would be 104 bytes (max 103)". O socket do agent-browser 0.43.0 fica em <dir>/namespaces/nod/run/<sessão>.sock.
+describe("socket do daemon cabe no sun_path do macOS", () => {
+  const UUID = "991c1bb1-8a64-43ff-8a00-3c86f0d4deb8";
+  const HOME_MAC = "/Users/marlonwanderllich";
+  const TMPDIR_MAC = "/var/folders/t8/wzsw02kn58134qxsv33ynq240000gn/T/";
+
+  it("reproduz o bug: o nome antigo sob ~/.agent-browser dava 104 bytes", () => {
+    expect(Buffer.byteLength(caminhoDoSocket(join(HOME_MAC, ".agent-browser"), `nod-${UUID}`))).toBe(104);
+  });
+
+  it("com o nome novo e o diretório curto fica < 104 bytes, mesmo com HOME ou TMPDIR compridos do macOS", () => {
+    const sessao = nomeDaSessao(UUID);
+    expect(sessao).toMatch(/^nod-[0-9a-f]{12}$/);
+    const dir = dirSocketPadrao("darwin", 501)!;
+    expect(dir).toBe("/tmp/nod-ab-501");
+    expect(Buffer.byteLength(caminhoDoSocket(dir, sessao))).toBeLessThanOrEqual(LIMITE_CAMINHO_SOCKET);
+    // Sem o diretório curto (o padrão do agent-browser), só o nome curto já cabe no HOME e no TMPDIR típicos.
+    expect(Buffer.byteLength(caminhoDoSocket(join(HOME_MAC, ".agent-browser"), sessao))).toBeLessThan(104);
+    expect(Buffer.byteLength(caminhoDoSocket(join(TMPDIR_MAC, "agent-browser"), sessao))).toBeLessThan(104);
+    expect(Buffer.byteLength(caminhoDoSocket(dir, nomeDaSessao("identidade")))).toBeLessThan(104);
+  });
+
+  it("a pasta do perfil continua a de antes (nod-<id>): os logins já salvos não se perdem", () => {
+    expect(pastaDoBot(UUID)).toBe(`nod-${UUID}`);
+    expect(pastaDoBot("identidade")).toBe("nod-identidade");
+  });
+
+  it("no Windows não define AGENT_BROWSER_SOCKET_DIR", () => {
+    expect(dirSocketPadrao("win32", undefined)).toBeNull();
+  });
+
+  it("o env leva AGENT_BROWSER_SOCKET_DIR 0700 e a sessão curta; o perfil segue na pasta antiga", async () => {
+    const dir = join(dados, "ab");
+    await motor(dir).abrir(s, "https://example.com");
+    const r = recebidos.at(-1)!;
+    expect(r.env.AGENT_BROWSER_SOCKET_DIR).toBe(dir);
+    expect(r.env.AGENT_BROWSER_SESSION).toBe(nomeDaSessao(A));
+    expect(r.env.AGENT_BROWSER_PROFILE).toBe(join(dados, `nod-${A}`, "perfil"));
+    if (process.platform !== "win32") expect((await stat(dir)).mode & 0o777).toBe(0o700);
+  });
+
+  it.skipIf(process.platform === "win32")("recusa diretório de socket que é link (fica o padrão do agent-browser)", async () => {
+    const alvo = join(dados, "alvo");
+    const link = join(dados, "link");
+    await (await import("node:fs/promises")).mkdir(alvo);
+    await symlink(alvo, link);
+    expect(await prepararDirSocket(link)).toBeNull();
+    await motor(link).abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+
+  // r207 (QA-208): a checagem era feita uma vez por processo. Se a limpeza do /tmp (macOS: 3 dias; systemd-tmpfiles: 10)
+  // apaga a pasta com o motor vivo, quem a refaz é o agent-browser (medido no Chromium real: 0755) ou outro usuário que a
+  // crie antes (link ou pasta dele), e os comandos do bot — inclusive o `fill` com a senha do cofre — vão ao socket de lá.
+  it.skipIf(process.platform === "win32")("confere a pasta dos sockets a cada comando: apagada e trocada por link, sai do env", async () => {
+    const fsp = await import("node:fs/promises");
+    const dir = join(dados, "sock");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_SOCKET_DIR).toBe(dir);
+    await rm(dir, { recursive: true, force: true });
+    const alheia = join(dados, "alheia");
+    await fsp.mkdir(alheia, { mode: 0o777 });
+    await symlink(alheia, dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+
+  it.skipIf(process.platform === "win32")("a pasta apagada volta 0700 no comando seguinte", async () => {
+    const dir = join(dados, "sock2");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    await rm(dir, { recursive: true, force: true });
+    await m.url(s).catch(() => undefined);
+    expect(((await stat(dir)).mode & 0o777).toString(8)).toBe("700");
+  });
+});
+
+describe("baixar: o download direto quando o do agent-browser falha (QA do navegador no Windows, 2026-11-25)", () => {
+  const falha = (erro: string) => () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: erro }) });
+  const respondeA = (args: readonly string[]) => {
+    if (args[0] === "get" && args[1] === "attr") return { codigo: 0, saida: ok({ origin: "https://www.exemplo.com.br/docs/", value: "relatorio.pdf" }) };
+    if (args[0] === "cookies") return { codigo: 0, saida: ok({ cookies: [{ name: "sessao", value: "abc", domain: ".exemplo.com.br", path: "/", secure: true }, { name: "outro", value: "x", domain: "outro.com", path: "/" }] }) };
+    return { codigo: 0, saida: ok({}) };
+  };
+
+  it("\"Download was canceled\": segue o href do alvo com os cookies do perfil que valem para o site e grava em arquivos/", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const pedidos: { url: string; cookie: string | null }[] = [];
+    const buscar = (async (url: string, init?: RequestInit) => {
+      pedidos.push({ url, cookie: new Headers(init?.headers).get("cookie") });
+      return new Response(Buffer.from("%PDF-1.4 teste"), { status: 200, headers: { "content-length": "14" } });
+    }) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    const r = await m.baixar(s, "@e5", "relatorio.pdf");
+    expect(r).toEqual({ nome: "relatorio.pdf", bytes: 14 });
+    expect(pedidos).toEqual([{ url: "https://www.exemplo.com.br/docs/relatorio.pdf", cookie: "sessao=abc" }]);
+    expect((await stat(join(dados, pastaDoBot(A), "arquivos", "relatorio.pdf"))).size).toBe(14);
+  });
+
+  it("redirecionamento para a rede de dentro é recusado; alvo inválido não cai no download direto", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const buscar = (async () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest" } })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "x.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/endereço que o navegador do bot não abre/) });
+    respostas.push(falha("Unknown ref: e99"));
+    await expect(m.baixar(s, "@e99", "x.pdf")).rejects.toMatchObject({ motivo: "alvo_invalido" });
+  });
+
+  it("corpo sem content-length (chunked) para no teto de 200 MB sem ler o resto e não deixa arquivo pela metade (QA Nod r216)", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const MB = 1024 * 1024;
+    let lidos = 0;
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(ctl) {
+        if (lidos >= 1024 * MB) { ctl.close(); return; }
+        lidos += MB;
+        ctl.enqueue(new Uint8Array(MB));
+      },
+    });
+    const buscar = (async () => new Response(corpo, { status: 200 })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "grande.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/200 MB/) });
+    // Na main o `arrayBuffer()` lia o GB inteiro antes de olhar o tamanho.
+    expect(lidos).toBeLessThanOrEqual(202 * MB);
+    expect(existsSync(join(dados, pastaDoBot(A), "arquivos", "grande.pdf"))).toBe(false);
+  });
+
+  it("cookieVale: domínio com e sem ponto, caminho e seguro só em https", () => {
+    const u = new URL("https://app.exemplo.com.br/a/b");
+    expect(cookieVale({ domain: ".exemplo.com.br", path: "/" }, u)).toBe(true);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/a" }, u)).toBe(true);
+    expect(cookieVale({ domain: "exemplo.com", path: "/" }, u)).toBe(false);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/c" }, u)).toBe(false);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/", secure: true }, new URL("http://app.exemplo.com.br/"))).toBe(false);
+  });
+
+  it("cookieVale: cookie só do site não vai ao subdomínio e caminho casa por segmento, como no Chrome (QA r217)", () => {
+    // Formato real do `cookies` no Chromium: "lvh.me" (sem Domain=) e ".lvh.me" (Domain=lvh.me).
+    const sub = new URL("http://a.lvh.me/arquivo.pdf");
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, sub)).toBe(false);
+    expect(cookieVale({ domain: ".lvh.me", path: "/" }, sub)).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, new URL("http://lvh.me/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/contas-falsas"))).toBe(false);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta/" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+  });
+});
+
+describe("abas: o stream acompanha a aba nova (QA do navegador no Windows, 2026-11-25)", () => {
+  it("depois de abrir ou fechar, seleciona de novo a aba ativa; se a lista falhar, a aba nova continua aberta", async () => {
+    const lista = () => ({ codigo: 0, saida: ok({ tabs: [{ tabId: "t1", title: "A", url: "https://a.com/", active: false }, { tabId: "t2", title: "B", url: "https://b.com/", active: true }] }) });
+    respostas.push(() => ({ codigo: 0, saida: ok({}) }), lista, () => ({ codigo: 0, saida: ok({}) }));
+    await motor().abaNova(s, "https://b.com/");
+    expect(recebidos.map((r) => r.args.slice(0, 3))).toEqual([["tab", "new", "https://b.com/"], ["tab", "--session", nomeDaSessao(A)], ["tab", "t2", "--session"]]);
+    recebidos = [];
+    respostas.push(() => ({ codigo: 0, saida: ok({}) }), () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "falhou" }) }));
+    await expect(motor().abaFechar(s, "t1")).resolves.toBeUndefined();
+    expect(recebidos.map((r) => r.args[1])).toEqual(["close", "--session"]);
   });
 });

@@ -73,6 +73,12 @@ export type FatosDoFim = {
   queda?: MotivoInterrupcao | null;
   /** O bot roda numa IA só ("Uma IA só"). */
   botFixo?: boolean;
+  /**
+   * QA da instalação no Windows (PR #327, achado 4): o turno não tinha sessão nenhuma para retomar (a 1ª mensagem da
+   * conversa). Aí a recusa antes do início (`sessao_rejeitada`) não é "a sessão sumiu": é a IA que não abriu. Ausente =
+   * não se sabe, e vale a leitura de antes.
+   */
+  semSessao?: boolean;
 };
 
 /** "No conversation found": o `--resume` de uma sessão que não está mais na máquina (o CLI fecha com `result` de erro). */
@@ -89,7 +95,8 @@ export function reconhecerDesvio(f: FatosDoFim): IdDesvio | null {
   if (queda === "maquina_sem_contato") return "computador_dormiu";
   if (f.motivoInterrupcao === "parado_pela_pessoa" || f.motivoInterrupcao === "absorvido" || f.motivoInterrupcao === "vencido") return null;
   if (f.causaSemIa) return "sem_acesso";
-  if (f.motivoInterrupcao === "sessao_rejeitada" || (f.erroCru && SESSAO_SUMIU.test(f.erroCru))) return "sessao_sumiu";
+  const recusaSemSessao = f.motivoInterrupcao === "sessao_rejeitada" && f.semSessao === true;
+  if ((f.motivoInterrupcao === "sessao_rejeitada" && !recusaSemSessao) || (f.erroCru && SESSAO_SUMIU.test(f.erroCru))) return "sessao_sumiu";
   if (f.motivoInterrupcao === "lancamento_falhou") return "ia_nao_abriu";
   if (f.motivoFalha === "limite_do_plano") return f.botFixo ? "limite_bot_fixo" : "limite";
   if (f.motivoInterrupcao === "executor_indisponivel") return "sem_ia_pronta";
@@ -98,6 +105,9 @@ export function reconhecerDesvio(f: FatosDoFim): IdDesvio | null {
   if (classe === "login_expirado") return "login_vencido";
   if (classe === "transitorio") return "instavel";
   if (classe !== "desconhecido") return null;
+  // A IA fechou antes de começar sem sessão para retomar (CLI quebrado, shim errado): o cartão do "não abriu", com o
+  // Reinstalar, no lugar do "não conseguiu recomeçar" de uma sessão que nunca existiu.
+  if (recusaSemSessao) return "ia_nao_abriu";
   // Sem classe: o erro que o nod não conhece (inclusive o que chegou sem texto nenhum).
   return f.motivoFalha === "erro_execucao" || f.motivoInterrupcao === "sem_progresso" || f.motivoInterrupcao === "trabalho_incompleto" ? "erro_desconhecido" : null;
 }

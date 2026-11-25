@@ -101,6 +101,11 @@ export async function guardarMaquinaDoMotor(pasta: string, m: { id: string; cone
  * gravar a chave nova. Se o `conexao.json` anterior era do MESMO servidor e de outra chave, ela é aposentada com ela mesma
  * (prova de posse: o servidor revoga só a chave do Bearer) — sem isso ela ficaria viva no servidor sem ninguém usá-la.
  * Melhor esforço: rede fora ou chave já revogada (401) não derrubam o pareamento. true = o servidor confirmou.
+ *
+ * Definido em 2026-11-24 (sucessão de chave): a chave nova vai no corpo (`sucessora`). O servidor passa para ela os bots,
+ * a máquina padrão, as sessões e o navegador presos à antiga, e só então revoga. O app do Mac chama o mesmo a cada
+ * repareamento (menu Conexão, login dentro do app). Servidor antigo ignora o campo e só revoga, como antes; a chave nova
+ * de OUTRA pessoa (trocar de conta) responde 409 e a antiga fica como estava.
  */
 export async function aposentarChaveAntiga(
   anterior: ConexaoMotor | null,
@@ -113,7 +118,7 @@ export async function aposentarChaveAntiga(
     const r = await f(`${nova.url}/api/maquina/aposentar`, {
       method: "POST", redirect: "error",
       headers: { authorization: `Bearer ${anterior.chave}`, "x-nod-versao": versao, "content-type": "application/json" },
-      body: "{}", signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({ sucessora: nova.chave }), signal: AbortSignal.timeout(15_000),
     });
     return r.ok;
   } catch {

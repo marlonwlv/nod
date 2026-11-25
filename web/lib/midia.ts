@@ -2,6 +2,7 @@ import type { AnexoDaConversa, MotivoRecusaMidia, RecusasMidia } from "../../src
 import { renderCardArquivo, tamanhoHumano } from "./anexos.ts";
 import { familiaDoArquivo, iconeDoArquivo } from "./icones-arquivo.ts";
 import { esc } from "./escape.ts";
+import { deNome } from "./navegador-vista.ts";
 
 /**
  * NOD-323 (ADR-126, protótipo v3.1): a mídia que o bot anexou, ABAIXO do balão da fala, na ordem anexada. Render puro
@@ -237,7 +238,8 @@ export const MOTIVOS_RECUSA_WEB = Object.keys(TEXTO_RECUSA_WEB) as MotivoRecusaM
 export function textoRecusas(recusas: RecusasMidia | undefined, bot?: string): string | null {
   const validas = (recusas ?? []).filter((r) => TEXTO_RECUSA_WEB[r.motivo] && r.n > 0);
   if (validas.length === 0) return null;
-  const doBot = bot ? `do ${bot}` : "do bot";
+  // QA do Windows (2026-11-25): "fica fora da pasta do Bia" — o artigo segue o nome, como no navegador.
+  const doBot = bot ? deNome(bot) : "do bot";
   const frase = (r: { motivo: MotivoRecusaMidia; n: number }) => TEXTO_RECUSA_WEB[r.motivo][r.n === 1 ? 0 : 1].replace("{bot}", doBot);
   const total = validas.reduce((s, r) => s + r.n, 0);
   const cabeca = total === 1 ? "1 arquivo não foi anexado" : `${total} arquivos não foram anexados`;
