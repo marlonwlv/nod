@@ -136,14 +136,14 @@ export const criarRotina: CasoNod<Deps, "criar_rotina"> = async (deps, input) =>
     try {
       const ativada = await ativarRotina(deps, { propostaId: proposta.id, porRegra });
       const endereco = ativada.data.prefixo ? { endereco: enderecoMascarado(ativada.data.prefixo) } : {};
-      return { data: { proposta_id: proposta.id, proxima_execucao: ativada.data.rotina.proximaExecucao, resumo: payload.resumo, aplicada: true, ...endereco }, events: [...events, ...(ativada.events ?? [])] };
+      return { data: { proposta_id: proposta.id, proxima_execucao: ativada.data.rotina.proximaExecucao, ...proximaLocal(payload, ativada.data.rotina.proximaExecucao), resumo: payload.resumo, aplicada: true, ...endereco }, events: [...events, ...(ativada.events ?? [])] };
     } catch (e) {
       // Teto de rotinas etc.: a proposta fica no card, como no manual, e o modelo lê o código.
       if (!ehErroDeDominio(e)) throw e;
     }
   }
   if (decisao) events.push(evento(deps, "decisao_criada", autoria, { decisaoId: decisao.id, tipo: "rotina" }, { conversaId: input.conversaId, turnoId: input.turnoId }));
-  return { data: { proposta_id: proposta.id, proxima_execucao: payload.proximaExecucao, resumo: payload.resumo }, events };
+  return { data: { proposta_id: proposta.id, proxima_execucao: payload.proximaExecucao, ...proximaLocal(payload), resumo: payload.resumo }, events };
 };
 
 type CamposDaRotina = Pick<PayloadPropostaRotina, "cron" | "fusoIana" | "instrucao" | "fonte" | "entregavel" | "limitesAprovacao" | "politicaSemDado"> & {
@@ -164,16 +164,16 @@ async function rotinaRepetida(
   input: { agenteId: string; conversaId: string },
   payload: PayloadPropostaRotina,
   peloModo: boolean,
-): Promise<{ proposta_id: string; proxima_execucao: number; resumo: string; aplicada?: true } | null> {
+): Promise<{ proposta_id: string; proxima_execucao: number; proxima_execucao_local?: string; resumo: string; aplicada?: true } | null> {
   const chave = chaveDaRotina(payload);
   if (peloModo) {
     const igual = (await deps.repos.rotinas.listarDoAgente(input.agenteId)).find((r) => r.estado === "ativa" && chaveDaRotina(r) === chave);
-    return igual ? { proposta_id: igual.id, proxima_execucao: igual.proximaExecucao, resumo: payload.resumo, aplicada: true } : null;
+    return igual ? { proposta_id: igual.id, proxima_execucao: igual.proximaExecucao, ...proximaLocal(payload, igual.proximaExecucao), resumo: payload.resumo, aplicada: true } : null;
   }
   for (const p of await deps.repos.propostas.pendentesDaConversa(input.conversaId)) {
     if (p.agenteId !== input.agenteId || p.payload.kind !== "rotina" || chaveDaRotina(p.payload) !== chave) continue;
     const decisao = await deps.repos.decisoes.buscar(p.id);
-    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { proposta_id: p.id, proxima_execucao: p.payload.proximaExecucao, resumo: p.payload.resumo };
+    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { proposta_id: p.id, proxima_execucao: p.payload.proximaExecucao, ...proximaLocal(p.payload), resumo: p.payload.resumo };
   }
   return null;
 }
@@ -207,7 +207,7 @@ async function criarRotinaParaBot(deps: Deps, input: Parameters<CasoNod<Deps, "c
   const autoria = autoriaAgente(input.agenteId, deps.escopo.pessoaId);
   const events: RuntimeEvent[] = [evento(deps, "proposta_criada", autoria, { propostaId: proposta.id, kind: "rotina", proximaExecucao: payload.proximaExecucao }, { conversaId: alvo.conversaId })];
   if (decisao) events.push(evento(deps, "decisao_criada", autoria, { decisaoId: decisao.id, tipo: "rotina" }, { conversaId: alvo.conversaId }));
-  return { data: { proposta_id: proposta.id, proxima_execucao: payload.proximaExecucao, resumo: payload.resumo }, events };
+  return { data: { proposta_id: proposta.id, proxima_execucao: payload.proximaExecucao, ...proximaLocal(payload), resumo: payload.resumo }, events };
 }
 
 export type SaidaCriarRotinaPelaPessoa = { rotina: Rotina; proposta: Proposta | null; decisao: Decisao | null };
@@ -256,6 +256,15 @@ export const criarRotinaPelaPessoa: CasoDeUso<EntradaRotina & { agenteId: string
 /** O que o bot e o card mostram do endereço: o prefixo e reticências. O inteiro só sai pela tela da dona (Copiar). */
 export function enderecoMascarado(prefixo: string): string {
   return `/api/w/${prefixo}…`;
+}
+
+/**
+ * PR #333 (achado 3, QA do rc.10 no Windows): a próxima execução por extenso no fuso da rotina ("25/11/2026, 09:00
+ * (America/Sao_Paulo)"), junto do epoch. Só com o número, o bot fazia a conta no relógio da máquina (UTC) e confirmava
+ * "amanhã, 26/11" para a rotina que roda hoje às 9h de Brasília. Webhook não tem próxima execução: nada.
+ */
+function proximaLocal(payload: Pick<PayloadPropostaRotina, "proximaExecucao" | "fusoIana" | "gatilho">, proxima = payload.proximaExecucao): { proxima_execucao_local?: string } {
+  return payload.gatilho === "webhook" ? {} : { proxima_execucao_local: `${carimbo(proxima, payload.fusoIana, { rotulo: false })} (${payload.fusoIana})` };
 }
 
 /** A frase da decisão em "Sua vez". NOD-84: a rotina por webhook não tem próxima execução (a sentinela nunca aparece). */

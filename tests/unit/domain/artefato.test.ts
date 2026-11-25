@@ -29,6 +29,14 @@ describe("domínio do artefato (ADR-051)", () => {
     ciclo.eu = ciclo;
     expect(() => validarEstado(ciclo)).toThrow("entrada_invalida");
     expect(() => validarEstado({ x: "a\u0000" })).toThrow("entrada_invalida");
+    // QA-219: a recusa olhava o TEXTO serializado; uma barra digitada seguida de "u0000" (caminho, trecho de código)
+    // não é NUL e era recusada. O surrogate solto, que o jsonb recusa (22P05), passava.
+    expect(validarEstado({ nota: "C:\\u0000\\pasta" })).toBe('{"nota":"C:\\\\u0000\\\\pasta"}');
+    expect(validarEstado({ "\\u0000": 1 })).toBe('{"\\\\u0000":1}');
+    expect(() => validarEstado({ x: "a\ud800" })).toThrow("entrada_invalida");
+    expect(() => validarEstado({ "\u0000": 1 })).toThrow("entrada_invalida");
+    expect(() => validarEstado(["ok", { y: ["\udc00"] }])).toThrow("entrada_invalida");
+    expect(validarEstado({ e: "😀" })).toBe('{"e":"😀"}');
     // 2 bytes por "é": o teto é de BYTES, não de caracteres.
     const cabe = "é".repeat((ESTADO_MAX_BYTES_ARTEFATO - 2) / 2);
     expect(bytesUtf8(validarEstado(cabe))).toBe(ESTADO_MAX_BYTES_ARTEFATO);

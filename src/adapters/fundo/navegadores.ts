@@ -260,6 +260,12 @@ export const MS_DESAFIO_CONFERIR = 2500;
 const CONFEREM_DESAFIO: ReadonlySet<string> = new Set(["navegador_abrir", "navegador_ler", "navegador_ver", "navegador_clicar", "navegador_tecla", "navegador_procurar", "navegador_historico"]);
 export const INSTRUCAO_DO_DESAFIO = "A página mostra uma verificação de humano (CAPTCHA). O nod já passou o navegador para a pessoa, com o pedido na conversa: não peça no chat nem tente resolver. Encerre o turno; ela devolve e você continua.";
 /** As ferramentas cujo alvo a pessoa vê na imagem: o passo leva a caixa dele (o cursor com o nome e o anel, D2 C). */
+/**
+ * O que baixar e PDF devolvem ao bot (QA-205): o arquivo fica na pasta do navegador, fora dos Arquivos do bot e da
+ * conversa, até o TODO de levar o arquivo aos Arquivos sair. Sem isso o bot conta à pessoa que guardou onde ela não vê.
+ */
+export const ARQUIVO_SO_NO_NAVEGADOR = "O arquivo ficou na pasta do navegador do bot: dá para enviá-lo a um site com navegador_enviar_arquivo, mas ele ainda não aparece nos Arquivos do bot nem dá para anexá-lo na conversa. Não diga à pessoa que ele está nos Arquivos.";
+
 const FERRAMENTAS_COM_ALVO_NA_TELA: ReadonlySet<string> = new Set(["navegador_clicar", "navegador_preencher", "navegador_digitar", "navegador_selecionar", "navegador_marcar", "navegador_passar_mouse", "navegador_baixar", "navegador_enviar_arquivo", "navegador_rolar"]);
 
 function tipoDoPasso(ferramenta: string): PassoNavegador["tipo"] {
@@ -322,6 +328,7 @@ const ERRO_LOGIN: Readonly<Record<string, string>> = {
   acao_falhou: "Não deu para preencher agora. Tente de novo.",
   site_mudou: "A página mudou de site. Peça o login de novo.",
   sem_cookies: "O seu Chrome não tem uma sessão deste site.",
+  login_saiu: "Esse login saiu do cofre. Escolha outro ou entre você mesmo.",
 };
 const PESSOA_FAZ = { erro: "a_pessoa_faz", instrucao: "Trocar senha, e-mail ou a segurança da conta é sempre a pessoa que faz. Nada foi executado. Chame navegador_pedir_ajuda com o motivo e encerre o turno." };
 
@@ -352,7 +359,15 @@ function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; i
 export function tarefasParaOBot(tarefas: readonly TarefaEnsinada[], nome: unknown): Record<string, unknown> {
   if (!tarefas.length) return { tarefas: [], instrucao: "Nenhuma tarefa foi ensinada a você no navegador ainda." };
   const pedido = typeof nome === "string" ? nome.trim().toLowerCase() : "";
-  const achada = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) ?? tarefas.find((t) => t.nome.toLowerCase().includes(pedido)) : undefined;
+  const exata = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) : undefined;
+  // Pedaço que bate em tarefas de nomes diferentes não escolhe calado (QA-238); o mesmo nome ensinado de novo vale a mais nova.
+  const parciais = pedido && !exata ? tarefas.filter((t) => t.nome.toLowerCase().includes(pedido)) : [];
+  const vistas = new Set<string>();
+  const candidatas = parciais.filter((t) => !vistas.has(t.nome.toLowerCase()) && Boolean(vistas.add(t.nome.toLowerCase())));
+  if (candidatas.length > 1) {
+    return { tarefas: candidatas.map((t) => ({ nome: t.nome, passos: t.passos.length })), erro: "nome_ambiguo", instrucao: "Mais de uma tarefa tem esse pedaço no nome. Chame de novo com o nome inteiro da que a pessoa pediu; se não der para saber qual, pergunte a ela." };
+  }
+  const achada = exata ?? candidatas[0];
   if (achada) return { nome: achada.nome, passos: achada.passos, instrucao: "Estes são os passos que a pessoa fez com as próprias mãos. Repita-os no navegador, lendo a página antes de cada passo; os campos marcados como não gravados você pede a ela (navegador_entrar ou navegador_pedir_ajuda)." };
   return { tarefas: tarefas.map((t) => ({ nome: t.nome, passos: t.passos.length })), ...(pedido ? { erro: "tarefa_inexistente" } : {}), instrucao: "Chame de novo com o nome de uma destas tarefas para ver os passos." };
 }
@@ -983,12 +998,12 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       case "navegador_baixar": {
         const r = await m.baixar(s, alvo, typeof args.nome === "string" && args.nome ? args.nome : `download-${agora()}`);
         // TODO(2026-11-20): levar o arquivo aos Arquivos do bot (hoje fica na pasta do navegador no servidor).
-        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes } };
+        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes, instrucao: ARQUIVO_SO_NO_NAVEGADOR } };
       }
       case "navegador_enviar_arquivo": await m.enviarArquivo(s, alvo, (args.arquivos as string[]) ?? []); break;
       case "navegador_pdf": {
         const r = await m.pdf(s, typeof args.nome === "string" && args.nome ? args.nome : `pagina-${agora()}`);
-        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes } };
+        return { conteudo: { ok: true, arquivo: r.nome, bytes: r.bytes, instrucao: ARQUIVO_SO_NO_NAVEGADOR } };
       }
       case "navegador_procurar": await m.procurar(s, { por: args.por as "texto", valor: String(args.valor), acao: args.acao as "clicar", ...(typeof args.texto === "string" ? { texto: args.texto } : {}), ...(typeof args.nome === "string" ? { nome: args.nome } : {}) }); break;
       case "navegador_avaliar": {
@@ -1620,6 +1635,13 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const s = sessao(agenteId);
       if (escolha !== "chrome" && escolha.fonte === "nod") {
         const item = await o.dentro(escopo, (d) => d.repos.cofreLogins.paraPreencher(escolha.ref));
+        const noCartao = (x: OpcaoLogin) => x.fonte === "nod" && x.ref === escolha.ref;
+        if (!item && pedido.opcoes.some(noCartao)) {
+          // QA-203: o login saiu do cofre (apagado na tela Cofre, noutra aba) depois que o cartão montou as opções. O cartão
+          // perde a opção que sumiu e diz por quê, em vez de um "não encontrado" solto que se repete a cada clique.
+          mudar(est, { pedido: { ...pedido, opcoes: pedido.opcoes.filter((x) => !noCartao(x)), etapa: "escolher", erro: ERRO_LOGIN.login_saiu! } });
+          throw new ErroDeDominio("estado_invalido", { cause: "login_saiu" });
+        }
         if (!item || !itemCasaComHost(item.site, host)) throw new ErroDeDominio("nao_encontrado", { cause: "login" });
         let r: { usuario: boolean; senha: boolean };
         try {

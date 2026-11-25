@@ -59,7 +59,10 @@ export const concederLote: CasoDeUso<EntradaConcederLote, SaidaConcederLote> = a
   const capacidades = [...new Set(input.capacidades)];
   if (capacidades.length === 0) throw new ErroDeDominio("entrada_invalida", { cause: "nenhuma capacidade para conceder" });
   const agora = deps.agora();
-  const agente = await deps.repos.agentes.buscar(input.agenteId);
+  // QA-121: a linha do bot fica TRAVADA até o fim da tx (FOR UPDATE, só vivo e da dona). O excluir apaga as concessões
+  // do bot sob a mesma linha: sem a trava, um "Permitir" que já tinha lido o bot vivo gravava depois do excluir, e o bot
+  // excluído ficava com o acesso — que o Restaurar devolvia, contra a ADR-034. Agora um espera o outro.
+  const agente = await deps.repos.agentes.buscarParaAtualizar(input.agenteId);
   if (!agente) throw new ErroDeDominio("nao_encontrado", { cause: "agente" });
   const conector = await deps.repos.conectores.buscar(input.conectorId);
   if (!conector) throw new ErroDeDominio("nao_encontrado", { cause: "conector" });

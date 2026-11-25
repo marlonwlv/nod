@@ -129,7 +129,7 @@ export function renderDecisoes(estado: Estado, bot: Bot, vista: VistaDaAtividade
   }
   const total = pagina.contagem.permitida + pagina.contagem.negada + pagina.contagem.cartao;
   if (dia === hoje && total === 0 && !pagina.haAntes) {
-    return painel(`<p class="dec-primeira">Nenhuma decisão ainda. Quando o ${esc(bot.nome)} usar um app, cada permissão aparece aqui, com a regra que decidiu.</p>`);
+    return painel(`<p class="dec-primeira">Nenhuma decisão ainda. Quando ${esc(bot.nome)} usar um app, cada permissão aparece aqui, com a regra que decidiu.</p>`);
   }
   const grupos = agruparRepeticoes(pagina.linhas);
   const doFiltro = totalDoFiltro(pagina.contagem, filtro);

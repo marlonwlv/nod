@@ -151,3 +151,40 @@ it.each(["automatico", "total"] as const)("confirmação explicitamente pedida p
 });
 
 });
+
+describe("quem_destrava com nome repetido ou desconhecido (QA-236)", () => {
+  const ANA_LIMA = "00000000-0000-4000-8000-0000000a11aa";
+  const ANA_SOUZA = "00000000-0000-4000-8000-0000000a22bb";
+  async function cenario() {
+    const { deps, banco } = depsEmMemoria();
+    banco.pessoas.push({ tenantId: MARLON.tenantId, id: MARLON.pessoaId, nome: "Marlon", iniciais: "M", email: null });
+    banco.pessoas.push({ tenantId: MARLON.tenantId, id: ANA_LIMA, nome: "Ana Lima", iniciais: "AL", email: null });
+    banco.pessoas.push({ tenantId: MARLON.tenantId, id: ANA_SOUZA, nome: "Ana Souza", iniciais: "AS", email: null });
+    const { data: bot } = await criarAgente(deps, { dono: "pessoa", nome: "Nina" });
+    const turno = await deps.repos.turnos.enfileirar({ executor: "catcher", conversaId: bot.conversa.id, agenteId: bot.agente.id, origem: "conversa", prazoEm: deps.agora() + 60_000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "sonnet" });
+    if (!turno) throw new Error("turno");
+    const pedir = (quem: string) => pedirAPessoa(deps, { turnoId: turno.id, conversaId: bot.conversa.id, agenteId: bot.agente.id, tipo: "pergunta", texto: "Posso publicar?", quem_destrava: quem });
+    return { banco, pedir };
+  }
+
+  it("primeiro nome de duas pessoas: não escolhe uma calada; vai à dona e o aviso traz o id de cada homônima", async () => {
+    const { banco, pedir } = await cenario();
+    const r = await pedir("ana");
+    expect(banco.decisoes.find((d) => d.id === r.data.decisao_id)?.decisorId).toBe(MARLON.pessoaId);
+    expect(r.data.aviso).toContain(ANA_LIMA);
+    expect(r.data.aviso).toContain(ANA_SOUZA);
+    expect(r.data.aviso).toContain("Marlon");
+  });
+
+  it("nome que não existe vai à dona com aviso; nome inteiro, primeiro nome único e id acertam sem aviso", async () => {
+    const { banco, pedir } = await cenario();
+    const fantasma = await pedir("Beatriz");
+    expect(banco.decisoes.find((d) => d.id === fantasma.data.decisao_id)?.decisorId).toBe(MARLON.pessoaId);
+    expect(fantasma.data.aviso).toContain("Beatriz");
+    for (const [quem, id] of [["Ana Souza", ANA_SOUZA], [ANA_LIMA, ANA_LIMA], ["marlon", MARLON.pessoaId]] as const) {
+      const r = await pedir(quem);
+      expect(banco.decisoes.find((d) => d.id === r.data.decisao_id)?.decisorId).toBe(id);
+      expect(r.data.aviso).toBeUndefined();
+    }
+  });
+});

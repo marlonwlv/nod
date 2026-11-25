@@ -49,7 +49,7 @@ describe("fraseDaTroca", () => {
     expect(fraseDaTroca({ nomeDe: "ChatGPT", nomePara: "ChatGPT", nomeDoBot: "Eng 1", recomendacao: "levar", tasks: 2, fixo: false, voltaEm: null, quando, contaDe: "Pessoal" }))
       .toBe("A conta Pessoal do ChatGPT chegou ao limite · o ChatGPT não disse quando volta. Para as 2 tarefas, recomendo levar para outra conta do ChatGPT: recomeçam do resumo, mas não ficam paradas.");
     expect(fraseDaTroca({ nomeDe: "Claude", nomePara: null, nomeDoBot: "Eng 1", recomendacao: "esperar", tasks: 1, fixo: false, voltaEm: AGORA, quando, foraDaMaquina: { nome: "ChatGPT", maquina: "vm-bots" } }))
-      .toBe("O Claude chegou ao limite · volta às 20:50. O ChatGPT não está em vm-bots, a máquina do Eng 1. Para a tarefa, recomendo esperar o Claude: continuam de onde pararam.");
+      .toBe("O Claude chegou ao limite · volta às 20:50. O ChatGPT não está em vm-bots, a máquina de Eng 1. Para a tarefa, recomendo esperar o Claude: continuam de onde pararam.");
   });
 
   it("NOD-401: a conta que parou (a IA inteira na máquina) dá o apelido sem mudar o destino do 'levar'", () => {

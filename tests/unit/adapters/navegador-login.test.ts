@@ -45,6 +45,8 @@ let cofreCriados: { site: string; usuario: string; senhaCifrada: string }[];
 let respostas: unknown[];
 let mac: { ligado: boolean; lista: Awaited<ReturnType<MacDaPessoa["listar"]>>; chamadas: { op: string; args: unknown[] }[]; touch: "confirmado" | "recusado"; falhaLer: FalhaNavegador | null; cookies: { name: string; value: string; domain: string; path: string; expires: number; secure: boolean; httpOnly: boolean; sameSite: "Lax" }[] };
 let lugarMac: boolean;
+/** QA-203: o login do Itaú apagado na tela Cofre depois que o cartão montou as opções. */
+let loginApagado: boolean;
 
 const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
   get(_t, op: string) {
@@ -90,8 +92,8 @@ const deps = () => ({
     },
     navegadorTarefas: { doAgente: async () => [] },
     cofreLogins: {
-      listar: async () => [{ id: LOGIN_ID, site: "itau.com.br", usuario: "marlon@exemplo.com", criadoEm: T0 }, { id: "outro", site: "bradesco.com.br", usuario: "m", criadoEm: T0 }],
-      paraPreencher: async (id: string) => (id === LOGIN_ID ? { site: "itau.com.br", usuario: "marlon@exemplo.com", senhaCifrada: `c:${SENHA}` } : null),
+      listar: async () => [...(loginApagado ? [] : [{ id: LOGIN_ID, site: "itau.com.br", usuario: "marlon@exemplo.com", criadoEm: T0 }]), { id: "outro", site: "bradesco.com.br", usuario: "m", criadoEm: T0 }],
+      paraPreencher: async (id: string) => (id === LOGIN_ID && !loginApagado ? { site: "itau.com.br", usuario: "marlon@exemplo.com", senhaCifrada: `c:${SENHA}` } : null),
       criar: async (l: { site: string; usuario: string; senhaCifrada: string }) => { cofreCriados.push(l); return { id: "novo", site: l.site, usuario: l.usuario, criadoEm: agora }; },
     },
     paradas: { ativa: async () => false },
@@ -171,6 +173,7 @@ beforeEach(() => {
   logs.length = 0;
   mac = { ligado: true, lista: [{ fonte: "1password", ref: "op://v1/i1/password", rotulo: "Itaú · marlon@…", disponivel: true }], chamadas: [], touch: "confirmado", falhaLer: null, cookies: [{ name: "sessao", value: "abc", domain: ".itau.com.br", path: "/", expires: -1, secure: true, httpOnly: true, sameSite: "Lax" }] };
   lugarMac = false;
+  loginApagado = false;
 });
 
 describe("L1: o cartão de login monta as opções sem segredo", () => {
@@ -204,6 +207,18 @@ describe("L1: o cartão de login monta as opções sem segredo", () => {
 });
 
 describe("L3: preencher sem o bot ver", () => {
+  it("QA-203: login apagado do cofre com o cartão aberto — a opção sai do cartão, que diz por quê; nada é digitado", async () => {
+    const n = criar();
+    const decisao = await noLoginDoItau(n);
+    loginApagado = true;
+    const e = await n.escolherLogin(MARLON, A, decisao, { fonte: "nod", ref: LOGIN_ID }).catch((x: unknown) => x);
+    expect(e).toMatchObject({ codigo: "estado_invalido", cause: "login_saiu" });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { tipo: "login", decisaoId: decisao, etapa: "escolher", erro: expect.stringContaining("saiu do cofre"), opcoes: [{ fonte: "1password" }] } });
+    expect(JSON.stringify(n.vista(MARLON, A)!.pedido)).not.toContain(LOGIN_ID);
+    expect(ops()).not.toContain("inserirTexto");
+    expect(retomadas).toEqual([]);
+  });
+
   it("cofre do nod: o servidor decifra e digita pelo relay; a senha não aparece em mais nada; a página trava", async () => {
     const n = criar();
     const decisao = await noLoginDoItau(n);
