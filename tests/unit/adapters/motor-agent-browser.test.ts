@@ -261,4 +261,30 @@ describe("socket do daemon cabe no sun_path do macOS", () => {
     await motor(link).abrir(s, "https://example.com");
     expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
   });
+
+  // r207 (QA-208): a checagem era feita uma vez por processo. Se a limpeza do /tmp (macOS: 3 dias; systemd-tmpfiles: 10)
+  // apaga a pasta com o motor vivo, quem a refaz é o agent-browser (medido no Chromium real: 0755) ou outro usuário que a
+  // crie antes (link ou pasta dele), e os comandos do bot — inclusive o `fill` com a senha do cofre — vão ao socket de lá.
+  it.skipIf(process.platform === "win32")("confere a pasta dos sockets a cada comando: apagada e trocada por link, sai do env", async () => {
+    const fsp = await import("node:fs/promises");
+    const dir = join(dados, "sock");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_SOCKET_DIR).toBe(dir);
+    await rm(dir, { recursive: true, force: true });
+    const alheia = join(dados, "alheia");
+    await fsp.mkdir(alheia, { mode: 0o777 });
+    await symlink(alheia, dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+
+  it.skipIf(process.platform === "win32")("a pasta apagada volta 0700 no comando seguinte", async () => {
+    const dir = join(dados, "sock2");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    await rm(dir, { recursive: true, force: true });
+    await m.url(s).catch(() => undefined);
+    expect(((await stat(dir)).mode & 0o777).toString(8)).toBe("700");
+  });
 });
