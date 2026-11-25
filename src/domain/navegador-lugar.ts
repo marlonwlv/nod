@@ -71,7 +71,8 @@ export function resolverLugar(e: EntradaLugar): ResolucaoLugar {
  */
 export function sujeitoDoBot(nome: string): string {
   const n = nome.trim();
-  return `${/a$/iu.test(n) ? "A" : "O"} ${n}`;
+  // A primeira palavra decide (2026-11-25): "Leitor QA" é "O Leitor QA".
+  return `${/a$/u.test((n.split(/\s+/u)[0] ?? "").toLowerCase()) ? "A" : "O"} ${n}`;
 }
 
 /** "ela"/"ele" a partir do sujeito ("A Ada" → "ela"); sem artigo, nada (a frase segue sem o pronome). */

@@ -17,6 +17,19 @@ export default defineConfig({
   // migram uma a uma; o dev recarrega a página.
   esbuild: { jsx: "automatic", jsxImportSource: "react" },
   publicDir: "public",
+  // ADR-194: no dev, /backoffice/* abre o app do backoffice (em produção quem decide é o servidor, que também confere a
+  // sessão e o papel antes de servir a página; no dev a guarda fica só na API /api/backoffice/*).
+  plugins: [
+    {
+      name: "nod-backoffice-dev",
+      configureServer(servidor) {
+        servidor.middlewares.use((req, _res, proximo) => {
+          if (/^\/backoffice(?:[/?]|$)/.test(req.url ?? "")) req.url = "/backoffice.html";
+          proximo();
+        });
+      },
+    },
+  ],
   server: {
     host: "127.0.0.1",
     port: Number(process.env.NOD_WEB_PORT ?? "5274"),
@@ -60,8 +73,8 @@ export default defineConfig({
     // NOD-328: o renderizador de diagramas é uma 2ª entrada, com nome fixo fora de /assets (o iframe sandbox pede pelo
     // nome; no-cache em estatico.ts). O mermaid e os chunks dele ficam em /assets, com hash, e só baixam no 1º diagrama.
     rollupOptions: {
-      // ADR-167 (tela 01 do Paper): a vitrine do design system é uma página interna, /design-system.html.
-      input: { index: path.resolve("web/index.html"), diagrama: path.resolve("web/sandbox/diagrama.ts"), "design-system": path.resolve("web/design-system.html") },
+      // ADR-167 (tela 01 do Paper): a vitrine do design system é uma página interna, /design-system.html. ADR-194: o backoffice (/backoffice) é outra entrada.
+      input: { index: path.resolve("web/index.html"), diagrama: path.resolve("web/sandbox/diagrama.ts"), "design-system": path.resolve("web/design-system.html"), backoffice: path.resolve("web/backoffice.html") },
       output: { entryFileNames: (chunk) => (chunk.name === "diagrama" ? "diagrama/sandbox.js" : "assets/[name]-[hash].js") },
     },
   },

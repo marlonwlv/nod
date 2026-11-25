@@ -230,7 +230,7 @@ descrever("Jornadas da IA · lote B: mandar uma mensagem", () => {
     const saiu = await mac.puxarAte(undefined, conversaId);
     expect(await mac.entregar(saiu, { desfecho: "sucesso", texto: "Revisei o #225: está pronto para o merge." })).toBe(200);
     await assentado(saiu.turnoId);
-    await printar("desvio-02-login-vencido/b-sem-outra-conta", "03-entrou-e-respondeu", conversaId, `${tem("pronto para o merge")} && ${fechou("A mensagem saiu")}`);
+    await printar("desvio-02-login-vencido/b-sem-outra-conta", "03-entrou-e-respondeu", conversaId, `${tem("pronto para o merge")} && ${fechou("A conversa seguiu")}`);
   }, 180_000);
 
   it("desvio 2 · o login venceu e não há outra conta: o Cancelar tira a mensagem da espera", async () => {

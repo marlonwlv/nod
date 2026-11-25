@@ -198,3 +198,22 @@ describe("revisão 27 do PR #642 (médio): o npx.cmd que vem com o Node vira nod
     expect(resolverBinario("npx", { plataforma: "win32", env, disco: d })).toEqual({ bin: `${NODE}\\node.exe`, args: [`${NODE}\\node_modules\\npm\\bin\\npx-cli.js`] });
   });
 });
+
+describe("QA Windows rc.10: o shim que o instalador do nod grava (caminhos absolutos) vira node + script, não o .ps1", () => {
+  const NODE = "C:\\Users\\Administrator\\AppData\\Local\\nod\\node\\node.exe";
+  const CODEX_JS = `${NPM}\\node_modules\\@openai\\codex\\bin\\codex.js`;
+  const SHIM_DO_NOD = `@echo off\r\n"${NODE}" "${CODEX_JS}" %*\r\n`;
+  it("codex.cmd do FixarNodeNosShims ganha do codex.ps1", () => {
+    const d = disco({ [`${NPM}\\codex.cmd`]: SHIM_DO_NOD, [`${NPM}\\codex.ps1`]: "", [NODE]: "", [CODEX_JS]: "" });
+    expect(resolverBinario("codex", { ...win, disco: d })).toEqual({ bin: NODE, args: [CODEX_JS] });
+  });
+  it("% dobrado volta a %; node ou script ausentes, ou linha extra, não servem", () => {
+    const pct = "C:\\a%b\\x.js";
+    const d = disco({ [`${NPM}\\x.cmd`]: `@echo off\r\n"${NODE}" "C:\\a%%b\\x.js" %*`, [NODE]: "", [pct]: "" });
+    expect(resolverBinario("x.cmd", { ...win, disco: d, env: { ...ENV, Path: NPM } })).toEqual({ bin: NODE, args: [pct] });
+    const semNode = disco({ [`${NPM}\\codex.cmd`]: SHIM_DO_NOD, [CODEX_JS]: "" });
+    expect(() => resolverBinario("codex", { ...win, disco: semNode })).toThrow(BinarioSemSuporte);
+    const extra = disco({ [`${NPM}\\codex.cmd`]: `${SHIM_DO_NOD}SET X=1\r\n`, [NODE]: "", [CODEX_JS]: "" });
+    expect(() => resolverBinario("codex", { ...win, disco: extra })).toThrow(BinarioSemSuporte);
+  });
+});

@@ -64,6 +64,18 @@ export const vistaInicial = (importadoAgora: boolean): "tudo" | "largura" => (im
 export const passoDoAbrir = (id: string | undefined, aberto: string | null, todos: boolean): "topo" | "voltar" | "abrir" =>
   id && id === aberto ? (todos ? "voltar" : "topo") : "abrir";
 
+/**
+ * O Esc que chega por postMessage (a ponte do srcdoc só posta {nod:"esc"}): vale só quando a `source` é a janela de um
+ * iframe nosso — uma tela viva no tamanho real ("real") ou a tela da apresentação ("apresentar"). Outra janela que
+ * poste a mesma mensagem (um artefato do bot, o sandbox do diagrama, outra aba) é descartada em silêncio.
+ */
+export function escDoCanvas(ev: { source: unknown; data: unknown }, vivas: Iterable<unknown>, apresentacao: unknown): "real" | "apresentar" | null {
+  const d = ev.data as { nod?: unknown } | null;
+  if (!d || typeof d !== "object" || d.nod !== "esc" || ev.source === null || ev.source === undefined) return null;
+  for (const janela of vivas) if (janela === ev.source) return "real";
+  return apresentacao === ev.source ? "apresentar" : null;
+}
+
 export function lerRascunhos(bruto: string | null): Rascunho[] {
   if (!bruto) return [];
   try {
@@ -105,6 +117,8 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
   let menu: "nome" | "ver" | null = null;
   let buscaMenu = "";
   let apresentando: string | null = null;
+  /** O iframe da tela grande da apresentação (fora de `vivos`): só o Esc dele fecha a apresentação. */
+  let frameApresentando: HTMLIFrameElement | null = null;
   let escalaApresentando = 1;
   let cheia = false;
   let balao: Balao | null = null;
@@ -676,6 +690,7 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     s.innerHTML = `<div class="cv-topo" style="left:20px">${barra()}</div><div class="cv-sobre-palco"><div class="cv-real-grande" style="width:${t?.w ?? 1440}px;height:${t?.h ?? 900}px;transform:translateX(-50%) scale(${k})"></div></div>`;
     const caixa = s.querySelector(".cv-real-grande");
     const f = iframeDaTela(id, () => { /* navegou dentro: fica, é a apresentação */ });
+    frameApresentando = f;
     if (caixa) {
       if (f) caixa.append(f);
       else { const src = t?.tela.miniatura ? blobs.get(t.tela.miniatura) : undefined; caixa.innerHTML = src ? `<img alt="" src="${esc(src)}">` : `<p class="cv-vazio">${esc(t?.tela.titulo ?? id)}</p>`; void buscarBlobs(); }
@@ -686,7 +701,7 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     s.tabIndex = -1;
     s.focus();
   }
-  function sairDeApresentar(): void { apresentando = null; doc.body.classList.remove("cv-apresentando"); const comp = doc.querySelector(".cv-sobre .cv-comp"); const casa = q(".cv-bal-host"); if (comp && casa) casa.before(comp); doc.querySelector(".cv-sobre")?.remove(); desenharTopo(); palco()?.focus(); }
+  function sairDeApresentar(): void { apresentando = null; frameApresentando = null; doc.body.classList.remove("cv-apresentando"); const comp = doc.querySelector(".cv-sobre .cv-comp"); const casa = q(".cv-bal-host"); if (comp && casa) casa.before(comp); doc.querySelector(".cv-sobre")?.remove(); desenharTopo(); palco()?.focus(); }
   function alternarCheia(): void {
     cheia = !cheia;
     host?.closest(".app")?.classList.toggle("cv-cheia", cheia);
@@ -1060,12 +1075,11 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     atalho(ev);
   });
 
-  // O Esc de dentro da tela no tamanho real (a ponte do srcdoc só posta {nod:"esc"}); vale só o iframe vivo nosso.
+  // O Esc de dentro da tela no tamanho real ou da apresentação (a ponte do srcdoc só posta {nod:"esc"}); só de iframe nosso.
   win?.addEventListener("message", (ev) => {
-    const d = ev.data as { nod?: unknown } | null;
-    if (!d || d.nod !== "esc") return;
-    for (const f of vivos.values()) if (f.contentWindow === ev.source) { sairDoReal(); palco()?.focus(); return; }
-    if (apresentando) sairDeApresentar();
+    const esc = escDoCanvas(ev, [...vivos.values()].map((f) => f.contentWindow), apresentando ? frameApresentando?.contentWindow : null);
+    if (esc === "real") { sairDoReal(); palco()?.focus(); }
+    else if (esc === "apresentar") sairDeApresentar();
   });
   win?.addEventListener("hashchange", () => { if (host?.isConnected && aberto && layout) irPara(win.location.hash); });
   win?.addEventListener("resize", () => { if (host?.isConnected && layout) { pedirVivos(); medirBarra(); } });

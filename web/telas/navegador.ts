@@ -6,7 +6,7 @@ import { movimentoReduzido } from "../lib/movimento.ts";
 import {
   alturaDaFolha, aoNome, avisoDaAbaFechada, conversaEstreita, botNoMeio, CHAVE_LARGURA, comArtigo, deNome, fraseMaiuscula, gravarLargura, htmlAbaDeLugar, htmlAcoesDoPainel, htmlBotaoDoCanto, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, ICONES_NAVEGADOR,
   imantar, larguraPadrao, legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, PAINEL_MIN, pontoDoLugar, proximoEncaixe, soltarFecha, soltarFolha,
-  estadoDaAbaDeLugar, htmlLugaresFechados, lugarFechadoAMao, tituloDaAbaAtiva, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
+  estadoDaAbaDeLugar, htmlLugaresFechados, lugarFechadoAMao, tituloDaAbaAtiva, tecla, ariaTecla, definirTecladoDoMac, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
 } from "../lib/navegador-vista.ts";
 import { montarVistaNavegador, type Hospedeiro, type OpcoesDaVista, type VistaMontada } from "./navegador-vista.ts";
 
@@ -107,6 +107,7 @@ export function lerAbasDeLugar(texto: string | null): Set<string> {
 export type NavegadorNaTela = ReturnType<typeof criarNavegadorNaTela>;
 
 export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
+  definirTecladoDoMac(/Mac|iPhone|iPad/.test(navigator.platform));
   const vistas = new Map<string, VistaMontada>();
   const respostas = new Map<string, RespostaNavegador | null>();
   const pedidos = new Set<string>();
@@ -255,7 +256,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const v = vistaAtual(id);
     const lugares = htmlLugares(lugaresDe(id), aberto.lugar, aberto.lugar === "navegador" ? pontoDoLugar(v) : null);
     if (aberto.modo === "aba") {
-      const html = `<div class="nv-topo-aba"><button type="button" class="nv-bt-texto" data-nv-p="ao-lado">${ICONES_NAVEGADOR.aba}<span>Pôr ao lado da conversa</span></button><button type="button" class="nv-ic" data-nv-p="tela-cheia" aria-label="Tela cheia" title="Tela cheia · ⌘⇧F">${ICONES_NAVEGADOR.expandir}</button><button type="button" class="nv-ic" data-nv-p="menu" aria-haspopup="menu" aria-label="Mais ações" title="Mais">${ICONES_NAVEGADOR.mais}</button></div>`;
+      const html = `<div class="nv-topo-aba"><button type="button" class="nv-bt-texto" data-nv-p="ao-lado">${ICONES_NAVEGADOR.aba}<span>Pôr ao lado da conversa</span></button><button type="button" class="nv-ic" data-nv-p="tela-cheia" aria-label="Tela cheia" title="Tela cheia · ${tecla("⌘⇧F")}">${ICONES_NAVEGADOR.expandir}</button><button type="button" class="nv-ic" data-nv-p="menu" aria-haspopup="menu" aria-label="Mais ações" title="Mais">${ICONES_NAVEGADOR.mais}</button></div>`;
       if (topo.innerHTML !== html) topo.innerHTML = html;
       return;
     }
@@ -459,7 +460,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (abaAtiva === agenteId) desativarAba(agenteId);
     o.render();
     // D7 e 5d: some a aba, o bot continua, aviso com Desfazer e ⌘⇧T.
-    if (comAviso) avisar(avisoDaAbaFechada(nomeDe(agenteId)), () => reabrirFechada(), "⌘⇧T");
+    if (comAviso) avisar(avisoDaAbaFechada(nomeDe(agenteId)), () => reabrirFechada(), tecla("⌘⇧T"));
   }
 
   function reabrirFechada(id = fechadas.at(-1)): void {
@@ -613,7 +614,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     dialog.setAttribute("role", "region");
     dialog.setAttribute("aria-labelledby", "nv-tc-titulo");
     if ((window as { nodDesktop?: unknown }).nodDesktop !== undefined) dialog.classList.add("no-mac");
-    dialog.innerHTML = `<header class="ctc-topo nv-tc-topo"><h1 class="ctc-titulo nv-tc-titulo" id="nv-tc-titulo"><span class="nv-tc-avatar" aria-hidden="true">${o.avatar?.(agenteId) ?? ""}</span><span class="nv-tc-titulo-txt"></span></h1><div class="nv-tc-lugares"></div><button type="button" class="nv-tc-sair" data-nv-p="sair" aria-keyshortcuts="Meta+Shift+F">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>'}<span>Sair da tela cheia</span></button></header>`
+    dialog.innerHTML = `<header class="ctc-topo nv-tc-topo"><h1 class="ctc-titulo nv-tc-titulo" id="nv-tc-titulo"><span class="nv-tc-avatar" aria-hidden="true">${o.avatar?.(agenteId) ?? ""}</span><span class="nv-tc-titulo-txt"></span></h1><div class="nv-tc-lugares"></div><button type="button" class="nv-tc-sair" data-nv-p="sair" aria-keyshortcuts="${ariaTecla("Meta+Shift+F")}">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>'}<span>Sair da tela cheia</span></button></header>`
       + `<div class="nv-grav-topo" hidden></div>`
       + `<div class="nv-tc-meio"><div class="nv-tc-corpo"></div><div class="nv-tc-lado" hidden></div></div>`
       + `<div class="nv-recado"><form class="nv-recado-form" data-nv-form="recado" hidden><input class="nv-recado-input" name="texto" maxlength="2000" autocomplete="off" aria-label="Recado para ${esc(comArtigo(nomeDe(agenteId)))}" placeholder="Recado para ${esc(comArtigo(nomeDe(agenteId)))}…"><button type="submit" class="nv-recado-enviar">Mandar</button></form><button type="button" class="nv-recado-bt" data-nv-p="recado">Recado para ${esc(comArtigo(nomeDe(agenteId)))}</button></div>`;

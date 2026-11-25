@@ -11,7 +11,7 @@ describe("a página de um app como o Paper 17b (rodada 2)", () => {
       dados: { itens: [{ titulo: "Bruna Lopes", detalhe: "Dev Sr · nod", coluna: "Sem resposta", desde: "há 3 dias", pede: true }, { titulo: "Júlia Sato", detalhe: "Designer", coluna: "Entrevista", desde: "amanhã 14h" }] } });
     const p = paginasDoDto(paginasDe([app])).find((x) => x.app)!;
     const h = String(paginaDoApp(p, "Ada", { agora: AGORA }));
-    expect(h).toContain('<span class="pg-app-sub">Lista · a Ada atualiza pelo Gmail · há 12 min</span>');
+    expect(h).toContain('<span class="pg-app-sub">Lista · Ada atualiza pelo Gmail · há 12 min</span>');
     expect(h).toContain("1 pede você");
     expect(h).toContain('role="table"');
     expect(h).toContain('<span class="pg-tab-ini" aria-hidden="true">BL</span>');

@@ -5,6 +5,7 @@ import { abertaPorTimeouts, falhaVisivel } from "../domain/disjuntor-conector.ts
 import type { Negacao } from "../contracts/negacao.ts";
 import { descricaoEstado, previaDaMensagem } from "../domain/descricao-agente.ts";
 import { modeloDoModo } from "../domain/computador.ts";
+import { computadorTemLugar } from "./computador-tem-lugar.ts";
 import { inventarioAusente } from "./autoria-evento.ts";
 import type { CasoDeUso } from "./tipos.ts";
 
@@ -22,10 +23,12 @@ import type { CasoDeUso } from "./tipos.ts";
 export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, FrotaDto> = async (deps, input) => {
   const agora = deps.agora();
   // Leva 2 (ADR-183): o que não depende da lista de agentes sai junto com ela (eram 6 idas ao banco em fila).
-  const [agentes, foraDoAr, resumo, motores, todosConectores, times] = await Promise.all([
+  const [agentes, foraDoAr, temComputador, resumo, motores, todosConectores, times] = await Promise.all([
     deps.repos.agentes.listar(input.gerenciar ? { incluirOcultos: true, incluirExcluidos: true } : {}),
     // definido em 2026-09-24 (emenda da ADR-037): uma consulta para a frota inteira, não uma por agente.
     deps.repos.computadores.foraDoAr(modeloDoModo(deps.services.computadores?.porPessoa)),
+    // 2026-11-25: sem máquina Linux, o computador some da tela (sem o fora do ar e sem o bloco do painel).
+    computadorTemLugar(deps),
     // definido em 2026-09-29 (0039): "não lido" sai do "lido até" da conversa, não da coluna agentes.nao_lido.
     deps.repos.leituras.resumo(),
     deps.repos.inventario.listar(),
@@ -46,13 +49,17 @@ export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, Fro
     const ultima = conversa ? (ultimas.get(conversa.id) ?? null) : null;
     // definido em 2026-09-28 (ADR-051): o texto do artefato leva o id para o modelo; a prévia mostra só o título.
     // Spec do botão + (tela 5): enquanto a boas-vindas é a última fala, a prévia é a pergunta do cartão, não a saudação.
-    const previa = ultima ? previaDaMensagem(ultima.payload?.kind === "artefato" ? `▣ ${ultima.payload.titulo}` : ultima.payload?.kind === "boas_vindas" && ultima.payload.pergunta ? ultima.payload.pergunta : ultima.texto) : null;
+    // QA do Windows (2026-11-25): o `pedido_dispensado` traz no texto a linha que o BOT lê ("A pessoa seguiu sem responder
+    // ao seu pedido…"); a prévia mostra o que a conversa mostra, a frase do pedido com "você seguiu sem responder".
+    const p = ultima?.payload;
+    const previa = ultima ? previaDaMensagem(p?.kind === "artefato" ? `▣ ${p.titulo}` : p?.kind === "boas_vindas" && p.pergunta ? p.pergunta : p?.kind === "pedido_dispensado" ? `${p.frase} · você seguiu sem responder` : ultima.texto) : null;
     return {
       ...agente,
       naoLido: conversa ? comNovas.has(conversa.id) : false,
       conversaId: conversa?.id ?? "",
       descricaoEstado: descricaoEstado(agente, { concessoes: concessoes.get(agente.id) ?? 0, execucoes: conversa ? (execucoes.get(conversa.id) ?? 0) : 0 }),
-      computadorForaDoAr: foraDoAr.get(agente.id) ?? null,
+      computadorForaDoAr: temComputador ? foraDoAr.get(agente.id) ?? null : null,
+      ...(deps.services.computadores && !temComputador ? { semComputador: true as const } : {}),
       ultimaMensagem: ultima && previa ? { previa, em: ultima.criadoEm } : null,
     };
   });

@@ -275,6 +275,13 @@ vários bots rodam `npm run check` ao mesmo tempo sem um contaminar o tenant pad
   (`NOD_NAVEGADOR_NO_SERVIDOR=1`) e as rotas `navegador/*` da máquina dão 404 (o app e o motor tentam de novo em 10 min).
   Só no desenvolvimento, `NOD_NAVEGADOR_CHROME_DESTE_MAC=1` (login stub, fora do compartilhado, no macOS) faz o "Trazer do
   meu Chrome" ler o Chrome do próprio Mac do servidor, sem o app (`src/adapters/navegador/chrome-deste-mac.ts`).
+- **Backoffice interno** (ADR-194, nasceu como o painel do ADR-193): tela em `/backoffice/*` e API em
+  `/api/backoffice/*` (família própria no roteador, fora de `/api/t/:id`; "admin" e `/api/t/:id/admin/*` ficam para o
+  admin de workspace). A guarda é do servidor a cada pedido: sem sessão, a API dá 401 e a tela manda ao login com
+  `?volta=`; sem papel, 404. Papel = `equipe_backoffice` (global, `nod_app` só lê); com ela vazia, `NOD_ADMINS` (id ou
+  e-mail) é dono. Cada pedido grava `acessos_backoffice` (só metadados). Seção nova = módulo em
+  `web/react/backoffice/secoes/` + rota GET auditada em `src/adapters/http/rotas/backoffice.ts`. Nada de texto de
+  mensagem, erro cru ou segredo sai dessas rotas.
 - **PRs do GitHub no quadro atrás de env** (NOD-421): `NOD_QUADRO_GITHUB_REPOS="dono/repo,…"` (até 5) liga o laço
   `src/adapters/fundo/prs-do-quadro.ts`. A cada 30 s ele lê os PRs de cada repo, com `NOD_QUADRO_GITHUB_TOKEN` por uma
   chamada GraphQL (produção: a imagem não tem `gh`; o token vem do segredo `nod-github-quadro-token`; a base é

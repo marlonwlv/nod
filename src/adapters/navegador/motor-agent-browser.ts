@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { hkdfSync, randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { createHash, hkdfSync, randomUUID } from "node:crypto";
+import { chmod, lstat, mkdir, open, readdir, readFile, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -8,6 +8,7 @@ import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { CookieNavegador, MotivoFalhaNavegador } from "../../contracts/navegador-maquina.ts";
 import { relayPadrao } from "./stream-local.ts";
 import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
+import { enderecoPermitido } from "./endereco.ts";
 
 /**
  * O motor do navegador do bot (ADR-190): o agent-browser 0.43.0 (binário nativo do pacote npm, versão fixa), um daemon
@@ -160,8 +161,12 @@ export type OpcoesMotorAgentBrowser = {
   executor?: ExecutorProcesso;
   /** definido em 2026-11-20: o daemon morre sozinho depois disto sem comando (ADR-190: pausa em 10 min). */
   ociosoMs?: number;
+  /** AGENT_BROWSER_SOCKET_DIR; ausente = `dirSocketPadrao()`; null = o padrão do agent-browser. */
+  dirSocket?: string | null;
   /** O `POST /api/command` do daemon (padrão: o relay local de stream-local.ts); o teste troca por um falso. */
   relay?: (porta: number, comando: Readonly<Record<string, unknown>>) => Promise<boolean>;
+  /** O fetch do download direto (padrão: o global); o teste troca por um falso. */
+  buscar?: typeof fetch;
 };
 
 /** Onde `camposDeLogin` marcou cada campo (o atributo é do nod; o site pode vê-lo, e só diz "este é o campo"). */
@@ -206,7 +211,13 @@ export const ARGS_CHROME_DO_BOT = [
   // Ponto 09 dos cenários (2026-11-22): o cache de cada perfil fica em até 64 MB e o Chrome não baixa os modelos do
   // "optimization guide" (41 MB por bot no teste).
   "--disk-cache-size=67108864",
-  "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints",
+  // QA do navegador no Windows (2026-11-25): o agent-browser já passa `--disable-features=Translate`, e o Chrome só lê
+  // o último `--disable-features` da linha, então o Translate voltava ligado. Vai junto aqui.
+  "--disable-features=Translate,OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints",
+  // Idem: sem idioma, o perfil nascia em en-US e os sites (Google, Google Flights) respondiam como para os EUA. O nod
+  // fala português (o OpenMausBot passa `--lang` com o idioma do app).
+  "--lang=pt-BR",
+  "--accept-lang=pt-BR",
 ] as const;
 
 /**
@@ -221,6 +232,28 @@ export function identificacaoComJanela(semJanela: string): string | null {
 
 /** A sessão à parte (perfil próprio, nenhum bot) que pergunta ao Chrome como ele se apresenta. */
 export const SESSAO_IDENTIDADE = "identidade";
+/** definido em 2026-11-25: o download direto (quando o do agent-browser falha) segue até 5 redirecionamentos e 200 MB. */
+const SALTOS_DO_DOWNLOAD = 5;
+const LIMITE_DOWNLOAD_BYTES = 200 * 1024 * 1024;
+
+/**
+ * O cookie do perfil vale para o endereço, como o Chrome decide (RFC 6265 §5.1.3 e §5.1.4).
+ * O `cookies` do agent-browser segue o CDP: `.exemplo.com` é cookie de domínio (vale nos subdomínios);
+ * `exemplo.com`, sem ponto, é só do site (QA r217: no Chromium real o Chrome não o manda a `a.exemplo.com`).
+ * Caminho casa por segmento: `/conta` vale em `/conta` e `/conta/x`, não em `/contas`.
+ */
+export function cookieVale(c: Record<string, unknown>, u: URL): boolean {
+  const bruto = str(c.domain).toLowerCase();
+  const soDoSite = !bruto.startsWith(".");
+  const dominio = bruto.replace(/^\./, "");
+  const host = u.hostname.toLowerCase();
+  if (!dominio || (host !== dominio && (soDoSite || !host.endsWith(`.${dominio}`)))) return false;
+  const caminho = str(c.path) || "/";
+  const p = u.pathname || "/";
+  if (p !== caminho && !(p.startsWith(caminho) && (caminho.endsWith("/") || p[caminho.length] === "/"))) return false;
+  return c.secure !== true || u.protocol === "https:";
+}
+
 /** medido em 2026-11-20: `wait --text` sem casar só volta aos 25 s ("Wait timed out after 25000ms"); o contrato é 10 s. */
 const PRAZO_ESPERAR_MS = 12_000;
 /** definido em 2026-11-20: a árvore de uma página grande cabe folgada; o proxy corta para o modelo (ler_mais). */
@@ -266,11 +299,59 @@ export function binarioAgentBrowser(plataforma = `${process.platform}-${process.
   return candidatos.find((c) => existsSync(c)) ?? null;
 }
 
-/** O nome da sessão do agent-browser para um bot: só `[A-Za-z0-9_-]`, até 64. */
-export function nomeDaSessao(agenteId: string): string {
+const idLimpo = (agenteId: string): string => {
   const limpo = agenteId.replace(/[^A-Za-z0-9_-]/g, "");
   if (!limpo) throw new FalhaNavegador("indisponivel", "bot sem id");
-  return `nod-${limpo}`.slice(0, 64);
+  return limpo;
+};
+
+/**
+ * A pasta do bot em `dados` (perfil com os logins, prints, arquivos): `nod-<id>`, só `[A-Za-z0-9_-]`, até 64. É o nome
+ * que a sessão tinha até 2026-11-24; a pasta ficou com ele para os perfis já salvos não se perderem com a troca abaixo.
+ */
+export function pastaDoBot(agenteId: string): string {
+  return `nod-${idLimpo(agenteId)}`.slice(0, 64);
+}
+
+/**
+ * O nome da sessão do agent-browser para um bot: `nod-` + 12 hex do sha256 do id (estável por bot; 48 bits, sem colisão
+ * prática). Curto porque vira o nome do socket do daemon: medido em 2026-11-24 no Mac (agent-browser 0.43.0), o socket
+ * fica em `<dir>/namespaces/nod/run/<sessão>.sock` e `nod-<uuid>` sob `~/.agent-browser` dava 104 bytes, acima do
+ * sun_path do macOS (103 úteis) — todo `navegador_abrir` falhava com "Session name … is too long".
+ */
+export function nomeDaSessao(agenteId: string): string {
+  return `nod-${createHash("sha256").update(idLimpo(agenteId)).digest("hex").slice(0, 12)}`;
+}
+
+/** O sun_path do macOS tem 104 bytes com o NUL (no Linux, 108): o caminho do socket precisa caber em 103. */
+export const LIMITE_CAMINHO_SOCKET = 103;
+
+/** Onde o agent-browser 0.43.0 põe o socket do daemon de uma sessão (medido em 2026-11-24). */
+export const caminhoDoSocket = (dirSocket: string, sessao: string, namespace = "nod"): string => join(dirSocket, "namespaces", namespace, "run", `${sessao}.sock`);
+
+/**
+ * O diretório curto dos sockets (AGENT_BROWSER_SOCKET_DIR): `/tmp/nod-ab-<uid>`, só do usuário (0700). Sem ele o
+ * agent-browser usa `~/.agent-browser`, que num HOME comprido estoura o sun_path de novo. No Windows o daemon não usa
+ * socket de arquivo: null (fica o padrão).
+ */
+export function dirSocketPadrao(plataforma: string = process.platform, uid: number | undefined = process.getuid?.()): string | null {
+  if (plataforma === "win32") return null;
+  return `/tmp/nod-ab-${uid ?? "u"}`;
+}
+
+/** Cria o diretório dos sockets 0700 e confere que é um diretório nosso (não link, não de outro usuário); senão null. */
+export async function prepararDirSocket(dir: string): Promise<string | null> {
+  try {
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    const st = await lstat(dir);
+    if (!st.isDirectory() || st.isSymbolicLink()) return null;
+    const uid = process.getuid?.();
+    if (uid !== undefined && st.uid !== uid) return null;
+    if ((st.mode & 0o077) !== 0) await chmod(dir, 0o700);
+    return dir;
+  } catch {
+    return null;
+  }
 }
 
 /** A chave de cifra do estado de um bot (hex de 64), derivada da chave mestra; nunca guardada. */
@@ -292,6 +373,12 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
  * A resposta de um comando: `data` no sucesso; senão a falha tipada. Saída que não é JSON é falha do motor (o CLI
  * mudou ou caiu antes de responder).
  */
+/** QA-209: a resposta veio de um daemon que acabou de subir (o stream dele nasce ligado). */
+export function daemonNovo(data: Record<string, unknown>): boolean {
+  const l = obj(data.lifecycle);
+  return l.launched === true || l.restartedBackground === true;
+}
+
 export function lerResposta(saida: string, codigo: number | null): Record<string, unknown> {
   const linha = saida.trim().split("\n").filter(Boolean).at(-1) ?? "";
   let r: unknown;
@@ -387,7 +474,14 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const executor = o.executor ?? executorPadrao;
   const ocioso = o.ociosoMs ?? OCIOSO_PADRAO_MS;
   const relay = o.relay ?? relayPadrao;
-  const pasta = (s: SessaoNavegador) => join(o.dados, nomeDaSessao(s.agenteId));
+  const pasta = (s: SessaoNavegador) => join(o.dados, pastaDoBot(s.agenteId));
+  const pedidoDirSocket = o.dirSocket === undefined ? dirSocketPadrao() : o.dirSocket;
+  /**
+   * Conferida a cada comando, não uma vez por processo (QA-208, 2026-11-25): a limpeza do /tmp pode apagar a pasta com o
+   * motor vivo, e aí quem a refaz é o agent-browser (0755, medido no Chromium real) ou outro usuário (link ou pasta dele),
+   * por onde passariam os comandos do bot, inclusive o `fill` com a senha do cofre. Custa um mkdir e um lstat.
+   */
+  const socketPronto = (): Promise<string | null> => (pedidoDirSocket ? prepararDirSocket(pedidoDirSocket) : Promise.resolve(null));
 
   /**
    * A identificação com janela, perguntada ao próprio Chrome uma vez por processo (revisto em 2026-11-22: ler a versão do
@@ -401,25 +495,27 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       if (!bin) return null;
       const sessaoId = { agenteId: SESSAO_IDENTIDADE };
       await mkdir(pasta(sessaoId), { recursive: true });
+      const socket = await socketPronto();
       const args = (a: readonly string[]) => [...a, "--session", nomeDaSessao(SESSAO_IDENTIDADE), "--json", "--no-webmcp"];
       try {
-        const r = await executor({ bin, args: args(["eval", "navigator.userAgent"]), env: ambiente(sessaoId, null), prazoMs: PRAZO_COMANDO_MS, limiteSaida: LIMITE_SAIDA });
+        const r = await executor({ bin, args: args(["eval", "navigator.userAgent"]), env: ambiente(sessaoId, null, socket), prazoMs: PRAZO_COMANDO_MS, limiteSaida: LIMITE_SAIDA });
         const ua = lerResposta(r.saida, r.codigo).result;
         return typeof ua === "string" ? identificacaoComJanela(ua) : null;
       } catch {
         return null;
       } finally {
-        await executor({ bin, args: args(["close"]), env: ambiente(sessaoId, null), prazoMs: PRAZO_COMANDO_MS, limiteSaida: LIMITE_SAIDA }).catch(() => undefined);
+        await executor({ bin, args: args(["close"]), env: ambiente(sessaoId, null, socket), prazoMs: PRAZO_COMANDO_MS, limiteSaida: LIMITE_SAIDA }).catch(() => undefined);
       }
     })();
     return identificacao;
   }
 
   /** Env limpo: só o que o CLI e o daemon precisam; nenhuma variável do servidor (chaves, banco) passa. */
-  function ambiente(s: SessaoNavegador, agente: string | null): Record<string, string> {
+  function ambiente(s: SessaoNavegador, agente: string | null, socket: string | null): Record<string, string> {
     const base = pasta(s);
     return {
       ...ambienteDoSistema(),
+      ...(socket ? { AGENT_BROWSER_SOCKET_DIR: socket } : {}),
       PATH: process.env.PATH ?? process.env.Path ?? "/usr/bin:/bin",
       HOME: process.env.HOME ?? process.env.USERPROFILE ?? base,
       AGENT_BROWSER_SESSION: nomeDaSessao(s.agenteId),
@@ -441,15 +537,85 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   async function rodar(s: SessaoNavegador, args: readonly string[], prazoMs = PRAZO_COMANDO_MS): Promise<Record<string, unknown>> {
     if (!bin) throw new FalhaNavegador("indisponivel", "o agent-browser não está instalado nesta máquina");
     await mkdir(join(pasta(s), "arquivos"), { recursive: true });
-    const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome()), prazoMs, limiteSaida: LIMITE_SAIDA });
+    const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome(), await socketPronto()), prazoMs, limiteSaida: LIMITE_SAIDA });
     if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
-    return lerResposta(r.saida, r.codigo);
+    const d = lerResposta(r.saida, r.codigo);
+    // revisto em 2026-11-25 (QA-209): o daemon nasce com o stream ligado num WebSocket de 127.0.0.1 sem token (agent-browser
+    // 0.43.0: aceita qualquer Origin de loopback e o relay só confere o cabeçalho Origin, que um processo forja). Por ele
+    // passam os quadros, o JS e os resultados do bot e o `insertText` do cofre com a senha. Daemon novo → desliga; só a
+    // vista ao vivo e o relay (por um instante) o religam.
+    if (args[0] !== "stream" && args[0] !== "close" && daemonNovo(d)) await rodar(s, ["stream", "disable"]).catch(() => undefined);
+    return d;
   }
   const alvoOuFalha = (alvo: string) => {
     const a = alvoDoMotor(alvo);
     if (!a) throw new FalhaNavegador("alvo_invalido", "alvo vazio");
     return a;
   };
+  /** Seleciona de novo a aba ativa, para o stream se prender a ela (ver abaNova). Falhar aqui não desfaz a ação. */
+  async function reselecionarAtiva(s: SessaoNavegador): Promise<void> {
+    try {
+      const ativa = lerAbas(await rodar(s, ["tab"])).find((a) => a.ativa);
+      if (ativa?.id) await rodar(s, ["tab", ativa.id]);
+    } catch { /* a aba nova já está aberta; o quadro só demora a acompanhar */ }
+  }
+  /** O endereço absoluto que um alvo aponta: o próprio alvo, se já é um http(s), ou o `href` do elemento. */
+  async function linkDoAlvo(s: SessaoNavegador, alvo: string): Promise<string | null> {
+    if (/^https?:\/\//i.test(alvo.trim())) return alvo.trim();
+    const d = await rodar(s, ["get", "attr", alvoOuFalha(alvo), "href"]);
+    const href = str(d.value);
+    if (!href) return null;
+    const base = str(d.origin) || str((await rodar(s, ["get", "url"])).url);
+    try { return new URL(href, base || undefined).toString(); } catch { return null; }
+  }
+  /** O download direto: cookies do perfil do bot que valem para o endereço, redirecionamento conferido salto a salto. */
+  async function baixarDireto(s: SessaoNavegador, inicio: string, caminho: string): Promise<number> {
+    const buscar = o.buscar ?? fetch;
+    const lidos = (await rodar(s, ["cookies"]).catch(() => ({} as Record<string, unknown>))).cookies;
+    const cookies = (Array.isArray(lidos) ? lidos : []).map(obj);
+    const agente = await identificacaoDoChrome();
+    let url = inicio;
+    for (let salto = 0; salto <= SALTOS_DO_DOWNLOAD; salto++) {
+      if (!enderecoPermitido(url)) throw new FalhaNavegador("acao_falhou", "o download aponta para um endereço que o navegador do bot não abre");
+      const u = new URL(url);
+      const cabecalho = cookies.filter((c) => cookieVale(c, u)).map((c) => `${str(c.name)}=${str(c.value)}`).join("; ");
+      const r = await buscar(url, { redirect: "manual", signal: AbortSignal.timeout(PRAZO_ABRIR_MS), headers: { ...(cabecalho ? { cookie: cabecalho } : {}), ...(agente ? { "user-agent": agente } : {}), "accept-language": "pt-BR,pt;q=0.9" } });
+      const proximo = r.headers.get("location");
+      if (r.status >= 300 && r.status < 400 && proximo) { url = new URL(proximo, url).toString(); continue; }
+      if (!r.ok) throw new FalhaNavegador("acao_falhou", `o site respondeu ${r.status} ao download`);
+      const tamanho = Number(r.headers.get("content-length") ?? "0");
+      if (tamanho > LIMITE_DOWNLOAD_BYTES) throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB");
+      return await gravarComTeto(r, caminho);
+    }
+    throw new FalhaNavegador("acao_falhou", "o download redirecionou vezes demais");
+  }
+  /**
+   * medido em 2026-11-25 (QA Nod, r216): com `arrayBuffer()` o corpo inteiro ia para a memória antes do teto — um
+   * servidor sem `content-length` (chunked) pôs 1,2 GB no processo em 6,5 s antes do "passa de 200 MB", e em 60 s
+   * de prazo chegaria a vários GB no motor que serve todos os bots. Agora grava em pedaços e corta no teto.
+   */
+  async function gravarComTeto(r: Response, caminho: string): Promise<number> {
+    const arq = await open(caminho, "w");
+    let bytes = 0;
+    try {
+      if (r.body) {
+        const leitor = r.body.getReader();
+        for (;;) {
+          const { done, value } = await leitor.read();
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > LIMITE_DOWNLOAD_BYTES) { await leitor.cancel().catch(() => {}); throw new FalhaNavegador("acao_falhou", "o arquivo passa de 200 MB"); }
+          await arq.write(value);
+        }
+      }
+      await arq.close();
+      return bytes;
+    } catch (e) {
+      await arq.close().catch(() => {});
+      await rm(caminho, { force: true }).catch(() => {});
+      throw e;
+    }
+  }
   async function portaDoStream(s: SessaoNavegador): Promise<number | null> {
     let d = await rodar(s, ["stream", "status"]);
     if (d.enabled !== true) {
@@ -457,6 +623,21 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       d = await rodar(s, ["stream", "status"]);
     }
     return typeof d.port === "number" ? d.port : null;
+  }
+  /**
+   * QA-209: o relay precisa do stream ligado; ligado só para este comando, ele volta a desligar no fim — a não ser que já
+   * estivesse ligado (a vista ao vivo aberta), que aí fica como estava.
+   */
+  async function comRelay<T>(s: SessaoNavegador, fn: (porta: number) => Promise<T>): Promise<T> {
+    const antes = await rodar(s, ["stream", "status"]);
+    if (antes.enabled === true && typeof antes.port === "number") return fn(antes.port);
+    const porta = await portaDoStream(s);
+    try {
+      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
+      return await fn(porta);
+    } finally {
+      await rodar(s, ["stream", "disable"]).catch(() => undefined);
+    }
   }
   async function arquivoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
     const n = nomeDeArquivo(nome);
@@ -527,30 +708,43 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     },
     async historico(s, acao) { await rodar(s, [acao === "voltar" ? "back" : acao === "avancar" ? "forward" : "reload"], PRAZO_ABRIR_MS); },
     async abas(s) { return lerAbas(await rodar(s, ["tab"])); },
-    async abaNova(s, url) { await rodar(s, ["tab", "new", ...(url ? [url] : [])], PRAZO_ABRIR_MS); },
+    // observado em 2026-11-25 (QA do navegador no Windows): depois de `tab new` (e de fechar a aba ativa), o stream do
+    // agent-browser seguia com os quadros da aba anterior — a barra dizia Wikipedia e a imagem era o Climatempo, até no
+    // "Assumir o controle". Trocar de aba à mão consertava; o motor faz o mesmo: seleciona de novo a aba ativa.
+    async abaNova(s, url) { await rodar(s, ["tab", "new", ...(url ? [url] : [])], PRAZO_ABRIR_MS); await reselecionarAtiva(s); },
     async abaTrocar(s, id) { await rodar(s, ["tab", id]); },
-    async abaFechar(s, id) { await rodar(s, ["tab", "close", ...(id ? [id] : [])]); },
+    async abaFechar(s, id) { await rodar(s, ["tab", "close", ...(id ? [id] : [])]); await reselecionarAtiva(s); },
     async quadro(s, alvo) { await rodar(s, ["frame", alvo === null ? "main" : alvoOuFalha(alvo)]); },
     async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
     async baixar(s, alvo, nome) {
       const a = await arquivoNaPasta(s, nome);
       try {
         await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
+        return { nome: a.nome, bytes: (await stat(a.caminho)).size };
       } catch (e) {
-        if (!ehFalhaNavegador(e) || e.motivo !== "tempo_esgotado") throw e;
-        // Revisto em 2026-11-25 (QA-207): o prazo só mata o CLI; o Chrome do bot seguia baixando sem teto e enchia o disco
-        // da máquina. Sem comando de cancelar download no agent-browser, fecha o Chrome do bot (os logins ficam no perfil)
-        // e apaga o que ficou pela metade.
-        await rodar(s, ["close"]).catch(() => undefined);
-        await apagarDownloadsIncompletos(s);
-        throw new FalhaNavegador("tempo_esgotado", "o download não terminou a tempo e foi cancelado; o navegador do bot foi fechado e abre de novo no próximo comando, já sem as abas");
+        // medido em 2026-11-25 (QA do navegador no Windows; agent-browser 0.43.0 no Windows e no Linux): o `download`
+        // devolve "Download was canceled" (ou estoura o prazo) até para um link simples, e o arquivo nunca chega. Se o
+        // alvo é um link, baixa direto daqui com os cookies do próprio perfil do bot (o openbot também salva o download
+        // fora do Chrome, numa pasta dele). Cada salto passa pela mesma regra do `abrir`.
+        if (!(e instanceof FalhaNavegador) || (e.motivo !== "acao_falhou" && e.motivo !== "tempo_esgotado")) throw e;
+        const url = await linkDoAlvo(s, alvo).catch(() => null);
+        if (e.motivo === "tempo_esgotado") {
+          // Revisto em 2026-11-25 (QA-207): o prazo só mata o CLI; o Chrome do bot seguia baixando sem teto e enchia o disco
+          // da máquina. Sem comando de cancelar download no agent-browser, fecha o Chrome do bot (os logins ficam no perfil)
+          // e apaga o que ficou pela metade. O link já foi lido acima, antes de fechar a página.
+          await rodar(s, ["close"]).catch(() => undefined);
+          await apagarDownloadsIncompletos(s);
+          if (!url) throw new FalhaNavegador("tempo_esgotado", "o download não terminou a tempo e foi cancelado; o navegador do bot foi fechado e abre de novo no próximo comando, já sem as abas");
+        }
+        if (!url) throw e;
+        const bytes = await baixarDireto(s, url, a.caminho);
+        return { nome: a.nome, bytes };
       }
-      return { nome: a.nome, bytes: (await stat(a.caminho)).size };
     },
     async enviarArquivo(s, alvo, nomes) {
       const caminhos = await Promise.all(nomes.map(async (n) => {
         const a = await arquivoNaPasta(s, n);
-        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está nos arquivos do navegador`); });
+        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está na pasta do navegador do bot: só dá para enviar o que navegador_baixar ou navegador_pdf guardaram`); });
         return a.caminho;
       }));
       await rodar(s, ["upload", alvoOuFalha(alvo), ...caminhos]);
@@ -583,18 +777,19 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     // (ref `@e1` ou CSS) e `{action:"keyboard", subaction:"insertText", text}`; o texto entra inteiro no campo focado,
     // inclusive num type=password. O comando sai pelo corpo do POST local, nunca pelo argv.
     async inserirTexto(s, alvo, texto) {
-      const porta = await portaDoStream(s);
-      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
-      if (alvo !== null && !(await relay(porta, { action: "focus", selector: alvoOuFalha(alvo) }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
-      if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+      const seletor = alvo === null ? null : alvoOuFalha(alvo);
+      await comRelay(s, async (porta) => {
+        if (seletor !== null && !(await relay(porta, { action: "focus", selector: seletor }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
+        if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+      });
     },
     // medido em 2026-11-20 (mesma bancada): `{action:"cookies_set", cookies:[{name,value,domain,path,secure,httpOnly,
     // sameSite,expires}]}` grava com os atributos (o Chrome corta a validade em ~400 dias).
     async definirCookies(s, cookies) {
       if (!cookies.length) return;
-      const porta = await portaDoStream(s);
-      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
-      if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+      await comRelay(s, async (porta) => {
+        if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+      });
     },
     portaDoStream,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
