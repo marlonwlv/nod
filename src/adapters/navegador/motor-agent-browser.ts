@@ -439,8 +439,12 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, pastaDoBot(s.agenteId));
   const pedidoDirSocket = o.dirSocket === undefined ? dirSocketPadrao() : o.dirSocket;
-  let dirSocket: Promise<string | null> | null = null;
-  const socketPronto = () => (dirSocket ??= pedidoDirSocket ? prepararDirSocket(pedidoDirSocket) : Promise.resolve(null));
+  /**
+   * Conferida a cada comando, não uma vez por processo (QA-208, 2026-11-25): a limpeza do /tmp pode apagar a pasta com o
+   * motor vivo, e aí quem a refaz é o agent-browser (0755, medido no Chromium real) ou outro usuário (link ou pasta dele),
+   * por onde passariam os comandos do bot, inclusive o `fill` com a senha do cofre. Custa um mkdir e um lstat.
+   */
+  const socketPronto = (): Promise<string | null> => (pedidoDirSocket ? prepararDirSocket(pedidoDirSocket) : Promise.resolve(null));
 
   /**
    * A identificação com janela, perguntada ao próprio Chrome uma vez por processo (revisto em 2026-11-22: ler a versão do
