@@ -1,7 +1,7 @@
 import { Menu } from "@base-ui/react/menu";
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BackofficeEuDto } from "../../../src/contracts/backoffice.ts";
 import type { ApiBackoffice } from "./api.ts";
 import { Link, Navegar, SessaoCaiu, useCarga } from "./comum.tsx";
@@ -36,6 +36,13 @@ export function AppBackoffice({ api, ambiente = ambienteDoNavegador() }: { api: 
   const [rota, setRota] = useState<Rota>(() => lerRota(ambiente.caminho()));
   const [dias, setDias] = useState<Janela>(() => lerJanela(ambiente.busca()));
   const eu = useCarga(() => api.eu(), [api]);
+  // QA r220: o link clicado (o nome na lista, "← Pessoas") some na troca de tela e o foco caía no <body>; ao navegar
+  // por um link do app, o foco vai ao título da tela nova, que o leitor de tela anuncia. Voltar do navegador não mexe.
+  const titulo = useRef<HTMLHeadingElement>(null);
+  const [navegacoes, setNavegacoes] = useState(0);
+  useEffect(() => {
+    if (navegacoes > 0) titulo.current?.focus({ preventScroll: true });
+  }, [navegacoes]);
 
   useEffect(() => {
     const ouvir = () => {
@@ -51,6 +58,7 @@ export function AppBackoffice({ api, ambiente = ambienteDoNavegador() }: { api: 
     (caminho: string) => {
       ambiente.empurrar(comJanela(caminho, dias));
       setRota(lerRota(caminho));
+      setNavegacoes((n) => n + 1);
       scrollTo?.({ top: 0 });
     },
     [ambiente, comJanela, dias],
@@ -106,7 +114,7 @@ export function AppBackoffice({ api, ambiente = ambienteDoNavegador() }: { api: 
           <div className="bko-principal">
             <header className="bko-topo">
               <div className="bko-topo-texto">
-                <h1 className="ds-titulo-1">{secao?.rotulo ?? "Página não encontrada"}</h1>
+                <h1 className="ds-titulo-1" tabIndex={-1} ref={titulo}>{secao?.rotulo ?? "Página não encontrada"}</h1>
                 {secao ? <p className="ds-corpo-2 bko-nota">{secao.descricao} · só leitura, nunca o conteúdo das conversas</p> : null}
               </div>
               {secao ? <SeletorJanela dias={dias} trocar={trocarJanela} /> : null}

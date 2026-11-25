@@ -28,7 +28,7 @@ import { criarSessao, exigirConfiguracaoSegura, segredoEfetivo, type ContasNaSes
  * deixa sobrescrever o nome estável da raiz, que ficou na rc.6 até 2027-11-08. Troca junto com o _redirects
  * (docs/release-desktop.md); o teste do site amarra os dois.
  */
-export const URL_DO_EXE_WINDOWS = "https://storage.googleapis.com/nodbot-downloads/v1.0.0-rc.11/nod-1.0.0-rc.11-win-x64.exe";
+export const URL_DO_EXE_WINDOWS = "https://storage.googleapis.com/nodbot-downloads/v1.0.0-rc.12/nod-1.0.0-rc.12-win-x64.exe";
 
 export interface OpcoesServidor {
   rotas?: Rota[];

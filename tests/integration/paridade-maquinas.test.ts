@@ -117,4 +117,20 @@ describeIntegracao("paridade tela × chat do maquinas.definir_padrao (ADA-243, A
       if (l.data.ok && "maquinas" in l.data) expect(l.data.maquinas.map((x) => x.nome).sort()).toEqual(["MacBook de Marlon", "Windows de Marlon"]);
     });
   });
+
+  it("chat: listar com bot de nome que só difere no acento (Cecilia × Cecília) acha o certo, e o empate pergunta (QA-140)", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const m = await montar(trx);
+      await agenteComConversa(trx, MARLON, { nome: "Cecilia", modo: "manual" });
+      await agenteComConversa(trx, MARLON, { nome: "Cecília", modo: "manual" });
+      for (const nome of ["Cecília", "cecília", "Cecilia"]) {
+        const l = await gerirMaquinas(m.d, { ...m.ctx, acao: "listar", bot: nome });
+        expect(l.data, nome).toMatchObject({ ok: true, bot: { nome: nome === "Cecilia" ? "Cecilia" : "Cecília" } });
+      }
+      const empate = await gerirMaquinas(m.d, { ...m.ctx, acao: "listar", bot: "CECILÍA" });
+      expect(empate.data).toMatchObject({ ok: false, erro: "nome_ambiguo" });
+      if (!empate.data.ok) expect(empate.data.opcoes?.length).toBe(2);
+    });
+  });
 });

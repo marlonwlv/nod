@@ -292,10 +292,10 @@
   --nv-barra-fundo: #f7f7f7;
   --nv-endereco: #f5f5f7;
   /* ADR-191 (2026-11-20; Paper "Pedidos pendentes · seguir conversando"): a linha do pedido que a pessoa deixou para trás —
-     o fundo (#FAFAFA) e o "· você seguiu…" (50 %). A borda é a --chat-pedido-contorno; o texto, a --chat-tinta-2; o link,
+     o fundo (#FAFAFA) e o "· você seguiu…" (62 %: 4,7:1 no #FAFAFA; os 50 % do Paper davam 3,3:1, abaixo do AA — QA r176). A borda é a --chat-pedido-contorno; o texto, a --chat-tinta-2; o link,
      a --chat-aba-precisa. */
   --pedido-dispensado-fundo: #fafafa;
-  --pedido-dispensado-sufixo: #1c1c1c80;
+  --pedido-dispensado-sufixo: #1c1c1c9e;
 }
 
 @media (prefers-color-scheme: dark) {

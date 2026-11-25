@@ -201,9 +201,13 @@ export function rotasContasIa(deps: DepsRotasContas): Rota[] {
           ctx.json(409, { codigo: "maquina_sem_atualizacao", mensagem: `${maquina.nome} não reinstala a IA por aqui. Reinicie o nod nela e mande de novo.` });
           return;
         }
-        deps.logins.pedirAtualizacao(ctx.escopo, maquina.id, ia);
-        deps.avisar(ctx.escopo, "atualizar");
         const r = await deps.dentro(ctx.escopo, (d) => executar(d, (dd, i) => reinstalarETentar(dd, i), { conversaId, turnoId, ia, maquina: maquina.nome }));
+        // QA-198: só pede a reinstalação quando a fala foi refeita — o 2º clique, o turno já refeito ou de outra conversa
+        // não reinstalam a IA de novo no meio da primeira.
+        if (r.turnoId) {
+          deps.logins.pedirAtualizacao(ctx.escopo, maquina.id, ia);
+          deps.avisar(ctx.escopo, "atualizar");
+        }
         ctx.json(200, r);
       },
     },

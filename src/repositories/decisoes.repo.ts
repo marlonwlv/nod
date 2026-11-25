@@ -299,7 +299,7 @@ export function decisoesRepo(conn: Conn, escopo: Escopo) {
      * A mensagem nova da pessoa dispensa o pedido aberto (definido em 2026-11-20, ADR-191): o mesmo desfecho 'dispensada'
      * do ×, com `por` = quem mandou a mensagem e `antes` = de onde saiu. Só a aberta da DONA que também é a decisora (o
      * pedido dirigido a outra pessoa continua dela), de TIPOS_DISPENSADOS_AO_SEGUIR, fora das tarefas do quadro
-     * (`tarefa_id`, ADR-159: a espera da tarefa se resolve pela tarefa). Idempotente pelo `estado = antes`.
+     * (`tarefa_id`, ADR-159: a espera da tarefa se resolve pela tarefa). Idempotente pelo `estado = antes`. A linha travada por quem a decide agora fica para o clique (`skip locked`, QA r175).
      */
     async dispensarAoSeguir(id: string, p: { por: string; agora: number; antes: "pendente" | "reaberta" }): Promise<Decisao | null> {
       const desfecho: DesfechoDecisao = { tipo: "dispensada", por: p.por, em: iso(p.agora), antes: p.antes };
@@ -307,6 +307,9 @@ export function decisoesRepo(conn: Conn, escopo: Escopo) {
         update decisoes set estado = 'decidida', desfecho = ${conn.json(desfecho)}, decidida_em = ${data(p.agora)}, decidida_por = ${p.por}
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and decisor_id = ${escopo.pessoaId} and id = ${id}
           and estado = ${p.antes} and tipo in ${conn([...TIPOS_DISPENSADOS_AO_SEGUIR])} and tarefa_id is null
+          -- QA r175: sem esperar a linha que outra transação decide agora (Permitir, Confirmar): o clique vence, e esperar
+          -- aqui, com a proposta já travada, fechava um ciclo de deadlock com o caminho que trava decisão → proposta.
+          and id in (select d.id from decisoes d where d.tenant_id = ${escopo.tenantId} and d.id = ${id} for update skip locked)
         returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraDecisao(l) : null;
     },

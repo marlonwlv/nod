@@ -53,18 +53,33 @@ function nomeDe(c: Pick<ConversaNaoLida, "conversaId">, todos: readonly Alvo[]):
   return todos.find((a) => a.conversaId === c.conversaId)?.nome ?? "Conversa";
 }
 
-/** Resolve cada nome (ou id) pedido numa conversa; os que não acham voltam em `faltam`. Nome repetido entre bot e sala: ambíguo. */
-function resolver(pedidos: readonly string[], todos: readonly Alvo[]): { achados: Alvo[]; faltam: string[] } {
+/**
+ * Resolve cada nome (ou id) pedido numa conversa; os que não acham voltam em `faltam`. Nome repetido (bot e sala, ou duas
+ * salas, inclusive a de outra pessoa onde o bot está): `ambiguos`, com o id de cada uma — QA-235: antes caía em `faltam` e a
+ * recusa dizia "não achei" sem dar ao bot como apontar a certa.
+ */
+function resolver(pedidos: readonly string[], todos: readonly Alvo[]): { achados: Alvo[]; faltam: string[]; ambiguos: { pedido: string; opcoes: Alvo[] }[] } {
   const achados: Alvo[] = [];
   const faltam: string[] = [];
+  const ambiguos: { pedido: string; opcoes: Alvo[] }[] = [];
   for (const p of pedidos) {
     const chave = normalizarNome(p);
     const porId = todos.filter((a) => a.conversaId === p.trim());
     const porNome = porId.length ? porId : todos.filter((a) => normalizarNome(a.nome) === chave);
-    if (porNome.length !== 1) faltam.push(p);
+    if (porNome.length > 1) ambiguos.push({ pedido: p, opcoes: porNome });
+    else if (porNome.length === 0) faltam.push(p);
     else if (porNome[0] && !achados.some((a) => a.conversaId === porNome[0]?.conversaId)) achados.push(porNome[0]);
   }
-  return { achados, faltam };
+  return { achados, faltam, ambiguos };
+}
+
+/** O detalhe da recusa nao_encontrado: o que não achou e o que achou mais de uma vez, com o id de cada conversa. */
+function detalheDaResolucao(faltam: readonly string[], ambiguos: readonly { pedido: string; opcoes: Alvo[] }[]): string {
+  const partes = faltam.length ? [`não achei: ${faltam.join(", ")}`] : [];
+  for (const a of ambiguos) {
+    partes.push(`"${a.pedido}" é ambíguo, mande o id da conversa no lugar do nome: ${a.opcoes.map((o) => `${o.conversaId} (${o.salaId ? "sala" : "bot"})`).join(", ")}`);
+  }
+  return partes.join("; ");
 }
 
 export const naoLidosNoChat: CasoNod<Deps, "nao_lidos"> = async (deps, input) => {
@@ -104,8 +119,8 @@ export const naoLidosNoChat: CasoNod<Deps, "nao_lidos"> = async (deps, input) =>
 
   if (input.acao === "marcar_nao_lida") {
     if (input.todas) return recusa("entrada_invalida", { detalhe: "marcar_nao_lida pede conversas, não todas" });
-    const { achados, faltam } = resolver(input.conversas ?? [], todos);
-    if (faltam.length) return recusa("nao_encontrado", { detalhe: `não achei: ${faltam.join(", ")}`, disponiveis: todos.map((a) => a.nome) });
+    const { achados, faltam, ambiguos } = resolver(input.conversas ?? [], todos);
+    if (faltam.length || ambiguos.length) return recusa("nao_encontrado", { detalhe: detalheDaResolucao(faltam, ambiguos), disponiveis: todos.map((a) => a.nome) });
     const marcadas: string[] = [];
     for (const a of achados) if ((await EXECUTORES_CONVERSA["conversas.marcar_nao_lida"](deps, { conversaId: a.conversaId })).data.marcada) marcadas.push(a.nome);
     if (marcadas.length === 0) return { data: { ok: true, marcadas, instrucao: "Nada mudou: essas conversas não têm fala de bot para a pessoa. Diga isso numa frase." }, events };
@@ -120,8 +135,8 @@ export const naoLidosNoChat: CasoNod<Deps, "nao_lidos"> = async (deps, input) =>
     marcadas = r.data.leituras.map((leitura) => ({ nome: nomeDe(leitura, todos), leitura }));
   } else {
     const comNovas = lista.map((c) => ({ conversaId: c.conversaId, agenteId: c.agenteId, salaId: c.salaId, nome: nomeDe(c, todos) }));
-    const { achados, faltam } = resolver(input.conversas ?? [], todos);
-    if (faltam.length) return recusa("nao_encontrado", { detalhe: `não achei: ${faltam.join(", ")}`, disponiveis: comNovas.map((a) => a.nome) });
+    const { achados, faltam, ambiguos } = resolver(input.conversas ?? [], todos);
+    if (faltam.length || ambiguos.length) return recusa("nao_encontrado", { detalhe: detalheDaResolucao(faltam, ambiguos), disponiveis: comNovas.map((a) => a.nome) });
     const alvo = achados.filter((a) => comNovas.some((c) => c.conversaId === a.conversaId));
     if (alvo.length === 0) return { data: { ok: true, marcadas: [], instrucao: `${achados.map((a) => a.nome).join(", ")} já estava em dia: nada mudou. Diga isso numa frase.` }, events };
     marcadas = [];
