@@ -462,6 +462,11 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     const n = nomeDeArquivo(nome);
     return { nome: n, caminho: join(pasta(s), "arquivos", n) };
   }
+  async function apagarDownloadsIncompletos(s: SessaoNavegador): Promise<void> {
+    const dir = join(pasta(s), "arquivos");
+    const nomes = await readdir(dir).catch(() => [] as string[]);
+    await Promise.all(nomes.filter((n) => n.endsWith(".crdownload")).map((n) => rm(join(dir, n), { force: true })));
+  }
 
   return {
     lugar: { tipo: "nod" },
@@ -529,7 +534,17 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
     async baixar(s, alvo, nome) {
       const a = await arquivoNaPasta(s, nome);
-      await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
+      try {
+        await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
+      } catch (e) {
+        if (!ehFalhaNavegador(e) || e.motivo !== "tempo_esgotado") throw e;
+        // Revisto em 2026-11-25 (QA-207): o prazo só mata o CLI; o Chrome do bot seguia baixando sem teto e enchia o disco
+        // da máquina. Sem comando de cancelar download no agent-browser, fecha o Chrome do bot (os logins ficam no perfil)
+        // e apaga o que ficou pela metade.
+        await rodar(s, ["close"]).catch(() => undefined);
+        await apagarDownloadsIncompletos(s);
+        throw new FalhaNavegador("tempo_esgotado", "o download não terminou a tempo e foi cancelado; o navegador do bot foi fechado e abre de novo no próximo comando, já sem as abas");
+      }
       return { nome: a.nome, bytes: (await stat(a.caminho)).size };
     },
     async enviarArquivo(s, alvo, nomes) {

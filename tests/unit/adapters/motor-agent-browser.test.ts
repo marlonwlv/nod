@@ -162,6 +162,28 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
     expect(recebidos[2]!.prazoMs).toBeLessThanOrEqual(15_000);
   });
 
+  it("baixar que estoura o prazo fecha o Chrome do bot e apaga o download pela metade (QA-207: seguia enchendo o disco)", async () => {
+    const m = motor();
+    const arquivos = join(dados, nomeDaSessao(A), "arquivos");
+    // O agent-browser morre no prazo, mas o Chrome do bot já gravava o .crdownload e seguiria baixando.
+    respostas.push(() => ({ codigo: null, saida: "", estourou: true }));
+    const baixando = m.baixar(s, "e3", "grande.bin");
+    await expect(baixando).rejects.toMatchObject({ motivo: "tempo_esgotado", detalhe: expect.stringContaining("cancelado") });
+    expect(recebidos.map((r) => r.args[0])).toEqual(["download", "close"]);
+    expect(recebidos[0]!.args[0]).toBe("download");
+    // O arquivo pela metade que existia antes do close sai; um arquivo pronto de antes fica.
+    await writeFile(join(arquivos, "pronto.pdf"), "x");
+    await writeFile(join(arquivos, "a1b2.crdownload"), "metade");
+    respostas.push(() => ({ codigo: null, saida: "", estourou: true }));
+    await expect(m.baixar(s, "e3", "grande.bin")).rejects.toMatchObject({ motivo: "tempo_esgotado" });
+    expect(await readdir(arquivos)).toEqual(["pronto.pdf"]);
+    // Outra falha do download não fecha o navegador.
+    respostas.push(() => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "Element not found" }) }));
+    const antes = recebidos.length;
+    await expect(m.baixar(s, "e9", "x.bin")).rejects.toBeInstanceOf(FalhaNavegador);
+    expect(recebidos.slice(antes).map((r) => r.args[0])).toEqual(["download"]);
+  });
+
   it("print lê o JPEG que o agent-browser gravou e apaga o arquivo", async () => {
     // O executor falso faz o que o agent-browser faz: grava o arquivo no caminho pedido e devolve `data.path`.
     const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => { if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false }; recebidos.push(p); await writeFile(p.args[1]!, Buffer.from([0xff, 0xd8, 0xff])); return { codigo: 0, saida: ok({ path: p.args[1] }), erro: "", estourou: false }; } });
