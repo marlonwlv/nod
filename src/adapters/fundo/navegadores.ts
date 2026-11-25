@@ -352,7 +352,15 @@ function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; i
 export function tarefasParaOBot(tarefas: readonly TarefaEnsinada[], nome: unknown): Record<string, unknown> {
   if (!tarefas.length) return { tarefas: [], instrucao: "Nenhuma tarefa foi ensinada a você no navegador ainda." };
   const pedido = typeof nome === "string" ? nome.trim().toLowerCase() : "";
-  const achada = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) ?? tarefas.find((t) => t.nome.toLowerCase().includes(pedido)) : undefined;
+  const exata = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) : undefined;
+  // Pedaço que bate em tarefas de nomes diferentes não escolhe calado (QA-238); o mesmo nome ensinado de novo vale a mais nova.
+  const parciais = pedido && !exata ? tarefas.filter((t) => t.nome.toLowerCase().includes(pedido)) : [];
+  const vistas = new Set<string>();
+  const candidatas = parciais.filter((t) => !vistas.has(t.nome.toLowerCase()) && Boolean(vistas.add(t.nome.toLowerCase())));
+  if (candidatas.length > 1) {
+    return { tarefas: candidatas.map((t) => ({ nome: t.nome, passos: t.passos.length })), erro: "nome_ambiguo", instrucao: "Mais de uma tarefa tem esse pedaço no nome. Chame de novo com o nome inteiro da que a pessoa pediu; se não der para saber qual, pergunte a ela." };
+  }
+  const achada = exata ?? candidatas[0];
   if (achada) return { nome: achada.nome, passos: achada.passos, instrucao: "Estes são os passos que a pessoa fez com as próprias mãos. Repita-os no navegador, lendo a página antes de cada passo; os campos marcados como não gravados você pede a ela (navegador_entrar ou navegador_pedir_ajuda)." };
   return { tarefas: tarefas.map((t) => ({ nome: t.nome, passos: t.passos.length })), ...(pedido ? { erro: "tarefa_inexistente" } : {}), instrucao: "Chame de novo com o nome de uma destas tarefas para ver os passos." };
 }
