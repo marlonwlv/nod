@@ -35,7 +35,7 @@ const nomeDoBot = (l: LinhaRotina) => l.bot?.nome ?? "bot";
 const titulo = (r: RotinaDto) => tituloDaRotina(r.rotina.instrucao, 64);
 
 export function renderAgendaRotinas(estado: Estado, celular = false): string {
-  const a = estado.agenda;
+  const a = { ...estado.agenda, ui: semBotQueSaiu(estado) };
   const ctx: Ctx = { estado, ui: a.ui, celular, agora: estado.agora };
   const semRotina = estado.rotinas.length === 0 && (!a.dto || a.dto.rotinas.length === 0);
   const lista = montarLista({ rotinas: estado.rotinas, dto: a.dto, agentes: estado.frota?.agentes ?? [], filtro: { visao: a.ui.visao, bots: a.ui.bots, soProblema: a.ui.soProblema }, pessoaId: estado.sessao?.pessoaId ?? null, agora: estado.agora });
@@ -50,6 +50,19 @@ export function renderAgendaRotinas(estado: Estado, celular = false): string {
     ${filtros}
     <div class="ag-corpo">${corpo}</div>
   </section>`;
+}
+
+/**
+ * QA-172: o "Filtrar por bot" guarda o id. Se o bot escolhido não tem mais rotina na lista (foi excluído em outra aba ou
+ * pelo chat, ou a última rotina dele saiu), o select não tem a opção dele e o navegador mostra "Todos os bots" enquanto a
+ * lista seguia filtrada e vazia, com as abas em 0. O filtro que deixou de existir vale como "Todos os bots" (como nos Relatos).
+ */
+function semBotQueSaiu(estado: Estado): Estado["agenda"]["ui"] {
+  const ui = estado.agenda.ui;
+  if (ui.bots.length === 0) return ui;
+  const comRotina = new Set(estado.rotinas.map((r) => r.rotina.agenteId)); // a mesma fonte das linhas do `montarLista`
+  const bots = ui.bots.filter((id) => comRotina.has(id));
+  return bots.length === ui.bots.length ? ui : { ...ui, bots };
 }
 
 /** "O que seus bots fazem sozinhos, num horário. 14 rotinas de 9 bots." */
@@ -201,7 +214,7 @@ function metaDaLinha(ctx: Ctx, l: LinhaRotina, tipo: Tipo): { tom: Tom; texto: s
 function colunaDaDireita(ctx: Ctx, l: LinhaRotina, tipo: Tipo): string {
   if (tipo !== "proxima") return "";
   if (ehWebhook(l.dto)) return '<span class="ag-prox"><small>quando chamarem</small></span>';
-  const p = proximaVez(l.dto.proximaExecucao, ctx.agora);
+  const p = proximaVez(l.dto.proximaExecucao, ctx.agora, l.dto.rotina.fusoIana);
   return `<span class="ag-prox"><span class="ag-sr">Próxima vez: </span><b>${esc(p.hora)}</b><small>${esc(p.quando)}</small></span>`;
 }
 
@@ -242,7 +255,8 @@ function ondeRoda(r: RotinaDto): string | null {
 }
 
 function dados(ctx: Ctx, r: RotinaDto): string {
-  const fuso = ctx.estado.agenda.dto && r.rotina.fusoIana !== ctx.estado.agenda.dto.fuso ? ` (fuso ${r.rotina.fusoIana})` : "";
+  // PR #333 (achado 17): o resumo já pode trazer o fuso ("todo dia às 09:00 (America/Sao_Paulo)"); não repete.
+  const fuso = ctx.estado.agenda.dto && r.rotina.fusoIana !== ctx.estado.agenda.dto.fuso && !r.resumo.includes(r.rotina.fusoIana) ? ` (fuso ${r.rotina.fusoIana})` : "";
   const linhas: [string, string][] = [["Quando", `${r.resumo}${fuso}`]];
   const onde = ondeRoda(r);
   if (onde) linhas.push(["Onde roda", onde]);
@@ -270,6 +284,8 @@ function acoesDaRotina(ctx: Ctx, l: LinhaRotina): Acao[] {
     ...(ctx.estado.ocupado ? [] : [{ act: "executar-rotina", rotulo: "Testar agora", dados: { id: r.id, agente: r.agenteId } }]),
     { act: pausada ? "ativar-rotina" : "pausar-rotina", rotulo: pausada ? "Ativar" : "Pausar", dados: { id: r.id }, pri: pausada },
     { act: "abrir-conversa", rotulo: "Mudar pela conversa", dados: { conversa: r.conversaId, agente: r.agenteId } },
+    // PR #333 (achado 4): excluir pela tela, com a confirmação do diálogo; antes só pela conversa com o bot.
+    { act: "excluir-rotina", rotulo: "Excluir", dados: { id: r.id, titulo: titulo(l.dto) } },
   ];
 }
 
@@ -361,4 +377,21 @@ export function valorDaAgenda(estado: Estado): string {
   const ontem = somarDias(hoje, -1);
   const n = dto.itens.filter((i) => (i.dia === hoje || i.dia === ontem) && itemComProblema(i)).length;
   return n === 0 ? "" : n === 1 ? "1 falha" : `${n} falhas`;
+}
+
+/**
+ * QA r235: o destino do foco quando a rotina `id` sai da lista pelo Excluir da tela — a linha da rotina seguinte, senão a
+ * da anterior, senão o "Nova rotina" (no vazio, o da caixa "Nenhuma rotina ainda"). Um seletor para `focoPendente`.
+ */
+export function destinoAoExcluirRotina(raiz: { querySelectorAll(s: string): ArrayLike<{ getAttribute(n: string): string | null }> }, id: string): string {
+  const ids = Array.from(raiz.querySelectorAll('#espaco [data-act="agenda-linha"][data-id]'), (el) => el.getAttribute("data-id") ?? "").filter((x, i, todos) => x && todos.indexOf(x) === i);
+  const i = ids.indexOf(id);
+  const vizinho = i < 0 ? undefined : ids[i + 1] ?? ids[i - 1];
+  // Um seletor só: `querySelector` com vírgula pega o primeiro na ordem do documento (o "Nova rotina" do cabeçalho).
+  return vizinho ? `#espaco [data-act="agenda-linha"][data-id="${cssId(vizinho)}"]` : '#espaco [data-act="navegar"][data-tela="nova-rotina"]';
+}
+
+/** O id (uuid) dentro de aspas num seletor de atributo; fora de navegador não há `CSS.escape`. */
+function cssId(id: string): string {
+  return id.replace(/["\\]/g, "\\$&");
 }

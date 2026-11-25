@@ -49,7 +49,10 @@ export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, Fro
     const ultima = conversa ? (ultimas.get(conversa.id) ?? null) : null;
     // definido em 2026-09-28 (ADR-051): o texto do artefato leva o id para o modelo; a prévia mostra só o título.
     // Spec do botão + (tela 5): enquanto a boas-vindas é a última fala, a prévia é a pergunta do cartão, não a saudação.
-    const previa = ultima ? previaDaMensagem(ultima.payload?.kind === "artefato" ? `▣ ${ultima.payload.titulo}` : ultima.payload?.kind === "boas_vindas" && ultima.payload.pergunta ? ultima.payload.pergunta : ultima.texto) : null;
+    // QA do Windows (2026-11-25): o `pedido_dispensado` traz no texto a linha que o BOT lê ("A pessoa seguiu sem responder
+    // ao seu pedido…"); a prévia mostra o que a conversa mostra, a frase do pedido com "você seguiu sem responder".
+    const p = ultima?.payload;
+    const previa = ultima ? previaDaMensagem(p?.kind === "artefato" ? `▣ ${p.titulo}` : p?.kind === "boas_vindas" && p.pergunta ? p.pergunta : p?.kind === "pedido_dispensado" ? `${p.frase} · você seguiu sem responder` : ultima.texto) : null;
     return {
       ...agente,
       naoLido: conversa ? comNovas.has(conversa.id) : false,

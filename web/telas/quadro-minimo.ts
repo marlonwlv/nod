@@ -60,19 +60,31 @@ export function valoresDoFiltro(q: QuadroDto, cs: readonly ColunaDto[], agente: 
   return r;
 }
 
+/**
+ * QA-174: o valor de um filtro guardado que já não tem tarefa no quadro (o bot sem tarefa aqui ou excluído, a pessoa que
+ * saiu, a coluna apagada, a label tirada de todas). O chip diz o nome que ainda se sabe, ou o que saiu, e nunca o id cru.
+ */
+export function nomeDoValorQueSaiu(c: CondicaoDoFiltro, q: QuadroDto, cs: readonly ColunaDto[], agente: AgenteDoQuadro): string {
+  if (c.campo === "responsavel") return c.valor === "sem" ? "Sem responsável" : agente(c.valor)?.nome ?? q.tarefas.find((t) => t.agenteId === c.valor)?.agenteNome ?? "Bot que saiu";
+  if (c.campo === "criador") return c.valor === "bot" ? "Um bot" : c.valor === q.voce?.pessoaId || c.valor === q.dona?.pessoaId || q.membros?.some((m) => m.pessoaId === c.valor) ? nomeDaPessoa(q, c.valor) : "Pessoa que saiu";
+  if (c.campo === "status") return cs.find((x) => x.id === c.valor)?.nome ?? "Coluna que saiu";
+  if (c.campo === "label") return c.valor === "sem" ? "Sem label" : q.labels?.find((l) => l.id === c.valor)?.nome ?? "Label que saiu";
+  return CAMPOS_PADRAO.find((d) => d.campo === c.campo)?.valores([]).find((v) => v.valor === c.valor)?.nome ?? "Valor que saiu";
+}
+
 /** O texto do filtro rápido ligado (a pílula de quem trabalha), para o chip removível. */
 function chipDoFiltroRapido(f: Filtro, q: QuadroDto, agente: AgenteDoQuadro): string | null {
   if (f === "todos") return null;
   if (f === "comigo") return "Esperando por mim";
   if (f === "trabalhando") return "Trabalhando agora";
-  return `Responsável: ${nomeDoResponsavel(f.slice("agente:".length), q, agente).nome}`;
+  return `Responsável: ${nomeDoValorQueSaiu({ campo: "responsavel", valor: f.slice("agente:".length) }, q, q.colunas, agente)}`;
 }
 
 /** A barra do quadro minimalista, com os popovers e os chips dos filtros ligados. */
 export function barraDoQuadroMinimo(o: { q: QuadroDto; cs: readonly ColunaDto[]; agente: AgenteDoQuadro; /** Rodada 3: o nome de quem está logado (as iniciais do "Você"); sem ele, "V". */ voceNome?: string | null; filtro: Filtro; busca: string; ui: UiDaBarra; op: OpcoesEfetivas; recolhidas: boolean; compacto: boolean; podeCriar: boolean; /** O nome e o menu do quadro (menu-do-quadro.ts), à esquerda do funil. */ cab?: Html }): Html {
   const { q, ui } = o;
   const valores = valoresDoFiltro(q, o.cs, o.agente);
-  const nomeDoValor = (c: CondicaoDoFiltro): string => valores[c.campo]?.find((v) => v.valor === c.valor)?.nome ?? c.valor;
+  const nomeDoValor = (c: CondicaoDoFiltro): string => valores[c.campo]?.find((v) => v.valor === c.valor)?.nome ?? nomeDoValorQueSaiu(c, q, o.cs, o.agente);
   const rodando = new Set(q.tarefas.filter((t) => trabalhandoAgora(t) && t.agenteId).map((t) => t.agenteId!));
   // Rodada 3 (tela 18 do Paper): além de quem tem tarefa, os bots ligados ao quadro sem tarefa (o dono e os responsáveis
   // das colunas), com 0, no fim.

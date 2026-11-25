@@ -169,7 +169,7 @@ describe("o chat: carona, marca e ícones", () => {
   it("o desfecho do cartão \"Uma IA só\" leva a carona clicável e a explicação (revisão 2)", () => {
     const cartao = msg({ kind: "sistema", texto: "", payload: { kind: "troca_de_ia", agenteId: "a", iaDe: "claude-cli", iaPara: "codex-cli", tasks: 1, fixo: true, decisao: "outra_ia", contaDe: null, voltaEm: null } as never });
     const html = cartaoTrocaDeIa(cartao, { nomeDoBot: "Gil", agora: AGORA, recomeco: { tipo: "carona", motivo: "troca_de_ia", nomeDoBot: "Gil" } }) ?? "";
-    expect(html).toContain("O Gil segue no ChatGPT até o Claude voltar.");
+    expect(html).toContain("Gil segue no ChatGPT até o Claude voltar.");
     expect(html).toContain('class="linha-link p312-carona" data-act="recomeco-explicar"');
     expect(html).toContain("A outra IA não traz o que Gil já leu e testou nesta conversa.");
     expect(cartaoTrocaDeIa(cartao, { nomeDoBot: "Gil", agora: AGORA }) ?? "").not.toContain("p312-carona");

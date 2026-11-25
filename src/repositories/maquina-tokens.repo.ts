@@ -35,6 +35,15 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * QA-178: a vaga da máquina só-computador da pessoa, travada até o fim da transação. `computadorVivo` + `criar` sem
+     * ela deixavam dois pareamentos ao mesmo tempo verem a vaga livre, e o segundo batia no índice da 0105 (23505, 500).
+     * Com a trava, o segundo espera, relê a vaga e recebe a recusa do domínio (ou, no Substituir, revoga a do primeiro).
+     */
+    async travarVagaDoComputador(): Promise<void> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`maquina-computador:${escopo.tenantId}:${escopo.pessoaId}`}, 0))`;
+    },
+
+    /**
      * NOD-94 (0105): a máquina só-computador viva da pessoa, depois de revogar (na data em que venceu) a que venceu sem
      * confirmação — ela ainda seguraria a vaga do índice único. null = a vaga está livre.
      */

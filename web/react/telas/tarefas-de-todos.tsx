@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { gruposDasTarefas, quantasPerguntaram, resumoDosQuadros, type FiltrosDasTarefas, type GrupoDasTarefas, type LinhaDaTarefa, type VistaDasTarefas } from "../../lib/tarefas-de-todos.ts";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { gruposDasTarefas, iniciaisDeVoce, quantasPerguntaram, rotuloDaLinha, resumoDosQuadros, type FiltrosDasTarefas, type GrupoDasTarefas, type LinhaDaTarefa, type VistaDasTarefas } from "../../lib/tarefas-de-todos.ts";
 import type { TarefasDeTodosNaTela } from "../../lib/tarefas-de-todos-na-tela.ts";
 import { iconeDaPrioridade } from "../../telas/opcoes-quadro.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
@@ -12,9 +12,11 @@ import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx"
  * digitar não regrava a tela inteira, então o foco e o cursor ficam sem guardar e devolver.
  */
 export interface AcoesDasTarefas {
-  fonte: Pick<TarefasDeTodosNaTela, "dados" | "assinar" | "tentarDeNovo">;
+  fonte: Pick<TarefasDeTodosNaTela, "dados" | "assinar" | "tentarDeNovo"> & Partial<Pick<TarefasDeTodosNaTela, "escolhas" | "guardarEscolhas">>;
   /** O mascote do bot (o HTML do main). */
   avatar: (agenteId: string | null) => string;
+  /** QA-181: o nome de quem lê (as iniciais do "Você" nas linhas sem bot; ausente = "V"). */
+  voce?: () => string | null;
   abrirTarefa: (donoId: string, tarefaId: string, quadroId: string) => void;
   abrirPagina: (agenteId: string, quadroId: string | null) => void;
   agora?: () => number;
@@ -34,8 +36,11 @@ const VISTAS: readonly [VistaDasTarefas, string][] = [["quadro", "Por quadro"], 
 
 export function TelaTarefasDeTodos({ acoes }: { acoes: AcoesDasTarefas }) {
   const { quadros, erro } = useSyncExternalStore(acoes.fonte.assinar, acoes.fonte.dados, acoes.fonte.dados);
-  const [vista, setVista] = useState<VistaDasTarefas>("quadro");
-  const [filtros, setFiltros] = useState<FiltrosDasTarefas>({ busca: "", emAberto: true, porPrioridade: false });
+  // QA-147: começa no que a pessoa tinha escolhido (o controlador guarda entre aberturas) e guarda cada escolha.
+  const [vista, setVista] = useState<VistaDasTarefas>(() => acoes.fonte.escolhas?.().vista ?? "quadro");
+  const [filtros, setFiltros] = useState<FiltrosDasTarefas>(() => acoes.fonte.escolhas?.().filtros ?? { busca: "", emAberto: true, porPrioridade: false });
+  const { guardarEscolhas } = acoes.fonte;
+  useEffect(() => { guardarEscolhas?.(vista, filtros); }, [guardarEscolhas, vista, filtros]);
   const conversor = useRef<ConversorDeHtml | null>(null);
   conversor.current ??= criarConversor();
   useLayoutEffect(() => conversor.current?.fecharQuadro());
@@ -102,12 +107,12 @@ function Linha({ l, acoes, html }: { l: LinhaDaTarefa; acoes: AcoesDasTarefas; h
   return (
     <li className="tdt-linha">
       <button type="button" className="tdt-linha-bt" data-tarefa={l.id} data-quadro={l.quadroId} data-dono={l.donoId} onClick={() => acoes.abrirTarefa(l.donoId, l.id, l.quadroId)}
-        aria-label={`${l.codigo} ${l.titulo}, ${l.coluna}${l.agenteNome ? `, ${l.agenteNome}` : ""}, ${l.direita.texto}`}>
+        aria-label={rotuloDaLinha(l)}>
         {html(iconeDaPrioridade(l.prioridade))}<span className="tdt-cod">{l.codigo}</span><span className="tdt-tit">{l.titulo}</span>
         <span className="tdt-col"><i className={`tdt-ponto tdt-ponto-${l.tom}`} aria-hidden="true" />{l.coluna}</span>
         <span className="tdt-quem">{l.agenteId
           ? <><span className="tdt-av" aria-hidden="true">{html(acoes.avatar(l.agenteId))}</span><span className="tdt-quem-nome">{l.agenteNome ?? ""}</span></>
-          : <><span className="tdt-voce" aria-hidden="true">MW</span><span className="tdt-quem-nome">Você</span></>}</span>
+          : <><span className="tdt-voce" aria-hidden="true">{iniciaisDeVoce(acoes.voce?.())}</span><span className="tdt-quem-nome">Você</span></>}</span>
         <span className={`tdt-dir${l.direita.tom === "aguardando" ? " tdt-dir-aguardando" : ""}`}>{l.direita.texto}</span>
       </button>
     </li>

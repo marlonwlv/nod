@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
+import { criarNavegadores, DESFAZER_DESCARTE_MS, DETECTAR_DESAFIO, enderecoMalformado, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
-import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
+import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
 import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import type { TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts";
 import { SEM_LIBERACOES, type LiberacoesNavegador } from "../../../src/domain/navegador-aprovacao.ts";
@@ -63,6 +63,8 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
+        case "baixar": return { nome: String(args[2]), bytes: 10 };
+        case "pdf": return { nome: `${String(args[1])}.pdf`, bytes: 20 };
         case "avaliar": return args[1] === DETECTAR_DESAFIO ? desafio : String(args[1]).includes("document.title") ? tituloDepois : undefined;
         default: return undefined;
       }
@@ -340,6 +342,15 @@ describe("ler → agir por referência", () => {
     expect(ops()).not.toContain("abrir");
     expect(enderecoPermitido("https://www.exemplo.com.br/x")).toBe(true);
     for (const u of ["file:///etc/passwd", "http://localhost:3000", "http://169.254.169.254/latest", "http://10.0.0.5", "http://192.168.1.1", "http://[::1]/", "javascript:alert(1)", "http://metadata.google.internal/", "http://2130706433/"]) expect(enderecoPermitido(u), u).toBe(false);
+    // QA do Windows (2026-11-25): o endereço que nem é URL ganha recusa própria; localhost e file: seguem com a de rede.
+    for (const u of ["htps//g1 globo com", "g1 globo com", "https://g1 globo.com", "https://g1", "www.g1.com.br"]) expect(enderecoMalformado(u), u).toBe(true);
+    for (const u of ["https://g1.globo.com", "http://localhost:3000", "file:///etc/passwd", "http://[::1]/", "javascript:alert(1)"]) expect(enderecoMalformado(u), u).toBe(false);
+  });
+
+  it("QA-202: o ponto final do nome e o IPv6 que embute um IPv4 de dentro também são recusados", () => {
+    // No Chromium real, `localhost.` e `[::ffff:127.0.0.1]` chegam ao servidor da própria máquina.
+    for (const u of ["http://localhost./", "http://metadata.google.internal./", "http://nod.local./", "http://[::ffff:127.0.0.1]/", "http://[::ffff:169.254.169.254]/latest", "http://[::127.0.0.1]/", "http://[64:ff9b::7f00:1]/", "http://[2002:a9fe:a9fe::]/", "http://[fe90::1]/", "http://[ff02::1]/", "http://[::]/"]) expect(enderecoPermitido(u), u).toBe(false);
+    for (const u of ["http://[2606:4700:4700::1111]/", "http://[::ffff:8.8.8.8]/", "http://[64:ff9b::808:808]/", "https://exemplo.com.br./"]) expect(enderecoPermitido(u), u).toBe(true);
   });
 
   it("navegador_ver devolve o print em JPEG", async () => {
@@ -540,6 +551,20 @@ describe("controle e pedidos à pessoa", () => {
   });
 });
 
+describe("arquivos do navegador (QA-205)", () => {
+  it("baixar e PDF não prometem os Arquivos do bot: o retorno diz onde o arquivo ficou", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    const b = corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_baixar", argumentos: { alvo: "@e5", nome: "fatura.pdf" } }));
+    expect(b).toMatchObject({ ok: true, arquivo: "fatura.pdf", instrucao: expect.stringContaining("pasta do navegador") });
+    const p = corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_pdf", argumentos: { nome: "pagina" } }));
+    expect(p).toMatchObject({ ok: true, instrucao: expect.stringContaining("ainda não aparece nos Arquivos") });
+    for (const f of ["navegador_baixar", "navegador_pdf", "navegador_enviar_arquivo"] as const) {
+      expect(String(FERRAMENTAS_NAVEGADOR[f].description)).not.toMatch(/(nos|dos) Arquivos do bot\b(?! nem)/);
+    }
+  });
+});
+
 describe("segredo na página (L3)", () => {
   it("leitura, print e eval travam até a URL mudar", async () => {
     const n = criar();
@@ -692,6 +717,22 @@ describe("liberações e tarefas guardadas (0180)", () => {
     expect(r).toMatchObject({ confianca: "nao_confiavel" });
     expect(tarefasParaOBot(tarefas, "outra")).toMatchObject({ erro: "tarefa_inexistente" });
     expect(chamadas).toEqual([]);
+  });
+
+  it("pedaço de nome que bate em duas tarefas diferentes não escolhe calado: devolve as candidatas (QA-238)", () => {
+    const lista = [
+      { id: "t2", nome: "Baixar nota", passos: ["Abriu b.com"], criadaEm: T0 + 1 },
+      { id: "t1", nome: "Emitir nota", passos: ["Abriu e.com", "Clicou"], criadaEm: T0 },
+    ];
+    const r = tarefasParaOBot(lista, "nota");
+    expect(r).toMatchObject({ erro: "nome_ambiguo", tarefas: [{ nome: "Baixar nota", passos: 1 }, { nome: "Emitir nota", passos: 2 }] });
+    expect(r).not.toHaveProperty("passos", expect.any(Array));
+    // nome inteiro ainda acha a certa, e um pedaço único também
+    expect(tarefasParaOBot(lista, "emitir nota")).toMatchObject({ nome: "Emitir nota", passos: ["Abriu e.com", "Clicou"] });
+    expect(tarefasParaOBot(lista, "emitir")).toMatchObject({ nome: "Emitir nota" });
+    // a mesma tarefa ensinada de novo com o mesmo nome: vale a mais nova, sem ambiguidade
+    const repetida = [{ id: "t3", nome: "Emitir nota", passos: ["novo"], criadaEm: T0 + 2 }, ...lista];
+    expect(tarefasParaOBot(repetida, "emitir")).toMatchObject({ nome: "Emitir nota", passos: ["novo"] });
   });
 });
 

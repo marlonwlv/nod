@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AbaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import {
-  avisoDaAbaFechada, barraSoComAvatares, conversaEstreita,
+  ariaTecla, definirTecladoDoMac, tecla, textosDoAparelhoNaWeb, avisoDaAbaFechada, barraSoComAvatares, conversaEstreita,
   abasVisiveis, alturaDaFolha, avisoDoPedido, botNoMeio, caixaNaVista, dicaDaAbaDeLugar, duracaoDoCursor, estadoDaAbaDeLugar, estadoDaPilula, estadoDaTela, gravarLargura, htmlAbaDeLugar,
   htmlAvisoDoSite, htmlBarraDoNavegador, htmlBotaoDoCanto, htmlEstadoDaTela, htmlLinhaDoNavegador, htmlLugares, htmlLugaresFechados, lugarFechadoAMao, htmlMenuDoNavegador, htmlPilula, imantar, larguraMaxima, larguraPadrao,
   legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, MS_ASSUMINDO_VISIVEL, partesDoEndereco, pontoDoLugar, pontoNoViewport, proximoEncaixe,
@@ -188,7 +188,7 @@ describe("os estados da tela (D3)", () => {
     expect(htmlEstadoDaTela("conectando", v, "Nina")).toContain("Conectando à tela da Nina…");
     // Nada por cima da imagem (D1d): a hora vai na pílula, no formato da linha de atividade.
     expect(htmlEstadoDaTela("terminou", vista({ atividadeEm: new Date(2026, 10, 20, 16, 4).getTime() }), "Nina")).toBe("");
-    expect(htmlPilula("Nina", "assistindo", null, new Date(2026, 10, 20, 16, 4).getTime())).toContain("Terminou · 16h04");
+    expect(htmlPilula("Nina", "assistindo", null, new Date(2026, 10, 20, 16, 4).getTime())).toContain("Terminou às 16:04");
     expect(htmlPilula("Nina", "assistindo", null)).toContain("Assistindo");
     expect(htmlEstadoDaTela("segredo", v, "Nina")).toContain("Campo protegido");
     expect(htmlEstadoDaTela("ao_vivo", v, "Nina")).toBe("");
@@ -236,6 +236,22 @@ describe("o painel (D5, D6)", () => {
     expect(imantar(370, 1100)).toEqual({ largura: 367, encaixe: 1 / 3 });
     expect(soltarFecha(359)).toBe(true);
     expect(soltarFecha(360)).toBe(false);
+  });
+
+  it("fora do Mac os atalhos se mostram com Ctrl e o painel sem aparelho diz PC (QA do Windows)", () => {
+    definirTecladoDoMac(false);
+    try {
+      expect(tecla("⌘⇧F")).toBe("Ctrl+Shift+F");
+      expect(tecla("⌘W")).toBe("Ctrl+W");
+      expect(ariaTecla("Meta+Shift+A")).toBe("Control+Shift+A");
+      expect(htmlPilula("Nina", "controle")).toContain('title="A Nina espera · Ctrl+Shift+A devolve"');
+      expect(textosDoAparelhoNaWeb(undefined).nome).toBe("PC");
+      expect(textosDoAparelhoNaWeb("mac").nome).toBe("Mac");
+      expect(htmlPilula("Leitor QA", "controle")).toContain("O Leitor QA espera");
+    } finally {
+      definirTecladoDoMac(true);
+    }
+    expect(textosDoAparelhoNaWeb(undefined).nome).toBe("Mac");
   });
 
   it("⌘⌥← alarga e ⌘⌥→ estreita pelos encaixes que cabem", () => {

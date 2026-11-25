@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { TarefaNoTrabalho } from "../../../src/contracts/tarefa.ts";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
 import { comArquivadas, htmlDasArquivadas, passoDaTarefa, prontas, trabalhosDaTela } from "../../../web/telas/tela-tarefas.ts";
+import { renderIconeTrabalhos } from "../../../web/telas/trabalhos.ts";
 import { campoDaTarefa, htmlObjetivoDaTarefa, htmlSaidaDaParada, linhaDoFim, rotuloDoObjetivo } from "../../../web/telas/tarefa-detalhada.ts";
 
 /**
@@ -95,6 +98,18 @@ describe("a virada da leitura (etapa 5, NOD_TAREFAS_LEITURA_NOVA)", () => {
   it("ligada: a Tarefa decide — a arquivada sai da lista padrão; trabalho sem Tarefa segue", () => {
     expect(trabalhosDaTela(dto(true)).map((t) => t.id)).toEqual(["a", "c"]);
   });
+  // QA-222: "Arquivar e deixar terminar" deixa o trabalho aberto com a Tarefa arquivada; o contador que leva à tela
+  // Tarefas dizia "1" e a tela abria vazia.
+  it("ligada: o contador que leva à tela Tarefas não conta a arquivada que segue rodando", () => {
+    const viva = trabalho({ id: "v", estado: "rodando", terminadoEm: null, tarefa: objetivo({ estado: "arquivada", atividade: "trabalhando" }) });
+    const com = (leituraNova: boolean): Estado => ({ ...estadoInicial, agora: AGORA, trabalhos: { trabalhos: [viva], pressao: null, memoriaTotalMb: null, ...(leituraNova ? { leituraNovaDasTarefas: true as const } : {}) } } as Estado);
+    expect(renderIconeTrabalhos(com(false))).toContain("Tarefas: 1 aberta");
+    expect(renderIconeTrabalhos(com(true))).toBe("");
+  });
+  it("a linha Tarefas da barra conta pela mesma lista da tela", () => {
+    const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/const nAbertos = trabalhosDaTela\(estado\)\.filter\(aberto\)\.length/);
+  });
 });
 
 describe("emenda 5 do ADR-192 (achados das jornadas de QA)", () => {
@@ -122,5 +137,23 @@ describe("emenda 5 do ADR-192 (achados das jornadas de QA)", () => {
     expect(html).toContain('data-act="abrir-trabalho" data-id="t9"');
     expect(html).toContain("Haicai sobre café");
     expect(htmlDasArquivadas({ ...nova, tarefasArquivadas: [] })).toContain("Nenhuma tarefa arquivada.");
+  });
+
+  it("QA r225: a leitura que falhou diz que falhou e oferece tentar de novo — não 'Nenhuma tarefa arquivada'", () => {
+    const nova = { ...estadoInicial, trabalhos: { trabalhos: [], pressao: null, memoriaTotalMb: null, leituraNovaDasTarefas: true } } as Estado;
+    const html = htmlDasArquivadas({ ...nova, tarefasArquivadas: "erro" });
+    expect(html).not.toContain("Nenhuma tarefa arquivada");
+    expect(html).toContain("Não deu para carregar as tarefas arquivadas.");
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('data-act="arquivadas-tentar"');
+  });
+
+  it("QA r225: arquivar ou desarquivar na tarefa relê a lista do chip; a falha da leitura vira 'erro', não lista vazia", () => {
+    const main = readFileSync(join(process.cwd(), "web/main.ts"), "utf8");
+    const carregar = main.slice(main.indexOf("async function carregarArquivadas"), main.indexOf("function campoDaTela"));
+    expect(carregar).toContain('tarefas: "erro"');
+    expect(carregar).not.toMatch(/tarefas: \[\]/);
+    const acoes = main.slice(main.indexOf('["resolver", "reabrir", "arquivar", "desarquivar"]'), main.indexOf('"trabalho-depois"'));
+    expect(acoes).toContain("carregarArquivadas()");
   });
 });

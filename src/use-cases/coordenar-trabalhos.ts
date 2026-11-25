@@ -110,6 +110,9 @@ export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string
   if (excedeQuantidade(anexos.length)) throw new ErroDeDominio("entrada_invalida", { cause: "anexos demais" });
   const t = await deps.repos.trabalhos.buscar(input.trabalhoId);
   if (!t) throw new ErroDeDominio("nao_encontrado");
+  // QA-197 (definido em 2026-11-23): a tarefa de um bot excluído continua na lista (interrompida), mas o bot não roda mais
+  // — o turno novo batia no gatilho `nod_agente_ativo` e virava 500. Recusa como o chat recusa o bot excluído.
+  if (!(await deps.repos.agentes.buscar(t.agenteId))) throw new ErroDeDominio("nao_encontrado", { cause: "bot excluído" });
   // ADR-192 (emenda 5, achado das jornadas de QA): a rota antiga da aba respeita a Tarefa arquivada como a nova
   // (POST tarefas/:id/mensagens) — antes o bot voltava a trabalhar e a Tarefa seguia arquivada, sem receber a entrega.
   if ((await deps.repos.tarefas.doTrabalho(t.id))?.estado === "arquivada") throw new ErroDeDominio("estado_invalido", { cause: "tarefa arquivada: desarquive antes" });

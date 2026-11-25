@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { alvoDoMotor, ARGS_CHROME_DO_BOT, LIMITE_NOME_BYTES, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
+import { alvoDoMotor, ARGS_CHROME_DO_BOT, cookieVale, LIMITE_NOME_BYTES, binarioAgentBrowser, CACHES_DO_PERFIL, chaveDoBot, criarMotorAgentBrowser, type ExecutorProcesso, FalhaNavegador, identificacaoComJanela, lerAbas, SESSAO_IDENTIDADE, lerLeitura, lerResposta, nomeDaSessao, nomeDeArquivo, pastaDoBot, caminhoDoSocket, dirSocketPadrao, LIMITE_CAMINHO_SOCKET, prepararDirSocket } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 
 /**
  * O motor do agent-browser com um executor falso: o argv, o env limpo e o parse das saídas medidas em 2026-11-20
@@ -210,6 +210,29 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
     expect(recebidos[2]!.prazoMs).toBeLessThanOrEqual(15_000);
   });
 
+  it("baixar que estoura o prazo fecha o Chrome do bot e apaga o download pela metade (QA-207: seguia enchendo o disco)", async () => {
+    const m = motor();
+    // O agent-browser morre no prazo, mas o Chrome do bot já gravava o .crdownload e seguiria baixando.
+    respostas.push(() => ({ codigo: null, saida: "", estourou: true }));
+    const baixando = m.baixar(s, "e3", "grande.bin");
+    await expect(baixando).rejects.toMatchObject({ motivo: "tempo_esgotado", detalhe: expect.stringContaining("cancelado") });
+    expect(recebidos.map((r) => r.args[0])).toEqual(["download", "get", "close"]);
+    expect(recebidos[0]!.args[0]).toBe("download");
+    const arquivos = dirname(String(recebidos[0]!.args[2]));
+    // O arquivo pela metade que existia antes do close sai; um arquivo pronto de antes fica.
+    await mkdir(arquivos, { recursive: true });
+    await writeFile(join(arquivos, "pronto.pdf"), "x");
+    await writeFile(join(arquivos, "a1b2.crdownload"), "metade");
+    respostas.push(() => ({ codigo: null, saida: "", estourou: true }));
+    await expect(m.baixar(s, "e3", "grande.bin")).rejects.toMatchObject({ motivo: "tempo_esgotado" });
+    expect(await readdir(arquivos)).toEqual(["pronto.pdf"]);
+    // Outra falha do download não fecha o navegador.
+    respostas.push(() => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "Element not found" }) }));
+    const antes = recebidos.length;
+    await expect(m.baixar(s, "e9", "x.bin")).rejects.toBeInstanceOf(FalhaNavegador);
+    expect(recebidos.slice(antes).map((r) => r.args[0])).toEqual(["download"]);
+  });
+
   it("print lê o JPEG que o agent-browser gravou e apaga o arquivo", async () => {
     // O executor falso faz o que o agent-browser faz: grava o arquivo no caminho pedido e devolve `data.path`.
     const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/x", executor: async (p) => { if (p.args.includes(nomeDaSessao(SESSAO_IDENTIDADE))) return { codigo: 0, saida: ok({}), erro: "", estourou: false }; recebidos.push(p); await writeFile(p.args[1]!, Buffer.from([0xff, 0xd8, 0xff])); return { codigo: 0, saida: ok({ path: p.args[1] }), erro: "", estourou: false }; } });
@@ -304,5 +327,116 @@ describe("socket do daemon cabe no sun_path do macOS", () => {
     expect(await prepararDirSocket(link)).toBeNull();
     await motor(link).abrir(s, "https://example.com");
     expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+
+  // r207 (QA-208): a checagem era feita uma vez por processo. Se a limpeza do /tmp (macOS: 3 dias; systemd-tmpfiles: 10)
+  // apaga a pasta com o motor vivo, quem a refaz é o agent-browser (medido no Chromium real: 0755) ou outro usuário que a
+  // crie antes (link ou pasta dele), e os comandos do bot — inclusive o `fill` com a senha do cofre — vão ao socket de lá.
+  it.skipIf(process.platform === "win32")("confere a pasta dos sockets a cada comando: apagada e trocada por link, sai do env", async () => {
+    const fsp = await import("node:fs/promises");
+    const dir = join(dados, "sock");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_SOCKET_DIR).toBe(dir);
+    await rm(dir, { recursive: true, force: true });
+    const alheia = join(dados, "alheia");
+    await fsp.mkdir(alheia, { mode: 0o777 });
+    await symlink(alheia, dir);
+    await m.abrir(s, "https://example.com");
+    expect(recebidos.at(-1)!.env).not.toHaveProperty("AGENT_BROWSER_SOCKET_DIR");
+  });
+
+  it.skipIf(process.platform === "win32")("a pasta apagada volta 0700 no comando seguinte", async () => {
+    const dir = join(dados, "sock2");
+    const m = motor(dir);
+    await m.abrir(s, "https://example.com");
+    await rm(dir, { recursive: true, force: true });
+    await m.url(s).catch(() => undefined);
+    expect(((await stat(dir)).mode & 0o777).toString(8)).toBe("700");
+  });
+});
+
+describe("baixar: o download direto quando o do agent-browser falha (QA do navegador no Windows, 2026-11-25)", () => {
+  const falha = (erro: string) => () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: erro }) });
+  const respondeA = (args: readonly string[]) => {
+    if (args[0] === "get" && args[1] === "attr") return { codigo: 0, saida: ok({ origin: "https://www.exemplo.com.br/docs/", value: "relatorio.pdf" }) };
+    if (args[0] === "cookies") return { codigo: 0, saida: ok({ cookies: [{ name: "sessao", value: "abc", domain: ".exemplo.com.br", path: "/", secure: true }, { name: "outro", value: "x", domain: "outro.com", path: "/" }] }) };
+    return { codigo: 0, saida: ok({}) };
+  };
+
+  it("\"Download was canceled\": segue o href do alvo com os cookies do perfil que valem para o site e grava em arquivos/", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const pedidos: { url: string; cookie: string | null }[] = [];
+    const buscar = (async (url: string, init?: RequestInit) => {
+      pedidos.push({ url, cookie: new Headers(init?.headers).get("cookie") });
+      return new Response(Buffer.from("%PDF-1.4 teste"), { status: 200, headers: { "content-length": "14" } });
+    }) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    const r = await m.baixar(s, "@e5", "relatorio.pdf");
+    expect(r).toEqual({ nome: "relatorio.pdf", bytes: 14 });
+    expect(pedidos).toEqual([{ url: "https://www.exemplo.com.br/docs/relatorio.pdf", cookie: "sessao=abc" }]);
+    expect((await stat(join(dados, pastaDoBot(A), "arquivos", "relatorio.pdf"))).size).toBe(14);
+  });
+
+  it("redirecionamento para a rede de dentro é recusado; alvo inválido não cai no download direto", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const buscar = (async () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest" } })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "x.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/endereço que o navegador do bot não abre/) });
+    respostas.push(falha("Unknown ref: e99"));
+    await expect(m.baixar(s, "@e99", "x.pdf")).rejects.toMatchObject({ motivo: "alvo_invalido" });
+  });
+
+  it("corpo sem content-length (chunked) para no teto de 200 MB sem ler o resto e não deixa arquivo pela metade (QA Nod r216)", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const MB = 1024 * 1024;
+    let lidos = 0;
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(ctl) {
+        if (lidos >= 1024 * MB) { ctl.close(); return; }
+        lidos += MB;
+        ctl.enqueue(new Uint8Array(MB));
+      },
+    });
+    const buscar = (async () => new Response(corpo, { status: 200 })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "grande.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/200 MB/) });
+    // Na main o `arrayBuffer()` lia o GB inteiro antes de olhar o tamanho.
+    expect(lidos).toBeLessThanOrEqual(202 * MB);
+    expect(existsSync(join(dados, pastaDoBot(A), "arquivos", "grande.pdf"))).toBe(false);
+  });
+
+  it("cookieVale: domínio com e sem ponto, caminho e seguro só em https", () => {
+    const u = new URL("https://app.exemplo.com.br/a/b");
+    expect(cookieVale({ domain: ".exemplo.com.br", path: "/" }, u)).toBe(true);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/a" }, u)).toBe(true);
+    expect(cookieVale({ domain: "exemplo.com", path: "/" }, u)).toBe(false);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/c" }, u)).toBe(false);
+    expect(cookieVale({ domain: "app.exemplo.com.br", path: "/", secure: true }, new URL("http://app.exemplo.com.br/"))).toBe(false);
+  });
+
+  it("cookieVale: cookie só do site não vai ao subdomínio e caminho casa por segmento, como no Chrome (QA r217)", () => {
+    // Formato real do `cookies` no Chromium: "lvh.me" (sem Domain=) e ".lvh.me" (Domain=lvh.me).
+    const sub = new URL("http://a.lvh.me/arquivo.pdf");
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, sub)).toBe(false);
+    expect(cookieVale({ domain: ".lvh.me", path: "/" }, sub)).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/" }, new URL("http://lvh.me/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/contas-falsas"))).toBe(false);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+    expect(cookieVale({ domain: "lvh.me", path: "/conta/" }, new URL("http://lvh.me/conta/x"))).toBe(true);
+  });
+});
+
+describe("abas: o stream acompanha a aba nova (QA do navegador no Windows, 2026-11-25)", () => {
+  it("depois de abrir ou fechar, seleciona de novo a aba ativa; se a lista falhar, a aba nova continua aberta", async () => {
+    const lista = () => ({ codigo: 0, saida: ok({ tabs: [{ tabId: "t1", title: "A", url: "https://a.com/", active: false }, { tabId: "t2", title: "B", url: "https://b.com/", active: true }] }) });
+    respostas.push(() => ({ codigo: 0, saida: ok({}) }), lista, () => ({ codigo: 0, saida: ok({}) }));
+    await motor().abaNova(s, "https://b.com/");
+    expect(recebidos.map((r) => r.args.slice(0, 3))).toEqual([["tab", "new", "https://b.com/"], ["tab", "--session", nomeDaSessao(A)], ["tab", "t2", "--session"]]);
+    recebidos = [];
+    respostas.push(() => ({ codigo: 0, saida: ok({}) }), () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "falhou" }) }));
+    await expect(motor().abaFechar(s, "t1")).resolves.toBeUndefined();
+    expect(recebidos.map((r) => r.args[1])).toEqual(["close", "--session"]);
   });
 });

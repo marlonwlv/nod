@@ -6,7 +6,7 @@ import { ICONE } from "../lib/icones.ts";
 import { botao, esc, hora, iconeAgente } from "../lib/render.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
-import { aberto, abertosDoBot, acoesDeFazer, agrupar, emEspera, esperaDaContaDe, esperandoColega, esperandoMaquina, etiquetaOrigem, quandoVolta, textoDaEsperaDaConta, voltaMarcada, pontoTrabalho, resumoDaPilula, situacaoDe, tempoDe, temposDaTask, tituloCurto, trabalhoPorId, trabalhosConhecidos, type GruposTrabalhos } from "../lib/trabalhos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, agrupar, emEspera, esperaDaContaDe, esperandoColega, esperandoMaquina, etiquetaOrigem, quandoVolta, textoDaEsperaDaConta, voltaMarcada, pontoTrabalho, resumoDaPilula, situacaoDe, tempoDe, temposDaTask, tituloCurto, trabalhoPorId, trabalhosConhecidos, trabalhosDaTela, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { chipDaFalaNaFrente, renderMensagem, type BlocoDaTimeline } from "./conversa.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { horariosDaRotina } from "./linhas-do-chat.ts";
@@ -132,7 +132,7 @@ const ICONE_TRABALHOS = '<svg width="17" height="17" viewBox="0 0 20 20" fill="n
 
 /** O ícone "Trabalhos" do topo da barra (ao lado de Não lidos): só com trabalho aberto (ou com a tela aberta), com o número. */
 export function renderIconeTrabalhos(estado: Estado): string {
-  const n = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
+  const n = trabalhosDaTela(estado).filter(aberto).length;
   const naTela = estado.tela.tipo === "trabalhos";
   if (n === 0 && !naTela) return "";
   return `<button class="icone-topo trabalhos-bt" data-act="navegar" data-tela="trabalhos" aria-current="${naTela ? "page" : "false"}" aria-label="Tarefas: ${n} ${n === 1 ? "aberta" : "abertas"}" title="Tarefas">${ICONE_TRABALHOS}${n ? `<span class="contagem-topo" aria-hidden="true">${n}</span>` : ""}</button>`;
@@ -306,8 +306,8 @@ export function cartaoDoTempoDaFrente(t: TrabalhoDto, agora: number, cor?: strin
 }
 
 function aberturaDaTask(t: TrabalhoDto, estado: Estado): string {
-  const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome ?? "colega";
-  const texto = t.origem === "colega" ? `pedido do ${quem} · a resposta volta para o ${quem}` : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
+  const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome;
+  const texto = t.origem === "colega" ? quem ? `pedido de ${quem} · a resposta volta para ${quem}` : "pedido do colega · a resposta volta para o colega" : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
   return `<div class="time-sep">${esc(hora(t.criadoEm))} · ${esc(texto)}</div>`;
 }
 

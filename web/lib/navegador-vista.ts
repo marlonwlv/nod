@@ -3,9 +3,14 @@ import { esc } from "./escape.ts";
 
 // ---- o nome do bot em pt-BR (definido em 2026-11-20: sem saber o gênero, nome terminado em "a" é feminino) -------------
 
-/** "Ada", "Nina" → feminino; "Milton", "Nod" → masculino. Sem o gênero no DTO, a terminação decide. */
+/**
+ * "Ada", "Nina" → feminino; "Milton", "Nod" → masculino. Sem o gênero no DTO, a terminação decide. revisto em
+ * 2026-11-25 (QA do Windows): decide a primeira palavra, o substantivo que manda no gênero ("Leitor QA" é ele; pela
+ * última, o "A" da sigla dava "A Leitor QA precisa de você").
+ */
 export function feminino(nome: string): boolean {
-  return /a$/iu.test(nome.trim());
+  const primeira = nome.trim().split(/\s+/u)[0] ?? "";
+  return /a$/u.test(primeira.toLowerCase());
 }
 /** "itau.com.br" → "Itau"; "Itaú" fica "Itaú". O que o bot disse vale mais que o domínio (ele sabe o acento). */
 export function nomeDoSite(site: string): string {
@@ -94,13 +99,30 @@ const OLHO = svg12('<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 
 const CURSOR_NA_JANELA = svg12('<path d="M12.03 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7"/><path d="M3 9h18"/><path d="m14.6 14.6 6.1 2.5-2.6 1-1 2.6z"/>');
 const GIRO = '<span class="nv-giro" aria-hidden="true"></span>';
 
+/**
+ * revisto em 2026-11-25 (QA do navegador no Windows): os atalhos se mostravam com ⌘ também no Windows, onde a tecla é
+ * Ctrl (web/telas/navegador.ts já escuta Ctrl fora do Mac). A tela diz uma vez em que teclado está; o padrão é o do Mac.
+ */
+let tecladoDoMac = true;
+export function definirTecladoDoMac(mac: boolean): void { tecladoDoMac = mac; }
+/** "⌘⇧F" no Mac; "Ctrl+Shift+F" fora dele. */
+export function tecla(mac: string): string {
+  if (tecladoDoMac) return mac;
+  return mac.replace("⌘", "Ctrl+").replace("⌥", "Alt+").replace("⇧", "Shift+");
+}
+/** O aria-keyshortcuts: Meta no Mac, Control fora dele. */
+export function ariaTecla(mac: string): string {
+  return tecladoDoMac ? mac : mac.replace(/\bMeta\b/g, "Control");
+}
+
 /** O rótulo do botão de uma aprovação (A1): pagar com Touch ID, ou o nome do botão do site ("Apagar", "Enviar"). */
 /**
  * 2026-11-22 (o navegador no PC): os textos do aparelho da pessoa — cópia de `textosDoAparelho` (src/domain/navegador-cofre.ts;
  * a web só importa tipos de src/, e tests/unit/web/navegador-vista.test.ts confere as duas).
  */
 export function textosDoAparelhoNaWeb(a: "mac" | "pc" | undefined) {
-  const pc = a === "pc";
+  // QA do Windows (2026-11-25): sem o aparelho (o painel "não está ligado aqui"), dizia "no seu Mac" num PC.
+  const pc = a ? a === "pc" : !tecladoDoMac;
   const nome = pc ? "PC" : "Mac";
   const confirmacao = pc ? "Windows Hello" : "Touch ID";
   return {
@@ -140,7 +162,7 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
   switch (estado) {
     case "controle":
       // 2026-11-22: parado há 4 min, o controle está para voltar sozinho (DEVOLVE_SOZINHO_MS no servidor).
-      corpo = `<span class="ctc-estado"${devolveEm ? ' role="status"' : ""}>${CURSOR_NA_JANELA}<span>${devolveEm ? `Volta ${esc(aoNome(nome))} em 1 min` : "Você está no controle"}</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${quem} espera · ⌘⇧A devolve">Devolver ${esc(aoNome(nome))}</button>`;
+      corpo = `<span class="ctc-estado"${devolveEm ? ' role="status"' : ""}>${CURSOR_NA_JANELA}<span>${devolveEm ? `Volta ${esc(aoNome(nome))} em 1 min` : "Você está no controle"}</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="${ariaTecla("Meta+Shift+A")}" title="${quem} espera · ${tecla("⌘⇧A")} devolve">Devolver ${esc(aoNome(nome))}</button>`;
       break;
     case "assumindo":
       corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${quem} está terminando um clique…</span></span>${assumir(true)}`;
@@ -165,7 +187,7 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       // definido em 2026-11-20 (prova real com o modelo): o "terminou aqui" ficava por cima da imagem, contra a D1d; ele
       // mora na pílula, no lugar do "Assistindo", com a hora no formato da linha de atividade ("10h12").
       corpo = terminouEm !== null
-        ? `<span class="ctc-estado nv-terminou-txt" role="status"><span aria-hidden="true">✓</span><span>Terminou · ${horaComH(terminouEm)}</span><span class="sr-only"> ${nomeE} terminou o que fazia no navegador</span></span>${assumir()}`
+        ? `<span class="ctc-estado nv-terminou-txt" role="status"><span aria-hidden="true">✓</span><span>Terminou às ${horaComH(terminouEm)}</span><span class="sr-only"> ${nomeE} terminou o que fazia no navegador</span></span>${assumir()}`
         : `<span class="ctc-estado">${OLHO}<span>Assistindo</span></span>${assumir()}`;
   }
   const terminou = terminouEm !== null && estado === "assistindo";
@@ -347,10 +369,12 @@ export function estadoDaTela(r: Pick<RespostaNavegador, "disponivel"> & { vista:
   return "ao_vivo";
 }
 
-/** "10h12": a hora como a linha de atividade escreve. */
+/**
+ * "10:12": a hora como a linha de atividade escreve. revisto em 2026-11-25 (QA do Windows): "Terminou · 3h30" de
+ * madrugada se lia como duração; o resto do app (conversa, início) escreve 03:30.
+ */
 export function horaComH(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`;
+  return horaCurta(ms);
 }
 
 /** "16:04" no relógio de quem vê. */
@@ -615,7 +639,7 @@ export const ICONES_NAVEGADOR = { aba: IC_ABA, expandir: IC_EXPANDIR, mais: IC_M
 /** As ações do topo do painel (D1, 2): Abrir em aba · Tela cheia · ⋯ · Fechar, ícones com dica. */
 export function htmlAcoesDoPainel(o: { celular?: boolean } = {}): string {
   const aba = o.celular ? "" : `<button type="button" class="nv-ic" data-nv="em-aba" aria-label="Abrir em aba" title="Abrir em aba">${IC_ABA}</button>`;
-  return `<div class="nv-acoes">${aba}<button type="button" class="nv-ic" data-nv="tela-cheia" aria-label="Tela cheia" title="Tela cheia · ⌘⇧F" aria-keyshortcuts="Meta+Shift+F">${IC_EXPANDIR}</button><button type="button" class="nv-ic" data-nv="menu" aria-haspopup="menu" aria-label="Mais ações" title="Mais">${IC_MAIS}</button><button type="button" class="nv-ic" data-nv="fechar" aria-label="Fechar" title="Fechar · ⌘\\" aria-keyshortcuts="Meta+Backslash">${IC_FECHAR}</button></div>`;
+  return `<div class="nv-acoes">${aba}<button type="button" class="nv-ic" data-nv="tela-cheia" aria-label="Tela cheia" title="Tela cheia · ${tecla("⌘⇧F")}" aria-keyshortcuts="${ariaTecla("Meta+Shift+F")}">${IC_EXPANDIR}</button><button type="button" class="nv-ic" data-nv="menu" aria-haspopup="menu" aria-label="Mais ações" title="Mais">${IC_MAIS}</button><button type="button" class="nv-ic" data-nv="fechar" aria-label="Fechar" title="Fechar · ${tecla("⌘\\")}" aria-keyshortcuts="${ariaTecla("Meta+Backslash")}">${IC_FECHAR}</button></div>`;
 }
 
 /**
@@ -625,7 +649,7 @@ export function htmlAcoesDoPainel(o: { celular?: boolean } = {}): string {
 export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean; trazerDoChrome?: boolean } = {}): string {
   // Achado 15 do crítico: um rótulo só ("Assumir o controle"), atalhos à direita em cinza e "Fechar os outros lugares".
   const aba = o.daAba
-    ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir o controle</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia<span class="nv-menu-dica">⌘⇧F</span></button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">⌘W</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar os outros lugares</button><hr>`
+    ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir o controle</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia<span class="nv-menu-dica">${tecla("⌘⇧F")}</span></button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">${tecla("⌘W")}</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar os outros lugares</button><hr>`
     : "";
   const desligado = o.temEndereco === false ? ' disabled aria-disabled="true"' : "";
   return `<div role="menu" class="nv-menu-corpo" aria-label="Navegador ${esc(deNome(nome))}">${aba}`
@@ -711,10 +735,9 @@ export function linhaDoNavegadorVisivel(v: Pick<VistaNavegador, "estado" | "cont
   return agora - ultimo < MS_NO_MEIO + MS_LINHA_DEPOIS;
 }
 
-/** "3h02": a hora do fim da linha (N4). */
+/** "03:02": a hora do fim da linha (N4), no mesmo formato da conversa. */
 export function horaDaLinha(instante: number): string {
-  const d = new Date(instante);
-  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`;
+  return horaCurta(instante);
 }
 
 /**
@@ -742,7 +765,7 @@ export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<Vis
 export function htmlBotaoDoCanto(agenteId: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido"> | null, aberto: boolean): string {
   const ponto = pontoDoLugar(v);
   const texto = ponto ? '<span class="nv-canto-txt">Navegador</span>' : "";
-  return `<button type="button" class="nv-canto${ponto ? " com-texto" : ""}${aberto ? " aberto" : ""}" data-act="navegador-alternar" data-agente="${esc(agenteId)}" aria-pressed="${aberto}" aria-label="${aberto ? "Fechar" : "Abrir"} a tela do navegador" title="Tela · ⌘\\" aria-keyshortcuts="Meta+Backslash">${IC_TELA}${ponto ? `<i class="nv-canto-ponto" data-ponto="${ponto}" aria-hidden="true"></i>` : ""}${texto}</button>`;
+  return `<button type="button" class="nv-canto${ponto ? " com-texto" : ""}${aberto ? " aberto" : ""}" data-act="navegador-alternar" data-agente="${esc(agenteId)}" aria-pressed="${aberto}" aria-label="${aberto ? "Fechar" : "Abrir"} a tela do navegador" title="Tela · ${tecla("⌘\\")}" aria-keyshortcuts="${ariaTecla("Meta+Backslash")}">${IC_TELA}${ponto ? `<i class="nv-canto-ponto" data-ponto="${ponto}" aria-hidden="true"></i>` : ""}${texto}</button>`;
 }
 const IC_TELA = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="8.5" rx="1.6"/><path d="M5.5 13.5h5"/></svg>';
 
@@ -788,7 +811,7 @@ export function htmlLugaresFechados(itens: readonly { agenteId: string; nome: st
     const ponto = e === "vivo" || e === "precisa" ? `<i class="nv-aba-lugar-ponto" data-ponto="${e}" aria-hidden="true"></i>` : "";
     return `<button type="button" role="menuitem" class="at-item nv-lugar-fechado" data-lugar-agente="${esc(agenteId)}">${GLOBO}<span class="nv-lugar-fechado-txt"><span>Navegador ${esc(deNome(nome))}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ponto}</button>`;
   }).join("");
-  return `<p class="menu-nome">Lugares</p>${linhas}<hr><p class="nv-lugar-fechado-dica">Clicar reabre a aba. ⌘⇧T reabre a última que você fechou.</p>`;
+  return `<p class="menu-nome">Lugares</p>${linhas}<hr><p class="nv-lugar-fechado-dica">Clicar reabre a aba. ${tecla("⌘⇧T")} reabre a última que você fechou.</p>`;
 }
 
 /**
@@ -802,7 +825,7 @@ export function htmlAbaDeLugar(agenteId: string, nome: string, v: Pick<VistaNave
   const dica = dicaDaAbaDeLugar(nome, v);
   return `<div class="at-aba nv-aba-lugar${ativa ? " ativa" : ""}" data-estado="${e}" data-lugar-aba="navegador" data-agente="${esc(agenteId)}">`
     + `<button type="button" class="at-ir" data-act="navegador-aba" data-agente="${esc(agenteId)}"${ativa ? ' aria-current="page"' : ""} data-dica="${esc(dica)}" aria-label="${esc(dica)}">${GLOBO}<span class="at-titulo">${esc(titulo)}</span>${marca}</button>`
-    + `<span class="at-acoes"><button type="button" class="at-fechar" data-act="navegador-fechar-aba" data-agente="${esc(agenteId)}" aria-label="Fechar a aba do navegador ${esc(deNome(nome))}" title="Fechar aba · ⌘W"><span aria-hidden="true">×</span></button></span></div>`;
+    + `<span class="at-acoes"><button type="button" class="at-fechar" data-act="navegador-fechar-aba" data-agente="${esc(agenteId)}" aria-label="Fechar a aba do navegador ${esc(deNome(nome))}" title="Fechar aba · ${tecla("⌘W")}"><span aria-hidden="true">×</span></button></span></div>`;
 }
 
 /** A vista mudou de um jeito que a tela precisa redesenhar a barra (abas, controle, lugar) ou só a camada? */

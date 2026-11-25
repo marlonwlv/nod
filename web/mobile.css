@@ -904,6 +904,13 @@
   .cfg-chave.chave-emitida .bt { min-width: 44px; min-height: 44px; }
 }
 
+/* QA 2026-11-16: filtros e ações do Marketplace tinham só 27–36 px no toque. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .mkt-filtros .bt, .mkt-atencao .cp-acao, .app-card-actions .bt, .app-card-actions a {
+    display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; box-sizing: border-box;
+  }
+}
+
 /* ADR-190 (D6, C): no celular o botão da tela do navegador vira só o ícone de 44 px, à esquerda da lupa (o nome do bot fica
    inteiro no centro); a vista abre na folha de baixo (web/telas/navegador.ts). */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
