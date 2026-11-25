@@ -713,10 +713,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.memorias.push(memoria);
         return memoria;
       },
-      async criarDoAgenteSeAusente(m) {
-        const existente = doTenant(b.memorias).find((x) => x.agenteId === m.agenteId && x.tipo === m.tipo && x.texto === m.texto && x.origem === "agente");
+      async criarSeAusente(m) {
+        const existente = doTenant(b.memorias).find((x) => x.agenteId === m.agenteId && x.tipo === m.tipo && x.texto === m.texto && x.origem === m.origem);
         if (existente) return { memoria: existente, criada: false };
-        const memoria: Memoria = { tenantId: escopo.tenantId, id: randomUUID(), agenteId: m.agenteId, tipo: m.tipo, texto: m.texto, origem: "agente", criadoEm: agora() };
+        const memoria: Memoria = { tenantId: escopo.tenantId, id: randomUUID(), agenteId: m.agenteId, tipo: m.tipo, texto: m.texto, origem: m.origem, criadoEm: agora() };
         b.memorias.push(memoria);
         return { memoria, criada: true };
       },
@@ -3244,6 +3244,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return doTenant(b.relatos).find((r) => r.id === id) ?? null;
       },
       async prosaDe() {
+        return null;
+      },
+      async travarDoNod() {},
+      async doNodIgualNoTurno() {
         return null;
       },
       async contarDoNodDesde(desde) {

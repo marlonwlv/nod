@@ -276,6 +276,7 @@ import type { MotivoAvaliacaoLigacao } from "./lib/api.ts";
 import { aceitaDoBot } from "./lib/capacidades.ts";
 import { FRASE_CREDENCIAIS_INVALIDAS, lerCredenciaisJson } from "./lib/credenciais-json.ts";
 import { mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
+import { devolverFocoNaFila, lugarDoFocoNaFila } from "./lib/anexos-foco.ts";
 import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
 import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
 import { aplicarBalaoCor, lerBalaoCor } from "./lib/balao.ts";
@@ -6862,8 +6863,10 @@ function removerAnexo(chave: string): void {
   const fila = anexosPendentes.get(alvo.chave) ?? [];
   const item = fila.find((i) => i.chave === chave);
   if (item?.previa) URL.revokeObjectURL(item.previa);
+  const lugar = lugarDoFocoNaFila(chave);
   anexosPendentes.set(alvo.chave, fila.filter((i) => i.chave !== chave));
   redesenharAnexos();
+  devolverFocoNaFila(lugar);
 }
 
 /**

@@ -71,6 +71,14 @@ export async function registrarRelatoDoNod(deps: Deps, input: ContextoFerramenta
   const ctx = await turnoDoNodComAPessoa(deps, input);
   if (!ctx) return { data: { ok: false, erro: "fora_da_conversa", instrucao: "Só o Nod, na conversa com a pessoa, anota relatos." } };
   const agora = deps.agora();
+  // QA-123: o retry do bot (a mesma chamada de novo no mesmo turno) devolve o relato já anotado, sem segundo relato nem
+  // segundo evento; a trava faz o mesmo valer para duas chamadas simultâneas e para o teto diário.
+  await deps.repos.relatos.travarDoNod();
+  const categoria = input.tipo === "bug" ? input.categoria ?? "outro" : "outro";
+  const titulo = redigirSegredos(input.titulo.trim()).slice(0, 120) || null;
+  const textoPessoa = redigirSegredos(input.texto.trim());
+  const igual = await deps.repos.relatos.doNodIgualNoTurno({ turnoId: input.turnoId, tipo: input.tipo, categoria, titulo, textoPessoa });
+  if (igual) return { data: { ok: true, relato_id: igual, instrucao: "Este relato já estava anotado. Diga à pessoa, numa frase, que o time do nod vai ver em Relatos (menu da conta)." } };
   if ((await deps.repos.relatos.contarDoNodDesde(agora - DIA_MS)) >= MAX_RELATOS_DO_NOD_POR_DIA) {
     return { data: { ok: false, erro: "limite_do_dia", instrucao: `Já foram ${MAX_RELATOS_DO_NOD_POR_DIA} relatos nas últimas 24 horas. Diga à pessoa que anota o resto amanhã.` } };
   }
@@ -81,7 +89,7 @@ export async function registrarRelatoDoNod(deps: Deps, input: ContextoFerramenta
     origem: "nod",
     conversaId: input.conversaId,
     turnoId: input.turnoId,
-    categoria: input.tipo === "bug" ? input.categoria ?? "outro" : "outro",
+    categoria,
     alcance: "janela",
     mensagensAnexadas: anexadas.length,
     estadoTurno: null,
@@ -101,7 +109,7 @@ export async function registrarRelatoDoNod(deps: Deps, input: ContextoFerramenta
     correlationId: null,
   });
   if (!relato) return { data: { ok: false, erro: "fora_da_conversa", instrucao: "Não deu para anotar agora." } };
-  await deps.repos.relatos.gravarProsa({ relatoId: relato.id, titulo: redigirSegredos(input.titulo.trim()).slice(0, 120) || null, textoPessoa: redigirSegredos(input.texto.trim()), trecho: trechoDoRelato(anexadas) });
+  await deps.repos.relatos.gravarProsa({ relatoId: relato.id, titulo, textoPessoa, trecho: trechoDoRelato(anexadas) });
   log("info", "relato_do_nod", { tipo: input.tipo, mensagens: anexadas.length });
   const events = [
     evento(deps.escopo, {

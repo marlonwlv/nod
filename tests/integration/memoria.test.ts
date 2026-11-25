@@ -83,6 +83,29 @@ describeIntegracao("memória por bot (memória não é fonte)", () => {
     });
   });
 
+  it("QA-126: Anotar ou Lembrar disso repetido pela pessoa devolve a mesma memória, sem duplicar diário nem a linha 'anotei'", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const deps = depsSobreTrx(trx, MARLON);
+      const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });
+      const input = { agenteId: criado.agente.id, conversaId: criado.conversa.id, turnoId: null, tipo: "fato" as const, texto: "o cliente prefere boleto", origem: "pessoa" as const };
+
+      const primeira = await executar(deps, registrarMemoria, input);
+      const repetida = await executar(deps, registrarMemoria, input);
+
+      expect(repetida.data.memoria.id).toBe(primeira.data.memoria.id);
+      expect(repetida.data.mensagem).toBeNull();
+      expect(repetida.events).toEqual([]);
+      expect(await deps.repos.memorias.listarDoAgente(criado.agente.id)).toHaveLength(1);
+      expect((await deps.repos.memoriasDiario.listar(criado.agente.id, null)).entradas).toHaveLength(1);
+      expect((await deps.repos.mensagens.listarDaConversa(criado.conversa.id)).filter((m) => m.kind === "sistema" && m.texto === "Anotei um fato: o cliente prefere boleto")).toHaveLength(1);
+
+      // Outro tipo, ou o mesmo texto anotado antes pelo bot, seguem sendo memórias à parte.
+      await executar(deps, registrarMemoria, { ...input, tipo: "preferencia" });
+      await executar(deps, registrarMemoria, { ...input, conversaId: null, origem: "agente" });
+      expect((await deps.repos.memorias.listarDoAgente(criado.agente.id)).map((m) => [m.tipo, m.origem])).toEqual([["fato", "pessoa"], ["preferencia", "pessoa"], ["fato", "agente"]]);
+    });
+  });
+
   it("QA-124: memória acima do teto (pessoa, bot ou edição) é recusada como entrada inválida, sem erro do Postgres nem efeito", async () => {
     // ~900 KB de palavras distintas: cabia no corpo de 1 MB e estourava o search_tsv (tsvector > 1 MB) com erro cru.
     const enorme = Array.from({ length: 90_000 }, (_, i) => `p${i.toString(36).padStart(8, "q")}`).join(" ");

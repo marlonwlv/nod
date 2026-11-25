@@ -70,10 +70,11 @@ export function memoriasRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
-     * O executor pode repetir a mesma chamada depois de perder o recibo. Serializa pelo conteúdo e devolve a
-     * memória já existente, sem criar outra entrada no diário nem duplicar o texto no prompt do bot.
+     * O executor pode repetir a mesma chamada depois de perder o recibo, e a pessoa pode clicar duas vezes em Anotar
+     * ou em "Lembrar disso" (QA-126). Serializa pelo conteúdo e pela origem e devolve a memória já existente, sem
+     * criar outra entrada no diário nem duplicar o texto no prompt do bot.
      */
-    async criarDoAgenteSeAusente(m: Omit<NovaMemoria, "id" | "origem" | "criadoEm">): Promise<ResultadoCriarMemoria | null> {
+    async criarSeAusente(m: Omit<NovaMemoria, "id" | "criadoEm">): Promise<ResultadoCriarMemoria | null> {
       // Precisa ser uma instrução separada: no READ COMMITTED, a consulta seguinte ganha um snapshot novo depois
       // de esperar a transação concorrente terminar e passa a enxergar a memória que ela acabou de confirmar.
       await travarConteudo(m.agenteId, m.tipo, m.texto);
@@ -81,16 +82,16 @@ export function memoriasRepo(conn: Conn, escopo: Escopo) {
         with existente as (
           select ${conn.unsafe(COLUNAS)} from agente_memorias
           where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
-            and agente_id = ${m.agenteId} and tipo = ${m.tipo} and texto = ${m.texto} and origem = 'agente'
+            and agente_id = ${m.agenteId} and tipo = ${m.tipo} and texto = ${m.texto} and origem = ${m.origem}::autor_tipo
           order by criado_em, id limit 1
         ), criada as (
           insert into agente_memorias (tenant_id, owner_id, agente_id, tipo, texto, origem)
-          select ${escopo.tenantId}, ${escopo.pessoaId}, ${m.agenteId}, ${m.tipo}, ${m.texto}, 'agente'
+          select ${escopo.tenantId}, ${escopo.pessoaId}, ${m.agenteId}, ${m.tipo}, ${m.texto}, ${m.origem}::autor_tipo
           where not exists (select 1 from existente)
           returning *
         ), diario as (
           insert into memoria_diario (tenant_id, owner_id, agente_id, memoria_id, acao, autor, memoria_origem, memoria_criado_em, depois_tipo, depois_texto)
-          select tenant_id, owner_id, agente_id, id, 'criada', 'agente', origem, criado_em, tipo, texto from criada
+          select tenant_id, owner_id, agente_id, id, 'criada', origem, origem, criado_em, tipo, texto from criada
         )
         select ${conn.unsafe(COLUNAS)}, true as criada from criada
         union all
@@ -161,7 +162,7 @@ export function memoriasRepo(conn: Conn, escopo: Escopo) {
 
     /**
      * Serializa quem grava o mesmo conteúdo no bot (o `lembrar` e o desfazer de um apagar, QA-183) até o fim da
-     * transação. Instrução separada pelo mesmo motivo do `criarDoAgenteSeAusente`.
+     * transação. Instrução separada pelo mesmo motivo do `criarSeAusente`.
      */
     travarConteudo,
 
