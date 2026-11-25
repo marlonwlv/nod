@@ -4,7 +4,7 @@ import { cifrarV2, decifrarV2, FalhaDoCofre, TAMANHO_CHAVE, zerar } from "../../
 import { log } from "../../obs/log.ts";
 
 /**
- * A chave mestra do cofre (definido em 2026-11-24, ADR-194 §2): embrulha só as chaves de tenant, nunca um item. Dois
+ * A chave mestra do cofre (definido em 2026-11-24, ADR-195 §2): embrulha só as chaves de tenant, nunca um item. Dois
  * provedores com a mesma forma:
  *
  * - **kms**: Cloud KMS pela API REST (sem biblioteca), com o token da conta de serviço da VM (metadata server). A chave
@@ -180,7 +180,7 @@ async function lerJson(r: Response): Promise<Record<string, unknown>> {
   return corpo as Record<string, unknown>;
 }
 
-/** ADR-194 §2: "alerta em qualquer falha de decifrar". Decrypt que falha é erro; encrypt, aviso. Sem corpo, sem valor. */
+/** ADR-195 §2: "alerta em qualquer falha de decifrar". Decrypt que falha é erro; encrypt, aviso. Sem corpo, sem valor. */
 function falhou(operacao: "encrypt" | "decrypt", f: FalhaDoCofre): FalhaDoCofre {
   log(operacao === "decrypt" ? "erro" : "aviso", "cofre_mestra_falhou", { operacao, motivo: f.motivo, status: f.status });
   return f;
@@ -198,7 +198,7 @@ export function escolherChaveMestra(env: EnvDoCofre, opcoes: Omit<OpcoesKms, "no
 }
 
 /**
- * ADR-194 §2: "em produção o boot recusa subir sem NOD_COFRE_KMS". Produção é `NODE_ENV=production`, o critério do
+ * ADR-195 §2: "em produção o boot recusa subir sem NOD_COFRE_KMS". Produção é `NODE_ENV=production`, o critério do
  * resto do servidor (Dockerfile; compor.ts, registry.ts, voz/fabrica.ts). Devolve as recusas (vazia = pode subir), no
  * molde de `recusasDasFlagsDeConta`. Ligada no boot.ts; o deploy.sh grava o NOD_COFRE_KMS no env da cor nova (a chave
  * `nod/cofre` já existe no KMS, com a conta da VM só cifrando e decifrando).
@@ -206,7 +206,7 @@ export function escolherChaveMestra(env: EnvDoCofre, opcoes: Omit<OpcoesKms, "no
 export function recusasDoCofre(env: EnvDoCofre): string[] {
   const r: string[] = [];
   const kms = env.NOD_COFRE_KMS?.trim();
-  if (env.NODE_ENV === "production" && !kms) r.push("NODE_ENV=production exige NOD_COFRE_KMS (a chave mestra do cofre no Cloud KMS, ADR-194)");
+  if (env.NODE_ENV === "production" && !kms) r.push("NODE_ENV=production exige NOD_COFRE_KMS (a chave mestra do cofre no Cloud KMS, ADR-195)");
   if (kms && !NOME_DA_CHAVE.test(kms)) r.push("NOD_COFRE_KMS precisa ser projects/<projeto>/locations/<local>/keyRings/<anel>/cryptoKeys/<chave>");
   return r;
 }

@@ -4,7 +4,7 @@ import type { Conn, Escopo } from "../shared/types.ts";
 import { ms, msOuNull } from "./conversao.ts";
 
 /**
- * O cofre em envelope (0184, ADR-194 §3). O repositório só vê cifra: o valor entra e sai como `v2:…` e a chave do tenant
+ * O cofre em envelope (0185, ADR-195 §3). O repositório só vê cifra: o valor entra e sai como `v2:…` e a chave do tenant
  * como o texto do provedor da mestra. A listagem nunca leva valor nem chave, nem cifrados. Quem cifra e decifra é
  * src/use-cases/cofre-envelope.ts.
  */
@@ -72,7 +72,7 @@ export function cofreRepo(conn: Conn, escopo: Escopo) {
   return {
     // ------------------------------------------------------------------------------------------- chave do tenant
 
-    /** A chave viva do tenant (uma por tenant, índice parcial da 0184), ou null antes do primeiro uso. */
+    /** A chave viva do tenant (uma por tenant, índice parcial da 0185), ou null antes do primeiro uso. */
     async chaveAtivaDoTenant(): Promise<ChaveDoTenantGravada | null> {
       const [l] = await conn<LinhaChave[]>`
         select versao, chave_embrulhada, mestra_ref, aposentada_em from cofre_chaves_tenant
@@ -206,7 +206,7 @@ export function cofreRepo(conn: Conn, escopo: Escopo) {
     // ----------------------------------------------------------------------------------------------- concessões
 
     /**
-     * Concede o item ao bot. Cartão é sempre 'perguntar' (ADR-194 §3): a regra mora aqui porque o CHECK da 0184 não olha
+     * Concede o item ao bot. Cartão é sempre 'perguntar' (ADR-195 §3): a regra mora aqui porque o CHECK da 0185 não olha
      * cofre_itens. A concessão de novo para o mesmo bot troca o modo.
      */
     async conceder(p: { itemId: string; agenteId: string; modo: ModoConcessaoCofre }): Promise<boolean> {

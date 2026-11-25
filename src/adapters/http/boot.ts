@@ -190,7 +190,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
   // NOD-345: combinação inválida das flags de conta impede o boot, antes de qualquer efeito.
   const recusasConta = recusasDasFlagsDeConta(env);
   if (recusasConta.length) throw new Error(`boot: ${recusasConta.join("; ")}`);
-  // ADR-194 §2: produção sem a chave mestra no KMS (ou com o nome fora do formato) não sobe, antes de qualquer efeito.
+  // ADR-195 §2: produção sem a chave mestra no KMS (ou com o nome fora do formato) não sobe, antes de qualquer efeito.
   const recusasCofre = recusasDoCofre(env);
   if (recusasCofre.length) throw new Error(`boot: ${recusasCofre.join("; ")}`);
   // NOD-164: o modelo da ligação (NOD_MODELO_LIGACAO_CLAUDE/_CODEX) inválido também impede o boot, antes de qualquer efeito.

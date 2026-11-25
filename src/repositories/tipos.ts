@@ -194,6 +194,6 @@ export interface Repos {
   navegadorTarefas: ReturnType<typeof navegadorTarefasRepo>;
   /** ADR-190 (0180): o cofre do nod (L); a senha só cifrada. */
   cofreLogins: ReturnType<typeof cofreLoginsRepo>;
-  /** ADR-194 (0184): o cofre em envelope (chave do tenant, itens, concessões, eventos); só cifra entra e sai. */
+  /** ADR-195 (0185): o cofre em envelope (chave do tenant, itens, concessões, eventos); só cifra entra e sai. */
   cofre: ReturnType<typeof cofreRepo>;
 }

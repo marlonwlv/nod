@@ -13,7 +13,7 @@ import {
 } from "../../../src/adapters/cofre/chave-mestra.ts";
 import { FalhaDoCofre, gerarChave } from "../../../src/db/cifra-envelope.ts";
 
-/** ADR-194 §2: os dois provedores da chave mestra. Nenhum valor real: chave, projeto e token são de exemplo. */
+/** ADR-195 §2: os dois provedores da chave mestra. Nenhum valor real: chave, projeto e token são de exemplo. */
 const CREDENCIAL = "ab".repeat(32);
 const NOME = "projects/projeto-exemplo/locations/southamerica-east1/keyRings/nod/cryptoKeys/cofre";
 const AAD = "nod-cofre-v2-tenant|00000000-0000-4000-8000-000000000001|1";

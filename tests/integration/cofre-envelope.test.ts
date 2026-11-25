@@ -14,7 +14,7 @@ import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
 
 /**
- * ADR-194 (0184), Entrega 1: o cofre em envelope no Postgres de verdade, sob rollback. A mestra é a local (HKDF de uma
+ * ADR-195 (0185), Entrega 1: o cofre em envelope no Postgres de verdade, sob rollback. A mestra é a local (HKDF de uma
  * NOD_CREDENTIAL_KEY de teste); nenhum valor, id ou chave real.
  */
 const CREDENCIAL = "12".repeat(32);
@@ -37,7 +37,7 @@ async function falhaDoCofre(p: Promise<unknown>): Promise<FalhaDoCofre> {
   return e as FalhaDoCofre;
 }
 
-describeIntegracao("cofre em envelope (0184)", () => {
+describeIntegracao("cofre em envelope (0185)", () => {
   it("guardar cifra e cria a chave do tenant no primeiro uso; listar não leva valor; entregar decifra, marca o uso e registra", async () => {
     await withRollback(MARLON, async (trx) => {
       const agora = relogio();
@@ -98,7 +98,7 @@ describeIntegracao("cofre em envelope (0184)", () => {
       await esperarErro(() => lerValorParaEntrega(deps, chaves, { itemId: troca.item.id }), "nao_encontrado");
       await esperarErro(() => revogarItem(deps, { itemId: troca.item.id }), "nao_encontrado");
       expect((await deps.repos.cofre.eventosDoItem(troca.item.id)).map((e) => e.tipo)).toEqual(["trocado", "entregue", "revogado"]);
-      // Revogado não volta, e a cifra de uma versão não muda (trigger da 0184).
+      // Revogado não volta, e a cifra de uma versão não muda (trigger da 0185).
       await expectRejected(trx, () => trx`update cofre_itens set revogado_em = null where id = ${troca.item.id}`, "P0001");
       await expectRejected(trx, () => trx`update cofre_itens set valor_cifrado = ${"v2:1:AAAA:AAAA:AAAA"} where id = ${v1.id}`, "P0001");
     });
@@ -123,7 +123,7 @@ describeIntegracao("cofre em envelope (0184)", () => {
       // Bot que não existe: nada concedido.
       expect(await deps.repos.cofre.conceder({ itemId: item.id, agenteId: randomUUID(), modo: "perguntar" })).toBe(false);
 
-      // O CHECK da 0184 guarda o mesmo por baixo: cartão com cifra, ou chave sem cifra / em claro, não gravam.
+      // O CHECK da 0185 guarda o mesmo por baixo: cartão com cifra, ou chave sem cifra / em claro, não gravam.
       const v2 = "v2:1:AAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAA==:AAAA";
       await expectRejected(trx, () => trx`insert into cofre_itens (owner_id, tipo, nome, dono, versao, valor_cifrado) values (${MARLON.pessoaId}, 'cartao', 'Cartão', 'pessoa', 1, ${v2})`, /cofre_itens_cifra_por_tipo/);
       await expectRejected(trx, () => trx`insert into cofre_itens (owner_id, tipo, nome, dono, versao) values (${MARLON.pessoaId}, 'chave', 'SEM_CIFRA', 'pessoa', 1)`, /cofre_itens_cifra_por_tipo/);
@@ -160,7 +160,7 @@ describeIntegracao("cofre em envelope (0184)", () => {
       expect(deBMesmoNome.anterior).toBeNull();
       // B não reescreve a chave do tenant fora das colunas do reembrulho, nem apaga.
       await expectRejected(trx, () => trx`update cofre_chaves_tenant set versao = 9 where tenant_id = ${ANA.tenantId}`, "P0001");
-      // eslint-disable-next-line no-restricted-syntax -- o DELETE é o INSUMO da prova do REVOKE (0184), sob rollback: espera-se 42501
+      // eslint-disable-next-line no-restricted-syntax -- o DELETE é o INSUMO da prova do REVOKE (0185), sob rollback: espera-se 42501
       await expectRejected(trx, () => trx`delete from cofre_chaves_tenant where tenant_id = ${ANA.tenantId}`, "42501");
       await expectRejected(trx, () => trx`update cofre_eventos set tipo = 'negado' where item_id = ${doTime.id}`, "42501");
 

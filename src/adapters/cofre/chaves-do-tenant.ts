@@ -3,7 +3,7 @@ import { aadDaChaveDoTenant, FalhaDoCofre, gerarChave, TAMANHO_CHAVE, zerar } fr
 import type { ChaveMestra } from "./chave-mestra.ts";
 
 /**
- * As chaves de tenant abertas em memória (definido em 2026-11-24, ADR-194 §2, "KMS fora do ar"): a chave decifrada fica
+ * As chaves de tenant abertas em memória (definido em 2026-11-24, ADR-195 §2, "KMS fora do ar"): a chave decifrada fica
  * no processo por até 10 minutos, por tenant e versão. Dentro do prazo o cofre funciona com o KMS fora; depois, a abertura
  * volta ao KMS e, se ele não responder, falha fechado (`FalhaDoCofre`), nunca com uma chave vencida.
  *

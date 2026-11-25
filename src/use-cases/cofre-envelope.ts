@@ -17,7 +17,7 @@ import type { Escopo } from "../shared/types.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
- * O cofre em envelope (definido em 2026-11-24, ADR-194, Entrega 1): guardar, trocar, revogar, listar, ler para entregar e
+ * O cofre em envelope (definido em 2026-11-24, ADR-195, Entrega 1): guardar, trocar, revogar, listar, ler para entregar e
  * reembrulhar a mestra. A cripto mora em src/db/cifra-envelope.ts; a chave do tenant aberta vem de `ChavesDoTenant`
  * (cache de 10 min sobre a mestra, src/adapters/cofre/chaves-do-tenant.ts), que a composição injeta.
  *
@@ -25,13 +25,13 @@ import type { Deps } from "./tipos.ts";
  * Composio, cofre_logins, pedir_credencial) passa por aqui.
  *
  * A mestra é chamada dentro da transação do caso de uso no primeiro uso do tenant (e a cada 10 min): no máximo
- * PRAZO_KMS_MS por chamada. Se o p95 pesar no turno, o gatilho da ADR-194 é aumentar o cache.
+ * PRAZO_KMS_MS por chamada. Se o p95 pesar no turno, o gatilho da ADR-195 é aumentar o cache.
  */
 export type DepsDoCofre = Pick<Deps, "repos" | "escopo" | "agora">;
 
 const TIPOS: readonly TipoItemCofre[] = ["chave", "login", "contato", "cartao"];
 const DONOS: readonly DonoItemCofre[] = ["pessoa", "time"];
-/** definido em 2026-11-24: 32 KiB de valor cabem nos 64 KiB do CHECK da 0184 depois do base64 e do cabeçalho. */
+/** definido em 2026-11-24: 32 KiB de valor cabem nos 64 KiB do CHECK da 0185 depois do base64 e do cabeçalho. */
 export const MAX_BYTES_VALOR = 32 * 1024;
 /** O mesmo teto do CHECK cofre_itens_publico. */
 export const MAX_BYTES_PUBLICO = 4096;
@@ -41,7 +41,7 @@ export type EntradaGuardar = {
   nome: string;
   app?: string | null;
   publico?: Record<string, unknown>;
-  /** O segredo. Proibido no cartão (o número fica no aparelho da pessoa, ADR-194 §1). */
+  /** O segredo. Proibido no cartão (o número fica no aparelho da pessoa, ADR-195 §1). */
   valor?: string | null;
   dono: DonoItemCofre;
 };
@@ -174,7 +174,7 @@ export async function listarItens(deps: DepsDoCofre): Promise<ItemDoCofre[]> {
 }
 
 /**
- * Reembrulha as chaves do tenant do escopo pela mestra `nova` (ADR-194 §2, "trocar a chave mestra"). Os itens não são
+ * Reembrulha as chaves do tenant do escopo pela mestra `nova` (ADR-195 §2, "trocar a chave mestra"). Os itens não são
  * tocados. Cada chave é aberta pela `atual`, embrulhada pela `nova` e CONFERIDA (aberta de novo pela `nova` e comparada)
  * antes de gravar; uma que não confere falha sem gravar. Devolve quantas versões foram reembrulhadas.
  */

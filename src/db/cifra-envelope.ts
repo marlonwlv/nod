@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 /**
- * A cifra em envelope do cofre (definido em 2026-11-24, ADR-194 §2). Três níveis, todos AES-256-GCM com dados associados
+ * A cifra em envelope do cofre (definido em 2026-11-24, ADR-195 §2). Três níveis, todos AES-256-GCM com dados associados
  * (AAD) que prendem a cifra ao lugar dela:
  *
  * 1. **chave do item** (32 bytes por versão do item) cifra o valor, AAD `nod-cofre-v2|tenant|item|versão`;
@@ -12,11 +12,11 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
  * Copiar a cifra para outro item, outro tenant ou outra versão falha na hora (a tag não confere). Formato gravado:
  * `v2:<versão da chave do tenant>:<iv b64>:<tag b64>:<dados b64>`, o mesmo para o valor e para a chave do item. No valor,
  * a versão é a da chave do tenant quando ele foi guardado (informativa: quem decifra lê a versão da coluna
- * `chave_tenant_versao`, que o CHECK da 0184 amarra à da chave do item).
+ * `chave_tenant_versao`, que o CHECK da 0185 amarra à da chave do item).
  *
  * Funções puras, sem log e sem estado. O valor nunca vai para log nem para a mensagem de erro; as chaves cruas são
  * Buffers que quem chama zera com `zerar` quando termina (string de JS não se zera: o valor em claro vive o mínimo).
- * O `v1` de src/db/cifra.ts continua lendo os quatro lugares de hoje até a migração deles (ADR-194, Entrega 4).
+ * O `v1` de src/db/cifra.ts continua lendo os quatro lugares de hoje até a migração deles (ADR-195, Entrega 4).
  */
 
 const ALGO = "aes-256-gcm";

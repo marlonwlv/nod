@@ -1,4 +1,4 @@
--- definido em 2026-11-24 (ADR-194 §2 e §3, "Um cofre só, cifrado por tenant"): as quatro tabelas do cofre em envelope.
+-- definido em 2026-11-24 (ADR-195 §2 e §3, "Um cofre só, cifrado por tenant"): as quatro tabelas do cofre em envelope.
 -- 1) cofre_chaves_tenant: a chave de cada tenant (32 bytes) embrulhada pela chave mestra (Cloud KMS ou a local por HKDF),
 --    com a versão e a referência da mestra usada. Visível ao tenant ('equipe'); só o reembrulho e a aposentadoria mudam a
 --    linha, e nod_app nunca a apaga.
@@ -37,7 +37,7 @@ CREATE POLICY nod_equipe_update ON cofre_chaves_tenant AS PERMISSIVE FOR UPDATE 
   WITH CHECK (tenant_id = current_setting('nod.tenant_id')::uuid);
 
 -- A policy FOR UPDATE concede UPDATE de QUALQUER coluna (medido em 2026-09-16 na 0003). Aqui a lista fechada vale para
--- TODOS, inclusive a dona ("só o reembrulho muda a linha", ADR-194 §3): chave_embrulhada, mestra_ref e reembrulhada_em
+-- TODOS, inclusive a dona ("só o reembrulho muda a linha", ADR-195 §3): chave_embrulhada, mestra_ref e reembrulhada_em
 -- (o reembrulho) e aposentada_em, que só vai de nula a preenchida. Lista de colunas: coluna nova nasce travada.
 CREATE FUNCTION nod_cofre_chave_tenant_imutavel()
 RETURNS trigger
@@ -47,10 +47,10 @@ DECLARE
   livres text[] := ARRAY['chave_embrulhada', 'mestra_ref', 'reembrulhada_em', 'aposentada_em'];
 BEGIN
   IF (to_jsonb(OLD) - livres) <> (to_jsonb(NEW) - livres) THEN
-    RAISE EXCEPTION 'a chave do tenant só muda pelo reembrulho ou pela aposentadoria (ADR-194)' USING ERRCODE = 'P0001';
+    RAISE EXCEPTION 'a chave do tenant só muda pelo reembrulho ou pela aposentadoria (ADR-195)' USING ERRCODE = 'P0001';
   END IF;
   IF OLD.aposentada_em IS NOT NULL AND NEW.aposentada_em IS DISTINCT FROM OLD.aposentada_em THEN
-    RAISE EXCEPTION 'chave do tenant aposentada não volta (ADR-194)' USING ERRCODE = 'P0001';
+    RAISE EXCEPTION 'chave do tenant aposentada não volta (ADR-195)' USING ERRCODE = 'P0001';
   END IF;
   RETURN NEW;
 END;
@@ -81,7 +81,7 @@ CREATE TABLE cofre_itens (
   ultimo_uso_em timestamptz,
   criado_em timestamptz NOT NULL DEFAULT clock_timestamp(),
   atualizado_em timestamptz NOT NULL DEFAULT clock_timestamp(),
-  -- O cartão mora no aparelho da pessoa (ADR-194 §1): sem valor e sem chave. Os outros tipos têm as três, e a versão da
+  -- O cartão mora no aparelho da pessoa (ADR-195 §1): sem valor e sem chave. Os outros tipos têm as três, e a versão da
   -- chave do tenant na chave embrulhada é a da coluna (quem desembrulha lê a coluna, não o texto).
   CONSTRAINT cofre_itens_cifra_por_tipo CHECK (
     CASE WHEN tipo = 'cartao'
@@ -104,7 +104,7 @@ CREATE UNIQUE INDEX cofre_itens_um_vivo_da_pessoa ON cofre_itens (tenant_id, own
 CREATE UNIQUE INDEX cofre_itens_um_vivo_do_time ON cofre_itens (tenant_id, tipo, nome) WHERE revogado_em IS NULL AND dono = 'time';
 
 -- Versão nova é linha nova: a cifra, o dono e o nome de uma versão não mudam. Mudam só o uso, a revogação (de nula a
--- preenchida, uma vez) e — para a troca da chave do tenant, ADR-194 §2 — a chave do item reembrulhada com a versão nova.
+-- preenchida, uma vez) e — para a troca da chave do tenant, ADR-195 §2 — a chave do item reembrulhada com a versão nova.
 CREATE FUNCTION nod_cofre_item_imutavel()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -113,10 +113,10 @@ DECLARE
   livres text[] := ARRAY['revogado_em', 'ultimo_uso_em', 'atualizado_em', 'chave_item_embrulhada', 'chave_tenant_versao'];
 BEGIN
   IF (to_jsonb(OLD) - livres) <> (to_jsonb(NEW) - livres) THEN
-    RAISE EXCEPTION 'versão do cofre não muda: guarde uma versão nova (ADR-194)' USING ERRCODE = 'P0001';
+    RAISE EXCEPTION 'versão do cofre não muda: guarde uma versão nova (ADR-195)' USING ERRCODE = 'P0001';
   END IF;
   IF OLD.revogado_em IS NOT NULL AND NEW.revogado_em IS DISTINCT FROM OLD.revogado_em THEN
-    RAISE EXCEPTION 'item revogado não volta (ADR-194)' USING ERRCODE = 'P0001';
+    RAISE EXCEPTION 'item revogado não volta (ADR-195)' USING ERRCODE = 'P0001';
   END IF;
   RETURN NEW;
 END;
@@ -130,7 +130,7 @@ CREATE TABLE cofre_concessoes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   item_id uuid NOT NULL,
   agente_id uuid NOT NULL,
-  -- Cartão é sempre 'perguntar' (ADR-194 §3): conferido no repositório (cofreRepo.conceder), não aqui — um CHECK não
+  -- Cartão é sempre 'perguntar' (ADR-195 §3): conferido no repositório (cofreRepo.conceder), não aqui — um CHECK não
   -- olha outra tabela, e um trigger que lesse cofre_itens rodaria sob a RLS de quem concede.
   modo text NOT NULL CONSTRAINT cofre_concessoes_modo CHECK (modo IN ('sempre', 'perguntar')),
   criada_em timestamptz NOT NULL DEFAULT clock_timestamp()

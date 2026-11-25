@@ -1,4 +1,4 @@
-# ADR-194 — Um cofre só, cifrado por tenant, que os bots usam sem ver
+# ADR-195 — Um cofre só, cifrado por tenant, que os bots usam sem ver
 
 Status: proposta (2026-11-24, pedido do dono) · Relacionadas: [ADR-015](adr-015-credenciais-dois-regimes-opostos.md)
 (a chave do servidor), [ADR-041](adr-041-chave-composio-do-tenant-catalogo-vindo-do-provedor.md) (a chave do Composio é
@@ -121,7 +121,7 @@ conhecido (começando pela Orgo), testa a chave antes de guardar e concede ao bo
 
 ## Entrega
 
-1. **Este PR:** a ADR, a migração 0184 (as quatro tabelas), `src/db/cifra-envelope.ts` (os três níveis, a AAD, o cache),
+1. **Este PR:** a ADR, a migração 0185 (as quatro tabelas), `src/db/cifra-envelope.ts` (os três níveis, a AAD, o cache),
    os provedores da chave mestra (`kms` pela API REST com o token da conta da VM, sem biblioteca nova; `local` por HKDF),
    o repositório e os testes (unidade e integração sob `withRollback`, troca da mestra sem tocar os itens, AAD trocada
    falha, KMS fora usa o cache e depois falha fechado).

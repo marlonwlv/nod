@@ -4,7 +4,7 @@ import { chaveMestraLocal, type ChaveMestra } from "../../../src/adapters/cofre/
 import { criarChavesDoTenant, TTL_CHAVE_DO_TENANT_MS } from "../../../src/adapters/cofre/chaves-do-tenant.ts";
 import { FalhaDoCofre } from "../../../src/db/cifra-envelope.ts";
 
-/** ADR-194 §2, "KMS fora do ar": a chave do tenant aberta fica 10 min em memória; depois, sem a mestra, falha fechado. */
+/** ADR-195 §2, "KMS fora do ar": a chave do tenant aberta fica 10 min em memória; depois, sem a mestra, falha fechado. */
 const CREDENCIAL = "ef".repeat(32);
 
 /** Uma mestra local que conta as aberturas e pode "cair" como o KMS. */

@@ -4524,7 +4524,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // o cofre do nod só existe no Postgres.
     ...navegadorEmMemoria(b, escopo),
     cofreLogins: reposSoNoPostgres("cofreLogins"),
-    // 0184 (ADR-194): o cofre em envelope só existe no Postgres (tests/integration/cofre-envelope.test.ts).
+    // 0185 (ADR-195): o cofre em envelope só existe no Postgres (tests/integration/cofre-envelope.test.ts).
     cofre: reposSoNoPostgres("cofre"),
     vmsDoNod: reposSoNoPostgres("vmsDoNod"),
     vezNaSala: reposSoNoPostgres("vezNaSala"),

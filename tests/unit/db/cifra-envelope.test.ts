@@ -16,7 +16,7 @@ import {
   zerar,
 } from "../../../src/db/cifra-envelope.ts";
 
-/** ADR-194 §2: os dois primeiros níveis do envelope (valor pela chave do item; chave do item pela chave do tenant). */
+/** ADR-195 §2: os dois primeiros níveis do envelope (valor pela chave do item; chave do item pela chave do tenant). */
 const TENANT = randomUUID();
 const OUTRO_TENANT = randomUUID();
 const ITEM = randomUUID();
