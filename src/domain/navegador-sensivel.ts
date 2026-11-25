@@ -49,3 +49,13 @@ export function segredoAindaNaPagina(urlDoSegredo: string | null, urlAgora: stri
 export function segredoEmAlgumaAba(urlDoSegredo: string | null, abas: readonly { url: string }[]): boolean {
   return abas.some((a) => segredoAindaNaPagina(urlDoSegredo, a.url));
 }
+
+/** A URL sem o fragmento: a chave das páginas em que o nod já pôs um segredo. */
+export const paginaSemFragmento = (url: string): string => url.split("#")[0]!;
+
+/**
+ * JS que o nod roda (não o bot) numa página em que já pôs um segredo e à qual a aba voltou: algum campo de texto ainda
+ * tem valor? Definido em 2026-11-25 (QA-210): voltar pelo histórico traz a página do bfcache com a senha no campo
+ * (medido no Chromium do agent-browser); recarregada do zero, os campos vêm vazios e a trava não volta.
+ */
+export const JS_CAMPO_PREENCHIDO = `(() => { const fora = /^(hidden|checkbox|radio|submit|button|reset|image|file|range|color)$/i; return [...document.querySelectorAll("input, textarea")].some((e) => !fora.test(e.type || "") && e.value !== ""); })()`;
