@@ -5704,8 +5704,25 @@ function abrirTrabalho(id: string): void {
 }
 
 function fecharTask(): void {
-  const voltar = telaAoFechar(estado.tela);
-  if (voltar) navegar(voltar);
+  const atual = estado.tela;
+  const voltar = telaAoFechar(atual);
+  if (!voltar) return;
+  const origem = document.activeElement ?? document.body;
+  navegar(voltar);
+  // QA r230: fechar (Esc ou Fechar) e voltar à tela Tarefas punha o foco no <body>; ele volta à linha da tarefa ou,
+  // se ela não está à vista (outro filtro, grupo), ao filtro ativo.
+  if (voltar.tipo === "trabalhos" && atual.tipo === "trabalho") focarNaVoltaDasTarefas(atual.id, origem);
+}
+
+function focarNaVoltaDasTarefas(id: string, origem: Element, ate = Date.now() + 3000): void {
+  const ativo = document.activeElement;
+  if (ativo && ativo !== document.body && ativo !== origem && document.contains(ativo)) return;
+  const tela = document.querySelector(".tela-tarefas");
+  const sel = CSS.escape(id);
+  const linha = tela?.querySelector<HTMLElement>(`.tf-tarefa[data-id="${sel}"], .tf-tarefa-bot[data-id="${sel}"]`);
+  const alvo = linha ?? (tela && Date.now() >= ate - 2500 ? tela.querySelector<HTMLElement>('.tf-chip[aria-pressed="true"]') : null);
+  if (alvo) { alvo.focus(); return; }
+  if (Date.now() < ate) window.setTimeout(() => focarNaVoltaDasTarefas(id, origem, ate), 100);
 }
 
 // ---- ADR-187 §6 (lote B, passo 3, 2026-11-18): a fileira de abas da tarefa (Paper 4j opção 1, 4o e 4p) ----------------
