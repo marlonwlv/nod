@@ -37,7 +37,7 @@ const estado = (p: Partial<Estado> = {}): Estado => ({
 function deps(e: () => Estado, p: Partial<DepsDoMarketplaceReal> = {}): DepsDoMarketplaceReal {
   return {
     estado: e, api: () => null, iniciarConexao: vi.fn(), cancelarConexao: vi.fn(), garantirAcessos: vi.fn(), acessos: () => null, definirNivel: vi.fn(),
-    aplicarLote: vi.fn(async () => null), desfazerLote: vi.fn(async () => null), desconectar: vi.fn(async () => undefined), definirPadrao: vi.fn(async () => undefined), conectou: vi.fn(), abrirAvancado: vi.fn(), ...p,
+    aplicarLote: vi.fn(async () => null), desfazerLote: vi.fn(async () => null), desconectar: vi.fn(async () => undefined), definirPadrao: vi.fn(async () => undefined), conectou: vi.fn(), abrirAvancado: vi.fn(), renomear: vi.fn(async () => undefined), removerConta: vi.fn(async () => undefined), ...p,
   };
 }
 

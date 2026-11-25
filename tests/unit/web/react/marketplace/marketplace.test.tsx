@@ -245,12 +245,15 @@ describe("quem pode usar, em lote (T6 e T6b)", () => {
     expect(screen.getByRole("alertdialog").textContent).toContain("para os bots novos e quem segue o padrão?");
   });
 
-  it("'N conectados ›' lista os conectados com Abrir, que leva ao 'Quem pode usar'", () => {
+  it("'N conectados ›' lista os conectados com Abrir: o app de login abre nas Contas (ADR-196), e dali o 'Quem pode usar'", () => {
     abrir();
     fireEvent.click(screen.getByRole("button", { name: /4 conectados/ }));
     expect(screen.getByRole("heading", { name: "Conectados" })).toBeTruthy();
     expect([...regiao.querySelectorAll("[data-app]")].map((e) => e.getAttribute("data-app"))).toEqual(["github", "googledrive", "slack", "fireflies"]);
     fireEvent.click(screen.getByRole("button", { name: "Abrir Slack" }));
+    expect(screen.getByRole("heading", { name: "Contas" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Opções do Slack" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Quem pode usar" }));
     expect(screen.getByRole("heading", { name: "Quem pode usar o Slack?" })).toBeTruthy();
     expect(regiao.textContent).toContain("Conectado · pela sua conta");
   });

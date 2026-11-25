@@ -1928,7 +1928,16 @@ function desenharModalDoMarketplace(): void {
     estado: () => estado,
     api: () => api,
     // Sem a chave do Composio, o "Conectar" de sempre leva à tela avançada: o modal sai da frente antes.
-    iniciarConexao: (slug) => { if (!estado.composioConfigurado && slug !== "github") fecharModalDoMarketplace(); iniciarConexao(slug); },
+    iniciarConexao: (slug, rotulo) => {
+      if (!estado.composioConfigurado && slug !== "github") fecharModalDoMarketplace();
+      if (rotulo) rotulosDeConta.set(slug, rotulo);
+      iniciarConexao(slug);
+    },
+    renomear: async (conectorId, nome) => { await api!.renomearConector(conectorId, nome); dispatch({ tipo: "invalidar", quais: ["conectores"] }); },
+    removerConta: async (conectorId) => {
+      await api!.removerContaDoApp(conectorId);
+      dispatch({ tipo: "invalidar", quais: ["conectores", "frota", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] });
+    },
     cancelarConexao: (slug) => conexoes.cancelar(slug),
     garantirAcessos: (conectorId) => garantirAcessosDoConector(conectorId),
     acessos: (conectorId) => gavetaDeAcessos.acessos(conectorId),
@@ -5458,8 +5467,10 @@ function mostrarErroDoBoot(e: unknown): void {
 // o login termina. Sem um `depois` da própria tentativa, o padrão: no marketplace a gaveta abre em
 // "Quem pode usar"; no chat, o card já virou o de permitir no servidor e a conversa só relê.
 
+/** ADR-196: o nome que a pessoa deu à conta a mais, até o servidor criar a conta (a chave é "gmail--pessoal"). */
+const rotulosDeConta = new Map<string, string>();
 const conexoes = criarConexoes({
-  conectar: (slug) => api!.conectarApp(slug),
+  conectar: (slug) => api!.conectarApp(slug, rotulosDeConta.get(slug)),
   verificar: (slug) => api!.verificarApp(slug),
   mudou: (slug, valor) => dispatch({ tipo: "conexao-app", slug, valor }),
   conectado: (slug) => {

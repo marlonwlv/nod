@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { NivelPedido } from "../../lib/acessos-otimistas.ts";
 import { Mascote } from "../onboarding/pecas.tsx";
-import { alternar, alternarTodos, alvoDoLote, caixaDoLote, fraseDaConfirmacao, lotePedeConfirmacao, rotuloDoAplicar, textoDaSelecao } from "./modelo.ts";
-import { Logo, Segmentado } from "./pecas.tsx";
+import { alternar, alternarTodos, alvoDoLote, caixaDoLote, fraseDaConfirmacao, lotePedeConfirmacao, normalizar, rotuloDoAplicar, textoDaSelecao } from "./modelo.ts";
+import { ROTULO } from "../../telas/acessos-do-app.ts";
+import { IconeBusca, IconeSeguir, Logo, Segmentado } from "./pecas.tsx";
 import { Topo } from "./vitrine.tsx";
-import type { ApiDoMarketplace, AppDaVitrine, FotoDoMarketplace, ReciboDoLote } from "./tipos.ts";
+import type { ApiDoMarketplace, AppDaVitrine, BotDaVitrine, ContaDaVitrine, FotoDoMarketplace, ReciboDoLote } from "./tipos.ts";
 
 /**
  * "Quem pode usar o {App}?" (Paper T6) e a confirmação do lote (T6b). Um segmentado por bot (o mesmo clique de sempre,
@@ -16,6 +17,26 @@ import type { ApiDoMarketplace, AppDaVitrine, FotoDoMarketplace, ReciboDoLote } 
 
 type Confirmacao = { alvo: "lote"; bots: "todos" | string[] } | { alvo: "padrao" };
 
+/**
+ * definido em 2026-11-25 (Paper M4, "Quem pode usar" para dezenas de bots): até oito bots a lista é a de sempre; com mais,
+ * ganha a busca, o filtro e recolhe num grupo os bots que seguem o padrão (o normal num time grande), deixando à vista
+ * os que a pessoa mudou.
+ */
+export const LISTA_CHEIA = 8;
+type Filtro = "todos" | "com_acesso" | "mudados";
+
+/** Os bots que a lista mostra, os que ficam no grupo recolhido e as contagens do filtro. */
+export function arrumarBots(bots: readonly BotDaVitrine[], niveis: Readonly<Record<string, string>>, segue: (id: string) => boolean, filtro: Filtro, busca: string, abertos: boolean): { visiveis: BotDaVitrine[]; recolhidos: BotDaVitrine[]; comAcesso: number; mudados: number } {
+  const comAcesso = bots.filter((b) => (niveis[b.id] ?? "nenhum") !== "nenhum");
+  const mudados = bots.filter((b) => !segue(b.id));
+  const t = normalizar(busca);
+  if (t) return { visiveis: bots.filter((b) => normalizar(`${b.nome} ${b.titulo}`).includes(t)), recolhidos: [], comAcesso: comAcesso.length, mudados: mudados.length };
+  if (filtro === "com_acesso") return { visiveis: comAcesso, recolhidos: [], comAcesso: comAcesso.length, mudados: mudados.length };
+  if (filtro === "mudados") return { visiveis: mudados, recolhidos: [], comAcesso: comAcesso.length, mudados: mudados.length };
+  const recolhidos = bots.filter((b) => segue(b.id));
+  return { visiveis: abertos ? [...bots] : mudados, recolhidos: abertos ? [] : recolhidos, comAcesso: comAcesso.length, mudados: mudados.length };
+}
+
 export type PropsDoQuemPodeUsar = {
   app: AppDaVitrine;
   conectorId: string | null;
@@ -26,6 +47,10 @@ export type PropsDoQuemPodeUsar = {
   aoFechar: () => void;
   selecionadosIniciais?: readonly string[] | undefined;
   confirmarEscrita?: boolean | undefined;
+  /** ADR-196: a conta deste "Quem pode usar" ("Gmail (pessoal)"), quando o app tem mais de uma. */
+  conta?: ContaDaVitrine | undefined;
+  /** O nome do app sem a conta ("Gmail"), para a frase das outras contas. */
+  nomeDoApp?: string | undefined;
 };
 
 function CaixaDoCabecalho({ marcados, total, aoMudar }: { marcados: number; total: number; aoMudar: () => void }) {
@@ -36,7 +61,7 @@ function CaixaDoCabecalho({ marcados, total, aoMudar }: { marcados: number; tota
   return <input ref={ref} type="checkbox" className="rx-mk-caixinha" checked={caixa === "todos"} aria-label={caixa === "todos" ? "Desmarcar todos" : "Selecionar todos"} onChange={aoMudar} />;
 }
 
-export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVoltar, aoFechar, selecionadosIniciais, confirmarEscrita }: PropsDoQuemPodeUsar) {
+export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVoltar, aoFechar, selecionadosIniciais, confirmarEscrita, conta, nomeDoApp }: PropsDoQuemPodeUsar) {
   const ids = foto.bots.map((b) => b.id);
   const [sel, setSel] = useState<ReadonlySet<string>>(() => new Set(selecionadosIniciais ?? []));
   const [confirmacao, setConfirmacao] = useState<Confirmacao | null>(() => (confirmarEscrita ? { alvo: "lote", bots: alvoDoLote(new Set(selecionadosIniciais ?? []), ids) } : null));
@@ -47,6 +72,14 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
   const liberar = useRef<HTMLButtonElement | null>(null);
   const notas = api.notas(app);
   const acessos = conectorId ? foto.acessos[conectorId] : undefined;
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [abertos, setAbertos] = useState(false);
+  const cheia = foto.bots.length > LISTA_CHEIA;
+  const arrumados = useMemo(
+    () => arrumarBots(foto.bots, app.niveis, (id) => acessos?.seguePadrao.has(id) === true, filtro, busca, abertos || !cheia),
+    [foto.bots, app.niveis, acessos, filtro, busca, abertos, cheia],
+  );
 
   useEffect(() => { if (conectorId) api.abrirAcessos(conectorId); }, [api, conectorId]);
   useEffect(() => { if (confirmacao) liberar.current?.focus(); }, [confirmacao]);
@@ -112,7 +145,11 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
   const status = app.situacao === "atencao" && !conectadoAgora
     ? <><span className="rx-mk-ponto rx-mk-ponto-linha" aria-hidden="true" />{app.falha ?? "Precisa de atenção"}</>
     : app.desligado && !conectadoAgora ? "Desligado · nenhum bot usa enquanto estiver assim"
-    : <><span className="rx-mk-ok" aria-hidden="true">●</span> {conectadoAgora ? "Conectado agora" : "Conectado"} · {app.chave ? "a chave está guardada" : "pela sua conta"}</>;
+    : <><span className="rx-mk-ok" aria-hidden="true">●</span> {conectadoAgora ? "Conectado agora" : "Conectado"} · {app.chave ? "a chave está guardada" : conta?.email ?? "pela sua conta"}</>;
+  const outrasContas = conta && (app.contas?.length ?? 0) > 1;
+  const explicacao = conta && nomeDoApp
+    ? `Vale só para esta conta. ${conta.principal ? `As outras contas do ${nomeDoApp}` : `O ${nomeDoApp} e as outras contas`} continuam com os acessos que já tinham.`
+    : "Libere só para quem precisa. Os outros bots seguem sem acesso, e dá para mudar depois em Apps.";
 
   let cabecalho;
   if (confirmacao) {
@@ -152,14 +189,30 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
       </div>
       <div className="rx-mk-quem">
         <h3>Quem pode usar o {app.nome}?</h3>
-        <p>Libere só para quem precisa. Os outros bots seguem sem acesso, e dá para mudar depois em Apps.</p>
+        <p>{outrasContas ? explicacao : "Libere só para quem precisa. Os outros bots seguem sem acesso, e dá para mudar depois em Apps."}</p>
       </div>
+      {conectorId && cheia ? (
+        <div className="rx-mk-filtros">
+          <label className="rx-mk-busca rx-mk-busca-bots">
+            <IconeBusca />
+            <span className="rx-mk-sr">Buscar bots</span>
+            <input type="search" value={busca} placeholder={`Buscar entre ${foto.bots.length} bots`} onChange={(ev) => setBusca(ev.target.value)}
+              onKeyDown={(ev) => { if (ev.key === "Escape" && busca) { ev.preventDefault(); ev.stopPropagation(); setBusca(""); } }} />
+          </label>
+          <div className="segmentado rx-mk-seg rx-mk-filtro" role="group" aria-label="Mostrar">
+            {([["todos", `Todos ${foto.bots.length}`], ["com_acesso", `Com acesso ${arrumados.comAcesso}`], ["mudados", `Mudados por você ${arrumados.mudados}`]] as const).map(([f, rotulo]) => (
+              <button key={f} type="button" className={`seg${filtro === f ? " ativo" : ""}`} aria-pressed={filtro === f} onClick={() => { setFiltro(f); setAbertos(false); }}>{rotulo}</button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {!conectorId ? <p className="rx-mk-vazio">Ainda conferindo a conexão do {app.nome}…</p> : null}
       {conectorId && foto.bots.length === 0 ? <p className="rx-mk-vazio">Você ainda não tem bots. Quem você criar segue o padrão abaixo.</p> : null}
       {conectorId && foto.bots.length > 0 ? (
         <div className="rx-mk-caixa" role="group" aria-label={`Quem pode usar o ${app.nome}`}>
           {cabecalho}
-          {foto.bots.map((b) => {
+          {arrumados.visiveis.length === 0 ? <p className="rx-mk-vazio">{busca.trim() ? `Nenhum bot para “${busca.trim()}”.` : filtro === "com_acesso" ? "Nenhum bot usa este app ainda." : "Nenhum bot mudado por você: todos seguem o padrão."}</p> : null}
+          {arrumados.visiveis.map((b) => {
             const nivel = app.niveis[b.id] ?? "nenhum";
             const segue = acessos?.seguePadrao.has(b.id) === true;
             const sub = nivel === "personalizado" ? "Personalizado · ações escolhidas uma a uma" : segue ? `${b.titulo || "Seu bot"} · segue o padrão` : b.titulo || "Seu bot";
@@ -172,6 +225,16 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
               </div>
             );
           })}
+          {arrumados.recolhidos.length > 0 ? (
+            <button type="button" className="rx-mk-bot rx-mk-recolhidos" aria-expanded={false} onClick={() => setAbertos(true)}>
+              <span className="rx-mk-recolhidos-seta" aria-hidden="true"><IconeSeguir /></span>
+              <span className="rx-mk-bot-texto">
+                <b>{arrumados.recolhidos.length === 1 ? "1 bot segue o padrão" : `${arrumados.recolhidos.length} bots seguem o padrão`}</b>
+                <span>{arrumados.recolhidos.slice(0, 4).map((b) => b.nome).join(", ")}{arrumados.recolhidos.length > 4 ? ` e mais ${arrumados.recolhidos.length - 4}` : ""}{acessos ? ` · todos em ${ROTULO[acessos.padrao]}` : ""}</span>
+              </span>
+              <span className="rx-mk-recolhidos-mostrar">Mostrar</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
       {recibo ? (

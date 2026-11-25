@@ -6,6 +6,7 @@ import { ACOES_GERIR_ACESSOS, NIVEIS_GERIR_ACESSOS, type ArgsGerirAcessos, type 
 import type { CasoNod, SaidaCasoDeUso } from "../contracts/servicos.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { desfazerDevolveEscrita, fraseDoLote, MAX_BOTS_POR_LOTE, ROTULO_DO_NIVEL } from "../domain/acessos-em-lote.ts";
+import { separarChave } from "../domain/contas-do-app.ts";
 import { ehErroDeDominio, ErroDeDominio } from "../domain/erro.ts";
 import { riscoDaAcao } from "../domain/lote-bots.ts";
 import { decidirPeloModo, modoNoTurno, semRevisor } from "../domain/modo-aprovacao.ts";
@@ -49,7 +50,14 @@ export function acharApp(pedido: string, apps: readonly Conector[]): { app: Cone
   if (exato) return { app: exato };
   const chave = chaveDoTime(p);
   const porNome = apps.filter((a) => chaveDoTime(a.nome) === chave || chaveDoTime(a.slug) === chave);
-  if (porNome.length === 1) return { app: porNome[0]! };
+  if (porNome.length === 1) {
+    // ADR-196: com duas contas do mesmo app, "Gmail" casa com a primeira pelo nome, mas a pessoa pode ter querido a
+    // outra. Não escolhe: devolve todas, cada uma com o slug que resolve sem dúvida e o e-mail quando há.
+    const base = separarChave(porNome[0]!.slug)?.app;
+    const familia = base && !separarChave(porNome[0]!.slug)?.conta ? apps.filter((a) => separarChave(a.slug)?.app === base) : [];
+    if (familia.length > 1) return { opcoes: familia.map((a) => `${a.nome}${a.contaEmail ? ` · ${a.contaEmail}` : ""} (app "${a.slug}")`) };
+    return { app: porNome[0]! };
+  }
   const parecidos = porNome.length > 1 ? porNome : apps.filter((a) => chaveDoTime(a.nome).includes(chave) || chave.includes(chaveDoTime(a.nome)));
   return { opcoes: parecidos.map((a) => a.nome).slice(0, 5) };
 }

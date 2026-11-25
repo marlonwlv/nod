@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **235**, mais 3 só de leitura. No chat: **81 vivas**, 8 parciais, 99 faltando e 50 que nunca vão para o chat. Piso de vivas: 81.
+Ações de pessoa que mudam algo: **237**, mais 3 só de leitura. No chat: **81 vivas**, 8 parciais, 101 faltando e 50 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -73,6 +73,8 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `apps.desabilitar` | Desligar um app | muda | falta (NOD-394) | `POST ^\/conectores\/(?<id>[^/]+)\/desabilitar$` |
 | `apps.conectar` | Conectar um app do Marketplace | muda | falta (NOD-394) | `POST ^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar$` |
 | `apps.verificar` | Verificar a conexão de um app do Marketplace | leitura | falta (NOD-394) | `POST ^\/marketplace\/(?<slug>[a-z0-9-]+)\/verificar$` |
+| `apps.renomear_conta` | Trocar o nome que aparece de uma conta de um app | muda | falta (NOD-394) | `PATCH ^\/conectores\/(?<id>[^/]+)\/nome$` |
+| `apps.remover_conta` | Remover uma conta a mais de um app (os bots perdem o acesso a ela) | arriscada | falta (NOD-394) | `DELETE ^\/marketplace\/contas\/(?<id>[^/]+)$` |
 | `apps.conectar_com_chave` | Conectar um app com a chave de API da pessoa | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `POST ^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar-com-chave$` |
 | `apps.credenciais` | Guardar as credenciais de um app | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `PATCH ^\/conectores\/(?<id>[^/]+)\/credenciais$` |
 | `apps.configurar_marketplace` | Guardar a chave do Marketplace | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `POST ^\/marketplace\/configurar$` |
@@ -417,7 +419,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 ## O que cada onda leva
 
 - **NOD-393** (Onda 1: bots e rotinas): `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
-- **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
+- **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `apps.renomear_conta`, `apps.remover_conta`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
 - **NOD-395** (Onda 3: conta e segurança): `cofre.apagar_login`, `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`, `navegador.operar`, `navegador.apagar_tarefa`
 - **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`, `tarefas.criar`, `tarefas.enviar`, `tarefas.resolver`, `tarefas.reabrir`, `tarefas.arquivar`, `tarefas.desarquivar`, `tarefas.renomear`

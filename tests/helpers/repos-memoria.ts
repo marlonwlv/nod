@@ -2976,7 +2976,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async salvarChave(c) { b.composioChaves.set(escopo.tenantId + escopo.pessoaId, c); },
       async salvarChaveSeAusente(c) { if (b.composioChaves.has(escopo.tenantId + escopo.pessoaId)) return false; b.composioChaves.set(escopo.tenantId + escopo.pessoaId, c); return true; },
       async sessao(t) { return b.composioSessoes.get(escopo.tenantId + escopo.pessoaId + t) ?? null; },
-      async salvarSessao(s) { b.composioSessoes.set(escopo.tenantId + escopo.pessoaId + s.toolkit, s); },
+      async sessoesDoApp(t) { return [...b.composioSessoes.entries()].filter(([k, s]) => k.startsWith(escopo.tenantId + escopo.pessoaId) && s.toolkit === t).map(([, s]) => s); },
+      async salvarSessao(s) { b.composioSessoes.set(escopo.tenantId + escopo.pessoaId + s.toolkit + (s.conta ? `--${s.conta}` : ""), { ...s, email: null }); },
+      async salvarEmail(conectorId, email) { for (const s of b.composioSessoes.values()) if (s.conectorId === conectorId) s.email = email; },
     },
     conectores: {
       async atualizarEndpoint(id, url, envCifrado, envChaves) {
@@ -3054,6 +3056,21 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         c.habilitado = habilitado;
         return c;
       },
+      async renomear(id, nome) {
+        const c = doTenant(b.conectores).find((x) => x.id === id && x.ownerId === escopo.pessoaId);
+        if (!c) return null;
+        c.nome = nome;
+        return c;
+      },
+      async remover(id) {
+        const i = b.conectores.findIndex((x) => x.tenantId === escopo.tenantId && x.id === id && x.ownerId === escopo.pessoaId);
+        if (i < 0) return false;
+        b.conectores.splice(i, 1);
+        let contaComposio: string | null = null;
+        for (const [k, s] of b.composioSessoes) if (s.conectorId === id) { contaComposio = s.contaId; b.composioSessoes.delete(k); }
+        return { contaComposio };
+      },
+      async restaurar() { return true; },
       async atualizarEnv(id, p) {
         const c = doTenant(b.conectores).find((x) => x.id === id);
         if (!c) return false;

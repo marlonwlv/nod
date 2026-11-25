@@ -646,7 +646,11 @@ export function criarApi(escopo: Escopo) {
     conectores: () => get<{ conectores: Conector[]; marketplace: AppComLogo[]; composioConfigurado: boolean }>("conectores"),
     configurarComposio: (chave: string) => post<{ configurado: boolean }>("marketplace/configurar", { chave }),
     // definido em 2026-09-24 (ADR-048): o GitHub pode conectar na hora (gh logado nesta máquina, sem URL de login) ou dizer o que falta (`frase`).
-    conectarApp: (slug: string) => post<{ url?: string; conectorId?: string; conectado?: boolean; frase?: string }>(`marketplace/${encodeURIComponent(slug)}/conectar`),
+    // ADR-196: `slug` é a chave do conector; a conta a mais ("gmail--pessoal") leva o nome que a pessoa digitou.
+    conectarApp: (slug: string, rotulo?: string) => post<{ url?: string; conectorId?: string; conectado?: boolean; frase?: string }>(`marketplace/${encodeURIComponent(slug)}/conectar`, rotulo ? { rotulo } : undefined),
+    /** ADR-196: "Renomear" troca só o nome que aparece; "Remover esta conta" tira a conta a mais (os bots perdem o acesso). */
+    renomearConector: (id: string, nome: string) => patch<{ ok: true; conector: Conector }>(`conectores/${encodeURIComponent(id)}/nome`, { nome }),
+    removerContaDoApp: (id: string) => del<{ ok: true }>(`marketplace/contas/${encodeURIComponent(id)}`),
     appGithub: (p: { appId: string; instalacaoId: string; chavePrivada: string }) => post<{ configurado: boolean }>("marketplace/github/app", p),
     /** NOD-50: o valor do cartão de credencial vai daqui direto ao cofre; a resposta não o devolve. */
     guardarCredencial: (propostaId: string, valor: string) => post<{ estado: "guardada" }>(`propostas/${encodeURIComponent(propostaId)}/credencial`, { valor }),

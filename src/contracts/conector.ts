@@ -66,6 +66,13 @@ export type Conector = {
   ultimoTimeoutEm?: EpochMs | null;
   proximaSondaEm?: EpochMs | null;
   foraDoArDesde?: EpochMs | null;
+  /**
+   * ADR-196: o e-mail da conta do Composio ("Gmail (pessoal) · maria@…"), quando o provedor o devolveu. Só a dona o
+   * recebe (vem da sessão dela); ausente nos outros conectores.
+   */
+  contaEmail?: string;
+  /** ADR-196: a conta a mais que a pessoa tirou. Fora das listas; só o `buscar` e o `buscarPorSlug` a veem. */
+  removidoEm?: EpochMs;
 };
 
 /**

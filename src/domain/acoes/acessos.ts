@@ -74,6 +74,11 @@ export const ACOES_ACESSOS = [
   { id: "apps.desabilitar", titulo: "Desligar um app", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-394" } },
   { id: "apps.conectar", titulo: "Conectar um app do Marketplace", risco: "muda", cartaoNoChat: true, chat: { estado: "falta", onda: "NOD-394" } },
   { id: "apps.verificar", titulo: "Verificar a conexão de um app do Marketplace", risco: "leitura", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-394" } },
+  // ADR-196: as contas a mais de um app. Renomear não muda o que o bot alcança (muda); remover tira acesso de bots e não
+  // tem Desfazer (arriscada). Entram no chat com a NOD-394, junto do conectar: o gerir_acessos já pergunta qual conta
+  // quando "Gmail" casa com mais de uma.
+  { id: "apps.renomear_conta", titulo: "Trocar o nome que aparece de uma conta de um app", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-394" } },
+  { id: "apps.remover_conta", titulo: "Remover uma conta a mais de um app (os bots perdem o acesso a ela)", risco: "arriscada", cartaoNoChat: true, chat: { estado: "falta", onda: "NOD-394" } },
   { id: "apps.conectar_com_chave", titulo: "Conectar um app com a chave de API da pessoa", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },
   { id: "apps.credenciais", titulo: "Guardar as credenciais de um app", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },
   { id: "apps.configurar_marketplace", titulo: "Guardar a chave do Marketplace", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },
