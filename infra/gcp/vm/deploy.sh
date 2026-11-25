@@ -273,6 +273,9 @@ NOD_DB_POOL_MAX=15
 DATABASE_URL_DONO=postgres://nod_dono:$PG_SENHA_DONO@$SQL_IP:5432/nod?sslmode=require
 NOD_SESSAO_SEGREDO=$SESSAO_SEGREDO
 NOD_CREDENTIAL_KEY=$CREDENTIAL_KEY
+# ADR-194: a chave mestra do cofre no Cloud KMS (key ring nod, chave cofre). A conta da VM só cifra e decifra com ela;
+# o boot recusa subir em produção sem esta linha.
+NOD_COFRE_KMS=projects/$PROJETO/locations/southamerica-east1/keyRings/nod/cryptoKeys/cofre
 NOD_GOOGLE_CLIENT_ID=$GOOGLE_ID
 NOD_GOOGLE_CLIENT_SECRET=$GOOGLE_SEGREDO
 NOD_GOOGLE_REDIRECT_URI=https://$NOD_DOMINIO/api/sessao/google/callback

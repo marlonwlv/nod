@@ -41,6 +41,7 @@ import { encerrarLigacao } from "../../use-cases/ligacoes.ts";
 import { criarBatimentos, criarVerificacaoSaude, INTERVALOS_ATE_LACO_PARADO } from "./rotas/saude.ts";
 import { listen } from "./servidor.ts";
 import { recusasDasFlagsDeConta } from "./compor-contas.ts";
+import { recusasDoCofre } from "../cofre/chave-mestra.ts";
 import { iniciarCorAtiva, type CorAtiva } from "./cor-ativa.ts";
 import { iniciarWatchdog, type Watchdog } from "./watchdog.ts";
 import { opcoesSessaoDoEnv } from "./sessao.ts";
@@ -189,6 +190,9 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
   // NOD-345: combinação inválida das flags de conta impede o boot, antes de qualquer efeito.
   const recusasConta = recusasDasFlagsDeConta(env);
   if (recusasConta.length) throw new Error(`boot: ${recusasConta.join("; ")}`);
+  // ADR-194 §2: produção sem a chave mestra no KMS (ou com o nome fora do formato) não sobe, antes de qualquer efeito.
+  const recusasCofre = recusasDoCofre(env);
+  if (recusasCofre.length) throw new Error(`boot: ${recusasCofre.join("; ")}`);
   // NOD-164: o modelo da ligação (NOD_MODELO_LIGACAO_CLAUDE/_CODEX) inválido também impede o boot, antes de qualquer efeito.
   lerModelosLigacao(env);
   // NOD_ADMISSAO_DOMINIOS inválido também impede o boot (um domínio digitado errado deixaria o time de fora em silêncio).

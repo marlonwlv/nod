@@ -200,8 +200,8 @@ export function escolherChaveMestra(env: EnvDoCofre, opcoes: Omit<OpcoesKms, "no
 /**
  * ADR-194 §2: "em produção o boot recusa subir sem NOD_COFRE_KMS". Produção é `NODE_ENV=production`, o critério do
  * resto do servidor (Dockerfile; compor.ts, registry.ts, voz/fabrica.ts). Devolve as recusas (vazia = pode subir), no
- * molde de `recusasDasFlagsDeConta`. Ainda NÃO está ligada no boot.ts: o NOD_COFRE_KMS não existe na config de
- * produção e o deploy da main é automático — ligar junto com a criação da chave e da variável (Entrega 2).
+ * molde de `recusasDasFlagsDeConta`. Ligada no boot.ts; o deploy.sh grava o NOD_COFRE_KMS no env da cor nova (a chave
+ * `nod/cofre` já existe no KMS, com a conta da VM só cifrando e decifrando).
  */
 export function recusasDoCofre(env: EnvDoCofre): string[] {
   const r: string[] = [];
