@@ -115,6 +115,8 @@ dialog.criar-bot.criando .cnb-criar { background: var(--action); color: var(--on
 .ap-exemplo .icon.mascote.lg { width: 52px; height: 52px; }
 .ap-rodape { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; min-height: 52px; }
 .ap-acoes { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+/* PR 327 (achado 6): o Continuar desligado (sem escolha) parecia ativo; agora fala como o .ap-enviar[disabled]. */
+.bt.pri.ap-seguir:disabled, .bt.pri.ap-seguir:disabled:hover { background: var(--hover); border-color: var(--hover); color: var(--ink-3); cursor: default; }
 .ap-pontos { display: flex; align-items: center; gap: 4px; }
 .ap-ponto { width: 4px; height: 4px; border-radius: var(--raio-full); background: var(--line-strong); transition: width var(--dur-normal) var(--curva), background var(--dur-normal) var(--curva); }
 .ap-ponto.atual { width: 16px; background: var(--ink); }
@@ -154,7 +156,8 @@ dialog.criar-bot.criando .cnb-criar { background: var(--action); color: var(--on
 .ap-fichas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 420px; margin-top: 12px; }
 .ap-ficha { height: 32px; padding: 0 14px; border-radius: var(--raio-full); border: 1px solid var(--borda); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; transition: background var(--dur-rapido) var(--curva), border-color var(--dur-rapido) var(--curva); }
 .ap-ficha:hover { background: var(--hover); }
-.ap-ficha[aria-checked="true"] { border-color: var(--ink); background: var(--surface-selected); }
+/* PR 327 (achado 6): o chip escolhido se invertia só no fundo (--surface-selected) e quase não se distinguia. */
+.ap-ficha[aria-checked="true"], .ap-ficha[aria-checked="true"]:hover { border-color: var(--ink); background: var(--ink); color: var(--surface); }
 
 /* 8 · apps */
 .ap-apps { list-style: none; margin: 12px 0 0; padding: 0; width: min(380px, 100%); text-align: left; }
@@ -170,8 +173,9 @@ dialog.criar-bot.criando .cnb-criar { background: var(--action); color: var(--on
 .ap-nome { width: min(260px, 100%); height: 36px; padding: 0 12px; border-radius: var(--raio-10); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; text-align: center; }
 .ap-nome:focus { outline: 2px solid var(--focus-ring); border-color: transparent; }
 .ap-composer { display: flex; align-items: center; gap: 8px; width: min(420px, 100%); margin-top: 6px; padding: 6px 6px 6px 14px; border-radius: var(--raio-18); border: 1px solid var(--borda); background: var(--surface-elevated); box-shadow: var(--sombra-modal); }
+/* PR 327 (achado 7): no Chromium do Windows a barra de rolagem de uma linha aparecia como setinhas ▲▼ (overflow abaixo). */
 /* foco-no-conteiner: .ap-composer */
-.ap-composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo); line-height: 24px; height: 24px; }
+.ap-composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; overflow: hidden; scrollbar-width: none; background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo); line-height: 24px; height: 24px; }
 .ap-enviar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--raio-full); border: 0; background: var(--action); color: var(--on-action); cursor: pointer; }
 .ap-enviar[disabled] { background: var(--hover); color: var(--ink-3); cursor: default; }
 

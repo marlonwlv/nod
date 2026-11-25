@@ -24,6 +24,9 @@ describe("reconhecer o desvio pelo fim do turno", () => {
   const casos: [string, Partial<FatosDoFim>, IdDesvio | null][] = [
     ["1 · No conversation found (com result de erro)", { erroCru: "error_during_execution | No conversation found with session ID: abc" }, "sessao_sumiu"],
     ["1 · sessão rejeitada antes de começar", { motivoInterrupcao: "sessao_rejeitada", motivoFalha: null }, "sessao_sumiu"],
+    ["1 · sessão rejeitada sem saber se havia sessão (leitura de antes)", { motivoInterrupcao: "sessao_rejeitada", motivoFalha: null, semSessao: false }, "sessao_sumiu"],
+    ["9 · fechou antes de começar sem sessão para retomar (1ª mensagem, PR #327)", { motivoInterrupcao: "sessao_rejeitada", motivoFalha: null, semSessao: true, erroCru: "codex.ps1 : Cannot process argument because the value of argument \"name\" is not valid." }, "ia_nao_abriu"],
+    ["2 · fechou antes de começar sem sessão e sem login", { motivoInterrupcao: "sessao_rejeitada", motivoFalha: null, semSessao: true, erroCru: "Not logged in" }, "login_vencido"],
     ["2 · OAuth session expired", { erroCru: "success | Failed to authenticate: OAuth session expired and could not be refreshed" }, "login_vencido"],
     ["2 · 401 do Codex", { erroCru: "401 Unauthorized" }, "login_vencido"],
     ["3 · limite com o bot preso a uma IA", { motivoFalha: "limite_do_plano", botFixo: true }, "limite_bot_fixo"],

@@ -1,3 +1,4 @@
+import { fonteDoLogin, htmlCartaoAjudaNavegador, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoCombinar, htmlCartaoLogin, htmlCartaoPedidoSemVista, htmlLinhaEntrandoEuMesmo, linhaDaRespostaDoNavegador, nomeDoSite, noOuNa, pedidoDoNavegadorNaFala, type PedidoNaFala } from "../lib/navegador-cartoes.ts";
 import { listaDasColunasParaSuaVez } from "./card-colunas.ts";
 import { oA } from "./desvio.ts";
 import { agruparIguais, renderPedidosIguais } from "./pedidos-iguais.ts";
@@ -654,6 +655,9 @@ function renderItemPergunta(item: Item, estado: Estado): string {
   const cab = `<div class="sv-cab">${agente ? iconeAgente(agente, "sm") : ""}<span class="sv-quem"><b>${esc(item.agenteNome)}</b> ${esc(haQuanto(item.aguardandoHaMs))}${origem ? ` · ${esc(origem)}` : ""}</span><span class="sv-acoes">${rodada > 1 ? `<span class="sv-rodada">${rodada}ª rodada</span>` : ""}${abrir}</span></div>`;
   const campo = `<div class="pq-campo"><input class="resposta" data-resposta="${esc(d.id)}" placeholder="${esc(`Responder à ${item.agenteNome}`)}" aria-label="Sua resposta" autocomplete="off" />${botao("responder", SETA_ENVIAR, { classe: "pri pq-enviar", id: d.id, aria: "Enviar resposta", titulo: "Enviar" })}</div>`;
   const ajuda = pedido?.ajudaDoComputador === true;
+  // ADR-190 (L1–L4): o pedido do navegador aberto da própria pessoa é o cartão do navegador, também em "Sua vez".
+  const doNavegador = aberta && daMinhaConversa && agente ? pedidoDoNavegadorNaFala(pedido?.texto ?? d.frase) : null;
+  if (doNavegador && agente) return `<li class="item-pergunta dec-${esc(item.estadoColuna)}" data-decisao="${esc(d.id)}">${cab}${htmlDoPedidoAberto(doNavegador, d.id, agente, estado)}</li>`;
   // Spec D, item 6: o pedido de ajuda aberto da própria pessoa é o cartão do computador, também em "Sua vez".
   const motivoAjuda = ajuda && aberta && daMinhaConversa && agente ? motivoDoPedidoDeTela(pedido?.texto ?? d.frase) : null;
   if (motivoAjuda !== null && agente) return `<li class="item-pergunta dec-${esc(item.estadoColuna)}" data-decisao="${esc(d.id)}">${cab}${renderCartaoAjuda({ decisaoId: d.id, agenteId: agente.id, nome: item.agenteNome, motivo: motivoAjuda })}</li>`;
@@ -786,7 +790,7 @@ export function renderCartaoComputador(item: Item, estado: Pick<Estado, "frota" 
   // Só a dona do bot abre a tela dele (main.ts, abrir-computador): a decisora designada não vê "Ver a tela".
   const dono = estado.frota?.agentes.some((a) => a.id === d.agenteId && a.ownerId === estado.sessao?.pessoaId) === true;
   const ver = dono ? botao("abrir-computador", "Ver a tela", { classe: "cc-bt cc-ver", id: d.agenteId }) : "";
-  return `<li class="decisao cc-cartao dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" role="group" aria-label="${esc(`Pedido de ${item.agenteNome} no computador`)}">
+  return `<li class="decisao cc-cartao cc-molde dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" role="group" aria-label="${esc(`Pedido de ${item.agenteNome} no computador`)}">
     <div class="cc-cab">${ICONE_LAPTOP}<span class="cc-rotulo">Computador</span>${aPedidoDe(item)}${marcaGemeas(item)}${botao("decidir-aprovacao-nenhum", ICONE_X, { classe: "cc-x", id: d.id, aria: "Negar uma vez", titulo: "Negar uma vez" })}</div>
     <p class="cc-titulo dec-frase">${esc(perguntaDaAprovacao(item, []))}</p>
     <p class="cc-texto">${esc(acao.frase)}</p>${porqueDaPausa(i)}
@@ -838,7 +842,7 @@ export function renderCartaoAjuda(o: { decisaoId: string; agenteId: string; nome
   const t = textosDaAjuda(o.motivo);
   const mini = o.src ? `<img src="${esc(o.src)}" alt="" />` : '<img alt="" hidden />';
   const texto = `${comMaiuscula(semPontoFinal(o.motivo))}. Assuma o controle, entre e clique em Parar. ${o.nome} não vê o que você digita.`;
-  return `<div class="cc-cartao cc-ajuda" role="group" aria-label="${esc(`${o.nome} pede ajuda no computador`)}" data-ajuda="${esc(o.decisaoId)}">
+  return `<div class="cc-cartao cc-molde cc-ajuda" role="group" aria-label="${esc(`${o.nome} pede ajuda no computador`)}" data-ajuda="${esc(o.decisaoId)}">
     <div class="cc-cab">${ICONE_LAPTOP}<span class="cc-rotulo">Computador</span>${botao("dispensar", ICONE_X, { classe: "cc-x", id: o.decisaoId, aria: "Agora não", titulo: "Agora não" })}</div>
     <div class="cc-ajuda-corpo"><span class="cc-mini${o.src ? "" : " sem-imagem"}" data-tela-bot="${esc(o.agenteId)}">${mini}</span><div class="cc-ajuda-txt"><p class="cc-titulo">${esc(t.titulo)}</p><p class="cc-texto">${esc(texto)}</p></div></div>
     <div class="cc-botoes">${botao("dispensar", "Agora não", { classe: "cc-bt cc-ver", id: o.decisaoId })}${botao("abrir-computador", "Assumir o controle", { classe: "cc-bt cc-uma pri", id: o.agenteId, dados: { assumir: "1", pedido: o.motivo } })}</div>
@@ -879,12 +883,89 @@ export function cartaoDoPedidoDeAjuda(m: Mensagem, estado: Estado): { html: stri
 }
 
 /**
+ * ADR-190 (L1–L4): o pedido de uma fala do bot no navegador (login, código, ajuda), reconhecido pela frase do portão.
+ * Aberto e com a vista do bot à mão: o cartão do navegador (o mesmo da pílula e do celular); sem a vista, o caminho até
+ * ela. "Entrar eu mesmo" fecha o cartão (a pílula assume). Resolvido, a linha discreta com o que aconteceu. null: não é
+ * pedido do navegador.
+ */
+export function cartaoDoPedidoDoNavegador(m: Mensagem, estado: Estado): { html: string; linha: boolean } | null {
+  if (m.payload?.kind !== "pedido_a_pessoa") return null;
+  const p = pedidoDoNavegadorNaFala(m.texto);
+  if (!p) return null;
+  const decisaoId = m.payload.decisaoId;
+  const linha = (texto: string) => ({ html: `<div class="msg-sistema nvc-linha">${esc(texto)}</div>`, linha: true });
+  const site = p.tipo === "login" ? nomeDoSite(p.site) : "";
+  const e = estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], decisaoId);
+  switch (e.tipo) {
+    case "aberta": {
+      const agente = estado.frota?.agentes.find((a) => a.id === m.autoria.autor_id);
+      if (!agente || agente.ownerId !== estado.sessao?.pessoaId) return linha(p.tipo === "login" ? `Esperando alguém entrar ${noOuNa(site)} ${site}` : "Esperando alguém no navegador");
+      return { html: htmlDoPedidoAberto(p, decisaoId, agente, estado), linha: false };
+    }
+    case "respondida":
+      return linha(linhaDaRespostaDoNavegador(e.resposta.texto) ?? (p.tipo === "login" ? `Respondido · entrar ${noOuNa(site)} ${site}` : "Respondido"));
+    case "deixada":
+      return linha(p.tipo === "login" ? `Você não entrou ${noOuNa(site)} ${site}` : "Você deixou este pedido para depois");
+    case "vencida":
+      return linha(p.tipo === "login" ? `Sem resposta · entrar ${noOuNa(site)} ${site}` : "Sem resposta");
+    case "de_outra":
+    case "encerrada":
+      return linha("Pedido do navegador fechado");
+  }
+}
+
+/** O cartão do pedido aberto: o login, o código ou a ajuda, a partir da vista do bot (ou o caminho até ela, sem vista). */
+function htmlDoPedidoAberto(p: PedidoNaFala, decisaoId: string, agente: { id: string; nome: string }, estado: Pick<Estado, "navegadores">): string {
+  const vista = estado.navegadores[agente.id]?.vista ?? null;
+  const pedido = vista?.pedido?.decisaoId === decisaoId ? vista.pedido : null;
+  const o = { decisaoId, agenteId: agente.id, nome: agente.nome };
+  if (pedido?.tipo === "login") {
+    if (pedido.etapa === "eu_mesmo") return htmlLinhaEntrandoEuMesmo(pedido, o);
+    const url = vista?.abas.find((a) => a.ativa)?.url;
+    return htmlCartaoLogin(pedido, { nome: agente.nome, agenteId: agente.id, fonte: fonteDoLogin(agente.id), ...(url ? { url } : {}), ...(vista?.aparelho ? { aparelho: vista.aparelho } : {}) });
+  }
+  if (pedido?.tipo === "ajuda") return pedido.codigo ? htmlCartaoCodigo({ ...o, motivo: pedido.motivo }) : htmlCartaoAjudaNavegador({ ...o, motivo: pedido.motivo });
+  // O pedido de código não depende da vista: o campo manda direto pela rota (o servidor confere a decisão).
+  if (p.tipo === "codigo") return htmlCartaoCodigo({ ...o, motivo: p.motivo });
+  return htmlCartaoPedidoSemVista(p, o);
+}
+
+/** O item é a aprovação de UMA ação no navegador do bot (A1, A2, A3). */
+export function ehAprovacaoDoNavegador(item: Pick<Item, "decisao" | "itensAprovacao">): boolean {
+  const [i] = item.itensAprovacao;
+  return item.decisao.tipo === "aprovacao" && item.itensAprovacao.length === 1 && i?.destino.conector === "navegador";
+}
+
+/**
+ * A1/A2/A3 na conversa e em "Sua vez": o pedido da vista (pagar com Touch ID, a citação e o "Não perguntar de novo" do
+ * envio, o combinado com teto). Sem a vista à mão (outro aparelho), a pergunta do item com Não | Sim — o mesmo `decidir`.
+ * "Ver a tela" abre o painel do navegador, só para a dona.
+ */
+export function renderCartaoNavegador(item: Item, estado: Pick<Estado, "frota" | "sessao" | "navegadores">, naConversa = true): string {
+  const d = item.decisao;
+  const i = item.itensAprovacao[0];
+  if (!i) return "";
+  const dono = estado.frota?.agentes.some((a) => a.id === d.agenteId && a.ownerId === estado.sessao?.pessoaId) === true;
+  const pedido = estado.navegadores[d.agenteId]?.vista.pedido;
+  const aparelho = estado.navegadores[d.agenteId]?.vista.aparelho;
+  const o = { agenteId: d.agenteId, nome: item.agenteNome, dono, ...(aparelho ? { aparelho } : {}) };
+  const cartao = pedido?.decisaoId === d.id && pedido.tipo === "aprovacao" ? htmlCartaoAprovacao(pedido, o)
+    : pedido?.decisaoId === d.id && pedido.tipo === "combinar" ? htmlCartaoCombinar(pedido, o)
+    : htmlCartaoAprovacaoSemVista({ ...o, decisaoId: d.id, pergunta: i.textoFinal });
+  const de = naConversa ? "" : `<p class="nvc-de">Navegador de ${esc(item.agenteNome)}${aPedidoDe(item)}</p>`;
+  return `<li class="decisao nvc-item dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">${de}${cartao}</li>`;
+}
+
+/**
  * A barra lateral enquanto espera (itens 5 e 6): o pedido do computador vira "Aguardando você: abrir nfse.gov.br" ou
  * "Aguardando você: entrar no portal" no lugar da frase genérica. Os outros pedidos passam como vieram.
  */
 export function pedidoParaAguardando<T extends Pick<Item, "decisao" | "itensAprovacao" | "pedido">>(item: T): T {
   const [i] = item.itensAprovacao;
   if (ehAprovacaoDoComputador(item) && i) return { ...item, decisao: { ...item.decisao, frase: acaoDoComputador(i.textoFinal).curta } };
+  if (ehAprovacaoDoNavegador(item) && i) return { ...item, decisao: { ...item.decisao, frase: i.textoFinal.replace(/\?$/u, "") } };
+  const doNavegador = item.pedido?.texto ? pedidoDoNavegadorNaFala(item.pedido.texto) : null;
+  if (doNavegador) return { ...item, decisao: { ...item.decisao, frase: doNavegador.tipo === "login" ? `entrar ${noOuNa(nomeDoSite(doNavegador.site))} ${nomeDoSite(doNavegador.site)}` : doNavegador.tipo === "codigo" ? "mandar o código" : "passo no navegador" } };
   const motivo = item.pedido?.ajudaDoComputador ? motivoDoPedidoDeTela(item.pedido.texto) : null;
   if (motivo !== null) return { ...item, decisao: { ...item.decisao, frase: textosDaAjuda(motivo).previa } };
   return item;
@@ -896,6 +977,7 @@ export function renderItem(item: Item, estado: Estado, naConversa = false): stri
   if (ehPergunta(d.tipo)) return renderItemPergunta(item, estado);
   // ADR-175: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
   if (aberta && naConversa && ehDecisaoDeRascunhos(item)) return renderDecisaoDeRascunhos(item);
+  if (aberta && ehAprovacaoDoNavegador(item)) return renderCartaoNavegador(item, estado, naConversa);
   if (aberta && ehAprovacaoDoComputador(item)) return renderCartaoComputador(item, estado);
   if (aberta && d.tipo === "aprovacao" && ehCartaoDoRevisor(item.itensAprovacao)) return renderCartaoDoRevisor(item, estado, naConversa);
   if (aberta && d.tipo === "aprovacao" && item.itensAprovacao.length > 0) return renderCardAprovacao(item, estado);

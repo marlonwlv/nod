@@ -24,6 +24,7 @@ import { enfileirarRetomada } from "./enfileirar-retomada.ts";
 import { sincronizarDoTurno } from "./trabalhos.ts";
 import { propagarSessaoDoTurno } from "./sessao-do-turno.ts";
 import { ehMaquinaDoMotor } from "../domain/plataforma-maquina.ts";
+import { aoSairMaquina } from "./navegador-lugar.ts";
 
 /** O que a regra de queda usa de Deps: o varredor de lease (laço de fundo) monta só isto. */
 export type DepsQueda = Pick<Deps, "repos" | "escopo" | "agora"> & {
@@ -439,6 +440,8 @@ export async function removerMaquina(deps: DepsQueda, machineId: string): Promis
   await deps.repos.incidentes.travarUltimo("mac_sem_contato");
   const agora = deps.agora();
   if (!(await deps.repos.maquinaTokens.revogar(machineId, agora))) return { revogou: false, dispensados: [] };
+  // ADR-190 (N): os bots que tinham escolhido esta máquina para o navegador voltam para o nod, e a conversa deles diz.
+  await aoSairMaquina(deps, machineId);
   const dispensados: string[] = [];
   for (const i of (await deps.repos.incidentes.emCurso()).filter((x) => x.machineId === machineId)) {
     await deps.repos.incidentes.marcarVolta(i.id, agora);

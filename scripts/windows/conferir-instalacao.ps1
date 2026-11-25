@@ -37,4 +37,9 @@ foreach ($p in @((Join-Path $pasta 'bin'), (Join-Path $pasta 'node'), (Join-Path
 }
 $claude = Join-Path $env:APPDATA 'npm\claude.cmd'
 Exigir (Test-Path -LiteralPath $claude) 'sem o Claude Code'
+# 2026-11-22 (o navegador no PC): o agent-browser do navegador do bot, fixo em <pasta>\navegador, roda e diz a versao.
+$agentBrowser = Join-Path $pasta 'navegador\node_modules\@agent-browser\cli-win32-x64-msvc\bin\agent-browser.exe'
+Exigir (Test-Path -LiteralPath $agentBrowser) 'sem o agent-browser do navegador do bot'
+$versaoDoNavegador = (& $agentBrowser --version | Out-String).Trim()
+Exigir ($versaoDoNavegador -match '0\.43\.0') ('o agent-browser escreveu "' + $versaoDoNavegador + '" (esperado 0.43.0)')
 Write-Host 'instalacao conferida'

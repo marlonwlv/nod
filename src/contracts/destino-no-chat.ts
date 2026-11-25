@@ -72,6 +72,8 @@ export const ASSUNTOS = [
   "computador.tela_fechada",
   // NOD-97 PR 5: o Chrome preencheu uma senha salva; o bot não vê o que está escrito.
   "computador.senha_preenchida",
+  // ADR-190 (N): o navegador do bot mudou de lugar sozinho (outra máquina, o nod); a linha traz Desfazer.
+  "navegador.lugar",
   // Frentes e tasks: a web precisa delas na janela para desenhar outra coisa (anexo).
   "trabalho.aberto",
   "frentes.abertas",

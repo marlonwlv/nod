@@ -86,6 +86,11 @@ export type TipoFrame =
   | "computador.cursor"
   /** D (2026-11-12): o estado da máquina do computador mudou: `DadosFrameMaquina` (src/contracts/estado-vivo.ts). */
   | "computador.estado"
+  /**
+   * ADR-190 (2026-11-20): a vista do navegador de um bot mudou: {agenteId, mudou} (os campos de VistaNavegador que
+   * mudaram; src/adapters/navegador/aviso-mudou.ts), no máximo ~4/s por bot. A web relê GET /agentes/:id/navegador.
+   */
+  | "navegador.mudou"
   | "resumed";
 
 /**

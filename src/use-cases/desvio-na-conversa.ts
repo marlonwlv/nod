@@ -124,7 +124,13 @@ export async function aposDesvioNaConversa(deps: Deps, p: EntradaDesvioNaConvers
   let turnoEsperandoId: string | null = null;
   if (decisao.forma === "espera") {
     const adiada = await adiarFala(deps, { turno, executor: p.executor, acordarEm: p.acordarEm ?? agora + ESPERA_POR_UMA_CONTA_MS, autoria, agora, texto: null, causa: desvio });
-    if (adiada) events.push(...adiada);
+    // QA r227: a fala que já esperou (ou que a pessoa mandou parar) não espera de novo — sem cópia na fila, o cartão que
+    // promete "a mensagem sai em seguida" mentiria (a pessoa entra e nada sai). Vale o aviso de sempre (contrato do adiarFala).
+    if (!adiada) {
+      log("aviso", "desvio_sem_espera", { turno_id: turno.id, desvio, reenvios: turno.reenvios });
+      return null;
+    }
+    events.push(...adiada);
     turnoEsperandoId = adiada?.find((e) => e.kind === "turno_criado")?.turnoId ?? null;
   }
   // Parou: o cartão. O erro desconhecido que se repetiu vai sozinho para o time (regra 8), anexando só o cartão.

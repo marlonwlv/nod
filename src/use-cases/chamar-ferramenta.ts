@@ -33,7 +33,7 @@ import { sincronizarTrabalho } from "./trabalhos.ts";
 
 /** Corpo devolvido por POST /api/interno/ferramentas/:nome (o proxy consome; src/adapters/executor/cliente-nod.ts espelha). */
 export type ResultadoChamada =
-  | { ok: true; conteudo: string; confianca: Confianca; isError?: boolean; imagem?: { mimeType: "image/png"; data: string }; audio?: { mimeType: "audio/wav"; data: string } }
+  | { ok: true; conteudo: string; confianca: Confianca; isError?: boolean; imagem?: { mimeType: "image/png" | "image/jpeg"; data: string }; audio?: { mimeType: "audio/wav"; data: string } }
   | { ok: false; negacao: Negacao }
   | { aguardar: string }
   /**
@@ -196,6 +196,7 @@ const DESPACHO: Despacho = {
   buscar_conversas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.buscar_conversas](deps, { ...ctx, ...args }),
   ler_conversa: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.ler_conversa](deps, { ...ctx, ...args }),
   ajustar_barra_lateral: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.ajustar_barra_lateral](deps, { ...ctx, ...args }),
+  ajustar_navegador: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.ajustar_navegador](deps, { ...ctx, ...args }),
 };
 
 /**

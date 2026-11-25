@@ -27,6 +27,8 @@ export type ItemAExecutar = {
   item: ItemAprovacao;
   conectorId: string | null;
   computador?: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string };
+  /** ADR-190: a ação do navegador do bot, cifrada no item (`acao`), roda no portão do navegador. */
+  navegador?: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean };
   /** ADR-048: a dona da decisão — item `execucao: "maquina"` só roda no gh do Mac DELA. */
   dono?: { tenantId: string; pessoaId: string };
   /** NOD-70: a regra que liberou ESTE item no lote automático (a trilha grava por item; o lote guarda a que mais concede). */
@@ -39,6 +41,14 @@ export type ItemAExecutar = {
   /** NOD-282 (G6): a mesma ação já saiu numa decisão posterior da mesma faixa — não chama o conector de novo. */
   jaFeito?: boolean;
 };
+
+/**
+ * ADR-190 (A3, definido em 2026-11-20): o terceiro botão do cartão (`sempre`) num item do navegador é o "Não perguntar de
+ * novo para <destino>": vai ao portão como `lembrar`, que só o grava quando a ação tinha um destino visto na página.
+ */
+export function comLembrarNoNavegador(aExecutar: readonly ItemAExecutar[]): ItemAExecutar[] {
+  return aExecutar.map((a) => (a.navegador ? { ...a, navegador: { ...a.navegador, lembrar: true } } : a));
+}
 
 export type SaidaMarcarEDecidir = { decisao: Decisao; itens: ItemAprovacao[]; aExecutar: ItemAExecutar[] };
 
@@ -76,7 +86,7 @@ export const marcarEDecidir: CasoDeUso<EntradaDecidir, SaidaMarcarEDecidir> = as
     const existente = await deps.repos.itensAprovacao.buscar(marca.id);
     if (!existente || existente.decisaoId !== decisao.id) throw new ErroDeDominio("entrada_invalida", { cause: `item ${marca.id} não pertence à decisão` });
     // Computador e terminal (ADR-055): aprova-se exatamente o que o bot vai fazer — o texto não se edita no card.
-    if ((existente.destino.conector === "computador" || existente.destino.conector === "terminal") && marca.textoFinal !== undefined && marca.textoFinal !== existente.textoOriginal) throw new ErroDeDominio("entrada_invalida");
+    if ((existente.destino.conector === "computador" || existente.destino.conector === "navegador" || existente.destino.conector === "terminal") && marca.textoFinal !== undefined && marca.textoFinal !== existente.textoOriginal) throw new ErroDeDominio("entrada_invalida");
     const marcado = await deps.repos.itensAprovacao.marcar(marca.id, { selecionado: marca.selecionado, textoFinal: marca.textoFinal, agora });
     if (!marcado) throw new ErroDeDominio("nao_permitido", { cause: "item de outra pessoa" });
   }
@@ -91,13 +101,20 @@ export const marcarEDecidir: CasoDeUso<EntradaDecidir, SaidaMarcarEDecidir> = as
   const dono = { tenantId: decisao.tenantId, pessoaId: decisao.ownerId };
   const rotina = decisao.turnoId ? (await rotinaDoTurno(deps.repos, decisao.turnoId)) !== null : false;
   // NOD-282 (G6): o que já saiu depois desta decisão, na mesma faixa — só lido se algum item de app foi aprovado.
-  const deApp = (i: ItemAprovacao) => i.destino.conector !== "computador" && i.destino.conector !== "terminal";
+  const deApp = (i: ItemAprovacao) => i.destino.conector !== "computador" && i.destino.conector !== "navegador" && i.destino.conector !== "terminal";
   const depois = decisao.tipo === "aprovacao" && itens.some((i) => i.selecionado && deApp(i)) ? await deps.repos.itensAprovacao.executadosDepois(decisao.id) : [];
   for (const item of itens) {
     if (item.destino.conector === "computador") {
       if (decisao.ownerId !== deps.escopo.pessoaId || !decisao.turnoId || typeof item.destino.argumentos.acaoId !== "string") throw new ErroDeDominio("nao_permitido");
       if (!item.selecionado) await deps.repos.computadores.concluir(item.destino.argumentos.acaoId, "recusada");
       aExecutar.push({ item, conectorId: null, computador: { tenantId: decisao.tenantId, pessoaId: decisao.ownerId, agenteId: decisao.agenteId, turnoId: decisao.turnoId, acaoId: item.destino.argumentos.acaoId } });
+      continue;
+    }
+    // ADR-190: a ação no navegador do bot — só a dona aprova, e roda como foi pedida (cifrada no item).
+    if (item.destino.conector === "navegador") {
+      const { acaoId, acao } = item.destino.argumentos;
+      if (decisao.ownerId !== deps.escopo.pessoaId || !decisao.turnoId || typeof acaoId !== "string" || typeof acao !== "string") throw new ErroDeDominio("nao_permitido");
+      aExecutar.push({ item, conectorId: null, navegador: { tenantId: decisao.tenantId, pessoaId: decisao.ownerId, agenteId: decisao.agenteId, turnoId: decisao.turnoId, acaoId, acao } });
       continue;
     }
     // ADR-055: o comando roda no Mac da DONA, pelo hook do turno dela — só ela aprova.
@@ -134,12 +151,12 @@ export { argumentosComTextoFinal };
  * (E4.1); desmarcado sensível = sensivel_nao_aprovado, desmarcado comum = retirado_pela_pessoa,
  * erro ou isError do conector = falhou_na_execucao (E4.5: nunca "enviado" quando falhou).
  */
-export async function executarItens(services: Pick<Services, "conectores" | "computadores" | "github">, aExecutar: readonly ItemAExecutar[]): Promise<DesfechoExecutado[]> {
+export async function executarItens(services: Pick<Services, "conectores" | "computadores" | "github"> & Partial<Pick<Services, "navegadores">>, aExecutar: readonly ItemAExecutar[]): Promise<DesfechoExecutado[]> {
   // NOD-263: o gh do Mac e o computador do bot também são efeito de fora — a guarda vale para o lote inteiro. Item de
   // terminal só libera o hook (nada sai daqui) e desmarcado não roda: sozinhos, não acusam.
   if (aExecutar.some((a) => a.item.selecionado && !a.terminal && !a.jaFeito)) exigirForaDaTx({ itens: aExecutar.length, decisao_id: aExecutar[0]?.item.decisaoId });
   const desfechos: DesfechoExecutado[] = [];
-  for (const { item, conectorId, computador, dono, rotina, terminal, jaFeito } of aExecutar) {
+  for (const { item, conectorId, computador, navegador, dono, rotina, terminal, jaFeito } of aExecutar) {
     if (!item.selecionado) {
       desfechos.push({ itemId: item.id, desfecho: item.origemSensivel ? "sensivel_nao_aprovado" : "retirado_pela_pessoa" });
       continue;
@@ -164,6 +181,14 @@ export async function executarItens(services: Pick<Services, "conectores" | "com
       try {
         if (!services.computadores) throw new ErroDeDominio("estado_invalido");
         await services.computadores.executarAprovado(computador);
+        desfechos.push({ itemId: item.id, desfecho: "executado" });
+      } catch { desfechos.push({ itemId: item.id, desfecho: "falhou_na_execucao" }); }
+      continue;
+    }
+    if (navegador) {
+      try {
+        if (!services.navegadores) throw new ErroDeDominio("estado_invalido");
+        await services.navegadores.executarAprovado(navegador);
         desfechos.push({ itemId: item.id, desfecho: "executado" });
       } catch { desfechos.push({ itemId: item.id, desfecho: "falhou_na_execucao" }); }
       continue;
@@ -195,6 +220,7 @@ export function entradaDaAprovacao(decisao: Decisao, itens: readonly ItemAprovac
   const reenvio = fraseDoReenvio(comAnexos);
   const linhas = itens.map((i) => `- item ${i.idx + 1} (${i.destino.conector}.${i.destino.ferramenta}): ${i.desfecho ?? "sem desfecho"} — ${i.textoFinal}`);
   const noComputador = itens.some((i) => i.destino.conector === "computador" && i.desfecho === "executado");
+  const noNavegador = itens.some((i) => i.destino.conector === "navegador" && i.desfecho === "executado");
   // ADR-055: o comando aprovado depois de a espera no turno acabar ainda não rodou — o turno anterior foi negado.
   const noTerminal = itens.some((i) => i.destino.conector === "terminal" && i.desfecho === "executado");
   return [
@@ -203,6 +229,7 @@ export function entradaDaAprovacao(decisao: Decisao, itens: readonly ItemAprovac
     `Resultado da aprovação "${decisao.frase}" (${texto}):`,
     ...linhas,
     ...(noComputador ? ["O resultado da ação no computador não veio junto: observe a tela ou os arquivos antes de seguir."] : []),
+    ...(noNavegador ? ["O resultado da ação no navegador não veio junto: leia a página de novo (navegador_ler) antes de seguir."] : []),
     ...(noTerminal ? ["O comando aprovado ainda NÃO rodou: rode exatamente o mesmo comando agora — ele passa sem novo pedido."] : []),
     `Continue a partir daqui; ${reenvio}.`,
   ].join("\n");

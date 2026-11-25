@@ -70,6 +70,7 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "computador.em_operacao": "Computador em manutenção",
   "computador.tela_fechada": "Fechou a tela do computador",
   "computador.senha_preenchida": "Preencheu a senha salva",
+  "navegador.lugar": "Mudou onde o navegador roda",
   "trabalho.aberto": "Abriu uma tarefa",
   "frentes.abertas": "Começou tarefas",
   "frentes.terminadas": "Tarefas terminaram",

@@ -76,6 +76,8 @@ import type { leiturasRepo } from "./leituras.repo.ts";
 import type { ligacoesRepo } from "./ligacoes.repo.ts";
 import type { liberacoesDispensadasRepo } from "./liberacoes-dispensadas.repo.ts";
 import type { nativasIdempotenciaRepo } from "./nativas-idempotencia.repo.ts";
+import type { navegadorPreferenciasRepo, navegadorTarefasRepo } from "./navegador.repo.ts";
+import type { cofreLoginsRepo } from "./cofre-logins.repo.ts";
 
 /**
  * Regras de repositório (Práticas §1, ADR-018 refinado): factory `xRepo(conn: Conn, escopo: Escopo)`
@@ -185,4 +187,10 @@ export interface Repos {
   liberacoesDispensadas: ReturnType<typeof liberacoesDispensadasRepo>;
   /** NOD-293 E7: resposta durável de cada tentativa lógica do POST de nativa. */
   nativasIdempotencia: ReturnType<typeof nativasIdempotenciaRepo>;
+  /** ADR-190 (0180): onde o navegador do bot continua e as liberações de antemão (A2/A3). */
+  navegadorPreferencias: ReturnType<typeof navegadorPreferenciasRepo>;
+  /** ADR-190 (0180): as tarefas ensinadas (T). */
+  navegadorTarefas: ReturnType<typeof navegadorTarefasRepo>;
+  /** ADR-190 (0180): o cofre do nod (L); a senha só cifrada. */
+  cofreLogins: ReturnType<typeof cofreLoginsRepo>;
 }

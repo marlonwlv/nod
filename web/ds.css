@@ -172,7 +172,7 @@ html:not([data-balao="cor"]) [class*="balao-c-"] { --balao-fundo: var(--balao-pe
 .c-black { --mascote-cor: var(--mascote-preto); }
 nod-mascote.c-black svg > g > path, .mascote.c-black :is(.olho, .mascote-pausado) { fill: var(--mascote-preto-olho); }
 /* 16b: o cartão que a linha "Aguardando você" abriu ganha contorno e halo laranja por um instante. */
-:is(.lista > li.decisao, .card-acesso, [data-proposta], .aprov-card, .lista > li.cartao-revisor .cr, .message.pergunta .cartao-pergunta, [data-pergunta]).realce {
+:is(.lista > li.decisao, .card-acesso, [data-proposta], .aprov-card, .lista > li.cartao-revisor .cr, .message.pergunta .cartao-pergunta, [data-pergunta], .nvc, .nvl-cartao).realce {
   box-shadow: 0 0 0 1.5px var(--aguardando-ponto), 0 0 0 6px var(--aguardando-soft);
   transition: box-shadow var(--dur-lento) var(--curva);
 }

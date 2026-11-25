@@ -3,7 +3,7 @@ import type { LoteDeFrentes } from "../contracts/frente.ts";
 import type { Trabalho } from "../contracts/trabalho.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { ehFrente } from "../domain/frente.ts";
-import { decidirFecho, destinoDoLote, entradaComplementar, entradaDoRetorno, respostaAoColega, respostaComplementarAoColega, resumoMudou, respostaNaTroca, textoFrentesTerminadas, textoPedidoRespondido, type FrenteNoFecho } from "../domain/retorno-do-lote.ts";
+import { caiuDeVez, decidirFecho, destinoDoLote, recusouDeVez, entradaComplementar, entradaDoRetorno, respostaAoColega, respostaComplementarAoColega, resumoMudou, respostaNaTroca, textoFrentesTerminadas, textoPedidoRespondido, type FrenteNoFecho } from "../domain/retorno-do-lote.ts";
 import { conversaDepoisDoFim } from "../domain/fala-na-frente.ts";
 import { trabalhoFinal } from "../domain/trabalho.ts";
 import { entradaDoRetornoARefazer, RETORNO_DO_LOTE } from "../domain/cota-da-ia.ts";
@@ -59,7 +59,15 @@ export async function fecharLoteSePronto(deps: DepsFecho, frente: Trabalho): Pro
     await deps.repos.frentes.marcarDevolvido(lote.id, null, deps.agora());
     return linhaFrentesTerminadas(deps, { lote, conversaId: abertoPor.conversaId, turnoId: null, agenteId: abertoPor.agenteId, frentes: fecho.frentes });
   }
-  return devolverAoDono(deps, { lote, abertoPor, total: frentes.length, frentes: fecho.frentes, fechaLote: fecho.fechaLote, cuidado: fecho.cuidado, faltam: fecho.faltam, trabalhoDoRetorno: trabalhoDoRetorno(lote, frentes) });
+  // Ponto 11 dos cenários (2026-11-22): o turno que virou tarefa (a rede de 2 min promove o próprio turno a frente, I8) já
+  // falou o resultado na conversa; o retorno só confirma numa linha, sem repetir a resposta logo embaixo.
+  return devolverAoDono(deps, { lote, abertoPor, total: frentes.length, frentes: fecho.frentes, fechaLote: fecho.fechaLote, cuidado: fecho.cuidado, faltam: fecho.faltam, trabalhoDoRetorno: trabalhoDoRetorno(lote, frentes), jaNaConversa: ehOProprioTurnoQueVirouTarefa(abertoPor, fecho.frentes) });
+}
+
+/** O lote é só o próprio turno que virou tarefa, e ela terminou bem (sem cair nem ser recusada): a fala dela já está na conversa. */
+export function ehOProprioTurnoQueVirouTarefa(abertoPor: Pick<Turno, "trabalhoId">, frentes: readonly FrenteNoFecho[]): boolean {
+  const [unica] = frentes;
+  return frentes.length === 1 && !!unica && abertoPor.trabalhoId === unica.id && unica.estado === "terminado" && !caiuDeVez(unica) && !recusouDeVez(unica);
 }
 
 /**
@@ -157,7 +165,7 @@ function trabalhoDoRetorno(lote: LoteDeFrentes, frentes: readonly FrenteNoFecho[
  * se lava (ADR-062, a regra de entregar-resposta-peer.ts): se uma frente leu conteúdo de fora, ou o turno que abriu já
  * estava marcado, o retorno nasce marcado. O turno seguinte da pessoa nasce limpo (a marca é por turno).
  */
-async function devolverAoDono(deps: DepsFecho, p: { lote: LoteDeFrentes; abertoPor: Turno; frentes: FrenteNoFecho[]; fechaLote: boolean; cuidado: boolean; faltam: number; total: number; trabalhoDoRetorno: string | null }): Promise<RuntimeEvent[]> {
+async function devolverAoDono(deps: DepsFecho, p: { lote: LoteDeFrentes; abertoPor: Turno; frentes: FrenteNoFecho[]; fechaLote: boolean; cuidado: boolean; faltam: number; total: number; trabalhoDoRetorno: string | null; jaNaConversa?: boolean }): Promise<RuntimeEvent[]> {
   const agora = deps.agora();
   const { abertoPor } = p;
   // NOD-258: o retorno roda na IA ATUAL do bot (a do turno que abriu o lote pode ter sido trocada depois, ou estar no
@@ -173,7 +181,7 @@ async function devolverAoDono(deps: DepsFecho, p: { lote: LoteDeFrentes; abertoP
     prazoEm: agora + PRAZO_DECISAO_PADRAO_MS,
     profundidade: abertoPor.profundidade,
     // ADR-192 (emenda 5): com Tarefa ligada, o retorno fala em entrega (espera a avaliação), não em fim.
-    entradaTexto: entradaDoRetorno({ frentes: p.frentes, faltam: p.faltam, total: p.total, comObjetivo: (await deps.repos.tarefas.deTrabalhos(p.frentes.map((f) => f.id))).size > 0 }),
+    entradaTexto: entradaDoRetorno({ frentes: p.frentes, faltam: p.faltam, total: p.total, comObjetivo: (await deps.repos.tarefas.deTrabalhos(p.frentes.map((f) => f.id))).size > 0, ...(p.jaNaConversa ? { jaNaConversa: true } : {}) }),
     entradaConfianca: abertoPor.entradaConfianca,
     sobProcuracaoDe: abertoPor.sobProcuracaoDe ?? null,
     modelo: agente?.modelo ?? abertoPor.modelo,

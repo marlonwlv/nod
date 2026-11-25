@@ -167,7 +167,7 @@ describe("Por estado (Paper 5b)", () => {
   it("a origem: do Quadro, da rotina e o pedido do colega; a da pessoa e a da rede, sem chip", () => {
     expect(origemNaTela({ origem: "quadro", pedidoPorNome: null })).toBe("do Quadro");
     expect(origemNaTela({ origem: "rotina", pedidoPorNome: null })).toBe("da rotina");
-    expect(origemNaTela({ origem: "colega", pedidoPorNome: "Chico" })).toBe("pedido do Chico");
+    expect(origemNaTela({ origem: "colega", pedidoPorNome: "Chico" })).toBe("pedido de Chico");
     expect(origemNaTela({ origem: "pessoa", pedidoPorNome: null })).toBe("");
     expect(origemNaTela({ origem: "rede", pedidoPorNome: null })).toBe("");
   });

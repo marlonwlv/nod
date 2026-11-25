@@ -26,6 +26,7 @@ const SECOES: Record<SecaoDoPrompt, string> = {
 const GRUPOS_FIXOS: Record<Exclude<GrupoDeFerramentas["origem"], "conector">, string> = {
   nod: "nod",
   computador: "Computador do bot",
+  navegador: "Navegador do bot",
   workspace: "Pastas do Mac",
 };
 

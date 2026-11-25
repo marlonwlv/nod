@@ -393,7 +393,12 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           nuvem.push(maquina.id);
         }
         await d.tx((trx) => trx`update maquinas_nuvem set estado = 'dormindo', desejado = 'dormindo', estado_desde = now() where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${nuvem[1]!}`);
-        return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, tarefas, memorias, diarios, contas, chaves, nuvem };
+        // ADR-190: um login do cofre do nod e uma habilidade do navegador, para `cofre.apagar_login` e
+        // `navegador.apagar_tarefa` passarem da busca (as duas rotas só levam ids).
+        const login = await d.repos.cofreLogins.criar({ site: "exemplo.invalid", usuario: "fuzz@exemplo.invalid", senhaCifrada: "v1:ZnV6eg==:ZnV6eg==:ZnV6eg==" });
+        const habilidade = await d.repos.navegadorTarefas.criar({ agenteId: meu.agente.id, nome: "Tarefa do fuzz", passos: ["Abriu exemplo.invalid"] });
+        if (!habilidade) throw new Error("habilidade do fuzz");
+        return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, tarefas, memorias, diarios, contas, chaves, nuvem, logins: [login.id], habilidades: [habilidade.id] };
       });
       const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
@@ -446,6 +451,8 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             // `/maquinas/:id` e `/nuvem/maquinas/:id` compartilham o segmento. Os casos válidos explícitos abaixo
             // garantem o tipo certo; aqui entram ambos para manter o gerador genérico e ainda fuzzar o tipo trocado.
             maquinas: { daPessoa: [...sementes.chaves, ...sementes.nuvem], deOutraPessoa: [] },
+            logins: { daPessoa: sementes.logins, deOutraPessoa: [] },
+            habilidades: { daPessoa: sementes.habilidades, deOutraPessoa: [] },
           },
         },
       });

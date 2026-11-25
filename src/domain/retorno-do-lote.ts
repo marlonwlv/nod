@@ -171,8 +171,15 @@ function verboDaFrente(f: FrenteNoFecho): string {
   return caiuDeVez(f) ? "caiu" : recusouDeVez(f) ? "não rodou" : "terminou";
 }
 
+/**
+ * Ponto 11 dos cenários (2026-11-22): o próprio turno virou a tarefa e a fala final dela, com o resultado, já está na
+ * conversa. O retorno confirma numa linha; repetir a resposta (a tabela, a lista, os valores) aparecia duas vezes.
+ */
+export const INSTRUCAO_JA_NA_CONVERSA =
+  "A fala final desta frente, com o resultado, já está na conversa logo acima: a pessoa já leu. Não repita o resultado, a tabela, a lista nem os valores. Responda numa linha curta só para fechar (por exemplo, \"Pronto, ficou como está acima.\"), ou diga em uma frase o que falta decidir, se faltar.";
+
 /** A entrada da retomada do dono: o que voltou, a instrução e os resumos em JSON curto. */
-export function entradaDoRetorno(p: { frentes: readonly FrenteNoFecho[]; faltam: number; total: number; comObjetivo?: boolean }): string {
+export function entradaDoRetorno(p: { frentes: readonly FrenteNoFecho[]; faltam: number; total: number; comObjetivo?: boolean; jaNaConversa?: boolean }): string {
   const [unica] = p.frentes;
   const cabeca = p.frentes.length === 1 && unica && p.total > 1
     ? `A frente "${unica.titulo}" deste pedido ${verboDaFrente(unica)}${p.faltam > 0 ? `; ${p.faltam === 1 ? "falta 1" : `faltam ${p.faltam}`}` : "; era a última"}.`
@@ -181,8 +188,9 @@ export function entradaDoRetorno(p: { frentes: readonly FrenteNoFecho[]; faltam:
       : `As ${p.frentes.length} frentes que você abriu para este pedido terminaram.`;
   const cuidado = p.frentes.some((f) => f.deFora) ? ` ${CUIDADO_NO_RETORNO}` : "";
   const pergunta = `${p.frentes.some(caiuDeVez) ? ` ${PERGUNTA_DA_QUEDA}` : ""}${p.frentes.some(recusouDeVez) ? ` ${PERGUNTA_DA_RECONEXAO}` : ""}`;
+  const instrucao = p.jaNaConversa ? INSTRUCAO_JA_NA_CONVERSA : INSTRUCAO_DO_RETORNO;
   const entrega = p.comObjetivo ? ` ${ENTREGA_NO_RETORNO}` : "";
-  return `[nod] ${cabeca} ${INSTRUCAO_DO_RETORNO}${entrega}${cuidado}${pergunta}\n${JSON.stringify(p.frentes.map(frenteNoRetorno))}`;
+  return `[nod] ${cabeca} ${instrucao}${entrega}${cuidado}${pergunta}\n${JSON.stringify(p.frentes.map(frenteNoRetorno))}`;
 }
 
 /**

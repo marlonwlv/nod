@@ -136,6 +136,41 @@ export function emOrdemDoChat(mensagens: readonly Mensagem[], vivos: TurnosDaPes
 }
 
 /**
+ * Ponto 06 dos cenários (2026-11-22): o cartão do pedido do navegador (login, código, ajuda) é a própria fala
+ * `pedido_a_pessoa` do bot, gravada quando a ferramenta roda — antes da explicação que o bot escreve em seguida. Como os
+ * outros cartões (revisto em 2026-11-21: "pode ser sempre embaixo"), ele vai para depois da ÚLTIMA fala do mesmo turno;
+ * com o turno vivo e sem fala depois dele, fica segurado até ela chegar ou o turno acabar. Sem relógio: a conversa não é
+ * redesenhada a cada tique (o "lembrar" da gaveta).
+ * `ehPedido` reconhece a fala (web/lib/navegador-cartoes.ts, pedidoDoNavegadorNaFala). Sem mudança, a mesma lista.
+ */
+export function comPedidosDoNavegadorDepoisDaFala(mensagens: readonly Mensagem[], vivos: ReadonlySet<string>, ehPedido: (m: Mensagem) => boolean): readonly Mensagem[] {
+  const depoisDe = new Map<number, Mensagem[]>();
+  const fica: boolean[] = mensagens.map(() => true);
+  let mudou = false;
+  for (let k = 0; k < mensagens.length; k += 1) {
+    const m = mensagens[k] as Mensagem;
+    if (!m.turnoId || m.payload?.kind !== "pedido_a_pessoa" || !ehPedido(m)) continue;
+    let alvo = -1;
+    for (let x = k + 1; x < mensagens.length; x += 1) {
+      const y = mensagens[x] as Mensagem;
+      if (y.turnoId === m.turnoId && y.autoria.autor_tipo !== "pessoa" && y.kind === "texto" && y.payload?.kind !== "pedido_a_pessoa") alvo = x;
+    }
+    if (alvo >= 0) {
+      fica[k] = false;
+      mudou = true;
+      depoisDe.set(alvo, [...(depoisDe.get(alvo) ?? []), m]);
+    } else if (vivos.has(m.turnoId)) {
+      fica[k] = false;
+      mudou = true;
+    }
+  }
+  if (!mudou) return mensagens;
+  const saida: Mensagem[] = [];
+  mensagens.forEach((m, k) => { if (fica[k]) saida.push(m); saida.push(...(depoisDe.get(k) ?? [])); });
+  return saida;
+}
+
+/**
  * O lugar de algo dos bastidores gravado em `em`, olhando a lista a partir de `inicio` (a posição em que ele cairia):
  * "fica" onde está, "segura" (o turno da conversa que rodava ainda vive) ou o índice da última mensagem desse turno, depois
  * da qual vai. A regra de `emOrdemDoChat`, que o cartão de pedido sem fala própria também segue (conversa.ts).

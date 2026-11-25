@@ -177,6 +177,10 @@ export function tarefasRepo(conn: Conn, escopo: Escopo) {
       return paraEvento(l!);
     },
 
+    /**
+     * A trilha em ordem. 2026-11-23 (CI do PR #243, falhou em 2 de 4 rodadas): o backfill grava "criada" e "thread_criada"
+     * no mesmo instante, e o desempate pelo id (uuid aleatório) as trocava; no empate, a criação vem antes da thread.
+     */
     async eventos(tarefaId: string): Promise<EventoTarefa[]> {
       const linhas = await conn<LinhaE[]>`
         select id, tarefa_id, tipo, autor_tipo, autor_id, turno_id, dados, criado_em from tarefa_eventos

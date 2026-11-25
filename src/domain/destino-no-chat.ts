@@ -105,6 +105,7 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   "computador.tela_fechada": { destino: "chat", categoria: "maquina_ia" },
   // NOD-97 PR 5: o Chrome preencheu a senha salva; a linha cinza no chat avisa que o bot não vê o que está escrito.
   "computador.senha_preenchida": { destino: "chat", categoria: "maquina_ia" },
+  "navegador.lugar": { destino: "chat", categoria: "maquina_ia" },
   "trabalho.aberto": { destino: "anexo", categoria: "frentes" },
   "frentes.abertas": { destino: "anexo", categoria: "frentes" },
   "frentes.terminadas": { destino: "anexo", categoria: "frentes" },
@@ -237,6 +238,9 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
         return "computador.tela_fechada";
       case "computador_senha_preenchida":
         return "computador.senha_preenchida";
+      case "navegador_lugar":
+      case "navegador_pergunta":
+        return "navegador.lugar";
       case "turno_preso":
         return "turno.orfao";
       case "desvio":

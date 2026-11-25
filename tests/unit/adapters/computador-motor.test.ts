@@ -3,7 +3,7 @@ import { criarCanalComputador } from "../../../src/adapters/computador/canal.ts"
 import { type ComputadorLocalizado, criarDriverMotor, type MaquinaDaPessoa, pisoDoComputador } from "../../../src/adapters/computador/motor.ts";
 import { abrirSelo, chaveDaMaquina, conferirAssinatura, gerarParX25519, publicaDeAssinatura } from "../../../src/adapters/computador/selo.ts";
 import type { ComandoComputador } from "../../../src/contracts/computador-motor.ts";
-import { TETO_PRONTO_MS, TETO_PRONTO_VM_LOCAL_MS } from "../../../src/domain/computador-canal.ts";
+import { COMPUTADOR_NO_MAC, TETO_PRONTO_MS, TETO_PRONTO_VM_LOCAL_MS } from "../../../src/domain/computador-canal.ts";
 import { EsperandoTela, ehFalhaComputador, instrucaoDaFalha } from "../../../src/domain/computador.ts";
 
 const CHAVE = "cd".repeat(32);
@@ -173,7 +173,8 @@ describe("driver motor: iniciar", () => {
     expect(m.canal.pendentes()).toEqual([]);
   });
 
-  it("NOD-93 (1º ensaio no Mac): a máquina com a VM local tem 4 min, não 60 s, para ficar pronta (religar ou criar a VM)", async () => {
+  // 2026-11-25: o computador não mora no Mac (COMPUTADOR_NO_MAC); volta a rodar quando o Mac for religado.
+  it.runIf(COMPUTADOR_NO_MAC)("NOD-93 (1º ensaio no Mac): a máquina com a VM local tem 4 min, não 60 s, para ficar pronta (religar ou criar a VM)", async () => {
     const m = mundo({ mac: { estado: "ligando", desde: 0 }, responder: (c) => ({ id: c.id, desfecho: "esperando_tela", progresso: { pct: 0, etapa: "ligando" } }) });
     const antes = m.agora();
     expect((await falha(m.driver.iniciar(ID))).motivo).toBe("nao_ficou_pronto");
@@ -390,7 +391,8 @@ describe("driver motor: operações da pessoa (NOD-96 PR 5)", () => {
     expect(s.vistos).toEqual([]);
   });
 
-  it("maquinaDoComputador traz o preparo da VM local quando a máquina é um Mac (NOD-93)", async () => {
+  // 2026-11-25: o computador não mora no Mac (COMPUTADOR_NO_MAC); volta a rodar quando o Mac for religado.
+  it.runIf(COMPUTADOR_NO_MAC)("maquinaDoComputador traz o preparo da VM local quando a máquina é um Mac (NOD-93)", async () => {
     const preparo = { estado: "baixando" as const, bytes: 870, total: 1100, desde: 1 };
     expect((await mundo({ mac: preparo, loc: { agenteId: null } }).driver.maquinaDoComputador!(ID))?.preparo).toEqual(preparo);
     expect((await mundo({ loc: { agenteId: null } }).driver.maquinaDoComputador!(ID))).not.toHaveProperty("preparo");

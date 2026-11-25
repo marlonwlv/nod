@@ -163,6 +163,8 @@ export type PayloadMensagem =
   /** Chat limpo, PR 4 (o cartão encolhido): cartao-encolhido.ts. */
   | PayloadRegraPermanente | import("./ferramentas-barra.ts").PayloadAjusteBarra | import("./ferramentas-nao-lidos.ts").PayloadNaoLidosLista | import("./ferramentas-nao-lidos.ts").PayloadReciboLeitura | import("./ferramentas-decisoes.ts").PayloadDecisoesResumo // NOD-119; NOD-449; NOD-414.
   | PayloadPropostaDecidida | { kind: "aviso_pessoa" } | import("./destino-no-chat.ts").PayloadTarefaLinha // NOD-114: a fala `texto` com que o bot avisou a pessoa por conta própria (avisar_pessoa); ADA-28: a linha que aponta para a tarefa.
+  | import("./navegador-do-bot.ts").PayloadNavegadorLugar // ADR-190 (N): o lugar do navegador do bot mudou sozinho; a linha diz onde e traz Desfazer/"Só na …".
+  | import("./navegador-do-bot.ts").PayloadNavegadorPergunta // ADR-190 (M2/J1, M3/K1): os cartões do Mac desligado; respondido, a linha com Desfazer.
   /** ADR-191 (2026-11-20): o pedido que a pessoa deixou para trás ao seguir conversando (cartao-encolhido.ts). */
   | PayloadPedidoDispensado
   /** Lote B das Jornadas da IA (2026-11-22): a linha ou o cartão de um desvio da mensagem (src/domain/desvios-da-conversa.ts). */

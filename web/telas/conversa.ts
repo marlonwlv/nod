@@ -37,6 +37,10 @@ import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";
 import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
 import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
+import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
+import { htmlCartaoDaPergunta } from "../lib/navegador-lugar-tela.ts";
+import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
+import { htmlLinhaGoogleRecusou, htmlLinhaGuardar, linhaDaRespostaDoNavegador, pedidoDoNavegadorNaFala } from "../lib/navegador-cartoes.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -52,7 +56,7 @@ import { renderCardAcesso, tituloDoPedidoDeAcesso } from "./card-acesso.ts";
 import { ehCartaoCredencial, renderCardCredencial } from "./card-credencial.ts";
 import { renderBarraRascunhos } from "./rascunhos-de-envio.ts";
 import { renderMensagemCartoes } from "./cartoes-ricos.ts";
-import { acaoHumana, cartaoDoPedidoDeAjuda, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
+import { acaoHumana, cartaoDoPedidoDeAjuda, cartaoDoPedidoDoNavegador, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
 import { renderCardPasta } from "./card-pasta.ts";
 import { dadosDoEncolhido, linhaDispensada, pedidoDoRecibo, renderCartaoEncolhido, renderLinhaDispensada, turnoDoEncolhido } from "./cartao-encolhido.ts";
 import { renderCardLote } from "./card-lote.ts";
@@ -75,7 +79,7 @@ import { avisoContaSemAcesso, avisoHarnessFora, avisoModeloRecusado, ehIa, inven
 import { escolhaEfetiva, iasDaTela, inteligenciaDoBot } from "./inteligencia.ts";
 import { htmlBotaoDitado, htmlPilulaDitado } from "./ditado.ts";
 import { renderLinhaLigacao } from "./ligacao.ts";
-import { conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
+import { comPedidosDoNavegadorDepoisDaFala, conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
 import { trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { TEXTO_FALHA_LEITURA } from "../lib/ouvir.ts";
 import { acoesDaFala, chipsDeReacao, citacaoAcimaDoBalao } from "./acoes-da-fala.ts";
@@ -260,6 +264,14 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
     if (bot && !aindaFora) return linhaProposta({ tipo: "ok", texto: `O computador do bot voltou a responder <span class="mudo">· ficou fora desde ${esc(dataHora(p.desde))}</span>`, classe: "msg-computador-fora" });
     const acoes = aindaFora && dono ? `${botao("religar-computador", "Tentar de novo", { id: p.agenteId, classe: "cp-acao sm" })}${botao("abrir-computador", "Abrir computador", { id: p.agenteId, classe: "cp-acao sm" })}` : "";
     return avisoErro({ frase: `Computador do bot fora do ar desde ${dataHora(p.desde)}.`, ...(m.texto.trim() ? { mais: m.texto.trim() } : {}), acoes, classe: "msg-computador-fora" });
+  }
+  // ADR-190 (N): o navegador do bot mudou de lugar sozinho; a linha cinza diz onde e traz o botão (Desfazer, "Só na …").
+  if (p?.kind === "navegador_lugar") return htmlLinhaDoLugarDoNavegador(p, m.texto, agenteDe(estado, p.agenteId)?.ownerId === estado.sessao?.pessoaId);
+  // ADR-190 (M2/J1, J2, M3/K1, K2): os cartões do Mac desligado; o estado de agora vem do lugar lido (GET …/navegador/lugar).
+  if (p?.kind === "navegador_pergunta") {
+    const bot = agenteDe(estado, p.agenteId);
+    const dono = bot?.ownerId === estado.sessao?.pessoaId;
+    return htmlCartaoDaPergunta(p, dono ? estado.lugaresNavegador[p.agenteId] : null, { nome: bot?.nome ?? "O bot", mensagemId: m.id, texto: m.texto, aberto: estado.lugarNavegadorAberto === `cartao:${m.id}` });
   }
   // NOD-97 PR 5: o Chrome preencheu a senha salva; a linha cinza leva o selo "‹bot› não vê a senha".
   if (p?.kind === "computador_senha_preenchida") return htmlLinhaSenhaSalva(agenteDe(estado, p.agenteId)?.nome ?? "O bot");
@@ -535,9 +547,25 @@ function urlDoAnexo(tenant: string, m: Mensagem, id: string): string {
 const ehCaptura = (m: Mensagem, a: { mime: string; origem?: string }): boolean => m.autoria.autor_tipo !== "pessoa" && a.origem !== "bot" && a.mime.startsWith("image/");
 
 /** ADR-046: arquivos que a pessoa mandou, acima do balão. A captura (NOD-56) e a mídia do bot (NOD-323) não entram aqui. */
+/** T3: o anexo dos passos de "Ensinar uma tarefa" ("passos-gravados (6 passos).txt"); null = outro arquivo. */
+export function passosDoAnexo(nome: string): number | null {
+  const r = /^passos-gravados \((\d{1,3}) passos?\)\.txt$/u.exec(nome);
+  return r ? Number(r[1]) : null;
+}
+
+/** T3 (Paper Y27-0): o chip embaixo do balão, "passos-gravados.txt · 6 passos", que abre o arquivo. */
+function chipsDosPassos(m: Mensagem, estado: Estado): string {
+  const tenant = estado.sessao?.tenantId;
+  if (!tenant || m.autoria.autor_tipo !== "pessoa") return "";
+  return (m.anexos ?? []).map((a) => {
+    const n = passosDoAnexo(a.nome);
+    return n === null ? "" : `<a class="msg-passos" href="${esc(urlDoAnexo(tenant, m, a.id))}" target="_blank" rel="noopener"><span>passos-gravados.txt</span><small>· ${n} ${n === 1 ? "passo" : "passos"}</small></a>`;
+  }).join("");
+}
+
 function anexosDe(m: Mensagem, estado: Estado): string {
   const tenant = estado.sessao?.tenantId;
-  const anexos = (m.anexos ?? []).filter((a) => !ehCaptura(m, a) && a.origem !== "bot");
+  const anexos = (m.anexos ?? []).filter((a) => !ehCaptura(m, a) && a.origem !== "bot" && !(m.autoria.autor_tipo === "pessoa" && passosDoAnexo(a.nome) !== null));
   if (!anexos.length || !tenant) return "";
   return renderAnexosDaMensagem(anexos, (id) => urlDoAnexo(tenant, m, id));
 }
@@ -627,6 +655,10 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
     return { ...naFila(cartao.titulo), cartao: desvioNaConversa(m, cartao) };
   }
   if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
+  // PR #333 (achado 13, QA do rc.10 no Windows): o bot em "qualquer máquina" com nenhuma máquina conectada (o motor
+  // parado) ficava só em "Na fila", sem dizer por quê. Diz que espera uma máquina ligar; o turno sai quando ela voltar.
+  const motores = (estado.maquinas?.maquinas ?? []).filter((x) => x.papel !== "computador");
+  if (!doBot && motores.length > 0 && !motores.some((x) => x.conectada)) return naFila(`${nome} lê quando uma máquina sua ligar`);
   return naFila("Na fila");
 }
 
@@ -784,6 +816,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   if (linhaDaAjuda) return linhaDoDispensadoHtml(m.id, linhaDaAjuda, estado);
   const resposta = ehPessoa && m.payload?.kind === "resposta_a_pedido" ? m.payload : null;
   if (resposta && respostaPorOpcao(m, estado)) return "";
+  // ADR-190: a resposta que o portão do navegador gravou ao fechar um pedido (login preenchido, código enviado) é para o
+  // bot; na conversa, a pergunta já virou a linha discreta com o que aconteceu.
+  if (resposta && linhaDaRespostaDoNavegador(m.texto) !== null) return "";
   // Sala e tela da task (que passa o `chipDaFala`) não têm Cancelar.
   const fila = sala || opcoes.chipDaFala !== undefined ? null : situacaoNaFila(m, estado);
   if (fila?.tipo === "oculta") return "";
@@ -820,14 +855,17 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
   const ajuda = motivoTela !== null && estado.computadorPessoa ? cartaoDoPedidoDeAjuda(m, estado) : null;
   if (ajuda?.linha) return ajuda.html;
-  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
+  // ADR-190 (L1–L4): o pedido do navegador (login, código, ajuda) é o cartão do navegador; resolvido, vira linha.
+  const doNavegador = pergunta && motivoTela === null ? cartaoDoPedidoDoNavegador(m, estado) : null;
+  if (doNavegador?.linha) return doNavegador.html;
+  const balao = doNavegador ? doNavegador.html : ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
   // ADR-191: a ajuda do computador aberta espera a pessoa — a marca da pílula "A Ada espera você: entrar no Drive".
   const espera = pergunta && motivoTela !== null && telaAberta ? atributosDaEspera({ id: pergunta.decisaoId, nome: agente?.nome ?? "O bot", frase: fraseCurta(motivoTela) }) : "";
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${espera}${emVoo}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila && !fila.cartao ? renderSituacaoFila(fila) : fila ? "" : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? chipsDosPassos(m, estado) : ""}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila && !fila.cartao ? renderSituacaoFila(fila) : fila ? "" : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${fila?.cartao ? `<div class="msg-linha">${fila.cartao}</div>` : ""}${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 
@@ -1717,6 +1755,10 @@ export function turnosDeTrabalho(c: ConversaEstado, estado: Estado): ReadonlySet
   for (const t of c.turnosEmCurso) if (t.trabalhoId) ids.add(t.id);
   for (const t of trabalhosConhecidos(estado, c.conversa.id)) if (t.turnoVivoId) ids.add(t.turnoVivoId);
   for (const t of Object.values(estado.turnosVivos)) if (t.trabalhoId) ids.add(t.turnoId);
+  // 2026-11-22 (teste do dono): o turno que a rede tirou do chat no meio ("Virou a tarefa …", trabalho_aberto de origem
+  // "rede") continua como o turno da task, mas nasceu sem trabalho — nenhuma das fontes acima soube da troca, e o ao vivo
+  // dele ("Rodou um comando") seguia no chat, embaixo da mensagem nova da pessoa, ao lado do "Trabalhando" do turno dela.
+  for (const m of c.mensagens) if (m.turnoId && m.payload?.kind === "trabalho_aberto" && m.payload.origem === "rede") ids.add(m.turnoId);
   return ids;
 }
 
@@ -1742,6 +1784,9 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
+    { chave: "navegador", html: linhaDoNavegador(c, estado) },
+    { chave: "navegador-guardar", html: linhaGuardarDoNavegador(c, estado) },
+    { chave: "navegador-google", html: linhaGoogleDoNavegador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
@@ -1767,6 +1812,39 @@ function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   // O erro só aparece no chat de quem estava usando ou esperando o computador.
   if (falha) return dto.telas.some((t) => t.agenteId === id) || mem.esperas[id] ? falha : "";
   return mem.fechadas?.agentes.includes(id) && dto.operacao ? htmlLinhaTelaFechada(mem.fechadas.tipo, nomes[id] ?? "o bot") : "";
+}
+
+/**
+ * ADR-190 (Paper, linha 1, 1c, item 2): "● Navegador da Ada · Google Voos · lendo os voos diretos · Ver" embaixo do turno,
+ * enquanto o bot usa o navegador (ou precisa da pessoa nele). "Ver" abre o painel; no modo abas, a aba de lugar. Só no chat
+ * de um bot da pessoa e só com a vista já lida (`estado.navegadores`).
+ */
+function linhaDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id) return "";
+  const a = agenteDe(estado, id);
+  const r = estado.navegadores[id];
+  if (!a || a.ownerId !== estado.sessao?.pessoaId || !r || !linhaDoNavegadorVisivel(r.vista, estado.agora || Date.now())) return "";
+  return htmlLinhaDoNavegador(a.nome, id, r.vista, { modoAbas: false });
+}
+
+/**
+ * ADR-190 (L5): "Você entrou no Bradesco digitando. Guardar no cofre? Guardar | Não" — a linha discreta no fim da conversa
+ * do bot enquanto a oferta vale (5 min no servidor). Só no chat de um bot da pessoa.
+ */
+function linhaGuardarDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return "";
+  const oferta = estado.navegadores[id]?.vista.ofertaGuardar;
+  return oferta ? htmlLinhaGuardar({ oferta, agenteId: id, agora: estado.agora || Date.now() }) : "";
+}
+
+/** 2026-11-23: o Google recusou o login no navegador do bot: "Trazer do meu Chrome" para o site de origem. */
+function linhaGoogleDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return "";
+  const recusa = estado.navegadores[id]?.vista.googleRecusou;
+  return recusa ? htmlLinhaGoogleRecusou({ site: recusa.site, agenteId: id }) : "";
 }
 
 export function renderHistoricoDaTimeline(c: ConversaEstado, estado: Estado): string {
@@ -1833,7 +1911,8 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
   // resultado dela não somem por horas atrás de uma fala que não anda (definido em 2026-10-28).
   const rodandoDesde = vivosDoChat.flatMap((t) => { const d = inicioDaTrava(t, estado.agora); return d === undefined ? [] : [d]; }).reduce<number | null>((min, d) => (min === null || d < min ? d : min), null);
   const vivos = { desde: rodandoDesde, turnos: new Set(vivosDoChat.map((t) => t.turnoId)) };
-  const mensagens = emOrdemDoChat(c.mensagens, vivos);
+  // Ponto 06 dos cenários (2026-11-22): o cartão do pedido do navegador vai para baixo da fala do turno, como os outros.
+  const mensagens = comPedidosDoNavegadorDepoisDaFala(emOrdemDoChat(c.mensagens, vivos), vivos.turnos, (m) => pedidoDoNavegadorNaFala(m.texto) !== null);
   const co = mensagens === c.mensagens ? c : { ...c, mensagens: [...mensagens] };
   // O pedido (cartão) de um turno cuja fala está segurada fica segurado com ela: ancorado por `criadoEm`, cairia no meio do
   // turno da pessoa.
@@ -2133,8 +2212,10 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
-  // ADR-167 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
-  const painel = o.painel === false ? "" : botaoDoPainel(nome);
+  // ADR-167 (Paper 02) previa o botão do painel à direita do topo. Revisto em 2026-11-22 (pedido do dono): ao lado do ícone
+  // da tela do navegador, os dois quadrados confundiam; no topo com a pílula, o painel do bot abre sempre pela pílula. O
+  // botão fica só no modo abas (sem pílula), no fim da fileira (main.ts). `painel: true` ainda o pede.
+  const painel = o.painel === true ? botaoDoPainel(nome) : "";
   const capsula = o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>` : pilula;
   // O cabeçalho é uma coluna (a presença embaixo): a pílula e o botão de abas vão juntos numa linha.
   const topo = o.depoisDaPilula ? `<div class="pilula-e-abas">${capsula}${o.depoisDaPilula}</div>` : capsula;
