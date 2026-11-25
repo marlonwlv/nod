@@ -152,7 +152,7 @@ export type TrabalhoDetalheDto = {
   mensagens: Mensagem[];
   falasNaFila?: { mensagemId: string; situacao: "na_fila" | "entregue" | "lendo" | "guardada" }[];
   passos?: (PassoDoRun & { turnoId: string })[];
-  pedidoDoBot?: string | null;
+  pedidoDoBot?: string | null; botExcluido?: { nome: string }; // QA-201: o bot saiu (a frota não o traz); o campo não envia
 };
 
 /** Linhas do chat (#191); `atividade`: ADR-114; `troca`: bots numa linha; `frentes`: "ver as N"; `revisor`: "Revisor liberou … · ver" (modos, PR 4). */

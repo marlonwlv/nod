@@ -29,6 +29,17 @@ describe("o navegador no plano (ADR-190)", () => {
     expect(p.promptSistema).toContain("pergunte com pedir_a_pessoa se você faz sozinho, com duas opções curtas: um ritmo que caiba na tarefa (como “Todo dia 5”) e “Só quando eu pedir”");
   });
 
+  it("com o computador no mesmo turno, site é do navegador: o computador não manda abrir sites (QA do Windows)", () => {
+    const juntos = montarPlano({ ...base, navegador: true, computador: true }).promptSistema;
+    expect(juntos).toContain("Sites vão pelo seu navegador (navegador_*), mesmo quando a pessoa diz \"abre o Chrome\" ou \"no computador\"");
+    expect(juntos).toContain("siga pelo navegador sem contar a falha do computador à pessoa");
+    expect(juntos).not.toContain("Use computador_navegar para abrir sites");
+    // Só o computador: ele segue abrindo os sites, como antes.
+    const so = montarPlano({ ...base, computador: true }).promptSistema;
+    expect(so).toContain("Use computador_navegar para abrir sites");
+    expect(so).not.toContain("Sites vão pelo seu navegador");
+  });
+
   it("desligado (sem motor em lugar nenhum), nada do navegador entra nem no prompt", () => {
     const p = montarPlano(base);
     expect(doNavegador(p)).toEqual([]);

@@ -224,3 +224,14 @@ describe("Jornadas da IA (2026-11-19): o texto real de produção", () => {
     expect(horaDeVoltaNoTexto(null, agora)).toBeNull();
   });
 });
+
+describe("QA-145: a hora da volta no fuso do dia da volta (horário de verão)", () => {
+  it("a volta depois da troca de horário usa o deslocamento daquele dia", () => {
+    // 30/10 em Nova York ainda é EDT (-4); 2/11 já é EST (-5): 3pm EST = 20:00 UTC.
+    expect(horaDeVoltaNoTexto("Weekly limit reached · resets Nov 2, 3pm (America/New_York)", Date.UTC(2026, 9, 30, 12))).toBe(Date.UTC(2026, 10, 2, 20, 0));
+    // Londres entra em BST em 28/03/2027: 3am BST = 02:00 UTC.
+    expect(horaDeVoltaNoTexto("resets Mar 29, 3am (Europe/London)", Date.UTC(2027, 2, 25, 12))).toBe(Date.UTC(2027, 2, 29, 2, 0));
+    // Sem dia, na própria madrugada da troca (1/11 01:30 EDT): 3pm EST.
+    expect(horaDeVoltaNoTexto("resets 3pm (America/New_York)", Date.UTC(2026, 10, 1, 5, 30))).toBe(Date.UTC(2026, 10, 1, 20, 0));
+  });
+});

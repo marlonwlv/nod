@@ -34,6 +34,10 @@ export async function proporColunas(deps: Deps, p: PedidoLote & { op: OpSubstitu
   if ("erro" in troca) return { data: { ok: false, erro: "entrada_invalida", detalhe: troca.erro }, events: [] };
   const contagem = new Map<string, number>();
   for (const m of troca.movidas) contagem.set(`${m.de}\u0000${m.para}`, (contagem.get(`${m.de}\u0000${m.para}`) ?? 0) + 1);
+  // QA r122: o bot repetir a MESMA troca (retry, chamada duplicada) com o card ainda aberto devolve esse card, em vez de
+  // abrir outro igual (a pessoa via dois cards; confirmar um deixava o outro obsoleto, recusado com aviso na conversa).
+  const aberta = await trocaAberta(deps, { conversaId: p.conversaId, agenteId: p.agenteId, quadroId: previa.quadro.id, revisao: revisaoDasColunas(antes), depois: troca.colunas, destinos: p.op.destinos });
+  if (aberta) return { data: { ok: true, propostaId: aberta.id, payload: aberta.payload }, events: [] };
   const anfitriao = await deps.repos.agentes.buscar(previa.quadro.agenteId);
   const payload: PayloadPropostaColunasQuadro = {
     kind: "colunas_quadro",
@@ -58,6 +62,22 @@ export async function proporColunas(deps: Deps, p: PedidoLote & { op: OpSubstitu
   const events: RuntimeEvent[] = [evento(deps.escopo, { kind: "proposta_criada", autoria, agora, conversaId: p.conversaId, turnoId: p.turnoId, dados: { proposta_id: proposta.id, kind: "colunas_quadro" } })];
   if (decisao) events.push(evento(deps.escopo, { kind: "decisao_criada", autoria, agora, conversaId: p.conversaId, turnoId: p.turnoId, dados: { decisao_id: decisao.id, tipo: "colunas_quadro" } }));
   return { data: { ok: true, propostaId: proposta.id, payload }, events };
+}
+
+async function trocaAberta(
+  deps: Deps,
+  q: { conversaId: string; agenteId: string; quadroId: string; revisao: string; depois: readonly ColunaQuadro[]; destinos: OpSubstituir["destinos"] },
+): Promise<{ id: string; payload: PayloadPropostaColunasQuadro } | null> {
+  const depois = JSON.stringify(enxuta(q.depois));
+  const destinos = JSON.stringify(q.destinos ?? null);
+  for (const p of await deps.repos.propostas.pendentesDaConversa(q.conversaId)) {
+    const pl = p.payload;
+    if (p.agenteId !== q.agenteId || pl.kind !== "colunas_quadro" || pl.quadroId !== q.quadroId || pl.revisao !== q.revisao) continue;
+    if (JSON.stringify(pl.depois) !== depois || JSON.stringify(pl.destinos ?? null) !== destinos) continue;
+    const decisao = await deps.repos.decisoes.buscar(p.id);
+    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { id: p.id, payload: pl };
+  }
+  return null;
 }
 
 /**

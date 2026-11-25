@@ -200,6 +200,8 @@ export type CampoDaTarefa = {
   parar: boolean;
   /** "Continuar de onde parou" e "Encerrar a tarefa" acima do campo. */
   saida: boolean;
+  /** QA-201: o bot da tarefa foi excluído — o campo não envia (o servidor recusa) e a nota diz o caminho. */
+  semEnvio?: boolean;
   /** O anel azul do campo de quando a tarefa espera a pessoa. */
   precisa: boolean;
 };
@@ -211,8 +213,14 @@ const CAMPO_NEUTRO: CampoDaTarefa = { placeholder: "Escreva para esta tarefa…"
  * O estado do campo da tarefa. `guardadas`: quantas falas da pessoa a tarefa não leu antes do Parar (ADR-185) — a nota
  * diz que são a primeira coisa que ela lê ao continuar.
  */
-export function campoDaTarefa(t: TrabalhoDto | undefined, bot: string, guardadas = 0): CampoDaTarefa {
+export function campoDaTarefa(t: TrabalhoDto | undefined, bot: string, guardadas = 0, botExcluido = false): CampoDaTarefa {
   if (!t) return CAMPO_NEUTRO;
+  // QA-201 (2026-11-23): com o bot excluído, mandar mensagem nunca continua a tarefa (o servidor recusa). O campo diz isso
+  // em vez de "continue a conversa com o bot", e o "Continuar de onde parou" some.
+  if (botExcluido) {
+    const resolver = t.tarefa && t.tarefa.estado !== "resolvida" && t.tarefa.estado !== "arquivada" ? " Marque como resolvida ou arquive (acima)." : "";
+    return { placeholder: "Bot excluído · restaure o bot para continuar", nota: `Bot excluído · ${bot} não recebe mais mensagens. A tarefa fica para consulta; restaure o bot para continuar.${resolver}`, dica: "", parar: false, saida: false, precisa: false, semEnvio: true };
+  }
   // ADR-192 (emenda 5): a Tarefa arquivada não recebe mensagem (o servidor recusa); o caminho é o Desarquivar acima.
   if (t.tarefa?.estado === "arquivada") return { placeholder: "Desarquive para continuar a tarefa", nota: "Arquivada · desarquive (acima) para continuar a conversa com " + bot + ".", dica: "", parar: false, saida: false, precisa: false };
   switch (t.estado) {

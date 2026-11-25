@@ -60,6 +60,9 @@ export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "e
     // 'pergunta' só é do escopo quando o balão diz que é a ajuda do computador (não se responde com texto).
     if (aberta.tipo === "pergunta" && !ajudas.has(aberta.id)) continue;
     if (aberta.estado !== "pendente" && aberta.estado !== "reaberta") continue;
+    // QA r175: a proposta de mesmo id é travada ANTES da decisão e sem esperar — a ordem de quem decide o card (proposta →
+    // decisão); se alguém a decide agora (outra aba, o Enter logo depois do clique), o pedido fica para esse clique.
+    if (propostas.some((p) => p.id === aberta.id) && !(await deps.repos.propostas.travarSeLivre(aberta.id))) continue;
     const decisao = await deps.repos.decisoes.dispensarAoSeguir(aberta.id, { por: pessoa, agora, antes: aberta.estado });
     if (!decisao) continue;
     feitas.add(decisao.id);
@@ -80,6 +83,7 @@ export async function dispensarAoSeguirConversando(deps: Pick<Deps, "repos" | "e
   // O card de conexão ("Conectar o Google Drive para a Frida") é só a proposta: sem decisão, sai recusado.
   for (const p of propostas) {
     if (feitas.has(p.id) || p.payload.kind !== "acesso" || p.payload.conectar !== true || p.criadoEm > input.antesDe || doTurnoVivo(p.payload.turnoId)) continue;
+    if (!(await deps.repos.propostas.travarSeLivre(p.id))) continue;
     const recusada = await deps.repos.propostas.decidir(p.id, "recusada");
     if (!recusada) continue;
     events.push(propostaRecusada(deps, recusada, agora));

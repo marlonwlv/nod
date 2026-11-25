@@ -45,6 +45,7 @@ import { concluirLoginArmado } from "./login-armado.ts";
 import { iniciarContasNoServidor } from "./contas-no-servidor.ts";
 import { iniciarInstalacoesNoServidor } from "./instalacoes-no-servidor.ts";
 import { lerIdentidadeNoCli, type ClisDoMotor } from "../motor/contas.ts";
+import { aposentarChaveAntiga } from "../motor/conexao.ts";
 import { estadoDaIa } from "../src/domain/estado-ia.ts";
 import { ambienteDoLogin, comandoDeAtualizar, comandoDeEstadoDoLogin, comandoDeLogin, comandoDeLoginNoApp, comandoDeLogout, contaPeloStatusClaude, lerIaDesktop, logadoPeloStatus, textoDaImpressao, textoDaImpressaoComConta, URL_INSTALAR_IA } from "./ia-mac.ts";
 import { criarLoginDasIas, type ProcessoDeLogin, type StatusDoLogin } from "./login-ia.ts";
@@ -382,7 +383,8 @@ async function definirSom(ligado: boolean): Promise<PreferenciasDesktop> {
 }
 function montarMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(templateDoMenu({ avisos: preferencias.avisos, empacotado: app.isPackaged, atualizacao: atualizacaoApp?.estado() }, {
-    conexao: () => { void parar().then(mostrarSetup); }, definirAvisos: (ligado) => { void definirAvisos(ligado); }, exportarDiagnostico: () => { void exportarDiagnostico(); }, buscar: (acao) => { janelaWeb()?.webContents.send(CANAIS_DESKTOP.buscar, acao); },
+    // 24/11: parar pelo menu cortava o turno em curso sem deixar rastro; o log diz que foi a pessoa.
+    conexao: () => { log("info", "menu_conexao", {}); void parar().then(mostrarSetup); }, definirAvisos: (ligado) => { void definirAvisos(ligado); }, exportarDiagnostico: () => { void exportarDiagnostico(); }, buscar: (acao) => { janelaWeb()?.webContents.send(CANAIS_DESKTOP.buscar, acao); },
     procurarAtualizacao: () => { atualizacaoApp?.procurar(true, true); }, reiniciarParaAtualizar: () => { void atualizacaoApp?.reiniciar(); },
   })));
 }
@@ -794,7 +796,16 @@ async function conectar(c: Config) {
   await web.clearStorageData(mesmaPessoa ? { storages: ["cookies"] } : undefined);
   await web.cookies.set({ url: c.url, name: "nod_sessao", value: cookie, path: "/", httpOnly: true, secure: c.url.startsWith("https:"), sameSite: "strict" });
   const comPessoa: Config = { ...c, pessoaId: dados.escopo.pessoaId };
+  // Definido em 2026-11-24 (sucessão de chave): o mesmo Mac pareou de novo (menu Conexão, entrar pelo navegador, login
+  // dentro do app) e ganhou outra chave. A antiga aposenta com ela mesma e leva junto, no servidor, os bots, a padrão e as
+  // sessões presos a ela — antes, eles esperavam "sem contato" uma chave que ninguém mais usava (medido em 24/11). Outra
+  // pessoa (trocar de conta) o servidor recusa e nada muda. Melhor esforço: não segura a conexão.
+  const anterior = configuracao;
   await guardar(comPessoa); configuracao = comPessoa;
+  if (anterior && !anterior.provisoria) {
+    void aposentarChaveAntiga({ url: anterior.url, chave: anterior.chave }, { url: c.url, chave: c.chave }, app.getVersion())
+      .then((ok) => { if (anterior.url === c.url && anterior.chave !== c.chave) log(ok ? "info" : "aviso", ok ? "chave_antiga_sucedida" : "chave_antiga_nao_sucedida", {}); });
+  }
   // ADR-182: a janela nasce AQUI, antes de montar o executor, sondar as IAs e sincronizar as contas (segundos no Mac
   // carregado): a pessoa vê a tela do nod enquanto isso roda. A web já trata o estado `procurando` das IAs e a lista de
   // contas vazia até a sonda chegar (emitirEstados avisa). A carga da página corre em paralelo e é aguardada no fim.

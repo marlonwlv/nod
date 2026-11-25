@@ -20,7 +20,7 @@ const RECUSA: Record<ErroAjustarNavegador, string> = {
   entrada_invalida: "Mande ao menos um de continuar_sem_mac, maquina ou so_na_maquina. Nada mudou.",
   maquina_inexistente: "Essa máquina não está na conta da pessoa (ou não fica sempre ligada). Nada mudou: pergunte qual destas ela quer.",
 };
-const recusa = (erro: ErroAjustarNavegador, opcoes?: string[]): SaidaCasoDeUso<ResultadoAjustarNavegador> => ({ data: { ok: false, erro, ...(opcoes ? { opcoes } : {}), instrucao: RECUSA[erro] } });
+const recusa = (erro: ErroAjustarNavegador, opcoes?: string[], instrucao?: string): SaidaCasoDeUso<ResultadoAjustarNavegador> => ({ data: { ok: false, erro, ...(opcoes ? { opcoes } : {}), instrucao: instrucao ?? RECUSA[erro] } });
 
 export const ajustarNavegador: CasoNod<Deps, "ajustar_navegador"> = async (deps, input) => {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
@@ -37,6 +37,11 @@ export const ajustarNavegador: CasoNod<Deps, "ajustar_navegador"> = async (deps,
     else {
       const linux = (await deps.repos.maquinaTokens.vivasComPlataforma()).filter((v) => v.plataforma === "linux");
       const achadas = linux.filter((v) => v.id === input.maquina!.trim() || v.nome.trim().toLowerCase() === pedida);
+      // QA-235: o nome da máquina não é único. Com duas do mesmo nome, a recusa não diz que ela não está na conta: dá o id
+      // de cada uma (o bot pode mandar o id em `maquina`) e o que a pessoa vê para escolher.
+      if (achadas.length > 1) {
+        return recusa("maquina_inexistente", [...achadas.map((v) => `${v.nome} (${v.id})`), "nod"], `Há ${achadas.length} máquinas com o nome "${input.maquina.trim()}". Nada mudou: pergunte à pessoa qual delas e mande o id dela em maquina (o id está entre parênteses em opcoes).`);
+      }
       if (achadas.length !== 1) return recusa("maquina_inexistente", [...linux.map((v) => v.nome), "nod"]);
       m.maquinaId = achadas[0]!.id;
     }

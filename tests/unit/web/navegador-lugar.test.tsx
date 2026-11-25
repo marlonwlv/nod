@@ -139,7 +139,7 @@ describe("N4 e D8: a linha de atividade com o lugar e a troca de passo", () => {
     const fim = new Date(2026, 10, 21, 3, 2).getTime();
     const feito = doc(htmlLinhaDoNavegador("Ada", ADA, { ...base, estado: "terminou", passo: { tipo: "ler", frase: "baixou 14 notas fiscais", caixa: null, em: fim }, atividadeEm: fim, lugar: { tipo: "maquina", maquinaId: VM_SP, nome: "vm-sp" } }, { modoAbas: false }));
     expect(feito.querySelector(".nv-linha-ok")).not.toBeNull();
-    expect(feito.querySelector("small")?.textContent).toBe("Baixou 14 notas fiscais · 3h02 · na vm-sp");
+    expect(feito.querySelector("small")?.textContent).toBe("Baixou 14 notas fiscais · 03:02 · na vm-sp");
     expect(linhaDoNavegadorVisivel({ ...base, estado: "terminou" }, 2_000)).toBe(true);
     expect(linhaDoNavegadorVisivel({ ...base, estado: "terminou" }, 11 * 60_000)).toBe(false);
     expect(fraseNoPassado('Clicando em "Baixar todas"')).toBe("Clicou em “Baixar todas”");
