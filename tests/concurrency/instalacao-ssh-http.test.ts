@@ -3,9 +3,10 @@ import { request } from "node:http";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
-import { TENANT_PADRAO } from "../helpers/ids.ts";
+import { PESSOA_ANA, TENANT_PADRAO } from "../helpers/ids.ts";
 import { vincularEscopo } from "../../src/db/tx.ts";
 import { criarRepos } from "../../src/repositories/index.ts";
+import { agenteComConversa } from "../helpers/fabricas.ts";
 import type { InstalacaoCriadaDto, InstalacaoSshDto, PedidoDeInstalacao } from "../../src/contracts/instalacoes-ssh.ts";
 
 /**
@@ -215,6 +216,57 @@ describeIntegracao("instalação por SSH pela tela e pela ponte (NOD-94, HTTP re
     expect((await maquina("aposentar", {}, velha.chave)).status).toBe(401);
     // A chave da instaladora (outra máquina da pessoa) segue viva.
     expect((await maquina("instalacoes", { chavePublica: PUB, servidorProprio: true })).status).toBe(200);
+  });
+
+  it("sucessão de chave (24/11): aposentar com a nova leva bots, padrão e sessões para ela antes de revogar", async () => {
+    const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-repareado" });
+    const nova = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-repareado" });
+    const { agenteId, conversaId } = await srv.db.begin(async (tx) => {
+      await vincularEscopo(tx, srv.pessoa);
+      const base = await agenteComConversa(tx, srv.pessoa, { nome: "Preso na velha" });
+      await base.repos.agentes.definirMaquina([base.agenteId], velha.dados.id);
+      await base.repos.preferencias.definirMaquinaPadrao(velha.dados.id);
+      await tx`update conversas set sessao_maquina_id = ${velha.dados.id} where id = ${base.conversaId}`;
+      return base;
+    });
+    // A nova inválida (lixo, a própria antiga) não muda nada e a antiga segue valendo.
+    for (const sucessora of ["nao-e-chave", velha.chave]) {
+      const r = await maquina("aposentar", { sucessora }, velha.chave);
+      expect(r.status).toBe(409);
+      expect(await r.json()).toEqual({ codigo: "sucessora_invalida" });
+    }
+    expect((await maquina("aposentar", { sucessora: 42 }, velha.chave)).status).toBe(400);
+    const r = await maquina("aposentar", { sucessora: nova.chave }, velha.chave);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true, revogou: true });
+    expect((await maquina("aposentar", {}, velha.chave)).status).toBe(401);
+    await srv.db.begin(async (tx) => {
+      await vincularEscopo(tx, srv.pessoa);
+      const [ag] = await tx<{ maquina_id: string }[]>`select maquina_id from agentes where id = ${agenteId}`;
+      const [pr] = await tx<{ maquina_padrao_id: string }[]>`select maquina_padrao_id from preferencias where owner_id = ${srv.pessoa.pessoaId}`;
+      const [cv] = await tx<{ sessao_maquina_id: string }[]>`select sessao_maquina_id from conversas where id = ${conversaId}`;
+      expect({ bot: ag?.maquina_id, padrao: pr?.maquina_padrao_id, sessao: cv?.sessao_maquina_id }).toEqual({ bot: nova.dados.id, padrao: nova.dados.id, sessao: nova.dados.id });
+      await tx`update preferencias set maquina_padrao_id = null where owner_id = ${srv.pessoa.pessoaId}`;
+      await tx`delete from conversas where id = ${conversaId}`;
+      await tx`delete from agentes where id = ${agenteId}`;
+    });
+  });
+
+  it("sucessão de chave: a nova de OUTRA pessoa (trocar de conta) é recusada e a antiga fica viva", async () => {
+    const velha = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-de-dois" });
+    const ana = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_ANA };
+    const daOutra = await srv.json<{ chave: string; dados: { id: string } }>("POST", "maquinas/chaves", { nome: "mac-de-dois" }, srv.sessaoDe(ana));
+    try {
+      const r = await maquina("aposentar", { sucessora: daOutra.chave }, velha.chave);
+      expect(r.status).toBe(409);
+      expect(await r.json()).toEqual({ codigo: "sucessora_invalida" });
+      expect((await maquina("aposentar", {}, velha.chave)).status).toBe(200); // a antiga seguia valendo
+    } finally {
+      await srv.db.begin(async (tx) => {
+        await vincularEscopo(tx, ana);
+        await tx`delete from maquina_tokens where owner_id = ${PESSOA_ANA} and id = ${daOutra.dados.id}`;
+      });
+    }
   });
 
   it("NOD-344 (ADR-121): a VM ligada à nuvem não aposenta a própria chave: 409 maquina_na_nuvem e a chave segue viva", async () => {

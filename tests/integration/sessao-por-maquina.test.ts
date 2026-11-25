@@ -132,6 +132,21 @@ describeIntegracao("NOD-281: a sessão do CLI é da máquina, da IA e da conta (
     });
   });
 
+  it("PR #327 (achado 4): a 1ª mensagem, sem sessão, que fecha antes de começar é a IA que não abriu, não a sessão que sumiu", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const a = randomUUID();
+      const t1 = (await m.enfileirar("codex-cli"))!;
+      expect((await m.repos.turnos.reivindicar({ machineId: a, agora: Date.now() }))?.id).toBe(t1.id);
+      expect((await m.plano(t1.id, { machineId: a, ias: ["codex-cli"], ponte: true })).entrada.sessaoCli).toBeNull();
+      await assentarTurno(m.deps, { turnoId: t1.id, machineId: a, seqLocal: 1, fala: { tipo: "texto", texto: "" }, resultado: rejeitada, executor: "local", harness: "codex-cli" });
+
+      const sistema = (await m.repos.mensagens.listarDaConversa(m.conversaId)).filter((x) => x.kind === "sistema");
+      expect(sistema.map((x) => x.payload)).toMatchObject([{ kind: "desvio", desvio: "ia_nao_abriu", forma: "cartao" }]);
+      expect(sistema.some((x) => /não estava mais|recomeçou pelo histórico/.test(x.texto))).toBe(false);
+    });
+  });
+
   it("sessão recusada pelo CLI: a fala é repetida uma vez sem resume, sem aviso de falha; na segunda, o aviso de sempre", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
@@ -144,7 +159,8 @@ describeIntegracao("NOD-281: a sessão do CLI é da máquina, da IA e da conta (
 
       expect((await m.repos.conversas.buscar(m.conversaId))?.sessaoCli).toBeNull();
       const sistema = async () => (await m.repos.mensagens.listarDaConversa(m.conversaId)).filter((x) => x.kind === "sistema");
-      expect(await sistema()).toHaveLength(0);
+      // Lote B (desvio 1, Paper B3): sem aviso de falha — só a linha discreta de que o bot recomeçou pelo histórico.
+      expect((await sistema()).map((x) => x.payload)).toMatchObject([{ kind: "desvio", desvio: "sessao_sumiu", forma: "linha" }]);
       const turnos = await trx<{ id: string; reenvios: number; estado: string; entrada_texto: string }[]>`
         select id, reenvios, estado, entrada_texto from turnos where conversa_id = ${m.conversaId} order by criado_em, id`;
       const repetido = turnos.find((x) => x.id !== t1.id);
@@ -157,7 +173,8 @@ describeIntegracao("NOD-281: a sessão do CLI é da máquina, da IA e da conta (
 
       // Recusado de novo: não há sessão para largar nem segunda repetição — vale o aviso de sempre.
       await assentarTurno(m.deps, { turnoId: repetido!.id, machineId: a, seqLocal: 1, fala: { tipo: "texto", texto: "" }, resultado: rejeitada, executor: "local", harness: "claude-cli" });
-      expect(await sistema()).toHaveLength(1);
+      // Recusado de novo: o cartão do desvio (o motivo e as saídas), no lugar do aviso de sempre.
+      expect((await sistema()).map((x) => x.payload)).toMatchObject([{ forma: "linha" }, { kind: "desvio", desvio: "sessao_sumiu", forma: "cartao" }]);
       const depois = await trx<{ n: number }[]>`select count(*)::int as n from turnos where conversa_id = ${m.conversaId}`;
       expect(depois[0]!.n).toBe(2);
     });

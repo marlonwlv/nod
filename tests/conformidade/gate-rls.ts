@@ -30,6 +30,9 @@ export const EXCECOES: Record<string, string> = {
   pareamentos_conta: "conectar outro computador (0109): o código é digitado num computador que ainda não está no escopo da pessoa",
   bootstrap_instalacoes: "instalação que criou um espaço provisório (0109): consultada no bootstrap público, antes do escopo",
   exclusoes_conta: "exclusão programada da conta (0110, ADR-126 §5): global como a conta; o prazo nasce no banco e o trigger só deixa o nod_app ir de programada a desfeita",
+  // ADR-194: a equipe interna do backoffice olha todos os espaços; o papel dela é global, acima dos tenants, e a guarda o
+  // confere a cada pedido antes de qualquer escopo de leitura. nod_app só SELECT (tests/integration/backoffice-equipe.test.ts).
+  equipe_backoffice: "papéis da equipe interna do backoffice (0184, ADR-194): global, acima dos tenants; nod_app só SELECT, quem escreve é o nod_dono",
   limites_conta: "contadores de limite contra abuso (0109), por HMAC de IP/e-mail, sem dado de pessoa; desde 2026-10-25 também o gasto do dia do revisor no servidor, somando todas as contas (chave fixa revisor:gasto_microdolares, ADR-115), e desde 2026-10-26 o de cada pessoa (chave revisor_gasto:<HMAC do id>, sem id em claro)",
 };
 

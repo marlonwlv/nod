@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **212**, mais 3 só de leitura. No chat: **80 vivas**, 4 parciais, 89 faltando e 42 que nunca vão para o chat. Piso de vivas: 80.
+Ações de pessoa que mudam algo: **235**, mais 3 só de leitura. No chat: **81 vivas**, 8 parciais, 99 faltando e 50 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -45,6 +45,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `rotinas.ativar` | Ativar uma rotina | muda | vivo (`reativar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/ativar$` |
 | `rotinas.pausar_todas` | Pausar todas as rotinas | muda | vivo (`pausar_todas_rotinas`) | `POST ^\/rotinas\/pausar-todas$` |
 | `rotinas.reativar_lote` | Reativar as rotinas pausadas juntas | muda | vivo (`reativar_lote_rotinas`) | `POST ^\/rotinas\/lotes\/(?<id>[^/]+)\/reativar$` |
+| `rotinas.excluir` | Excluir uma rotina | arriscada | parcial (`excluir_rotina`): o chat propõe o card (aplicarExclusaoRotina); a tela aplica direto pelo excluirRotina, sem teste de contrato comum | `POST ^\/rotinas\/(?<id>[^/]+)\/excluir$` |
 | `rotinas.mudar_ritmo` | Mudar o ritmo de uma rotina | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/ritmo$` |
 | `rotinas.gerar_endereco` | Gerar novo endereço do webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/endereco$` |
 | `rotinas.enviar_teste` | Enviar teste ao webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/testar-webhook$` |
@@ -92,6 +93,8 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `contas_ia.entrar` | Entrar numa IA numa máquina | muda | falta (NOD-400) | `POST ^\/maquinas\/(?<id>[^/]+)\/logins$` |
 | `contas_ia.codigo_do_login` | Mandar o código do login da IA | pessoa_confirma | falta (NOD-400) | `POST ^\/maquinas\/(?<id>[^/]+)\/logins\/(?<login>[^/]+)\/codigo$` |
 | `contas_ia.cancelar_login` | Cancelar o login da IA | muda | falta (NOD-400) | `POST ^\/maquinas\/(?<id>[^/]+)\/logins\/(?<login>[^/]+)\/cancelar$` |
+| `contas_ia.responder_com_outra_ia` | Responder com a outra IA desta vez | muda | nunca: a IA da conversa parou: o caminho é o botão do cartão ou o seletor de IA do campo | `POST ^\/conversas\/(?<id>[^/]+)\/responder-com-outra-ia$` |
+| `contas_ia.reinstalar_e_tentar` | Reinstalar a IA e tentar de novo | muda | nunca: a IA não abriu na máquina: o caminho é o botão do cartão, ou Provedores de IA › Atualizar | `POST ^\/conversas\/(?<id>[^/]+)\/reinstalar-e-tentar$` |
 | `contas_ia.trocar_executor` | Trocar a IA deste Mac (modo local) | muda | falta (NOD-400) | `POST ^\/executor$` |
 
 ## maquinas
@@ -135,6 +138,29 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `computador.trocar_lugar` | Mudar o computador de máquina | arriscada | falta (NOD-396) | `POST ^\/computador\/lugar$` |
 | `computador.operar_do_bot` | Ligar, desligar ou reiniciar o computador de um bot | muda | falta (NOD-396) | `POST ^\/agentes\/(?<id>[^/]+)\/computador$` |
 | `computador.usar_tela` | Usar a tela do computador com as próprias mãos | muda | nunca: são as mãos da pessoa no computador do bot | `POST ^\/agentes\/(?<id>[^/]+)\/computador\/acoes$` |
+
+## navegador
+
+| Ação | O que faz | Risco | No chat | Rotas |
+| --- | --- | --- | --- | --- |
+| `navegador.operar` | Ligar, pausar, retomar, recarregar, voltar ou passar o controle do navegador de um bot | muda | falta (NOD-396) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador$` |
+| `navegador.ir_para` | Abrir um endereço no navegador do bot com as próprias mãos | muda | parcial (`navegador_abrir`): o bot abre pela navegador_abrir com o controle dele; a barra da tela exige a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/endereco$` |
+| `navegador.trocar_aba` | Trocar de aba no navegador do bot com as próprias mãos | muda | parcial (`navegador_abas`): o bot troca pela navegador_abas (número da aba) com o controle dele; a tela troca pelo id da aba com a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/aba$` |
+| `navegador.lugar` | Escolher onde o navegador do bot roda com o Mac desligado (continuar, numa máquina, no nod, só na máquina) | muda | vivo (`ajustar_navegador`) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$` |
+| `navegador.mac_desligado` | Responder ao cartão "Seu Mac está desligado": fazer agora (continuar sem o Mac) ou quando o Mac ligar | muda | parcial (`ajustar_navegador`): pelo chat a pessoa liga o continuar sem o Mac e repete o pedido; a retomada sozinha quando o Mac liga só existe pelo cartão | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/mac-desligado$` |
+| `navegador.login` | Escolher como o bot entra num site: um login do cofre (nod, 1Password, Bitwarden), entrar eu mesmo ou trazer do meu Chrome | muda | nunca: o login vai do cofre direto ao campo da página; a escolha é um clique no cartão e a senha nunca passa pelo chat nem pelo bot (ADR-177, ADR-190 decisão 6) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/login$` |
+| `navegador.codigo` | Mandar o código de uso único (SMS, e-mail, app) direto para a página do navegador do bot | muda | nunca: o código vai do campo privado do cartão para a página; digitado no chat, passaria pela conversa e pelo bot | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/codigo$` |
+| `navegador.trazer_do_chrome` | Trazer do Chrome da pessoa a sessão de um site para o navegador do bot (o menu ⋯ e a recusa do login pelo Google) | muda | nunca: a sessão sai do Chrome da pessoa só com o toque dela (o macOS pede o Keychain; no PC, a extensão do nod); pelo chat, o bot pede o login (navegador_entrar) e o cartão já oferece "Trazer do meu Chrome" | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/trazer-do-chrome$` |
+| `navegador.guardar_login` | Guardar no cofre (nod, 1Password, Bitwarden) o login que a pessoa digitou no navegador do bot, ou descartar | muda | nunca: guardar grava a senha que a pessoa digitou na página; ela fica só na memória do servidor e nunca passa pelo chat | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/guardar-login$` |
+| `navegador.apagar_tarefa` | Apagar uma tarefa ensinada (habilidade) do bot | muda | falta (NOD-396) | `DELETE ^\/agentes\/(?<id>[^/]+)\/navegador\/habilidades\/(?<tarefa>[^/]+)$` |
+| `navegador.ensinar` | Ensinar uma tarefa ao bot no navegador (começar, descartar, salvar) | muda | nunca: ensinar é a pessoa fazendo com as próprias mãos no navegador do bot; o que vai ao chat é a mensagem dela com os passos | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/ensinar$` |
+
+## cofre
+
+| Ação | O que faz | Risco | No chat | Rotas |
+| --- | --- | --- | --- | --- |
+| `cofre.criar_login` | Guardar um login (site, usuário e senha) no cofre do nod | muda | nunca: a senha não passa pelo chat (ADR-177, ADR-190 decisão 6): ela entra pela tela e vai cifrada ao cofre | `POST ^\/cofre\/logins$` |
+| `cofre.apagar_login` | Apagar um login do cofre do nod | muda | falta (NOD-395) | `DELETE ^\/cofre\/logins\/(?<id>[^/]+)$` |
 
 ## conversas
 
@@ -201,7 +227,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 | Ação | O que faz | Risco | No chat | Rotas |
 | --- | --- | --- | --- | --- |
-| `trabalhos.abrir` | Abrir uma tarefa | muda | parcial (`abrir_task`): pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato | `POST ^\/agentes\/(?<id>[^/]+)\/trabalhos$` |
+| `trabalhos.abrir` | Abrir uma tarefa | muda | parcial (`abrir_frentes`): pelo chat quem escreve o pedido é o bot (abrir_frentes, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato | `POST ^\/agentes\/(?<id>[^/]+)\/trabalhos$` |
 | `trabalhos.renomear` | Renomear uma tarefa | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/titulo$` |
 | `trabalhos.parar` | Parar um trabalho | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/parar$` |
 | `trabalhos.encerrar` | Encerrar uma tarefa parada | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/encerrar$` |
@@ -376,11 +402,23 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | --- | --- | --- | --- | --- |
 | `decisoes.exportar` | Exportar decisões de autorização em CSV | pessoa_confirma | vivo (`decisoes`) | a tela baixa por GET; o chat confirma no cartão e ambos chamam exportarDecisoesCsv |
 
+## tarefas
+
+| Ação | O que faz | Risco | No chat | Rotas |
+| --- | --- | --- | --- | --- |
+| `tarefas.criar` | Criar uma tarefa (objetivo com conversa própria) | muda | falta (NOD-397) | `POST ^\/agentes\/(?<id>[^/]+)\/tarefas$` |
+| `tarefas.enviar` | Continuar uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/mensagens$` |
+| `tarefas.resolver` | Marcar uma tarefa como resolvida | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/resolver$` |
+| `tarefas.reabrir` | Reabrir uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/reabrir$` |
+| `tarefas.arquivar` | Arquivar uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/arquivar$` |
+| `tarefas.desarquivar` | Desarquivar uma tarefa | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/desarquivar$` |
+| `tarefas.renomear` | Renomear uma tarefa (o objetivo) | muda | falta (NOD-397) | `POST ^\/tarefas\/(?<id>[^/]+)\/titulo$` |
+
 ## O que cada onda leva
 
 - **NOD-393** (Onda 1: bots e rotinas): `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
-- **NOD-395** (Onda 3: conta e segurança): `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
-- **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`
-- **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`
+- **NOD-395** (Onda 3: conta e segurança): `cofre.apagar_login`, `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
+- **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`, `navegador.operar`, `navegador.apagar_tarefa`
+- **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`, `tarefas.criar`, `tarefas.enviar`, `tarefas.resolver`, `tarefas.reabrir`, `tarefas.arquivar`, `tarefas.desarquivar`, `tarefas.renomear`
 - **NOD-400** (Onda 4b: contas de IA): `bots.decidir_troca_de_ia`, `contas_ia.ordenar`, `contas_ia.mudar_modo`, `contas_ia.editar`, `contas_ia.sair`, `contas_ia.remover`, `contas_ia.seguir`, `contas_ia.tentar_de_novo`, `contas_ia.entrar`, `contas_ia.codigo_do_login`, `contas_ia.cancelar_login`, `contas_ia.trocar_executor`

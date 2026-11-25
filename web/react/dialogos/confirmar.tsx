@@ -7,9 +7,11 @@ import { devolverFocoQuandoPuder } from "../../telas/foco-de-volta.ts";
  * ADR-179 (item 4): o diálogo de confirmação do nod (`bot-dialogo`: título, texto, "Cancelar" com o foco e a ação) com o
  * Dialog do Base UI. O mesmo DOM de dentro dos diálogos nativos que ele substitui — o 1º é o "Rodar mais uma execução?"
  * do Testar agora (web/telas/rodar-mais-uma-dialogo.ts, a volta com `?dialogos-react=0`). Responde true só pela ação;
- * Cancelar, Esc e o clique fora respondem false. Sem `origem`, o foco volta a quem estava com ele antes (o padrão do Base UI).
- * Com `origem` (QA-162), o foco volta a ela assim que puder: o Testar agora fica desligado (o `ocupado`) enquanto pergunta,
- * e o padrão deixava o foco no `<body>`; se a tela redesenhou o botão, vai ao novo (web/telas/foco-de-volta.ts).
+ * Cancelar, Esc e o clique fora respondem false. Ao fechar, o foco vai para `origem`; se ela saiu do documento enquanto o
+ * diálogo estava aberto (o `agir` liga o "ocupado" e a tela redesenha os botões), para o que `reencontrar` achar — o mesmo
+ * botão, redesenhado. QA r235: o `origem` não era usado e o foco caía no <body> no Cancelar do "Excluir esta rotina?".
+ * QA-162: se `origem` está desligada (o Testar agora com o `ocupado`), o foco volta a ela assim que ela religar
+ * (web/telas/foco-de-volta.ts), em vez de cair no `<body>`.
  */
 export interface Confirmacao {
   idDoTitulo: string;
@@ -22,6 +24,16 @@ export interface Confirmacao {
   /** O botão principal (o `pri`, por último): a ação (o padrão) ou o Cancelar (o aviso que desaconselha). O foco abre em Cancelar. */
   principal?: "confirmar" | "cancelar";
   origem?: HTMLElement | null;
+  /** O botão que pediu, achado de novo no DOM atual (quando `origem` já foi trocado pelo redesenho). */
+  reencontrar?: () => HTMLElement | null;
+}
+
+/** QA r235: para onde o foco volta quando o diálogo fecha; `true` deixa o padrão do Base UI. */
+export function destinoAoFechar(c: Pick<Confirmacao, "origem" | "reencontrar">): HTMLElement | boolean {
+  const o = c.origem;
+  if (o?.isConnected && (o as HTMLButtonElement).disabled) { queueMicrotask(() => devolverFocoQuandoPuder(o)); return false; }
+  if (o?.isConnected) return o;
+  return c.reencontrar?.() ?? true;
 }
 
 function DialogoDeConfirmar({ c, responder, sair }: { c: Confirmacao; responder: (sim: boolean) => void; sair: () => void }) {
@@ -33,8 +45,7 @@ function DialogoDeConfirmar({ c, responder, sair }: { c: Confirmacao; responder:
     <Dialog.Root defaultOpen actionsRef={acoes} onOpenChange={(o) => { if (!o) responderUmaVez(false); }} onOpenChangeComplete={(o) => { if (!o) sair(); }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="rx-dlg-fundo" />
-        <Dialog.Popup className="bot-dialogo rx-dlg" initialFocus={cancelar}
-          finalFocus={c.origem ? () => { const o = c.origem!; if (o.isConnected && !(o as HTMLButtonElement).disabled) return o; queueMicrotask(() => devolverFocoQuandoPuder(o)); return false; } : undefined}>
+        <Dialog.Popup className="bot-dialogo rx-dlg" initialFocus={cancelar} finalFocus={() => destinoAoFechar(c)}>
           <Dialog.Title id={c.idDoTitulo}>{c.titulo}</Dialog.Title>
           {c.corpo ?? <p>{c.texto}</p>}
           <div className="acoes">

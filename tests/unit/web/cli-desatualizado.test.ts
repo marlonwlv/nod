@@ -182,7 +182,9 @@ describe("conversa: o bot fixado numa IA que não está pronta", () => {
     const m = negacao("claude-cli");
     const semAcesso: Mensagem = { ...m, payload: { kind: "negacao", classe: "plano_ausente", nome: "claude-cli", motivo: "plano_ausente", terminal: true, causa: "conta_sem_acesso" } };
     const html = renderMensagem(semAcesso, com({ claude: { ...SEM_LOGIN, causa: "conta_sem_acesso" }, codex: ANTIGO, harnessDoGil: "auto" }));
-    expect(html).toMatch(/data-act="ia-atualizar" data-ia="codex-cli">.*Atualizar o Codex</);
+    // Lote B (desvio 8, Paper B-8): o cartão leva a Provedores de IA ("Conectar outra conta"), onde a outra IA aparece
+    // com o passo dela (Atualizar o Codex); o cartão em si não pede instalar nem conectar a IA errada.
+    expect(html).toMatch(/data-act="secao-espaco"[^>]*>Conectar outra conta</);
     expect(html).not.toMatch(/data-act="ia-conectar" data-ia="codex-cli"/);
     expect(html).not.toContain("Instalar");
   });
@@ -383,7 +385,8 @@ describe("NOD-213: bot no GPT/Codex nunca ouve que a IA 'já voltou' sem ela ter
   it("negação do assentamento sem IA no nome ('ia') e com causa: o aviso é da IA do bot, nunca 'já voltou'", () => {
     const html = renderMensagem(comCausa("ia"), comChico({ claude: NOVO, codex: { ...SEM_LOGIN, causa: "conta_sem_acesso" } }));
     expect(html).not.toContain("já voltou");
-    expect(html).toContain("Codex");
+    // A IA do bot (o Codex, que a pessoa conhece como ChatGPT) no cartão do desvio 8.
+    expect(html).toContain("desligou o ChatGPT por assinatura");
     expect(html).not.toContain("Já há uma IA pronta");
   });
 

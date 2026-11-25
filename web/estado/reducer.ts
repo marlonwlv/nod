@@ -5,6 +5,7 @@ import { aposReleitura, reduzirCancelamento, type AcaoDoCancelamento, type Cance
 import type { AnexoDaConversa } from "../../src/contracts/anexo.ts";
 import type { AtividadeDto } from "../../src/contracts/atividade.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
+import type { TarefaDto } from "../../src/contracts/tarefa.ts";
 import type { ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
 import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
@@ -15,6 +16,7 @@ import type { ContasIaDto } from "../../src/contracts/contas-ia.ts";
 import type { DetalhesDasContas } from "../../src/contracts/desktop.ts";
 import type { EstaMaquina } from "../../src/contracts/desktop-esta-maquina.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
+import type { RespostaLugarNavegador, RespostaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import type { Conector } from "../../src/contracts/conector.ts";
 import type { EstadoExecutor } from "../../src/contracts/executor.ts";
 import type { FrameSse, TipoFrame } from "../../src/contracts/frame.ts";
@@ -115,7 +117,7 @@ export type Tela =
 export type FiltroTrabalhos = "todos" | "voce" | "rotinas" | "bots";
 
 /** ADR-187 §8 (Paper 5a): as tarefas abertas (o padrão), as que terminaram hoje ou as duas. */
-export type MostrarTarefas = "abertas" | "feitas" | "todas";
+export type MostrarTarefas = "abertas" | "feitas" | "todas" | "arquivadas";
 
 /**
  * "Seu espaço" (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"): o que é da CONTA abre pelo menu do avatar numa
@@ -340,7 +342,7 @@ export type EscolhaComposer = { outroAssunto: boolean; alvoId: string | null };
  */
 export type CitacaoNoCampo = { mensagemId: string; trecho: string };
 
-export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}`;
+export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}` | `navegador:${string}` | `lugar-navegador:${string}`;
 
 export type Estado = {
   sessao: Escopo | null;
@@ -407,6 +409,12 @@ export type Estado = {
   turnosDesmentidos: Readonly<Record<string, number>>;
   /** Cancelar só a mensagem na fila (web/lib/cancelar-na-fila.ts): turnoId → a fase do cancelamento dela. */
   cancelando: Readonly<Record<string, Cancelamento>>;
+  /**
+   * Lote B das Jornadas da IA (auditoria de 2026-11-22): o botão do cartão do desvio que a pessoa clicou nesta aba —
+   * id da mensagem do cartão → a ação e o resultado que o cartão encolhido diz depois ("Respondido pelo ChatGPT").
+   * `agindo` é o pedido no ar (o botão gira); sai com o erro, e o cartão fecha quando a conversa segue.
+   */
+  desviosAgindo: Readonly<Record<string, AcaoDoCartao>>;
   salas: { sala: Sala; membros: MembroSala[] }[];
   suaVez: SuaVezDto | null;
   /** Não lidos (0039): o que chegou depois do "lido até" de cada conversa; null = ainda não carregou. */
@@ -478,6 +486,12 @@ export type Estado = {
   bibliotecaDoBot: Record<string, BibliotecaDaConversa>;
   avisoConexao: string | null;
   concessoes: Record<string, Concessao[]>;
+  /** ADR-190: a vista do navegador de cada bot já lida (GET /agentes/:id/navegador); null = indisponível (404). */
+  navegadores: Record<string, RespostaNavegador | null>;
+  /** ADR-190 (M, N): onde o navegador de cada bot mora (GET /agentes/:id/navegador/lugar); null = indisponível (404). */
+  lugaresNavegador: Record<string, RespostaLugarNavegador | null>;
+  /** ADR-190 (N3): a lista "Com o Mac desligado, a Ada continua" aberta — "painel:<agenteId>" ou "cartao:<mensagemId>". */
+  lugarNavegadorAberto: string | null;
   /**
    * O "Agora não" do cartão de liberar apps (definido em 2026-10-05, 0054): por bot, o instante em que a pessoa
    * dispensou cada app (conectorId → ms). Chega junto com as concessões; ausente = ainda não carregou, e o cartão
@@ -603,6 +617,9 @@ export type Estado = {
   faixaTrabalhosAberta: string | null;
   /** definido em 2026-10-12 (ADR-099, parte 5): o bot aberto na tela Trabalhos (as frentes dele embaixo da linha). */
   botAbertoEmTrabalhos: string | null;
+  /** ADR-192 (emenda 5): as Tarefas arquivadas do chip "Arquivadas" (GET tarefas?estado=arquivada); null = não lidas. */
+  /** null = lendo; "erro" = a leitura falhou (a tela diz e oferece tentar de novo, em vez de mostrar a lista vazia). */
+  tarefasArquivadas: TarefaDto[] | null | "erro";
   /** ADR-085: quanto do Mac os bots podem usar (Seu espaço › Este Mac; `PUT preferencias`). */
   usoDoMac: UsoDoMac;
   /** ADR-111: as chaves de experimento do menu da conta (Calibração, Memória longa, ADR-112 Modo WhatsApp e, NOD-429, Quadro), lidas de `GET preferencias`. */
@@ -618,8 +635,12 @@ export type Estado = {
   tempoTaskAberto: string | null;
 };
 
+/** O clique num botão do cartão do desvio: a ação, o que a linha diz enquanto roda e depois, e se o pedido está no ar. */
+export type AcaoDoCartao = { acao: string; agora: string; feito: string; agindo: boolean };
+
 export type Acao =
   | AcaoAgenda
+  | { tipo: "desvio-agindo"; mensagemId: string; valor: AcaoDoCartao | null }
   | { tipo: "conexao-app"; slug: string; valor: ConexaoApp | null }
   | { tipo: "gaveta"; agenteId: string; nivel: NivelGaveta | null }
   | { tipo: "historico-perfil"; agenteId: string; mudanca: Partial<HistoricoDoBot> }
@@ -680,6 +701,9 @@ export type Acao =
   | { tipo: "lista-de-pasta"; propostaId: string; lista: "curta" | "todas" }
   | { tipo: "hidratar-conectores"; conectores: Conector[]; marketplace?: AppComLogo[]; composioConfigurado?: boolean }
   | { tipo: "hidratar-concessoes"; agenteId: string; concessoes: Concessao[]; liberacoesDispensadas?: Record<string, number> }
+  | { tipo: "hidratar-navegador"; agenteId: string; navegador: RespostaNavegador | null }
+  | { tipo: "hidratar-lugar-navegador"; agenteId: string; lugar: RespostaLugarNavegador | null }
+  | { tipo: "lugar-navegador-aberto"; chave: string | null }
   | { tipo: "hidratar-memorias"; agenteId: string; memorias: Memoria[]; aRevisar?: number }
   | { tipo: "hidratar-diario"; agenteId: string; pagina: PaginaDiario; anexar?: boolean }
   | { tipo: "diario-revisado"; agenteId: string; entradaId: string | null; aRevisar: number }
@@ -745,6 +769,7 @@ export type Acao =
   | { tipo: "faixa-trabalhos"; agenteId: string | null }
   /** ADR-099 (parte 5): abre (o id do bot) ou fecha (null) as frentes de um bot na tela Trabalhos. */
   | { tipo: "bot-trabalhos"; agenteId: string | null }
+  | { tipo: "tarefas-arquivadas"; tarefas: TarefaDto[] | null | "erro" }
   | { tipo: "uso-do-mac"; uso: UsoDoMac }
   | { tipo: "experimentos"; experimentos: Experimentos; quadroLiberado?: boolean }
   | { tipo: "tempo-task"; id: string | null }
@@ -770,6 +795,7 @@ export const estadoInicial: Estado = {
   subagentesDoFim: {},
   turnosDesmentidos: {},
   cancelando: {},
+  desviosAgindo: {},
   salas: [],
   suaVez: null,
   naoLidos: null,
@@ -798,6 +824,9 @@ export const estadoInicial: Estado = {
   decisoesDoBot: {},
   avisoConexao: null,
   concessoes: {},
+  navegadores: {},
+  lugaresNavegador: {},
+  lugarNavegadorAberto: null,
   liberacoesDispensadas: {},
   memorias: {},
   memoriasARevisar: {},
@@ -846,6 +875,7 @@ export const estadoInicial: Estado = {
   pressao: null,
   faixaTrabalhosAberta: null,
   botAbertoEmTrabalhos: null,
+  tarefasArquivadas: null,
   usoDoMac: "equilibrado",
   experimentos: { calibracao: false, memoriaLonga: false, whatsapp: false, quadro: false },
   tempoTaskAberto: null,
@@ -1553,7 +1583,8 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   "computador.mudou": (e, f) => (f.dados.saude === true ? invalidar(e, "frota") : e),
   // definido em 2026-10-16 (decisão E6): o uso da janela é relido junto com as IAs.
   // NOD-300: e os trabalhos — a máquina que perdeu ou recuperou o contato (motivo "presenca") muda a linha do dono.
-  "inventario.mudou": (e) => invalidar(e, "inventario", "frota", "executor", "ias", usoPlano(e), "maquinas", "trabalhos"),
+  // ADR-190 (N): uma máquina ligou ou desligou — o "● ligada" e o lugar de cada bot lido mudam.
+  "inventario.mudou": (e) => invalidar(e, "inventario", "frota", "executor", "ias", usoPlano(e), "maquinas", "trabalhos", ...Object.keys(e.lugaresNavegador).map((id): Invalidacao => `lugar-navegador:${id}`)),
   // ADR-102: a lista de contas (ou um login numa máquina) mudou. definido em 2026-10-16 (revisão do PR 1): a conta em uso
   // pode ter trocado (limite, login, outra conta na frente), e com ela o uso da janela do anel.
   // NOD-374: o app entrou ou saiu de Fora do ar (sonda, laço ou chamada que limpou): a lateral e a tela de apps se atualizam.
@@ -1568,6 +1599,13 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   "computador.cursor": (e) => e,
   // D (2026-11-12): o estado da máquina no stream; a tela do computador (C/D) o usa — aqui ainda não muda nada.
   "computador.estado": (e) => e,
+  // ADR-190: a vista do navegador daquele bot mudou; a releitura só corre para o bot cuja vista a tela já leu (main.ts).
+  "navegador.mudou": (e, f) => {
+    const agenteId = texto(f.dados.agenteId);
+    if (!agenteId) return e;
+    // O lugar (Mac desligado ↔ no nod) também muda com a vista: a linha do painel e os cartões releem.
+    return Object.hasOwn(e.lugaresNavegador, agenteId) ? invalidar(e, `navegador:${agenteId}`, `lugar-navegador:${agenteId}`) : invalidar(e, `navegador:${agenteId}`);
+  },
   "contas.mudou": (e) => invalidar(e, "contas", "maquinas", usoPlano(e)),
   "agente.mudou": (e, f) => {
     const agenteId = texto(f.dados.agente_id) ?? texto(f.dados.agenteId);
@@ -1602,6 +1640,13 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   // NOD-445: as páginas do bot moram fora do estado (web/lib/paginas-na-tela.ts relê por REST ao ver o frame).
   "paginas.mudaram": (e) => e,
   "canvas.mudou": (e) => e,
+  // ADR-192 (etapa 3, 2026-11-22): a Tarefa (objetivo) mudou — Resolver, Reabrir e Arquivar não mudam o trabalho, então a
+  // lista (que traz o `tarefa` de cada trabalho), a linha da conversa e a tela da tarefa relêem por aqui.
+  "tarefa.mudou": (e, f) => {
+    const id = texto(f.dados.trabalhoId);
+    const aberta = id && (e.trabalhoDetalhe[id] || (e.tela.tipo === "trabalho" && e.tela.id === id)) ? (`trabalho:${id}` as Invalidacao) : null;
+    return invalidar(e, "trabalhos", aberta);
+  },
   // ADR-083: um trabalho nasceu ou mudou — relê a lista (faixa, barra, gaveta), a conversa do bot (a linha "Abriu a
   // task", a pergunta e o resultado) e a tela da task, se ela já foi aberta.
   "trabalho.mudou": (e, f) => {
@@ -1650,7 +1695,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
         falhaLeitura: acao.escopo?.pessoaId === estado.sessao?.pessoaId && acao.escopo?.tenantId === estado.sessao?.tenantId ? estado.falhaLeitura : null,
         // NOD-326 (revisão 3): a Biblioteca também some na troca de tenant (não fica dado de um tenant no outro).
         ...(acao.escopo?.tenantId === estado.sessao?.tenantId ? {} : { bibliotecaDoBot: {} }),
-        ...(acao.escopo?.pessoaId === estado.sessao?.pessoaId ? {} : { onboarding: undefined, onboardingAberto: false, onboardingResolvido: false, agenda: AGENDA_INICIAL, trabalhos: null, trabalhoDetalhe: {}, pressao: null, atividadeDoBot: {}, atividadeHoje: {}, atividadeVista: null, historicoPerfil: {}, decisoesDoBot: {}, bibliotecaDoBot: {} }) };
+        ...(acao.escopo?.pessoaId === estado.sessao?.pessoaId ? {} : { onboarding: undefined, onboardingAberto: false, onboardingResolvido: false, agenda: AGENDA_INICIAL, trabalhos: null, trabalhoDetalhe: {}, tarefasArquivadas: null, pressao: null, atividadeDoBot: {}, atividadeHoje: {}, atividadeVista: null, historicoPerfil: {}, decisoesDoBot: {}, bibliotecaDoBot: {} }) };
     case "navegar": {
       // definido em 2026-10-08 (revisão W5): reabrir uma task já vista relê as mensagens dela (o detalhe guardado é de
       // quando ela foi aberta da última vez); W11: sair da tela da task de um bot cuja conversa não está carregada apaga o
@@ -1711,6 +1756,10 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       }));
     case "fala-pendente-sai":
       return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
+    case "desvio-agindo": {
+      const { [acao.mensagemId]: _antes, ...resto } = estado.desviosAgindo;
+      return { ...estado, desviosAgindo: acao.valor ? { ...resto, [acao.mensagemId]: acao.valor } : resto };
+    }
     case "cancelando-turno":
     case "turno-cancelado":
     case "cancelamento-recusado":
@@ -2007,6 +2056,12 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // Emenda ADR-057 (2026-11-18): o estado guarda o catálogo inteiro, com os apps de chave; o modal do Marketplace
       // (web/react/marketplace/) conecta os dois jeitos. Quem só sabe abrir login filtra na hora de desenhar (`appsDeLogin`).
       return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
+    case "hidratar-navegador":
+      return { ...estado, navegadores: { ...estado.navegadores, [acao.agenteId]: acao.navegador } };
+    case "hidratar-lugar-navegador":
+      return { ...estado, lugaresNavegador: { ...estado.lugaresNavegador, [acao.agenteId]: acao.lugar } };
+    case "lugar-navegador-aberto":
+      return { ...estado, lugarNavegadorAberto: acao.chave };
     case "hidratar-concessoes":
       // Sem as dispensas na resposta, o que havia fica: sem saber o que a pessoa dispensou, o cartão de liberar não aparece.
       return { ...estado, concessoes: { ...estado.concessoes, [acao.agenteId]: acao.concessoes }, liberacoesDispensadas: acao.liberacoesDispensadas ? { ...estado.liberacoesDispensadas, [acao.agenteId]: acao.liberacoesDispensadas } : estado.liberacoesDispensadas };
@@ -2208,6 +2263,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     }
     case "faixa-trabalhos":
       return estado.faixaTrabalhosAberta === acao.agenteId ? estado : { ...estado, faixaTrabalhosAberta: acao.agenteId };
+    case "tarefas-arquivadas":
+      return { ...estado, tarefasArquivadas: acao.tarefas };
     case "bot-trabalhos":
       return estado.botAbertoEmTrabalhos === acao.agenteId ? estado : { ...estado, botAbertoEmTrabalhos: acao.agenteId };
     case "uso-do-mac":
@@ -2389,6 +2446,8 @@ export function invalidacoesDaTela(estado: Estado): Invalidacao[] {
   if (t.tipo === "sala" && !estado.carregado.salas) faltas.push("salas");
   if (t.tipo === "nova-sala" && !estado.carregado.salas) faltas.push("salas");
   if (t.tipo === "conversa" && !estado.concessoes[t.agenteId]) faltas.push(`concessoes:${t.agenteId}`);
+  // ADR-190 (M, N): onde o navegador do bot da pessoa mora — a linha do painel e os cartões do Mac desligado na conversa.
+  if (t.tipo === "conversa" && !(t.agenteId in estado.lugaresNavegador) && estado.frota?.agentes.some((a) => a.id === t.agenteId && a.ownerId === estado.sessao?.pessoaId)) faltas.push(`lugar-navegador:${t.agenteId}`);
   // Modo ligação (2026-10-04): o botão "Ligar" do cabeçalho só aparece com a disponibilidade lida, e só para bot da pessoa.
   if (t.tipo === "conversa" && !(t.agenteId in estado.disponibilidadeLigacao) && estado.frota?.agentes.some((a) => a.id === t.agenteId && a.ownerId === estado.sessao?.pessoaId)) faltas.push(`disponibilidade:${t.agenteId}`);
   // Os níveis da gaveta que leem algo próprio: a memória do bot e o histórico da rotina aberta.

@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, copyFile, cp, mkdir, readdir } from "node:fs/promises";
+import { access, copyFile, cp, mkdir, readdir, rename, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 /**
@@ -11,7 +11,12 @@ import { basename, dirname, join } from "node:path";
  *
  * Antes do `--resume`, o driver traz a sessão para a pasta da conta do turno: procura nas outras pastas de conta da mesma
  * máquina (as irmãs da pasta da conta e o ~/.claude) e COPIA o transcript e a pasta ao lado (subagentes, resultados de
- * ferramenta). Copiar, não mover: a conta de origem, se voltar, segue retomando a dela. Nunca sobrescreve.
+ * ferramenta). Copiar, não mover: a conta de origem continua com a cópia dela.
+ *
+ * QA r142 (2026-11-20): a fila de contas alterna — a conta A para no limite, a B segue com o `--resume`, e o limite da A
+ * reseta e ela volta. A cópia da A ficou parada antes dos turnos da B; retomá-la ("já estava") esquecia tudo o que a
+ * conversa fez na B. Por isso vale a cópia mais recente (o CLI só acrescenta ao transcript): se outra conta tem uma mais
+ * nova que a da conta do turno, ela substitui a desta conta por troca atômica (arquivo temporário + rename).
  */
 
 /** O id de sessão que o nod gera e grava (uuid); qualquer outra coisa não vira caminho. */
@@ -41,20 +46,29 @@ export async function outrasPastasDeConta(configDir: string | undefined, home: s
 
 export type SessaoTrazida = { trouxe: false; motivo: "ja_estava" | "nao_achou" | "id_invalido" } | { trouxe: true; de: string };
 
-/** Garante a sessão na pasta da conta do turno; `de` é o nome da pasta de origem (o id da conta, nunca um caminho com nome de pessoa). */
+const modificadoEm = (p: string) => stat(p).then((s) => s.mtimeMs, () => -1);
+
+/** Garante na pasta da conta do turno a cópia mais recente da sessão; `de` é o nome da pasta de origem (o id da conta, nunca um caminho com nome de pessoa). */
 export async function trazerSessaoDeOutraConta(o: { sessao: string; configDir: string | undefined; home: string }): Promise<SessaoTrazida> {
   if (!ID_DE_SESSAO.test(o.sessao)) return { trouxe: false, motivo: "id_invalido" };
   const alvo = o.configDir ?? join(o.home, ".claude");
-  if (await ondeEstaASessao(alvo, o.sessao)) return { trouxe: false, motivo: "ja_estava" };
+  const arquivo = `${o.sessao}.jsonl`;
+  const daqui = await ondeEstaASessao(alvo, o.sessao);
+  const desta = daqui ? await modificadoEm(join(daqui, arquivo)) : -1;
+  let melhor: { conta: string; origem: string; quando: number } | null = null;
   for (const outra of await outrasPastasDeConta(o.configDir, o.home)) {
     const origem = await ondeEstaASessao(outra, o.sessao);
     if (!origem) continue;
-    const destino = join(alvo, "projects", basename(origem));
-    await mkdir(destino, { recursive: true });
-    await copyFile(join(origem, `${o.sessao}.jsonl`), join(destino, `${o.sessao}.jsonl`), constants.COPYFILE_EXCL);
-    const aoLado = join(origem, o.sessao);
-    if (await existe(aoLado)) await cp(aoLado, join(destino, o.sessao), { recursive: true, force: false, errorOnExist: false });
-    return { trouxe: true, de: basename(outra) };
+    const quando = await modificadoEm(join(origem, arquivo));
+    if (quando > desta && (!melhor || quando > melhor.quando)) melhor = { conta: outra, origem, quando };
   }
-  return { trouxe: false, motivo: "nao_achou" };
+  if (!melhor) return { trouxe: false, motivo: daqui ? "ja_estava" : "nao_achou" };
+  const destino = daqui ?? join(alvo, "projects", basename(melhor.origem));
+  await mkdir(destino, { recursive: true });
+  const temporario = join(destino, `.${arquivo}.${process.pid}.${Date.now()}.tmp`);
+  await copyFile(join(melhor.origem, arquivo), temporario, constants.COPYFILE_EXCL);
+  await rename(temporario, join(destino, arquivo));
+  const aoLado = join(melhor.origem, o.sessao);
+  if (await existe(aoLado)) await cp(aoLado, join(destino, o.sessao), { recursive: true, force: true, errorOnExist: false });
+  return { trouxe: true, de: basename(melhor.conta) };
 }

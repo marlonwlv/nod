@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { aprovacoesAbertasDaConversa, PLACEHOLDER_COM_APROVACAO } from "../../../web/lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, PLACEHOLDER_COM_APROVACAO, placeholderComAprovacao } from "../../../web/lib/recusa-da-aprovacao.ts";
 import { pilulaDosPedidos } from "../../../web/lib/rolagem.ts";
 import { comandoEmUmaLinha, porqueCurto } from "../../../web/telas/sua-vez.ts";
 
@@ -48,15 +48,16 @@ describe("a pílula dos pedidos fora da tela", () => {
     expect(pilulaDosPedidos({ decisaoId: "", nome: "", total: 2, posicao: "visivel" })).toBe("");
   });
 
+  // revisto em 2026-11-20 (ADR-191): "Vera espera você", com o que ela pede quando o cartão diz.
   it("um pedido fora: o nome do bot e leva ao cartão", () => {
     const html = pilulaDosPedidos({ decisaoId: "d1", nome: "Vera", total: 1, posicao: "acima" });
-    expect(html).toContain("Vera precisa de você");
+    expect(html).toContain("Vera espera você");
     expect(html).toContain('data-act="ver-decisao"');
     expect(html).toContain('data-id="d1"');
   });
 
   it("vários: a contagem", () => {
-    expect(pilulaDosPedidos({ decisaoId: "d1", nome: "Vera", total: 3, posicao: "abaixo" })).toContain("3 pedidos precisam de você");
+    expect(pilulaDosPedidos({ decisaoId: "d1", nome: "Vera", total: 3, posicao: "abaixo" })).toContain("3 pedidos esperam você");
   });
 });
 
@@ -70,6 +71,11 @@ describe("mensagem com aprovação aberta", () => {
 
   it("o campo diz o que mandar mensagem faz", () => {
     expect(PLACEHOLDER_COM_APROVACAO).toBe("Ou diga o que fazer em vez disso");
+  });
+
+  it("com o navegador aberto ao lado, o curto (a conversa estreita cortava o completo); fechado, o completo", () => {
+    expect(placeholderComAprovacao(false)).toBe("Ou diga o que fazer em vez disso");
+    expect(placeholderComAprovacao(true)).toBe("Ou diga o que fazer");
   });
 });
 

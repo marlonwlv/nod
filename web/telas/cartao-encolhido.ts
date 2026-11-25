@@ -5,6 +5,9 @@ import { iconeDaLinha } from "../lib/card-proposta.ts";
 import { ondeLegivel } from "./card-pasta.ts";
 import { acaoHumana, FRASE_ACAO_NO_COMPUTADOR, linhaNaoPermitiu } from "./sua-vez.ts";
 import { ehRotinaWebhook, enderecoNoCard, origemDaTela } from "./webhook.ts";
+import { conectorDoApp, nomeDoApp } from "./app-acesso.ts";
+import { logoApp } from "./marketplace.ts";
+import { fraseCurta } from "../lib/pedidos-que-esperam.ts";
 
 /**
  * O cartão encolhido (definido em 2026-10-18, plano do chat limpo, Parte 3 · 3A, PR 4; protótipo "D3A · Cartão encolhido",
@@ -237,6 +240,7 @@ export function turnoDoEncolhido(m: Mensagem): string | null {
       return "turnoId" in p ? p.turnoId ?? null : null;
     case "regra_permanente":
     case "proposta_decidida":
+    case "pedido_dispensado":
       return p.turnoId;
     case "pasta_aberta":
       return p.turnoId ?? null;
@@ -252,6 +256,7 @@ export function pedidoDoRecibo(m: Mensagem): string | null {
   switch (p.kind) {
     case "resultado_aprovacao":
     case "regra_permanente":
+    case "pedido_dispensado":
       return p.decisaoId;
     case "consentimento":
       return "decisaoId" in p ? p.decisaoId ?? null : null;
@@ -261,4 +266,64 @@ export function pedidoDoRecibo(m: Mensagem): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * O pedido que a pessoa deixou para trás ao seguir conversando (definido em 2026-11-20, ADR-191, pedido do dono; Paper,
+ * página "Pedidos pendentes · seguir conversando"): no lugar do cartão, uma LINHA cinza compacta — o pedido, "· você seguiu
+ * sem …" e, à direita, o caminho para refazer. É a mesma âncora do cartão encolhido (`turnoDoEncolhido`): a última fala do
+ * turno que pediu. Vale para o recibo `pedido_dispensado` e para a aprovação substituída (ADR-184), que fica "não pago".
+ * null = o recibo não é desses (segue o cartão encolhido de sempre).
+ */
+export type LinhaDispensada = { decisaoId: string; icone: "ponto" | "app" | "pagamento"; titulo: string; sufixo: string; acao: string; slug?: string };
+
+/** "Pagar R$ 249,90 na loja" → "não pago": o particípio do verbo do pedido; sem verbo conhecido, "nada rodou". */
+const NAO_FEITO: Readonly<Record<string, string>> = { pagar: "não pago", apagar: "não apagado", excluir: "não excluído", enviar: "não enviado", mandar: "não enviado", publicar: "não publicado", comprar: "não comprado", rodar: "não rodou", executar: "não rodou", criar: "não criado", gravar: "não gravado", salvar: "não salvo", atualizar: "não atualizado", agendar: "não agendado", mover: "não movido", transferir: "não transferido" };
+
+export function naoFeito(titulo: string): string {
+  const verbo = titulo.trim().split(/\s+/u)[0]?.toLocaleLowerCase("pt-BR") ?? "";
+  return NAO_FEITO[verbo] ?? "nada rodou";
+}
+
+const maiusculaInicial = (s: string): string => s.charAt(0).toLocaleUpperCase("pt-BR") + s.slice(1);
+
+/** "Pedir de novo": manda ao bot uma mensagem curta pelo campo (a rota de sempre, conversas.enviar). */
+function pedirDeNovo(decisaoId: string, frase: string): string {
+  return botao("pedir-de-novo", "Pedir de novo", { classe: "pd-acao", id: decisaoId, dados: { texto: `Pode pedir de novo: ${minusculaDaFrase(frase)}` } });
+}
+
+const minusculaDaFrase = (s: string): string => s.charAt(0).toLocaleLowerCase("pt-BR") + s.slice(1);
+
+export function linhaDispensada(m: Mensagem, estado: Estado): LinhaDispensada | null {
+  const p = m.payload;
+  if (p?.kind === "resultado_aprovacao" && p.substituida) {
+    const titulo = fraseCurta(p.frase ?? p.itens[0]?.texto ?? "O pedido");
+    return { decisaoId: p.decisaoId, icone: "pagamento", titulo: maiusculaInicial(titulo), sufixo: naoFeito(titulo), acao: pedirDeNovo(p.decisaoId, titulo) };
+  }
+  if (p?.kind !== "pedido_dispensado") return null;
+  if (p.ajuda) {
+    // O "Fazer agora" é o "Abrir computador" do cartão da ajuda: a tela do bot, já no controle da pessoa.
+    return { decisaoId: p.decisaoId, icone: "ponto", titulo: maiusculaInicial(p.frase), sufixo: "você seguiu sem entrar", acao: botao("abrir-computador", "Fazer agora", { classe: "pd-acao", id: p.agenteId, dados: { assumir: "1" } }) };
+  }
+  if (p.conector) {
+    const nome = nomeDoApp(estado, p.conector);
+    const pronto = conectorDoApp(estado, p.conector)?.habilitado === true;
+    // O card de conexão: "Conectar" abre o login de sempre (conectar-app); com o app já conectado, pede de novo ao bot.
+    if (p.conectar) return { decisaoId: p.decisaoId, icone: "app", slug: p.conector, titulo: `Conectar o ${nome}`, sufixo: "você seguiu sem conectar", acao: pronto ? pedirDeNovo(p.decisaoId, `conectar o ${nome}`) : botao("conectar-app", "Conectar", { classe: "pd-acao", id: p.conector, aria: `Conectar o ${nome}` }) };
+    return { decisaoId: p.decisaoId, icone: "app", slug: p.conector, titulo: maiusculaInicial(p.frase), sufixo: "você seguiu sem responder", acao: pedirDeNovo(p.decisaoId, p.frase) };
+  }
+  return { decisaoId: p.decisaoId, icone: "ponto", titulo: maiusculaInicial(p.frase), sufixo: "você seguiu sem responder", acao: pedirDeNovo(p.decisaoId, p.frase) };
+}
+
+const ICONE_PAGAMENTO = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="2" y="3.5" width="12" height="9" rx="1.6"/><path d="M2 6.5h12M4.5 10h2.5"/></svg>';
+
+/** O HTML da linha: o ícone numa coluna fixa de 16 px, o texto (13/18) com o sufixo mais claro e o link azul à direita. */
+export function renderLinhaDispensada(l: LinhaDispensada, mensagemId: string, estado: Estado): string {
+  const icone = l.icone === "pagamento" ? ICONE_PAGAMENTO : l.icone === "app" && l.slug ? logoApp(estado, l.slug, l.titulo.replace(/^Conectar o /u, "")) : '<span class="pd-ponto" aria-hidden="true"></span>';
+  const titulo = `pd-t-${esc(mensagemId)}`;
+  return `<div class="pedido-dispensado" role="group" aria-labelledby="${titulo}" data-pedido-dispensado="${esc(l.decisaoId)}" data-cartao-encolhido="${esc(l.decisaoId)}" data-anuncio="${esc(`${l.titulo}: ${l.sufixo}`)}">`
+    + `<span class="pd-ic">${icone}</span>`
+    + `<span class="pd-texto" id="${titulo}" tabindex="-1">${esc(l.titulo)} <span class="pd-sufixo">· ${esc(l.sufixo)}</span></span>`
+    + l.acao
+    + "</div>";
 }

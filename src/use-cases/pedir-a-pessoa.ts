@@ -75,24 +75,52 @@ export function normalizarOpcoesComRecomendada(opcoesBrutas: unknown, recomendad
 export function normalizarPedidoAPessoa(args: unknown): ArgsPedirAPessoa {
   const a = (typeof args === "object" && args !== null ? args : {}) as Record<string, unknown>;
   const tipo = TIPOS_PEDIDO_A_PESSOA.find((t) => t === a.tipo) ?? "pergunta";
-  const texto = typeof a.texto === "string" && a.texto.trim() !== "" ? a.texto.trim() : "(pedido sem texto)";
+  // Prova real (2026-11-20): o modelo chamou sem o esquema carregado (ferramenta adiada do Claude Code) e mandou a frase em
+  // `pergunta` e, na segunda vez, `opcoes` como texto JSON; o cartão saiu "(pedido sem texto)" e sem botões. Os dois
+  // erros de forma viram o que o modelo quis dizer.
+  const bruto = typeof a.texto === "string" && a.texto.trim() !== "" ? a.texto : a.pergunta;
+  const texto = typeof bruto === "string" && bruto.trim() !== "" ? bruto.trim() : "(pedido sem texto)";
   const saida: ArgsPedirAPessoa = { tipo, texto };
   if (typeof a.dado === "string" && a.dado.trim() !== "") saida.dado = a.dado.trim();
   if (typeof a.quem_destrava === "string" && a.quem_destrava.trim() !== "") saida.quem_destrava = a.quem_destrava.trim();
-  const { opcoes, recomendada } = normalizarOpcoesComRecomendada(a.opcoes, a.recomendada);
+  const { opcoes, recomendada } = normalizarOpcoesComRecomendada(listaEmTexto(a.opcoes), a.recomendada);
   if (opcoes.length > 0) saida.opcoes = opcoes;
   if (recomendada !== undefined) saida.recomendada = recomendada;
   return saida;
 }
 
-/** Resolve a pessoa nomeada entre as pessoas do tenant (nome inteiro ou primeiro nome, sem caixa); ausente/desconhecida = dona. */
-export async function resolverDecisor(deps: Deps, nome: string | undefined): Promise<{ id: string; nome: string }> {
+/** `opcoes` que veio como texto de um array JSON (`"[\"Sim\", \"Não\"]"`) vira o array; qualquer outra coisa passa igual. */
+function listaEmTexto(v: unknown): unknown {
+  if (typeof v !== "string" || !/^\s*\[/.test(v)) return v;
+  try {
+    const lido: unknown = JSON.parse(v);
+    return Array.isArray(lido) ? lido : v;
+  } catch {
+    return v;
+  }
+}
+
+/**
+ * Resolve a pessoa nomeada entre as pessoas do tenant: o id, o nome inteiro ou o primeiro nome (sem caixa); ausente = dona.
+ * revisto em 2026-11-25 (QA-236): com duas "Ana" no time a pergunta ia calada para a primeira da lista (ordem alfabética),
+ * e um nome que não existe ia à dona sem o bot saber. Nome que serve a mais de uma pessoa ou a nenhuma vai à DONA (quem
+ * pode redirecionar) e volta com `aviso` dizendo para quem foi e, no ambíguo, o id de cada homônima. Não recusa: pedir_a_pessoa
+ * nunca é recusada pelos args (EMENDA 16).
+ */
+export async function resolverDecisor(deps: Deps, nome: string | undefined): Promise<{ id: string; nome: string; aviso?: string }> {
   const pessoas = await deps.repos.pessoas.listarDoTenant();
   const dona = pessoas.find((p) => p.id === deps.escopo.pessoaId) ?? { id: deps.escopo.pessoaId, nome: "você" };
   if (!nome) return { id: dona.id, nome: dona.nome };
   const alvo = nome.trim().toLowerCase();
-  const achada = pessoas.find((p) => p.nome.toLowerCase() === alvo) ?? pessoas.find((p) => p.nome.toLowerCase().split(/\s+/)[0] === alvo);
-  return achada ? { id: achada.id, nome: achada.nome } : { id: dona.id, nome: dona.nome };
+  const porId = pessoas.find((p) => p.id.toLowerCase() === alvo);
+  if (porId) return { id: porId.id, nome: porId.nome };
+  const inteiras = pessoas.filter((p) => p.nome.trim().toLowerCase() === alvo);
+  const candidatas = inteiras.length > 0 ? inteiras : pessoas.filter((p) => p.nome.trim().toLowerCase().split(/\s+/)[0] === alvo);
+  const [unica] = candidatas;
+  if (candidatas.length === 1 && unica) return { id: unica.id, nome: unica.nome };
+  if (candidatas.length === 0) return { id: dona.id, nome: dona.nome, aviso: `Ninguém no time se chama "${nome.trim()}"; a pergunta foi para ${dona.nome}, a dona.` };
+  const lista = candidatas.map((p) => `${p.nome} (id ${p.id})`).join("; ");
+  return { id: dona.id, nome: dona.nome, aviso: `"${nome.trim()}" serve a mais de uma pessoa do time: ${lista}. A pergunta foi para ${dona.nome}, a dona; da próxima vez, mande o id em quem_destrava.` };
 }
 
 /**
@@ -221,5 +249,5 @@ async function criarPedidoAPessoa(deps: Deps, input: Parameters<typeof pedirAPes
   };
   // ADA-28 (ADR-159): a pergunta feita durante uma tarefa é a espera dela (um único "Precisa de você").
   const daTarefa = await ligarDecisaoATarefa(deps, decisao);
-  return { data: { estado: "pendente", decisao_id: decisao.id, instrucao: "encerre o turno; a resposta retoma depois" }, events: [evento, ...daTarefa] };
+  return { data: { estado: "pendente", decisao_id: decisao.id, instrucao: "encerre o turno; a resposta retoma depois", ...(decisor.aviso ? { aviso: decisor.aviso } : {}) }, events: [evento, ...daTarefa] };
 }
