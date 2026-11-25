@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   APP_PARADO, appDeveAtualizar, arquivoDaMarca, atualizandoAgora, CARENCIA_DO_APP_MS, codificar, comandoDeAtualizarSolto, manifestoDoWindows,
-  marcaValida, motorDoWindowsDiferente, scriptDaAtualizacao, VALIDADE_DA_MARCA_MS,
+  marcaValida, motorDoWindowsDiferente, motorSeAtualiza, scriptDaAtualizacao, sinalizarQueSeAtualiza, VALIDADE_DA_MARCA_MS, VALIDADE_DO_SINAL_MS,
 } from "../../../motor/atualizacao-no-windows.ts";
 
 const sha = (t: string) => createHash("sha256").update(t).digest("hex");
@@ -88,5 +88,33 @@ describe("o motor do Windows se atualiza sozinho (2026-11-25)", () => {
     expect(appDeveAtualizar(APP_PARADO, { agora: 0, diferente: true, atualizando: true }).atualizar).toBe(false);
     const d = appDeveAtualizar(APP_PARADO, { agora: 0, diferente: null, atualizando: false });
     expect(d).toEqual({ estado: APP_PARADO, atualizar: false });
+  });
+
+  // Regression: QA-234 — o app derrubava o motor novo no meio do turno da pessoa (ao abrir e depois de 1 h), passando
+  // por cima da espera dos turnos (ADR-100/131) que o próprio motor faz. Found by QA Nod (r238) on 2026-11-25.
+  it("QA-234: motor novo com o sinal vivo (ele espera os turnos da pessoa): o app não dispara, nem ao abrir nem além da carência", () => {
+    const cuida = { diferente: true, atualizando: false, motorCuida: true };
+    expect(appDeveAtualizar(APP_PARADO, { agora: 0, ...cuida }).atualizar).toBe(false);
+    let e = appDeveAtualizar(APP_PARADO, { agora: 0, ...cuida }).estado;
+    for (const agora of [30 * MIN, CARENCIA_DO_APP_MS, 3 * CARENCIA_DO_APP_MS]) {
+      const d = appDeveAtualizar(e, { agora, ...cuida });
+      expect(d.atualizar).toBe(false);
+      e = d.estado;
+    }
+    // O motor parou de sinalizar (caiu, ou é o antigo que não sabe se atualizar): a carência conta a partir daqui.
+    const sem = { diferente: true, atualizando: false, motorCuida: false };
+    let d = appDeveAtualizar(e, { agora: 4 * CARENCIA_DO_APP_MS, ...sem });
+    expect(d.atualizar).toBe(false);
+    d = appDeveAtualizar(d.estado, { agora: 5 * CARENCIA_DO_APP_MS, ...sem });
+    expect(d.atualizar).toBe(true);
+  });
+
+  it("QA-234: o sinal do motor que se atualiza vale por VALIDADE_DO_SINAL_MS; sem arquivo, o motor é o antigo", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "nod-win-"));
+    const env = { NOD_PASTA: join(pasta, "ainda-nao-existe") };
+    expect(await motorSeAtualiza(env)).toBe(false);
+    await sinalizarQueSeAtualiza(env);
+    expect(await motorSeAtualiza(env)).toBe(true);
+    expect(await motorSeAtualiza(env, Date.now() + VALIDADE_DO_SINAL_MS + MIN)).toBe(false);
   });
 });
