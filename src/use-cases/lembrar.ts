@@ -32,12 +32,12 @@ export const registrarMemoria: CasoDeUso<EntradaRegistrarMemoria, { memoria: Mem
   const agente = await deps.repos.agentes.buscar(input.agenteId);
   if (!agente) throw new ErroDeDominio("nao_encontrado");
 
-  const criada = input.origem === "agente"
-    ? await deps.repos.memorias.criarDoAgenteSeAusente({ agenteId: agente.id, tipo: input.tipo, texto })
-    : null;
-  const memoria = criada?.memoria ?? await deps.repos.memorias.criar({ agenteId: agente.id, tipo: input.tipo, texto, origem: input.origem });
-  if (!memoria) throw new ErroDeDominio("nao_permitido");
-  if (criada && !criada.criada) return { data: { memoria, mensagem: null }, events: [] };
+  // QA-126: o duplo clique em Anotar (ou em "Lembrar disso") repetia a memória e a linha "anotei"; a repetição devolve a
+  // que já existe, como o `lembrar` repetido do bot.
+  const criada = await deps.repos.memorias.criarSeAusente({ agenteId: agente.id, tipo: input.tipo, texto, origem: input.origem });
+  if (!criada) throw new ErroDeDominio("nao_permitido");
+  const memoria = criada.memoria;
+  if (!criada.criada) return { data: { memoria, mensagem: null }, events: [] };
 
   const agora = deps.agora();
   const autoria = input.origem === "agente" ? autoriaAgente({ agenteId: agente.id, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher" }) : autoriaPessoa(deps.escopo);

@@ -36,6 +36,12 @@ export type TarefasDeTodosNaTela = {
   /** A tela em React: o que foi lido (o mesmo objeto até a próxima leitura) e o aviso de que mudou. */
   dados(): DadosDasTarefas;
   assinar(ouvinte: () => void): () => void;
+  /**
+   * QA-147: a vista e os filtros da tela vivem aqui, não no componente: sair (abrir um card) e voltar mantém Por bot, a
+   * busca e o Status, como na tela por string. A tela em React lê ao montar e guarda a cada escolha.
+   */
+  escolhas(): { vista: VistaDasTarefas; filtros: FiltrosDasTarefas };
+  guardarEscolhas(vista: VistaDasTarefas, filtros: FiltrosDasTarefas): void;
   abrir(): void;
   fechar(): void;
   aberta(): boolean;
@@ -135,6 +141,8 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
       ouvintes.add(ouvinte);
       return () => ouvintes.delete(ouvinte);
     },
+    escolhas: () => ({ vista, filtros: { ...filtros } }),
+    guardarEscolhas(v, f) { vista = v; Object.assign(filtros, f); },
     abrir() {
       if (aberta) return;
       aberta = true;

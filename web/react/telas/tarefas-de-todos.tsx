@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { gruposDasTarefas, iniciaisDeVoce, quantasPerguntaram, rotuloDaLinha, resumoDosQuadros, type FiltrosDasTarefas, type GrupoDasTarefas, type LinhaDaTarefa, type VistaDasTarefas } from "../../lib/tarefas-de-todos.ts";
 import type { TarefasDeTodosNaTela } from "../../lib/tarefas-de-todos-na-tela.ts";
 import { iconeDaPrioridade } from "../../telas/opcoes-quadro.ts";
@@ -12,7 +12,7 @@ import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx"
  * digitar não regrava a tela inteira, então o foco e o cursor ficam sem guardar e devolver.
  */
 export interface AcoesDasTarefas {
-  fonte: Pick<TarefasDeTodosNaTela, "dados" | "assinar" | "tentarDeNovo">;
+  fonte: Pick<TarefasDeTodosNaTela, "dados" | "assinar" | "tentarDeNovo"> & Partial<Pick<TarefasDeTodosNaTela, "escolhas" | "guardarEscolhas">>;
   /** O mascote do bot (o HTML do main). */
   avatar: (agenteId: string | null) => string;
   /** QA-181: o nome de quem lê (as iniciais do "Você" nas linhas sem bot; ausente = "V"). */
@@ -36,8 +36,11 @@ const VISTAS: readonly [VistaDasTarefas, string][] = [["quadro", "Por quadro"], 
 
 export function TelaTarefasDeTodos({ acoes }: { acoes: AcoesDasTarefas }) {
   const { quadros, erro } = useSyncExternalStore(acoes.fonte.assinar, acoes.fonte.dados, acoes.fonte.dados);
-  const [vista, setVista] = useState<VistaDasTarefas>("quadro");
-  const [filtros, setFiltros] = useState<FiltrosDasTarefas>({ busca: "", emAberto: true, porPrioridade: false });
+  // QA-147: começa no que a pessoa tinha escolhido (o controlador guarda entre aberturas) e guarda cada escolha.
+  const [vista, setVista] = useState<VistaDasTarefas>(() => acoes.fonte.escolhas?.().vista ?? "quadro");
+  const [filtros, setFiltros] = useState<FiltrosDasTarefas>(() => acoes.fonte.escolhas?.().filtros ?? { busca: "", emAberto: true, porPrioridade: false });
+  const { guardarEscolhas } = acoes.fonte;
+  useEffect(() => { guardarEscolhas?.(vista, filtros); }, [guardarEscolhas, vista, filtros]);
   const conversor = useRef<ConversorDeHtml | null>(null);
   conversor.current ??= criarConversor();
   useLayoutEffect(() => conversor.current?.fecharQuadro());

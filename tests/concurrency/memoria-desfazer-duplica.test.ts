@@ -37,7 +37,7 @@ async function iguais(texto: string): Promise<number> {
 async function apagadaDoBot(texto: string): Promise<string> {
   return escopado(async (trx) => {
     const deps = depsSobreTrx(trx, PESSOA);
-    const r = await criarRepos(trx, PESSOA).memorias.criarDoAgenteSeAusente({ agenteId, tipo: "fato", texto });
+    const r = await criarRepos(trx, PESSOA).memorias.criarSeAusente({ agenteId, tipo: "fato", texto, origem: "agente" });
     await executar(deps, apagarMemoria, { memoriaId: r!.memoria.id });
     return (await deps.repos.memoriasDiario.ultimaDaMemoria(r!.memoria.id))!.id;
   });
@@ -60,7 +60,7 @@ describeIntegracao("QA-183: desfazer o apagar não duplica o que o bot já lembr
   it("bot lembra de novo e a pessoa desfaz: recusa mudou_depois e fica uma só", async () => {
     const texto = `Prefere reunião às terças ${randomUUID()}`;
     const entradaId = await apagadaDoBot(texto);
-    await escopado(async (trx) => criarRepos(trx, PESSOA).memorias.criarDoAgenteSeAusente({ agenteId, tipo: "fato", texto }));
+    await escopado(async (trx) => criarRepos(trx, PESSOA).memorias.criarSeAusente({ agenteId, tipo: "fato", texto, origem: "agente" }));
     const r = await Promise.allSettled([escopado((trx) => executar(depsSobreTrx(trx, PESSOA), desfazerEntradaDiario, { agenteId, entradaId }))]);
     expect(r.map(codigo)).toEqual(["mudou_depois"]);
     expect(await iguais(texto)).toBe(1);
@@ -72,7 +72,7 @@ describeIntegracao("QA-183: desfazer o apagar não duplica o que o bot já lembr
       const entradaId = await apagadaDoBot(texto);
       await Promise.allSettled([
         escopado((trx) => executar(depsSobreTrx(trx, PESSOA), desfazerEntradaDiario, { agenteId, entradaId })),
-        escopado((trx) => criarRepos(trx, PESSOA).memorias.criarDoAgenteSeAusente({ agenteId, tipo: "fato", texto })),
+        escopado((trx) => criarRepos(trx, PESSOA).memorias.criarSeAusente({ agenteId, tipo: "fato", texto, origem: "agente" })),
       ]);
       expect(await iguais(texto)).toBe(1);
     }
