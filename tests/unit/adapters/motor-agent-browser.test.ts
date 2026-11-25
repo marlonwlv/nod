@@ -294,6 +294,25 @@ describe("baixar: o download direto quando o do agent-browser falha (QA do naveg
     await expect(m.baixar(s, "@e99", "x.pdf")).rejects.toMatchObject({ motivo: "alvo_invalido" });
   });
 
+  it("corpo sem content-length (chunked) para no teto de 200 MB sem ler o resto e não deixa arquivo pela metade (QA Nod r216)", async () => {
+    respostas.push(falha("Download was canceled"), respondeA, respondeA);
+    const MB = 1024 * 1024;
+    let lidos = 0;
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(ctl) {
+        if (lidos >= 1024 * MB) { ctl.close(); return; }
+        lidos += MB;
+        ctl.enqueue(new Uint8Array(MB));
+      },
+    });
+    const buscar = (async () => new Response(corpo, { status: 200 })) as typeof fetch;
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, buscar });
+    await expect(m.baixar(s, "@e5", "grande.pdf")).rejects.toMatchObject({ motivo: "acao_falhou", detalhe: expect.stringMatching(/200 MB/) });
+    // Na main o `arrayBuffer()` lia o GB inteiro antes de olhar o tamanho.
+    expect(lidos).toBeLessThanOrEqual(202 * MB);
+    expect(existsSync(join(dados, pastaDoBot(A), "arquivos", "grande.pdf"))).toBe(false);
+  });
+
   it("cookieVale: domínio com e sem ponto, caminho e seguro só em https", () => {
     const u = new URL("https://app.exemplo.com.br/a/b");
     expect(cookieVale({ domain: ".exemplo.com.br", path: "/" }, u)).toBe(true);
