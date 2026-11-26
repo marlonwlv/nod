@@ -358,7 +358,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
   // No filtro, a conta que não está na máquina vira um botão grande (G2-M2).
   const direita = fora && x.maquinas.find((m) => m.id === filtro)?.conectada && !loginDaConta
     ? `<button type="button" class="bt sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(filtro!)}">Entrar na ${esc(nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas))}</button>`
-    : `${loginDaConta ? estadoDoLoginNaConta(loginDaConta, ondeEntra ? nomeCurto(ondeEntra, x.maquinas) : undefined) : `<span class="contas-estado ${classe}">${esc(estado)}</span>${estado === "Login venceu" ? entrarDeNovo(c, x) : ""}`}${chaveDaFila(c)}`;
+    : `${loginDaConta ? estadoDoLoginNaConta(loginDaConta, ondeEntra ? nomeCurto(ondeEntra, x.maquinas) : undefined) : `<span class="contas-estado ${classe}"${seloComDica(classe, estado)}>${esc(estado)}</span>${estado === "Login venceu" ? entrarDeNovo(c, x) : ""}`}${chaveDaFila(c)}`;
   return `<li class="cl-linha cl-linha-g1${fora ? " fora" : ""}${loginDaConta ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
       <button type="button" class="cl-alca" data-alca-ordem aria-label="Mover ${esc(nome)} (setas para cima e para baixo)">${ICONE.alca}</button>
       <span class="cl-pos" aria-hidden="true">${pos}</span>
@@ -399,14 +399,23 @@ function linhaDaMaquina(c: ContaIa, m: MaquinaDto, x: ContextoContas): string {
   return `<li class="cl-maq-linha">${ic}<div class="cl-maq-txt"><b>${esc(m.nome)}</b><small>${esc(sub)}</small></div>${alvoPendente(c, m)}${estado}${acao}${login ? "" : sair}</li>${bloco}`;
 }
 
+/**
+ * XUM-4 (print do Marlon, 2026-11-26): na lista o selo corta com "…" quando não cabe (o nome da máquina pode ser longo);
+ * o texto inteiro vai no title. "Disponível" e "Fora da fila" são curtos e ficam como eram.
+ */
+function seloComDica(classe: string, texto: string): string {
+  return classe === "e-disp" || classe === "e-fora" ? "" : ` title="${esc(texto)}"`;
+}
+
 /** O estado do login na linha da máquina (Paper G2c) e na linha da lista (G1b). */
 function estadoDoLoginNaConta(l: LoginNaTela, onde?: string): string {
   const em = onde ? ` na ${onde}` : "";
-  if (l.onde === "mac") return `<span class="contas-estado e-aviso">Entrando${esc(em)}</span>`;
+  const dica = (texto: string) => (onde ? ` title="${esc(texto)}"` : "");
+  if (l.onde === "mac") return `<span class="contas-estado e-aviso"${dica(`Entrando${em}`)}>Entrando${esc(em)}</span>`;
   const g = l.login;
   if (g.fase === "pronto") return '<span class="contas-estado e-uso">✓ Pronta</span>';
-  if (g.fase === "falhou" || g.fase === "cancelado") return `<span class="contas-estado e-erro">Não entrou${esc(em)}</span>`;
-  if (onde) return `<span class="contas-estado e-aviso">Entrando${esc(em)}</span>`;
+  if (g.fase === "falhou" || g.fase === "cancelado") return `<span class="contas-estado e-erro"${dica(`Não entrou${em}`)}>Não entrou${esc(em)}</span>`;
+  if (onde) return `<span class="contas-estado e-aviso"${dica(`Entrando${em}`)}>Entrando${esc(em)}</span>`;
   if (g.fase === "preparando") return `<span class="contas-estado e-disp">${g.preparo?.acao === "atualizar" ? "Atualizando…" : "Instalando…"}</span>`;
   if (g.fase === "conferindo" || g.codigoEnviado) return '<span class="contas-estado e-disp">Testando a conta…</span>';
   if (g.fase === "aguardando_pessoa" && g.url) return '<span class="contas-estado e-aviso">Esperando você no navegador</span>';

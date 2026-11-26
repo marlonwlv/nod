@@ -175,6 +175,39 @@
 /* Modal de 900 px (2026-11-20): uso 112 e a direita 196 (o chip mais longo, "No limite até sex 05:00", mais o toggle);
    o nome fica com o resto e corta com reticências em vez de passar por cima do uso. */
 .cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 16px 12px 28px minmax(0, 1fr) 112px 196px 16px; }
+/* XUM-4 (print do Marlon, 2026-11-26): os 196 px fixos não cabiam "No limite até 27/11 às 13:00" nem "Em uso na
+   nod-motor-teste" mais a chave, e o selo vazava para a esquerda por cima da barra de uso; com só "Disponível" sobrava
+   espaço ali e o nome cortava cedo. Agora as linhas dividem as colunas da lista (subgrid): a do estado tem a largura do
+   maior selo presente (até 200 px; passou disso, "…" e o texto inteiro no title) e o uso continua alinhado entre as
+   linhas. O respiro lateral virou coluna (4 px + o gap = os 14 px de antes) porque o padding de um subgrid empurra os
+   itens das pontas para fora das colunas fixas. Lista estreita (modal apertado, celular): o uso e o estado descem para
+   a linha de baixo do nome, o uso com o que sobra e o estado com o que precisa. */
+.cl-lista:has(> .cl-linha-g1) {
+  container: cl-lista / inline-size; display: grid; column-gap: 10px;
+  grid-template-columns: 4px 16px 12px 28px minmax(120px, 1fr) 112px minmax(0, max-content) 16px 4px;
+}
+.cl-lista:has(> .cl-linha-g1) > :not(.cl-linha-g1) { grid-column: 1 / -1; }
+.cl-lista .cl-linha.cl-linha-g1 { grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: 10px; padding-inline: 0; }
+.cl-linha-g1 > .cl-alca { grid-column: 2; grid-row: 1; }
+.cl-linha-g1 > .cl-pos { grid-column: 3; grid-row: 1; }
+.cl-linha-g1 > .cl-logo { grid-column: 4; grid-row: 1; }
+.cl-linha-g1 > .cl-corpo { grid-column: 5; grid-row: 1; min-width: 0; }
+.cl-linha-g1 > .cl-uso-col { grid-column: 6; grid-row: 1; }
+.cl-linha-g1 > .cl-dir { grid-column: 7; grid-row: 1; min-width: 0; }
+.cl-linha-g1 > .cl-mais { grid-column: 8; grid-row: 1; }
+.cl-linha-g1 .cl-dir > .contas-estado { display: block; flex: 0 1 auto; min-width: 0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.cl-linha-g1 .cl-dir > .contas-estado::before { display: inline-block; vertical-align: 1px; }
+.cl-linha-g1 .cl-dir > :not(.contas-estado) { flex: none; }
+@container cl-lista (max-width: 599px) {
+  .cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 4px auto 12px 28px minmax(0, 1fr) 72px minmax(0, max-content) 16px 4px; row-gap: 8px; }
+  .cl-linha-g1 > .cl-corpo { grid-column: 5 / 8; }
+  .cl-linha-g1 > .cl-uso-col { grid-column: 5 / 7; grid-row: 2; }
+  .cl-linha-g1 > .cl-dir { grid-column: 7; grid-row: 2; }
+  .cl-linha-g1 > .cl-uso-col:empty { display: none; }
+  .cl-linha-g1:has(> .cl-uso-col:empty) > .cl-dir { grid-column: 5 / 8; }
+  .cl-linha-g1 > .cl-mais { grid-row: 1 / 3; }
+  .cl-linha-g1 .cl-dir > .contas-estado { max-width: none; }
+}
 .cl-linha-g1 .cl-nome-bt { display: block; min-width: 0; overflow: hidden; }
 .cl-linha-g1 .cl-nome-bt b { display: block; overflow: hidden; text-overflow: ellipsis; }
 .cl-linha-g1 .cl-nome > :not(.cl-nome-bt) { flex: none; }

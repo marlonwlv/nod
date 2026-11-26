@@ -812,9 +812,9 @@ describe("login aberto pela lista (Paper G1b e G2c)", () => {
     const html = renderListaDeContas(ctx({ ui: { logins: [naVm()] } }));
     expect(html).not.toContain('data-form="cl-codigo"');
     expect(html).not.toContain("Abrimos a página");
-    expect(html).toContain('<span class="contas-estado e-aviso">Entrando na vm-bots</span>');
+    expect(html).toContain('<span class="contas-estado e-aviso" title="Entrando na vm-bots">Entrando na vm-bots</span>');
     const falhou = renderListaDeContas(ctx({ ui: { logins: [naVm({ fase: "falhou", erro: "codigo_invalido" })] } }));
-    expect(falhou).toContain('<span class="contas-estado e-erro">Não entrou na vm-bots</span>');
+    expect(falhou).toContain('<span class="contas-estado e-erro" title="Não entrou na vm-bots">Não entrou na vm-bots</span>');
   });
 
   it("G2c: na conta aberta, o login mora embaixo da máquina dele, com o estado na linha e sem o Sair", () => {
@@ -838,7 +838,7 @@ describe("login de conta nova com a Nova conta fechada (Paper G1b)", () => {
   it("a linha só diz onde está entrando e reabre a Nova conta no ponto do login", () => {
     const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ contaId: null, apelido: "Freela" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(html).not.toContain('data-form="cl-codigo"');
-    expect(html).toContain('<span class="contas-estado e-aviso">Entrando na vm-bots</span>');
+    expect(html).toContain('<span class="contas-estado e-aviso" title="Entrando na vm-bots">Entrando na vm-bots</span>');
     expect(html).toContain('data-act="cl-nova-retomar" data-ia="claude-cli" data-apelido="Freela"');
   });
 });
