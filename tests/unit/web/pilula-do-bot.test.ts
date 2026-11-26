@@ -369,6 +369,15 @@ describe("CSS da pílula", () => {
   const css = readFileSync(new URL("../../../web/interface.css", import.meta.url), "utf8");
   const mobile = readFileSync(new URL("../../../web/mobile.css", import.meta.url), "utf8");
 
+  it("XUM-6 (computador, casca.css): abre num fade com leve subida a partir da aba em 200 ms, fecha em 120 ms, só opacity/transform; movimento reduzido seco", () => {
+    const casca = readFileSync(new URL("../../../web/casca.css", import.meta.url), "utf8");
+    expect(casca).toMatch(/\n\.pf-painel \{ clip-path: none; opacity: 0; transform: translateY\(8px\) scale\(0\.98\); transform-origin: 0 100%;\n {2}transition: opacity 120ms [^;]+, transform 120ms [^;]+; \}/);
+    expect(casca).toMatch(/\.pilula-frentes\[data-estado="aberta"\] \.pf-painel \{ clip-path: none; opacity: 1; transform: none;\n {2}transition: opacity 200ms [^;]+, transform 200ms [^;]+; \}/);
+    // Nada de layout na transição (o cartão flutua): nem width, height, max-height, top ou bottom.
+    expect(casca).not.toMatch(/\.pf-painel[^{]*\{[^}]*transition:[^}]*(width|height|top|bottom|margin)/);
+    expect(casca).toContain('@media (prefers-reduced-motion: reduce) and (not ((hover: none) and (pointer: coarse))) {\n.pf-painel, .pilula-frentes[data-estado="aberta"] .pf-painel { transform: none; transition: none; }\n}');
+  });
+
   it("o painel é absoluto, contido, e anima `clip-path` (nunca width/max-height); escondida, `hidden` vira display: none", () => {
     expect(css).toMatch(/\.pf-moldura \{ position: absolute;/);
     expect(css).toMatch(/\.pf-painel \{[^}]*contain: layout paint;[^}]*clip-path: inset\(calc\(100% - 36px\) calc\(50% - var\(--pilula-w\) \/ 2\) 0 round 18px\);[^}]*transition: clip-path/);

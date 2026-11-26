@@ -281,11 +281,11 @@
 .pf-lista .tv-texto { gap: 8px; }
 .pf-lista .tv-titulo { flex: 1 1 0; width: auto; font-weight: 400; color: var(--ink); }
 .pf-lista .tv-linha[data-estado="precisa"] .tv-titulo { font-weight: 500; }
-.pf-lista .tv-estado { flex: 0 1 auto; max-width: 60%; font-size: 11px; line-height: 14px; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pf-lista .tv-estado { flex: 0 1 auto; max-width: 60%; font-size: 11px; line-height: 16px; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .pf-lista .tv-linha[data-estado="precisa"] .tv-estado, .pf-lista [data-estado="precisa"] > .tv-ic { color: var(--warning); }
 .pf-lista [data-estado="parada"] > .tv-ic { color: var(--ink-3); }
 .pf-lista .tv-ic, .pf-lista .tv-ic svg, .pf-lista .tv-ic .pf-anel { width: 12px; height: 12px; }
-.pf-lista .tv-ic .pf-anel-trilho { stroke: var(--borda-sutil); }
+.pf-lista .tv-ic .pf-anel-trilho { stroke: var(--borda); }
 .pf-lista .tv-linha:hover .tv-titulo { text-decoration: none; }
 .pf-nova-linha { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; border: 0;
   border-radius: var(--raio-8); background: none; color: var(--ink-2); font: inherit; font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -687,6 +687,24 @@
 /* ---- A lista da pílula do campo agrupada por urgência (validação de 2026-11-18, Paper 9e/9f, jeito D) -----------------
    Seções em 11/14 maiúsculas a 0,06em (a de quem precisa da pessoa em azul), as prontas recolhidas numa linha que abre ali
    mesmo (details), e "Ver todas ›" no topo, no lugar do "fechar" (fechar é clicar fora, Esc ou a pílula). */
+/* XUM-6 (9f): o topo, o pé, o aviso de memória e as esperas na anatomia das linhas, no computador e no celular (no
+   celular, mobile.css só sobe os alvos para 44 px). */
+.pf-cab-titulo { display: flex; align-items: baseline; gap: 8px; font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); color: var(--ink-3); }
+.pf-cab-titulo b { font-weight: 600; color: var(--ink); }
+.pf-item { min-height: 28px; box-sizing: border-box; padding: 4px 8px; gap: 8px; font-size: 12px; line-height: 16px; }
+.pf-item > .pf-ponto { width: 8px; height: 8px; margin: 0 2px; border: 1.5px solid var(--ink-3); animation: none; }
+.pf-comando { font-size: 11px; }
+.pf-sub, .pf-item-fim { font-size: 11px; line-height: 16px; color: var(--ink-3); }
+.pf-memoria-info { display: flex; align-items: center; gap: 8px; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; font-size: 11px; line-height: 16px; color: var(--ink-3); }
+.pf-memoria-info svg { width: 12px; height: 12px; color: var(--ink-3); flex: none; }
+.pf-memoria-linha { gap: 8px; min-height: 28px; margin: 0; padding: 0 8px; border: 0; font-size: 11px; line-height: 16px; }
+.pf-pe { display: flex; height: 28px; box-sizing: border-box; align-items: center; margin: 0; padding: 0 2px 0 8px; border-top: 1px solid var(--borda-sutil); gap: 4px; font-size: 12px; line-height: 16px; }
+.pf-ver { height: 22px; padding: 0 6px; border-radius: var(--raio-6); color: var(--ink-3); font-size: 11px; line-height: 16px; font-weight: var(--peso-regular); text-decoration: none; }
+.pf-ver:hover { background: var(--hover); color: var(--ink); }
+.pf-pe > :is(.pf-ver, .pf-ver-todas):first-child, .pf-parar + :is(.pf-ver, .pf-ver-todas) { margin-left: auto; }
+.pf-parar { gap: 8px; height: 22px; margin: 0 0 0 -2px; padding: 0 6px 0 2px; border-radius: var(--raio-6); background: none; color: var(--danger); font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); }
+.pf-parar:hover { background: var(--danger-soft); }
+.pf-parar svg { width: 12px; height: 12px; margin: 0 0 0 2px; }
 .pf-painel .pf-secao { margin: 0; padding: 6px 8px 2px; font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
 .pf-painel .pf-secao.pf-secao-precisa { color: var(--warning); }
 .pf-ver-todas { display: inline-flex; flex: none; align-items: center; gap: 2px; height: 22px; padding: 0 6px; border: 0; border-radius: var(--raio-6); background: transparent;
