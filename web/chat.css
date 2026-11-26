@@ -179,6 +179,13 @@
 .pf-anel-miolo { display: none; fill: var(--chat-tinta); stroke: none; }
 .pf-espera { color: var(--chat-tinta-4); }
 .pf-precisa { color: var(--chat-aba-precisa); }
+/* O ✓ solto de quem terminou, o quadrado da parada e o disco do "!" da que não terminou (o menu "N outras" ficava sem eles:
+   a que falhou saía cinza, igual à parada). */
+.at-feita { display: inline-flex; width: 12px; justify-content: center; color: var(--chat-tinta-2); }
+.at-feita svg { width: 12px; height: 12px; }
+.at-parada { color: var(--chat-tinta-3); }
+.at-falhou { display: inline-flex; color: var(--danger); }
+.at-falhou svg { width: 12px; height: 12px; }
 @keyframes pf-anel-gira { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .pf-anel { animation: none; }
@@ -361,10 +368,6 @@
 .abas-tarefa .at-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* Os ícones do estado são os da aba presa ao campo (P1) e o ✓ do cartão de progresso. */
 .abas-tarefa .pf-aba-ic { flex: none; }
-.abas-tarefa .at-feita { display: inline-flex; width: 12px; justify-content: center; color: var(--chat-tinta-2); }
-.abas-tarefa .at-feita svg { width: 12px; height: 12px; }
-.abas-tarefa .at-parada { color: var(--chat-tinta-3); }
-.abas-tarefa .at-falhou { color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .abas-tarefa .at-seta { transition: none; } }
 /* Paper 4p ("Renomeando"): o nome vira campo ali mesmo (24 de altura, raio 5, anel azul de 1,5 px, 13/18 em 600). */
 .abas-tarefa .at-nome { width: 220px; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; outline: 1.5px solid var(--chat-aba-precisa); outline-offset: 0; background: var(--chat-superficie);
@@ -379,7 +382,6 @@
 .bot-menu > .menu-aba-corpo hr { margin: 4px 0; border-top-width: 0.5px; }
 .bot-menu .at-menu-dica { margin-left: 4px; color: var(--chat-tinta-3); }
 .bot-menu .at-item-titulo { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.bot-menu .at-item .at-parada { color: var(--chat-tinta-3); }
 /* No celular a seta fica à vista na aba ativa (não há hover) e a fileira rola de lado. */
 @media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { opacity: 1; pointer-events: auto; } }
 @media (max-width: 760px) {
@@ -503,8 +505,7 @@
 .tk-timeline .tk-agora .tk-passo-ic { color: var(--chat-tinta); }
 .tk-timeline .tk-agora-txt { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--chat-tinta); }
 .tk-timeline .tk-agora-detalhe { margin-left: 24px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; line-height: 18px; color: var(--chat-tinta-3); }
-.tk-timeline .tk-gira { animation: tk-gira 1s linear infinite; }
-@keyframes tk-gira { to { transform: rotate(360deg); } }
+.tk-timeline .tk-passo-ic .pf-anel { display: block; width: 14px; height: 14px; }
 .tk-timeline .tk-precisa { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--chat-precisa-fundo); box-shadow: inset 0 0 0 1px var(--chat-precisa-contorno); }
 .tk-timeline .tk-precisa-rot { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--chat-aba-precisa); }
 .tk-timeline .tk-precisa-ic { display: inline-flex; width: 14px; height: 14px; }
@@ -544,7 +545,6 @@
 @media (max-width: 760px) { .composer .nota.tk-nota-linha .tk-nota-dica { display: none; } }
 /* No celular o enviar e o parar viram o círculo de 44 (celular-base.css); o Parar da tarefa segue em pílula, com 44 de alto. */
 @media (hover: none) and (pointer: coarse) { .composer .box:not(.gravando) > .parar-envio.parar-tarefa { width: auto; padding: 0 14px 0 12px; border-radius: var(--raio-full); } }
-@media (prefers-reduced-motion: reduce) { .tk-timeline .tk-gira { animation: none; } }
 
 /* ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a "Por bot", 5b "Por estado"): a tela Tarefas. Medidas do Paper: topo
    28/56/12 com 16 entre as linhas, título 26/32 em 600, segmentado 13/18 (2 de moldura, 4/12 por opção), "+ Nova tarefa"
@@ -576,10 +576,6 @@
 .tela-tarefas .tf-rotulo { margin: 0; padding: 22px 12px 10px; font-size: 11px; line-height: 14px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-2); }
 .tela-tarefas .tf-grupo:first-child .tf-rotulo { padding-top: 8px; }
 .tela-tarefas .tf-ic { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; }
-.tela-tarefas .at-feita { display: inline-flex; color: var(--chat-tinta-2); }
-.tela-tarefas .at-feita svg { width: 12px; height: 12px; }
-.tela-tarefas .at-parada { color: var(--chat-tinta-3); }
-.tela-tarefas .at-falhou { color: var(--danger); }
 /* min-width, não width (2026-11-18): "há menos de 1 min" não cabia em 60 px e vazava da borda do cartão e da linha. */
 .tela-tarefas .tf-tempo { flex: none; min-width: 60px; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Por bot: o cartão do grupo e a linha de cada bot. */

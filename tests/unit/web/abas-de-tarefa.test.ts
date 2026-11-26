@@ -179,6 +179,14 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
       expect(iconeDaAba(t).html).not.toContain("pf-anel");
     }
     expect(iconeDaAba(undefined).texto).toBe("carregando");
+    // XUM-7: rodando mas só esperando (máquina sem contato, colega, hora marcada) não gira: tracejado e "esperando".
+    for (const espera of [{ maquina: { nome: "Mac", semContatoDesde: 1 } }, { esperandoColega: { nome: "Ze 1" } }, { acordaEm: 2, turnoVivoId: null }]) {
+      const ic = iconeDaAba({ estado: "rodando", ...espera } as Parameters<typeof iconeDaAba>[0]);
+      expect(ic.html).toContain("pf-espera");
+      expect(ic.texto).toBe("esperando");
+    }
+    expect(iconeDaAba({ estado: "falhou" }).html).toContain("<circle");
+    expect(htmlDoMenuDasOutras([{ id: "x", titulo: "Corrigir ADA-250", estado: "rodando" } as never])).toContain('<span class="sr-only">, trabalhando</span>');
     expect(iconeDaAba({ estado: "fechado_ocioso" }).html).toContain("pf-precisa");
     expect(iconeDaAba({ estado: "terminado" }).html).toContain("at-feita");
     expect(iconeDaAba({ estado: "parado" }).html).toContain("at-parada");

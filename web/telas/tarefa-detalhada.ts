@@ -6,6 +6,7 @@ import type { AtividadeTurno } from "../lib/atividade.ts";
 import { esc, hora } from "../lib/render.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { emEspera, situacaoDe } from "../lib/trabalhos.ts";
+import { ANEL_RODANDO } from "./icones-da-tarefa.ts";
 
 /**
  * Dentro da tarefa (ADR-187 §6, lote B, passo 4, definido em 2026-11-18; Paper 4k, 4l, 4m, 4n e 4s): a conversa detalhada
@@ -22,7 +23,8 @@ export const PASSOS_A_VISTA = 6;
 
 const ICONE_OK = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 L6 10 L11 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_FALHOU = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 3.5v4.2M7 10.2v.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
-const ICONE_RODANDO = '<svg class="tk-gira" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--chat-spinner-trilho)" stroke-width="1.6"/><path d="M7 1.5 A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+// XUM-7: o anel do "agora" é o mesmo de quem roda nas abas (e a mesma regra de giro e de movimento reduzido), não uma cópia.
+const ICONE_RODANDO = ANEL_RODANDO;
 const ICONE_PRECISA = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="currentColor"/><path d="M7 3.8V7.6M7 9.8v.1" stroke="var(--chat-superficie)" stroke-width="1.6" stroke-linecap="round"/></svg>';
 
 /** Paper 4k: o cartão "Pedido · escrito por …" no começo da conversa da tarefa. */

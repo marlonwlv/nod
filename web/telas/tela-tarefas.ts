@@ -40,9 +40,9 @@ const precisaDeVoce = (t: Pick<TrabalhoDto, "estado">): boolean => t.estado === 
 const esperandoAlgo = (t: TrabalhoDto): boolean => t.estado === "rodando" && emEspera(t);
 const rodandoDeFato = (t: TrabalhoDto): boolean => t.estado === "rodando" && !emEspera(t);
 
-/** O ícone do estado da tarefa: os da aba (anel, ponto azul, ✓, quadrado) e o anel tracejado de quem espera. */
+/** O ícone do estado da tarefa: os da aba (anel, tracejado de quem espera, ponto azul, ✓, quadrado, disco do "!"). */
 export function iconeDaTarefa(t: TrabalhoDto): string {
-  return esperandoAlgo(t) ? ANEL_ESPERANDO : iconeDaAba(t).html;
+  return iconeDaAba(t).html;
 }
 
 /** A origem que a linha mostra (ADR-187 §4: "do Quadro", "da rotina"); a da pessoa e a da rede não levam chip. */

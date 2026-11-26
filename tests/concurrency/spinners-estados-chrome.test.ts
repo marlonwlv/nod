@@ -7,6 +7,7 @@ import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import { htmlDoMenuDasOutras, iconeDaAba } from "../../web/telas/abas-de-tarefa.ts";
 import { ANEL_FILA, ANEL_RODANDO, PONTO_PRECISA } from "../../web/telas/icones-da-tarefa.ts";
 import { htmlProgresso, type FrenteNaFala } from "../../web/telas/progresso-na-fala.ts";
+import { linhaDoAgora } from "../../web/telas/tarefa-detalhada.ts";
 import { ICONE_DO_GRUPO } from "../../web/telas/tela-tarefas.ts";
 import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts";
 
@@ -28,6 +29,9 @@ const OUTRAS = [
   trabalho("a253", "Fechar ALTOs ADA-253", "na_fila"),
   trabalho("a251", "Responder ADA-251", "precisa_de_voce"),
   trabalho("a252", "Lançar ADA-252", "terminado"),
+  trabalho("a255", "Migrar ADA-255", "falhou"),
+  // Rodando, mas a máquina está sem contato: espera, não gira.
+  { ...trabalho("a256", "Publicar ADA-256", "rodando"), maquina: { nome: "Mac", semContatoDesde: 1 } } as TrabalhoDto,
 ];
 const frente = (id: string, estado: FrenteNaFala["estado"]): FrenteNaFala => ({ trabalhoId: id, titulo: `Tarefa ${id}`, estado, passo: null, tempo: null, terminouEm: null });
 
@@ -39,6 +43,7 @@ const LUGARES: Record<string, string> = {
   abas: `<nav class="abas-tarefa"><div class="at-aba"><button class="at-ir">${iconeDaAba(OUTRAS[0]).html}<span class="at-titulo">A</span></button></div><div class="at-aba"><button class="at-ir">${iconeDaAba(OUTRAS[2]).html}<span class="at-titulo">B</span></button></div></nav>`,
   pilula: `<div class="pilula-frentes"><button class="pf-botao">${ANEL_RODANDO}<span class="pf-texto">2 tarefas</span></button></div>`,
   cartao: htmlProgresso([frente("1", "rodando"), frente("2", "esperando"), frente("3", "pronta")], { chave: "c", agenteId: "a" }),
+  agora: `<div class="tk-timeline">${linhaDoAgora("Rodando um comando", null)}</div>`,
   telaTarefas: `<section class="tela-tarefas"><span class="tf-ic">${ICONE_DO_GRUPO.trabalhando}</span><span class="tf-ic">${ICONE_DO_GRUPO.esperando}</span></section>`,
   // Um lugar novo, sem regra própria: o anel tem de girar do mesmo jeito (a regra é global).
   solto: `<div class="lugar-novo">${ANEL_RODANDO}${ANEL_FILA}${PONTO_PRECISA}</div>`,
@@ -83,8 +88,9 @@ descrever("XUM-7: spinners e ícones de estado (Chrome real)", () => {
     process.env.CARGA_CHROME = chrome!;
     ({ cdp } = await abrirChrome(9600 + (process.pid % 100), perfil));
     await cdp.enviar("Page.enable");
+    // O CSS do index.html e o que o React importa à parte (o marketplace, onde mora o .rx-mk-giro).
     const estilos = [...readFileSync("web/index.html", "utf8").matchAll(/href="\/([^"]+\.css)"/g)].map((m) => `web/${m[1]}`).filter(existsSync);
-    css = estilos.map((p) => readFileSync(p, "utf8")).join("\n");
+    css = [...estilos, "web/react/marketplace/marketplace.css"].map((p) => readFileSync(p, "utf8")).join("\n");
   }, 30_000);
 
   afterAll(async () => {
@@ -113,7 +119,7 @@ descrever("XUM-7: spinners e ícones de estado (Chrome real)", () => {
       expect(a.arco, a.lugar).not.toBe("none");
       expect(a.miolo, a.lugar).toBe("none");
     }
-    // No menu, as duas que rodam têm o anel; a da fila não.
+    // No menu, as duas que rodam de fato têm o anel; a da fila e a que espera a máquina, não.
     expect(aneis.filter((a) => a.lugar === "menuReact")).toHaveLength(2);
   });
 
@@ -123,6 +129,48 @@ descrever("XUM-7: spinners e ícones de estado (Chrome real)", () => {
     for (const e of esperas) {
       expect(e.animacoes, e.lugar).toBe(0);
       expect(e.tracejado, e.lugar).not.toBe("none");
+    }
+  });
+
+  it("no menu \"N outras\" cada item diz o estado em texto e a que falhou é o disco vermelho, não o quadrado cinza da parada", async () => {
+    await medir(false);
+    const r = await avaliar<{ textos: string[]; falhou: string; parada: string | null }>(cdp, `(() => {
+      const m = document.querySelector('[data-lugar="menuReact"]');
+      const cor = (el) => el ? getComputedStyle(el).color : null;
+      return {
+        textos: [...m.querySelectorAll(".at-item")].map((b) => b.textContent.trim()),
+        falhou: cor(m.querySelector('[data-estado="falhou"] .at-falhou')),
+        parada: cor(m.querySelector(".at-parada")),
+      };
+    })()`);
+    expect(r.textos).toEqual(["Corrigir ADA-250, trabalhando", "Corrigir ADA-254, trabalhando", "Fechar ALTOs ADA-253, na fila", "Responder ADA-251, precisa de você", "Lançar ADA-252, terminou", "Migrar ADA-255, falhou", "Publicar ADA-256, esperando"]);
+    expect(r.falhou).not.toBe(r.parada);
+    expect(r.falhou).toMatch(/^rgb\(/);
+  });
+
+  it("os spinners de borda giram; com movimento reduzido viram o círculo inteiro e apagado (não um arco parado)", async () => {
+    const classes = ["giro", "giro-conversa", "nv-giro", "nv-favicon-giro", "nvc-giro", "qc-giro", "lote-gira", "ob-gira", "rx-mk-giro"];
+    const html = classes.map((c) => `<span class="${c}" style="display:inline-block;width:14px;height:14px;color:rgb(10, 20, 30)"></span>`).join("")
+      + '<div class="pensar-acao" data-estado="rodando"><span class="pensar-ic" style="color:rgb(10, 20, 30)"></span></div>'
+      + '<div class="ta-run" data-estado="rodando" data-esperando="0" id="run-vivo"><div class="ta-run-av"></div></div>'
+      + '<div class="ta-run" data-estado="rodando" data-esperando="1" id="run-espera"><div class="ta-run-av"></div></div>';
+    const ler = (reduzir: boolean) => (async () => {
+      await cdp.enviar("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: reduzir ? "reduce" : "no-preference" }] });
+      await avaliar(cdp, `document.open(); document.write(${JSON.stringify(`<!doctype html><meta charset="utf-8"><style>${css}</style><main>${html}</main>`)}); document.close()`);
+      return avaliar<{ c: string; anim: number; cores: string[]; opac: string }[]>(cdp, `[...document.querySelectorAll("main > span, .pensar-ic")].map((el) => {
+        const cs = getComputedStyle(el);
+        return { c: el.className, anim: el.getAnimations().length, cores: [cs.borderTopColor, cs.borderRightColor, cs.borderBottomColor, cs.borderLeftColor], opac: cs.opacity };
+      }).concat(["run-vivo", "run-espera"].map((id) => ({ c: id, anim: document.getElementById(id).getAnimations({ subtree: true }).length, cores: [], opac: "" })))`);
+    })();
+    const vivos = await ler(false);
+    for (const v of vivos) expect(v.anim, v.c).toBe(v.c === "run-espera" ? 0 : 1);
+    const parados = await ler(true);
+    for (const v of parados) {
+      expect(v.anim, v.c).toBe(0);
+      if (v.c.startsWith("run-")) continue;
+      expect(new Set(v.cores).size, `${v.c}: as quatro bordas iguais`).toBe(1);
+      expect(v.cores[0], v.c).toBe("rgb(10, 20, 30)");
+      expect(Number(v.opac), v.c).toBeLessThan(1);
     }
   });
 
