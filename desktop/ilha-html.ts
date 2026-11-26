@@ -8,7 +8,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 
 const ROTULO_ACAO: Record<string, string> = {
   ver: "lendo a janela", abrir_app: "abrindo o app", clicar: "clicando", digitar: "digitando", tecla: "apertando uma tecla",
-  rolar: "rolando", arrastar: "arrastando", menu: "usando o menu", apps: "olhando os apps",
+  rolar: "rolando", arrastar: "arrastando", menu: "usando o menu", apps: "olhando os apps", pausado: "em pausa enquanto você usa o app",
 };
 
 /** A página da ilha (pura, testável): o ponto âmbar, "<bot> está usando seu <aparelho> · <app> · <passo>" e Parar. */

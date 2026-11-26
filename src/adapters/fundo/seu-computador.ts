@@ -187,6 +187,8 @@ export function criarSeuComputador(o: OpcoesSeuComputador) {
         }
         case "parado":
           return resposta({ erro: "parado_pela_pessoa", instrucao: `A pessoa apertou Parar no ${aparelhoNome} dela. Não mexa mais no computador dela neste pedido; diga em uma frase onde parou.` }, true);
+        case "pessoa_usando":
+          return resposta({ erro: "pessoa_usando", app: v.app.nome, instrucao: `A pessoa está usando o ${v.app.nome} agora; nada foi feito. Não dispute com ela: diga em uma frase que continua quando ela soltar o app e tente de novo daqui a pouco.` }, true);
         case "tela_bloqueada":
           return resposta({ erro: "tela_bloqueada", instrucao: `A tela do ${aparelhoNome} da pessoa está bloqueada (ou no descanso de tela). Nada foi feito. Peça em uma frase para ela desbloquear o ${aparelhoNome} e encerre o turno; quando ela responder, continue.` }, true);
         case "falhou":

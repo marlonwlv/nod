@@ -61,8 +61,11 @@ Telas no Paper, arquivo "nod · Chat e conversa", página "Seu computador · a A
    Máquinas › Seu Mac mostra as duas com "Abrir Ajustes do Sistema" e relê quando a janela volta ao foco. Faltando uma,
    a ferramenta responde `sem_permissao` e o bot diz qual. No Windows não há permissão de sistema.
 
-6. **Sempre à vista.** O driver age por trás da janela, sem tomar o mouse. No Mac, a ilha do nod no topo da tela
-   ("Ada está usando seu Mac · Numbers · clicando · Parar") aparece a cada ação e some 12 s depois; Parar e bloquear a
+6. **Sempre à vista.** O driver age por trás da janela, sem tomar o mouse. Se a pessoa está mexendo no mesmo app (é o
+   app da frente e houve tecla ou mouse há menos de 2 s), o bot pausa — a ilha diz "em pausa enquanto você usa o app" —
+   e segue depois de 10 s sem ela mexer; passado 1 min, a ferramenta volta `pessoa_usando`. No Mac, a ilha do nod no topo da tela
+   ("Ada está usando seu Mac · Numbers · clicando · Parar") aparece a cada ação e some 12 s depois, e uma borda âmbar contorna a janela do app (uma janela do nod transparente,
+   que deixa o clique passar); Parar e bloquear a
    tela derrubam o driver na hora e o bot recebe "a pessoa parou". O cursor do agente é o do próprio driver. A aba do
    painel recebe o último quadro da janela e os passos (`GET /agentes/:id/seu-computador`, SSE `seu_computador.mudou`).
 
@@ -76,7 +79,10 @@ Telas no Paper, arquivo "nod · Chat e conversa", página "Seu computador · a A
 9. **Onde vale e a escolha do lugar.** Fase 1: só na conversa da pessoa com o próprio bot (nem rotina, nem subtarefa,
    nem sala, nem pedido de outra pessoa). O prompt diz a ordem: app conectado → navegador do bot → computador do bot →
    o Mac/PC da pessoa, este só quando o pedido aponta para ele (um app que só existe lá, um arquivo dela, "no meu Mac").
-   O bot diz em uma frase onde vai trabalhar e por quê.
+   O bot diz em uma frase onde vai trabalhar e por quê. Medido em 2026-11-26 com o prompt e as ferramentas reais
+   (`scripts/seu-computador/escolha/rodar.sh`, 10 pedidos: hotel, Numbers, PDF com Python, Slack, "abre o Chrome",
+   Excel, Keynote, portal da prefeitura, Mail do Mac, script): Sonnet e Haiku começaram no lugar esperado em 9 de 10; no
+   décimo (portal sem cidade) os dois procuraram nas conversas e perguntaram, sem errar de lugar.
 
 10. **Registro.** Cada chamada vai à trilha (`tool_call`); a vista guarda os 30 últimos passos com o efeito que o driver
     relata (confirmado, sem prova, sem efeito). As imagens ficam só em memória, no servidor, para o painel.
@@ -105,8 +111,7 @@ Transporte: a mesma fila da máquina do navegador do bot (`navegador/puxar`, ADR
 
 ## Fica para depois (fase 2)
 
-- A borda âmbar na janela do app e a pausa quando a pessoa mexe no mesmo app; a ilha no Windows (lá fica o cursor do
-  driver).
+- A ilha, a borda e a pausa no Windows (lá fica o cursor do driver).
 - Rotinas usando apps marcados com "Sempre", com o aparelho ligado.
 - O caminho no chat para tirar apps; multi-monitor e DPI misto no Windows; Linux da pessoa.
 

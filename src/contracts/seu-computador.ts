@@ -75,12 +75,14 @@ export type RespostaSeuComputador =
   | { tipo: "falhou"; texto: string }
   /** A pessoa apertou Parar (ilha, barra de menus) há pouco: nada roda até ela voltar a pedir. */
   | { tipo: "parado" }
+  /** A pessoa está usando este app agora (há mais de 1 min): nada foi feito; o bot espera ou pergunta. */
+  | { tipo: "pessoa_usando"; app: AppDoComputador }
   /** A tela está bloqueada (ou no descanso de tela): o driver recusa toda entrada até a pessoa desbloquear. */
   | { tipo: "tela_bloqueada" }
   /** Esta máquina não tem o driver (app antigo, download que falhou). */
   | { tipo: "indisponivel"; texto: string };
 
-export const TIPOS_RESPOSTA_SEU_COMPUTADOR = ["feito", "apps", "precisa_liberar", "nao_achei", "bloqueado", "sem_permissao", "falhou", "parado", "tela_bloqueada", "indisponivel"] as const;
+export const TIPOS_RESPOSTA_SEU_COMPUTADOR = ["feito", "apps", "precisa_liberar", "nao_achei", "bloqueado", "sem_permissao", "falhou", "parado", "tela_bloqueada", "pessoa_usando", "indisponivel"] as const;
 
 /** Ajustes › Seu Mac (GET /api/seu-computador): o aparelho que atende agora e os apps que valem, por bot. */
 export type RespostaSeuComputadorTela = {

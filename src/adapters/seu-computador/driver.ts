@@ -34,6 +34,12 @@ export type OpcoesSeuComputadorLocal = {
   /** A cada ação (a ilha do app: "Ada está usando seu Mac · Numbers · Parar"). */
   aoAtividade?: (a: Atividade) => void;
   spawnar?: typeof spawn;
+  /**
+   * ADR-197, item 6 (S2): a pessoa está mexendo neste app agora? `naFrente` = o app é o da frente; `ociosoS` = segundos
+   * desde a última tecla ou mouse da pessoa. Ausente (Windows, fase 1) = nunca pausa.
+   */
+  pessoa?: { naFrente(appId: string): Promise<boolean>; ociosoS(): number };
+  dormir?: (ms: number) => Promise<void>;
   agora?: () => number;
   /** definido em 2026-11-26: sem ação por 10 min, o daemon sai (o próximo comando sobe outro em ~1 s). */
   ociosoMs?: number;
@@ -48,6 +54,11 @@ export type SeuComputadorLocal = {
 };
 
 const OCIOSO_MS = 10 * 60_000;
+/** definido em 2026-11-26 (S2): a pessoa mexeu no app há menos disto = o bot pausa; volta depois de RETOMA_S parada. */
+export const MEXEU_S = 2;
+export const RETOMA_S = 10;
+/** Espera no máximo isto pela pessoa; depois o bot recebe "ela está usando o app" e decide (espera ou pergunta). */
+export const ESPERA_PESSOA_MS = 60_000;
 const PRAZO_SUBIR_MS = 15_000;
 const PRAZO_CHAMADA_MS = 60_000;
 const CACHE_APPS_MS = 5_000;
@@ -162,6 +173,11 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
   let cacheApps: { em: number; apps: AppLocal[] } | null = null;
   let fila: Promise<unknown> = Promise.resolve();
   const sessoes = new Set<string>();
+  const dormir = o.dormir ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  async function mexendoAgora(appId: string): Promise<boolean> {
+    if (!o.pessoa || o.pessoa.ociosoS() >= MEXEU_S) return false;
+    return o.pessoa.naFrente(appId).catch(() => false);
+  }
   let ultimaCaixa: CaixaDaJanela | null = null;
 
   async function apps(forcar = false): Promise<AppLocal[]> {
@@ -292,6 +308,13 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     if (bloqueio) return { tipo: "bloqueado", app: alvo, motivo: bloqueio };
     if (!p.apps.some((a) => a.id === app.id)) return { tipo: "precisa_liberar", app: alvo };
 
+    // S2: a pessoa está mexendo no mesmo app — o bot pausa (a ilha diz) e retoma depois de RETOMA_S sem ela mexer.
+    if (o.pessoa && p.acao !== "ver" && await mexendoAgora(app.id)) {
+      o.aoAtividade?.({ agenteId, bot: p.bot, app: app.nome, acao: "pausado", em: agora(), janela: null });
+      const ate = agora() + ESPERA_PESSOA_MS;
+      while (agora() < ate && await o.pessoa.naFrente(app.id).catch(() => false) && o.pessoa.ociosoS() < RETOMA_S) await dormir(1000);
+      if (agora() >= ate) return { tipo: "pessoa_usando", app: alvo };
+    }
     const g = await driverPara(p.apps.filter((a) => motivoDoBloqueio(a, o.plataforma) === null));
     armarOcioso();
     const falta = await permissoesOk(g);

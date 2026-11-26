@@ -122,6 +122,30 @@ describe("o módulo da máquina sem subir o driver", () => {
     expect(await sc.executar(A, { acao: "apps", args: {}, apps: [], bot: "Ada" })).toEqual({ tipo: "parado" });
   });
 
+  it("a pessoa mexendo no mesmo app pausa o bot; parada há 10 s, ele segue; mexendo por 1 min, volta pessoa_usando", async () => {
+    let t = 0;
+    let ocioso = 0;
+    const atividades: string[] = [];
+    const sc = criarSeuComputadorLocal({ plataforma: "darwin", pasta: "/tmp/nao-usado", binario: async () => null, listarApps: async () => apps, agora: () => t,
+      pessoa: { naFrente: async (id) => id === "com.apple.iWork.Numbers", ociosoS: () => ocioso },
+      dormir: async (ms) => { t += ms; ocioso += ms / 1000; },
+      aoAtividade: (a) => atividades.push(a.acao) });
+    const pedido: PedidoSeuComputador = { acao: "clicar", args: { app: "Numbers", elemento: "s1:1" }, apps: [{ id: "com.apple.iWork.Numbers", nome: "Numbers" }], bot: "Ada" };
+    // Parou de mexer: espera os 10 s e segue (aqui sem binário, então indisponível — mas passou da pausa).
+    expect(await sc.executar(A, pedido)).toMatchObject({ tipo: "indisponivel" });
+    expect(atividades[0]).toBe("pausado");
+    expect(t).toBe(10_000);
+    // Continua mexendo: depois de 1 min, desiste e diz ao bot.
+    t = 0; ocioso = 0; atividades.length = 0;
+    const sempre = criarSeuComputadorLocal({ plataforma: "darwin", pasta: "/tmp/nao-usado", binario: async () => null, listarApps: async () => apps, agora: () => t,
+      pessoa: { naFrente: async () => true, ociosoS: () => 0 }, dormir: async (ms) => { t += ms; } });
+    expect(await sempre.executar(A, pedido)).toMatchObject({ tipo: "pessoa_usando", app: { nome: "Numbers" } });
+    // Ler a janela não pausa.
+    t = 0;
+    expect(await sempre.executar(A, { ...pedido, acao: "ver", args: { app: "Numbers" } })).toMatchObject({ tipo: "indisponivel" });
+    expect(t).toBe(0);
+  });
+
   it("a lista de apps esconde os bloqueados", async () => {
     const r = await local().executar(A, { acao: "apps", args: {}, apps: [], bot: "Ada" });
     expect(r).toEqual({ tipo: "apps", apps: [{ id: "com.apple.iWork.Numbers", nome: "Numbers", aberto: true }] });

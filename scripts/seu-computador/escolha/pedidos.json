@@ -1,0 +1,12 @@
+[
+ {"id":"hotel","texto":"Reserva um hotel em Florianópolis de 12 a 14 de dezembro, até R$ 600 a diária","espera":"navegador"},
+ {"id":"numbers","texto":"Lança as passagens de novembro na planilha Orçamento 2026 do Numbers","espera":"seu_computador"},
+ {"id":"pdf","texto":"Gera um PDF com um gráfico de vendas por mês usando Python, com dados de exemplo","espera":"computador"},
+ {"id":"slack","texto":"Avisa no #produto do Slack que a reunião mudou para 15h","espera":"slack"},
+ {"id":"chrome","texto":"Abre o Chrome e vê o preço do MacBook Air no site da Apple","espera":"navegador"},
+ {"id":"excel","texto":"No meu Excel, soma a coluna B da planilha Vendas que está aberta","espera":"seu_computador"},
+ {"id":"keynote","texto":"Troca o título do primeiro slide da apresentação que está aberta no Keynote para 'Resultados Q4'","espera":"seu_computador"},
+ {"id":"site-login","texto":"Entra no portal da prefeitura e baixa a guia do ISS de novembro","espera":"navegador"},
+ {"id":"mail-mac","texto":"Responde o último e-mail da Ana no app Mail do meu Mac dizendo que confirmo","espera":"seu_computador"},
+ {"id":"terminal","texto":"Roda um script que conta quantas palavras tem esse texto: o rato roeu a roupa do rei de roma","espera":"computador"}
+]

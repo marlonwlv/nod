@@ -1,6 +1,6 @@
 import { criarCodexCliDriver } from "../src/adapters/executor/drivers/codex-cli.ts";
 import { app, autoUpdater, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, type IpcMainInvokeEvent } from "electron";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
 import { readFile, writeFile, mkdir, rename, rm, stat } from "node:fs/promises";
@@ -187,6 +187,12 @@ let navegadorDoMac: NavegadorDaMaquina | null = null;
  */
 let seuComputadorDoMac: SeuComputadorLocal | null = null;
 let ilhaDoMac: Ilha | null = null;
+/** O bundle id do app da frente (sem pedir permissão: NSWorkspace). null = não deu para ler. */
+function appDaFrente(): Promise<string | null> {
+  return new Promise((resolver) => {
+    execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e", "ObjC.import('AppKit'); ObjC.unwrap($.NSWorkspace.sharedWorkspace.frontmostApplication.bundleIdentifier) || ''"], { timeout: 3000 }, (e, saida) => resolver(e ? null : String(saida).trim() || null));
+  });
+}
 function seuComputador(): SeuComputadorLocal | null {
   if (process.platform !== "darwin") return null;
   if (seuComputadorDoMac) return seuComputadorDoMac;
@@ -200,6 +206,8 @@ function seuComputador(): SeuComputadorLocal | null {
     bundleDoHost: "app.nod.desktop",
     listarApps: () => listarAppsLocais("darwin"),
     aoAtividade: (a) => ilhaDoMac?.mostrar({ bot: a.bot, app: a.app, acao: a.acao, janela: a.janela }),
+    // S2: o app da frente (NSWorkspace pelo JXA, ~100 ms) e o tempo sem teclado e mouse da pessoa.
+    pessoa: { naFrente: async (appId) => (await appDaFrente()) === appId, ociosoS: () => powerMonitor.getSystemIdleTime() },
   });
   // Bloquear a tela para o bot na hora (ADR-197, item 6).
   powerMonitor.on("lock-screen", () => { ilhaDoMac?.esconder(); void seuComputadorDoMac?.parar(); });
