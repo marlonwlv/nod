@@ -491,7 +491,80 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .cofre-dialogo-pe { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--borda-sutil); }
 .cofre-seguro { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; white-space: nowrap; font-size: var(--fs-rotulo); color: var(--ink-2); }
 .cofre-dialogo-pe .bt.cofre-cancelar { border: 0; background: none; font-size: var(--fs-corpo); font-weight: 400; color: var(--ink-2); }
-.cofre-dialogo-pe .bt.pri { border-radius: var(--raio-full); padding: 8px 16px; font-size: var(--fs-corpo); }
+.cofre-dialogo-pe .bt.pri { height: 32px; border-radius: var(--raio-full); padding: 0 16px; font-size: var(--fs-corpo); }
+/* ADR-195 (Entrega 3, Paper C3): os seletores da "Nova chave" (App e Quem pode usar) com a mesma caixa dos campos. */
+.cofre-escolha { position: relative; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 12px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: var(--raio-10); background: var(--surface-elevated); color: var(--ink); }
+.cofre-escolha:focus-within { border-color: var(--borda-forte); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+/* foco-ok: o contorno fica no .cofre-escolha:focus-within, em volta da caixa inteira */
+.cofre-escolha select { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0; outline: none; background: none; appearance: none; color: inherit; font: inherit; font-size: var(--fs-corpo); font-weight: 400; cursor: pointer; }
+.cofre-escolha > svg { flex: none; color: var(--ink-2); pointer-events: none; }
+.cofre-escolha-nota { flex: none; font-size: var(--fs-corpo-2); font-weight: 400; color: var(--ink-3); pointer-events: none; }
+.cofre-app-tile { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: var(--raio-6); background: var(--ink); color: var(--surface); font-size: 10px; font-weight: 700; line-height: 12px; }
+.cofre-campo input.cofre-mono { font-family: var(--font-mono); }
+.cofre-campo i { font-style: normal; font-weight: 400; color: var(--ink-3); }
+
+/* ADR-195 (Entrega 3, Paper C2): a chave aberta — variável e valor numa caixa, quem pode usar, uso recente. */
+.cofre-chave-aberta { gap: 18px; }
+.cofre-chave-aberta .cofre-dialogo-cab { margin-bottom: 0; gap: 10px; justify-content: flex-start; }
+.cofre-tile { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: var(--raio-8); background: var(--hover); color: var(--ink-2); }
+.cofre-chave-tit { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.cofre-chave-tit h3 { overflow-wrap: anywhere; }
+.cofre-chave-sub { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.cofre-tabela { border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); }
+.cofre-tabela-linha { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px 0 12px; box-sizing: border-box; font-size: var(--fs-corpo-2); }
+.cofre-tabela > * + * { border-top: 1px solid var(--borda-sutil); }
+.cofre-tabela-rot { flex: none; width: 64px; color: var(--ink-3); }
+.cofre-variavel { min-width: 0; padding: 0; background: none; font-family: var(--font-mono); font-size: var(--fs-corpo-2); color: var(--ink); overflow-wrap: anywhere; }
+.cofre-oculto { flex: none; color: var(--ink); white-space: nowrap; }
+.cofre-testada { flex: none; font-size: var(--fs-rotulo); color: var(--pronto-tinta); white-space: nowrap; }
+.cofre-vao { flex: 1; }
+.cofre-pilula-bt { flex: none; height: 28px; padding: 0 12px; border: 0; border-radius: var(--raio-full); background: var(--hover); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); font-weight: 500; cursor: pointer; }
+.cofre-pilula-bt:hover { background: var(--ativo); }
+.cofre-troca { flex-wrap: wrap; padding-block: 6px; }
+.cofre-troca-campo { flex: 1 1 0; min-width: 0; }
+.cofre-troca-acoes { display: flex; flex: 1 0 100%; justify-content: flex-end; gap: 6px; }
+.cofre-troca-campo input { width: 100%; height: 32px; padding: 0 70px 0 10px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: var(--raio-8); background: var(--surface-elevated); color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-corpo-2); }
+.cofre-troca-campo input:focus { border-color: var(--borda-forte); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cofre-troca-campo input[aria-invalid="true"] { border-color: var(--danger); }
+.cofre-troca-campo .cofre-olho { right: 2px; height: 26px; font-size: var(--fs-rotulo); }
+.cofre-troca .bt.pri { height: 28px; padding: 0 12px; border-radius: var(--raio-full); font-size: var(--fs-corpo-2); }
+.cl-dialogo .cofre-troca-erro { margin: 0; padding: 0 12px 10px; border-top: 0; font-size: var(--fs-rotulo); color: var(--danger); }
+.cofre-tabela > .cofre-troca-erro { border-top: 0; }
+.cofre-secao { display: flex; flex-direction: column; gap: 4px; }
+/* Escopado no diálogo: o `.cl-dialogo p` (14px, tinta 2) ganharia de uma classe só. */
+.cl-dialogo .cofre-secao-tit { margin: 0 0 4px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.cofre-uso { gap: 6px; }
+.cl-dialogo .cofre-uso .cofre-secao-tit { margin-bottom: 2px; }
+.cofre-quem-linha { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.cofre-bot-av { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 7px; background: var(--mascote-cor, var(--ink)); color: var(--agent-olho); font-size: 11px; font-weight: 600; line-height: 14px; }
+/* O bot preto vira claro no tema escuro (--agent-encre): a letra acompanha a superfície para não sumir. */
+.cofre-bot-av.c-black { color: var(--surface); }
+.cofre-quem-nome { min-width: 0; font-size: var(--fs-corpo); color: var(--ink); overflow-wrap: anywhere; }
+.cofre-modo { position: relative; display: inline-flex; align-items: center; gap: 4px; flex: none; height: 28px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: var(--raio-full); font-size: var(--fs-corpo-2); color: var(--ink); cursor: pointer; }
+.cofre-modo:hover { background: var(--hover); }
+.cofre-modo:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cofre-modo > svg { width: 10px; height: 10px; color: var(--ink-2); }
+/* O select nativo cobre a pílula (teclado e leitor de tela iguais aos do sistema); o texto à vista é o da pílula. */
+.cofre-modo select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font: inherit; }
+.cofre-modo-so-ler { border-color: transparent; color: var(--ink-3); cursor: default; }
+.cofre-modo-so-ler:hover { background: none; }
+.cofre-dar { position: relative; align-self: flex-start; }
+.cofre-dar-bt { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; }
+.cofre-dar-bt:hover { color: var(--ink); }
+.cofre-dar .cl-menu.cofre-dar-menu { left: 0; right: auto; top: 34px; width: 220px; }
+.cofre-dar-menu button { align-items: center; gap: 10px; }
+.cl-dialogo .cofre-quem-vazio { margin: 0; font-size: var(--fs-corpo-2); line-height: 18px; color: var(--ink-3); }
+.cofre-uso-linha { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-corpo-2); line-height: 18px; color: var(--ink); }
+.cofre-uso-quando { flex: none; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); white-space: nowrap; }
+.cofre-chave-aberta .cofre-dialogo-pe { margin-top: 0; }
+.cofre-remover { padding: 0; border: 0; background: none; color: var(--danger); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; }
+.cofre-remover:hover { text-decoration: underline; }
+.cofre-pilula-bt:focus-visible, .cofre-dar-bt:focus-visible, .cofre-remover:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Estreito: o "testada" desce para a linha de baixo, embaixo do "Guardado, oculto"; o Trocar fica na primeira. */
+@media (max-width: 520px) {
+  .cofre-tabela-linha:not(.cofre-troca) { flex-wrap: wrap; row-gap: 0; padding-block: 6px; }
+  .cofre-tabela-linha .cofre-testada { order: 4; flex-basis: calc(100% - 74px); margin: -6px 0 4px 74px; }
+}
 @media (max-width: 520px) { .cofre-dialogo-pe { flex-wrap: wrap; } .cofre-seguro { flex: 1 1 100%; white-space: normal; } .cofre-barra { flex-wrap: wrap; } .cofre-barra-vao { display: none; } .cofre-busca { flex: 1 1 auto; width: auto; } }
 
 /* =====================================================================================

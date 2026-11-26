@@ -405,6 +405,9 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, tarefas, memorias, diarios, contas, chaves, nuvem, logins: [login.id], habilidades: [habilidade.id] };
       });
       const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
+      // ADR-195 (Entrega 3): uma chave do cofre (de "outro app", sem teste) para `cofre.trocar_chave`, `cofre.mudar_acesso`
+      // e `cofre.remover_chave` passarem da busca (as rotas de um item já guardado só levam ids).
+      const chaveDoCofre = (await srv.json<{ chave: { id: string } }>("POST", "cofre/chaves", { app: "Fuzz", nome: `FUZZ_TOKEN_${ordem}`, valor: "fuzz-valor-de-teste" })).chave.id;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
       await srv.json("PUT", "canvas/app", {});
       const plano = planoDoServidor({
@@ -457,6 +460,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             maquinas: { daPessoa: [...sementes.chaves, ...sementes.nuvem], deOutraPessoa: [] },
             logins: { daPessoa: sementes.logins, deOutraPessoa: [] },
             habilidades: { daPessoa: sementes.habilidades, deOutraPessoa: [] },
+            itens: { daPessoa: [chaveDoCofre], deOutraPessoa: [] },
           },
         },
       });

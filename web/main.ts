@@ -13,7 +13,7 @@ import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard
 import { IGUAIS_UM_A_UM } from "./telas/pedidos-iguais.ts";
 import { criarTelaAprovacoes } from "./lib/ajustes-aprovacao.ts";
 import { criarTelaCofre } from "./lib/cofre.ts";
-import { renderCofre } from "./telas/config-cofre.ts";
+import { renderCofre, type BotDoCofre } from "./telas/config-cofre.ts";
 import { renderConfigAprovacoes, type BotDaTela } from "./telas/config-aprovacoes.ts";
 import { escNoEspaco, focoAoAbrirEspaco, voltarParaLista } from "./lib/navegacao-config.ts";
 import { perfilMudou } from "./lib/perfil-mudou.ts";
@@ -465,7 +465,7 @@ function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; bu
 /** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
 function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; sobre: () => string } {
-  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
+  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal(), botsDoCofre()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
 }
 /** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
 let termoAjustes = "";
@@ -699,6 +699,10 @@ function botsDaTelaAprovacoes(): BotDaTela[] {
 }
 const htmlAprovacoes = (): string => renderConfigAprovacoes(telaAprovacoes.estado(), botsDaTelaAprovacoes());
 /** Paper 07 (rodada 2): Configurações › Cofre, lido ao abrir a seção (web/lib/cofre.ts). */
+/** ADR-195 (Entrega 3): os bots que a pessoa pode pôr em "Quem pode usar" de uma chave (os da frota, sem os excluídos). */
+function botsDoCofre(): BotDoCofre[] {
+  return (estado.frota?.agentes ?? []).filter((a) => !a.excluidoEm).map((a) => ({ id: a.id, nome: a.nome, cor: a.cor }));
+}
 const telaCofre = criarTelaCofre({
   api: () => api,
   render: () => render(),
@@ -8943,6 +8947,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "mudar-time-selecao": (el) => abrirEscolhaDeTime([...selecaoBots], el),
   "limpar-selecao": () => limparSelecao(true),
   "abrir-avancado": () => abrirMarketplace(true),
+  // ADR-195 (Entrega 3, Paper O4): o "Trocar" do recibo da chave guardada no Cofre abre o Cofre nas chaves.
+  "abrir-cofre": () => { abrirEspaco("cofre"); telaCofre.aba("chaves"); },
   "navegar-marketplace": () => abrirMarketplace(),
   // ADA-13 (ADR-150): o app Canvas (instalar, desinstalar e o nível por bot; só pela tela).
   "instalar-canvas": () => agir(async () => { guardarAppCanvas(await api!.instalarCanvas()); }),
@@ -9776,14 +9782,39 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "cofre-menu-item": (el) => { const qual = el.dataset.id ?? ""; telaCofre.menu(qual); if (telaCofre.estado().menu === qual) requestAnimationFrame(() => el.closest(".cl-mais")?.querySelector<HTMLElement>('.cl-menu [role^="menuitem"]')?.focus()); },
   "cofre-ver-todos": () => telaCofre.verTodos(),
   "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
+  // ADR-195 (Entrega 3): as chaves do cofre (Paper C1–C3). O valor só existe no campo até o POST e é limpo em seguida.
+  "cofre-nova-chave": () => { telaCofre.novaChave(true); requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-nova-chave select[name="app"]')?.focus()); },
+  "cofre-cancelar-chave": () => { for (const c of document.querySelectorAll<HTMLInputElement>(".cofre-nova-chave input")) c.value = ""; telaCofre.novaChave(false); document.querySelector<HTMLElement>('#espaco [data-act="cofre-menu-novo"]')?.focus(); },
+  "cofre-abrir-chave": async (el) => {
+    const id = el.dataset.id ?? "";
+    const trocar = el.dataset.trocar === "1";
+    await telaCofre.abrirChave(id, trocar);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(trocar ? '#espaco .cofre-troca input[name="valor"]' : "#espaco .cofre-chave-aberta .cofre-fechar")?.focus());
+  },
+  "cofre-fechar-chave": () => {
+    const id = telaCofre.estado().aberta?.id ?? "";
+    for (const c of document.querySelectorAll<HTMLInputElement>(".cofre-troca input")) c.value = "";
+    telaCofre.fecharChave();
+    document.querySelector<HTMLElement>(`#espaco [data-act="cofre-menu-item"][data-id="${CSS.escape(`chave:${id}`)}"]`)?.focus();
+  },
+  "cofre-trocar-chave": () => { telaCofre.trocando(true); requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-troca input[name="valor"]')?.focus()); },
+  "cofre-cancelar-troca": () => { for (const c of document.querySelectorAll<HTMLInputElement>(".cofre-troca input")) c.value = ""; telaCofre.trocando(false); requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco [data-act="cofre-trocar-chave"]')?.focus()); },
+  "cofre-menu-dar": () => { telaCofre.menuDar(); if (telaCofre.estado().aberta?.dando) requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-dar-menu [role="menuitem"]')?.focus()); },
+  // Dar a outro bot: entra em Sempre (o C3 também concede Sempre); o seletor ao lado muda para Perguntar antes.
+  "cofre-dar-acesso": async (el) => {
+    await telaCofre.mudarAcesso(el.dataset.id ?? "", el.dataset.agente ?? "", "sempre");
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`#espaco .cofre-chave-aberta select[data-agente="${CSS.escape(el.dataset.agente ?? "")}"]`)?.focus());
+  },
+  "cofre-remover-chave": (el) => telaCofre.removerChave(el.dataset.id ?? telaCofre.estado().aberta?.id ?? ""),
   // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
   "cofre-mostrar-senha": (el) => {
-    const campo = el.closest(".cofre-senha")?.querySelector<HTMLInputElement>('input[name="senha"]');
+    const campo = el.closest(".cofre-senha")?.querySelector<HTMLInputElement>('input[name="senha"], input[name="valor"]');
     if (!campo) return;
     const mostrar = campo.type === "password";
+    const oque = campo.name === "senha" ? "a senha" : "o valor";
     campo.type = mostrar ? "text" : "password";
     el.setAttribute("aria-pressed", String(mostrar));
-    el.setAttribute("aria-label", mostrar ? "Ocultar a senha" : "Mostrar a senha");
+    el.setAttribute("aria-label", mostrar ? `Ocultar ${oque}` : `Mostrar ${oque}`);
     el.title = mostrar ? "Ocultar" : "Mostrar";
   },
   "navegador-aba": (el) => navegadorNaTela.mostrarAba(el.dataset.agente ?? ""),
@@ -10673,6 +10704,22 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     }
   },
   // ADR-190 (decisão 6): o login novo do Cofre. A senha sai do campo direto para o POST e o formulário é limpo em seguida.
+  // ADR-195 (Entrega 3, Paper C3): a chave nova vai do campo direto ao POST; o campo do valor é limpo em seguida.
+  "cofre-guardar-chave": async (form) => {
+    const d = new FormData(form);
+    const texto = (n: string) => String(d.get(n) ?? "");
+    const ok = await telaCofre.guardarChave({ appId: texto("app"), nome: texto("nome"), valor: texto("valor"), agenteId: texto("agente"), dicas: texto("dicas") });
+    for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-nova-chave input[name="valor"]')) c.value = "";
+    if (ok) document.querySelector<HTMLElement>('#espaco [data-act="cofre-menu-novo"]')?.focus();
+    else requestAnimationFrame(() => document.querySelector<HTMLInputElement>('#espaco .cofre-nova-chave input[name="valor"]')?.focus());
+  },
+  // Paper C2 (Trocar): o valor novo vai do campo direto ao POST; app conhecido testa antes.
+  "cofre-guardar-troca": async (form) => {
+    const campo = form.querySelector<HTMLInputElement>('input[name="valor"]');
+    const ok = await telaCofre.trocarValor(campo?.value ?? "");
+    for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-troca input[name="valor"]')) c.value = "";
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(ok ? '#espaco [data-act="cofre-trocar-chave"]' : '#espaco .cofre-troca input[name="valor"]')?.focus());
+  },
   "cofre-guardar-login": async (form) => {
     const d = new FormData(form);
     const senha = form.querySelector<HTMLInputElement>('input[name="senha"]');
@@ -10855,6 +10902,7 @@ document.addEventListener("click", (ev) => {
   const u = estado.contasUi;
   if ((u.menu || u.maquinaMenu) && !(ev.target as HTMLElement).closest(".cl-mais")) dispatch({ tipo: "contas-ui", mudanca: { menu: null, maquinaMenu: null } });
   if (telaCofre.estado().menu && !(ev.target as HTMLElement).closest(".cfg-cofre .cl-mais")) telaCofre.menu(null);
+  if (telaCofre.estado().aberta?.dando && !(ev.target as HTMLElement).closest(".cofre-dar")) telaCofre.menuDar();
   if (estado.nuvem.sonoMenu && !(ev.target as HTMLElement).closest(".nv-ajuste-wrap")) dispatch({ tipo: "nuvem-ui", mudanca: { sonoMenu: null } });
   // NOD-58: o "…" da memória aberto é como um modal leve: o clique fora só fecha (no celular, o fundo escurecido da folha
   // não deixa o toque acertar a memória de baixo).
@@ -10926,6 +10974,17 @@ document.addEventListener("keydown", (ev) => {
     ev.stopPropagation();
     ev.preventDefault();
     telaMinhaConta.fecharJanela();
+    return;
+  }
+  // ADR-195 (Entrega 3): na chave aberta (C2), o Esc fecha o menu do "Dar a outro bot", depois o campo do Trocar, depois o
+  // diálogo; na "Nova chave" (C3), fecha o diálogo (e o valor some com ele).
+  const cofreAgora = telaCofre.estado();
+  if (cofreAgora.aberta || cofreAgora.novaChave) {
+    ev.stopPropagation();
+    if (cofreAgora.aberta?.dando) { telaCofre.menuDar(); document.querySelector<HTMLElement>('#espaco [data-act="cofre-menu-dar"]')?.focus(); }
+    else if (cofreAgora.aberta?.trocando) void ACOES["cofre-cancelar-troca"]!(document.body);
+    else if (cofreAgora.aberta) void ACOES["cofre-fechar-chave"]!(document.body);
+    else void ACOES["cofre-cancelar-chave"]!(document.body);
     return;
   }
   // O Cofre: o Esc fecha primeiro o menu aberto, depois o diálogo "Novo login" (e a senha some com ele).
@@ -12621,6 +12680,29 @@ function escolherTema(valor: string | undefined): EscolhaTema {
 
 /** NOD-367: as trocas dos seletores das Configurações (`data-act-change`), com o valor escolhido. */
 const ACOES_CHANGE: Record<string, (valor: string, el: HTMLSelectElement) => Promise<void> | void> = {
+  // ADR-195 (Entrega 3, Paper C2): Sempre, Perguntar antes ou Tirar o acesso de um bot à chave aberta.
+  "cofre-modo-acesso": (valor, el) => telaCofre.mudarAcesso(el.dataset.id ?? "", el.dataset.agente ?? "", valor === "sempre" || valor === "perguntar" ? valor : null),
+  // Paper C3: trocar o app redesenha a ajuda e o nome da variável; o valor digitado volta ao campo (não passa por estado).
+  "cofre-app-da-chave": (valor, el) => {
+    const form = el.closest("form");
+    if (!form) return;
+    const campo = (n: string) => form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${n}"]`)?.value ?? "";
+    const segredo = campo("valor");
+    const antes = telaCofre.appDoCofre(telaCofre.estado().novaChave?.appId);
+    const app = telaCofre.appDoCofre(valor);
+    const nome = campo("nome");
+    // O nome que veio do app anterior acompanha a troca; o que a pessoa escreveu fica.
+    const novoNome = !nome || nome === antes?.variavel ? (app?.variavel ?? "") : nome;
+    telaCofre.editarNovaChave({ appId: app?.id ?? "", nome: novoNome, agenteId: campo("agente"), dicas: campo("dicas") });
+    // O redesenho morfa o campo (o atributo muda, o valor na tela não): o nome é escrito no campo também.
+    requestAnimationFrame(() => {
+      const n = document.querySelector<HTMLInputElement>('#espaco .cofre-nova-chave input[name="nome"]');
+      if (n) n.value = novoNome;
+      const v = document.querySelector<HTMLInputElement>('#espaco .cofre-nova-chave input[name="valor"]');
+      if (v && segredo) v.value = segredo;
+      document.querySelector<HTMLElement>('#espaco .cofre-nova-chave select[name="app"]')?.focus();
+    });
+  },
   ...telaAprovacoes.change,
   "escolher-tema": (valor) => { escolherTema(valor); },
   // NOD-367: a máquina padrão (Máquinas) e a do bot (ficha dele), no mesmo seletor; "" = qualquer uma.
