@@ -43,6 +43,7 @@ const sc = criarSeuComputadorLocal({
     const lista = await listarAppsLocais(plataforma);
     // No Windows Server o Bloco de Notas clássico nem sempre tem atalho no Menu Iniciar: entra pelo caminho do sistema.
     if (plataforma === "win32" && !lista.some((a) => a.id.toLowerCase() === app.id.toLowerCase())) lista.push({ ...app, aberto: false, pid: null, apelido: "notepad" });
+    for (const a of lista) if (a.id.toLowerCase() === app.id.toLowerCase()) a.id = app.id;
     return lista;
   },
 });

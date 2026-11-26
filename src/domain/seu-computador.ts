@@ -42,6 +42,11 @@ export function idDeAppValido(id: string, plataforma: PlataformaPessoa): boolean
   return /^[A-Za-z]:\\.+\.exe$/i.test(id) && !id.includes("..");
 }
 
+/** O mesmo app? No Windows o caminho do .exe não diferencia maiúsculas (`System32` = `system32`). */
+export function mesmoApp(a: string, b: string, plataforma: PlataformaPessoa): boolean {
+  return plataforma === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
 /** Os liberados que ainda valem agora ("Sempre" e os "desta vez" no prazo), sem repetir o mesmo app. */
 export function liberadosAgora(lista: readonly AppLiberado[], agora: number): AppDoComputador[] {
   const vistos = new Set<string>();

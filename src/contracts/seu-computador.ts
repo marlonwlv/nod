@@ -32,7 +32,6 @@ export const FERRAMENTAS_SEU_COMPUTADOR = {
 } as const satisfies Record<string, JsonSchema>;
 
 export type NomeFerramentaSeuComputador = keyof typeof FERRAMENTAS_SEU_COMPUTADOR;
-export const NOMES_SEU_COMPUTADOR = Object.keys(FERRAMENTAS_SEU_COMPUTADOR) as NomeFerramentaSeuComputador[];
 /** Só leem: não mudam nada no app (ainda pedem a liberação do app, porque leem a tela da pessoa). */
 export const SEU_COMPUTADOR_SO_LEITURA: readonly NomeFerramentaSeuComputador[] = ["seu_computador_apps", "seu_computador_ver"];
 

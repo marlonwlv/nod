@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppDoComputador, PedidoSeuComputador, RespostaSeuComputador } from "../../contracts/seu-computador.ts";
-import { acharApp, manifestoBounded, motivoDoBloqueio, type PlataformaPessoa } from "../../domain/seu-computador.ts";
+import { acharApp, manifestoBounded, mesmoApp, motivoDoBloqueio, type PlataformaPessoa } from "../../domain/seu-computador.ts";
 import type { AppLocal } from "./apps-locais.ts";
 
 /**
@@ -306,7 +306,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     const alvo: AppDoComputador = { id: app.id, nome: app.nome };
     const bloqueio = motivoDoBloqueio(alvo, o.plataforma);
     if (bloqueio) return { tipo: "bloqueado", app: alvo, motivo: bloqueio };
-    if (!p.apps.some((a) => a.id === app.id)) return { tipo: "precisa_liberar", app: alvo };
+    if (!p.apps.some((a) => mesmoApp(a.id, app.id, o.plataforma))) return { tipo: "precisa_liberar", app: alvo };
 
     // S2: a pessoa está mexendo no mesmo app — o bot pausa (a ilha diz) e retoma depois de RETOMA_S sem ela mexer.
     if (o.pessoa && p.acao !== "ver" && await mexendoAgora(app.id)) {

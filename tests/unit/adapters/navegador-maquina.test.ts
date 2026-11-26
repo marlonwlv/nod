@@ -53,7 +53,7 @@ describe("a fila do navegador por máquina (canal-maquina)", () => {
     const canal = criarCanalNavegador({ agora: () => agora, folgaMs: 5 });
     expect(await canal.enviar(ESCOPO, MAQ, { tipo: "motor", agenteId: BOT, operacao: "url", args: [] }, 50)).toMatchObject({ ok: false, motivo: "indisponivel" });
     canal.presenca(ESCOPO, MAQ, { plataforma: "linux", nome: "vm-sp" });
-    expect(canal.ligadas(ESCOPO)).toEqual([{ maquinaId: MAQ, plataforma: "linux", nome: "vm-sp", em: agora }]);
+    expect(canal.ligadas(ESCOPO)).toEqual([{ maquinaId: MAQ, plataforma: "linux", nome: "vm-sp", em: agora, recursos: [] }]);
     expect(canal.ligadas(OUTRA)).toEqual([]);
     expect(await canal.enviar(ESCOPO, MAQ, { tipo: "motor", agenteId: BOT, operacao: "url", args: [] }, 20)).toMatchObject({ ok: false, motivo: "tempo_esgotado" });
     // O comando vencido não sai mais na puxada.
