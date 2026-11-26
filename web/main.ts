@@ -3946,7 +3946,7 @@ function renderPrincipal(): void {
       // Paper 10b e 10c A: no modo abas a Conversa também tem a fileira, começando pela pílula; no modo pílula, a pílula de
       // sempre com o botão de abas ao lado (quando há tarefas). XUM-10: nas outras páginas (Quadro, Canvas, um app) a
       // fileira recolhe para a pílula sem desligar o modo abas; o aoTrocar do quadroNaTela regrava o topo na troca.
-      if (topoDaConversa({ fileira: fileiraNaConversa(t.agenteId), pagina: quadroNaTela.modo() }).forma === "fileira") {
+      if (topoDaConversa({ fileira: fileiraNaConversa(t.agenteId), pagina: quadroNaTela.modo() }) === "fileira") {
         cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)((navegadorNaTela.abaAberta(t.agenteId) ? "" : cantoDoNavegador(t.agenteId)) + botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
         comAbas = true;
       } else {
