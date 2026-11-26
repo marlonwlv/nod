@@ -111,7 +111,8 @@ Transporte: a mesma fila da máquina do navegador do bot (`navegador/puxar`, ADR
 
 ## Fica para depois (fase 2)
 
-- A ilha, a borda e a pausa no Windows (lá fica o cursor do driver).
+- A pausa quando a pessoa mexe, no Windows (a ilha e a borda já existem lá: o motor publica cada ação em
+  `<pasta do executor>\seu-computador\atividade.json` e o app do Windows desenha; o Parar volta por `parar.json`).
 - Rotinas usando apps marcados com "Sempre", com o aparelho ligado.
 - O caminho no chat para tirar apps; multi-monitor e DPI misto no Windows; Linux da pessoa.
 

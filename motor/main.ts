@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { mkdirSync } from "node:fs";
 import { homedir, hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,7 @@ import { iniciarComputador, type LacoComputador } from "../src/adapters/executor
 import { criarSeuComputadorLocal, type SeuComputadorLocal } from "../src/adapters/seu-computador/driver.ts";
 import { listarAppsLocais } from "../src/adapters/seu-computador/apps-locais.ts";
 import { baixadorDoDriver } from "../src/adapters/seu-computador/binario.ts";
+import { publicarAtividade, vigiarParada } from "../src/adapters/seu-computador/sinal-entre-processos.ts";
 import { agentBrowserDoLinux, agentBrowserNoWindows, chromeDoLinux, chromeDoWindows, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
 import { cookiesDoChromeDoPc, criarCofresDoWindows } from "../desktop/cofres-do-windows.ts";
 import { criarPonteDoChrome, pipeDoChrome, registrarHostNoWindows, rodarHostDoChrome, senhaDoChrome, type PonteDoChrome } from "../src/adapters/executor/chrome-da-pessoa.ts";
@@ -338,7 +340,13 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
 
   function seuComputadorDoPc(): SeuComputadorLocal {
     const pasta = join(pastaDoExecutor(process.env), "seu-computador");
-    seuComputadorPc ??= criarSeuComputadorLocal({ plataforma: "win32", binario: baixadorDoDriver({ plataforma: "win32", pasta, env: process.env }), pasta, listarApps: () => listarAppsLocais("win32", { env: process.env }) });
+    if (!seuComputadorPc) {
+      mkdirSync(pasta, { recursive: true });
+      // A ilha e a borda são do app do Windows: o motor publica cada ação e ouve o Parar (sinal-entre-processos.ts).
+      const sc = criarSeuComputadorLocal({ plataforma: "win32", binario: baixadorDoDriver({ plataforma: "win32", pasta, env: process.env }), pasta, listarApps: () => listarAppsLocais("win32", { env: process.env }), aoAtividade: (a) => publicarAtividade(pasta, a) });
+      vigiarParada(pasta, () => { void sc.parar(); });
+      seuComputadorPc = sc;
+    }
     return seuComputadorPc;
   }
 

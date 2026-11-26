@@ -5,7 +5,9 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { arquivoDaConexao, carregarConexao, carregarMaquinaDoMotor, guardarConexao, pastaDoMotor, type ConexaoMotor } from "../../motor/conexao.ts";
+import { arquivoDaConexao, carregarConexao, carregarMaquinaDoMotor, guardarConexao, pastaDoExecutor, pastaDoMotor, type ConexaoMotor } from "../../motor/conexao.ts";
+import { pedirParada, vigiarAtividade } from "../../src/adapters/seu-computador/sinal-entre-processos.ts";
+import { criarIlha } from "../ilha-seu-computador.ts";
 import { depsDeVerdade, desinstalar } from "../../motor/desinstalar.ts";
 import { criarArquivoDeLog, instalarOuvintesDeQueda, MAX_BYTES_LOG } from "../diagnostico.ts";
 import { LARGURA_MINIMA, lerEstadoJanela, medirEstadoJanela, resolverEstadoJanela, type EstadoJanela } from "../janela.ts";
@@ -400,6 +402,13 @@ else {
     instalarOuvintesDeQueda({ app, processo: process, registrar: (campos) => registrar("app_processo_caiu", campos), encerrando: () => saindo, ehJanelaPrincipal: (conteudo) => !!janela && !janela.isDestroyed() && conteudo === janela.webContents });
     registrar("app_iniciado", { versao: app.getVersion(), empacotado: app.isPackaged, arquitetura: process.arch });
     Menu.setApplicationMenu(null);
+    // ADR-197 no PC: a ilha e a borda do computador da pessoa. O motor roda o driver e publica cada ação na pasta do
+    // executor; o app desenha e o Parar volta ao motor pelo mesmo caminho (src/adapters/seu-computador/sinal-entre-processos.ts).
+    {
+      const pastaSc = join(pastaDoExecutor(process.env), "seu-computador");
+      const ilha = criarIlha({ aparelho: "PC", aoParar: () => pedirParada(pastaSc) });
+      vigiarAtividade(pastaSc, (a) => ilha.mostrar({ bot: a.bot, app: a.app, acao: a.acao, janela: a.janela }));
+    }
     ipcMain.handle("nodwin:estado", (e) => (daTelaDeSetup(e) ? telaAtual : null));
     ipcMain.handle("nodwin:conectar", (e) => { if (daTelaDeSetup(e)) void conectar(); });
     ipcMain.handle("nodwin:tentar", (e) => { if (daTelaDeSetup(e)) void abrir(); });
