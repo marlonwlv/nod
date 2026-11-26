@@ -419,6 +419,12 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
         r = await g.chamar("type_text", args);
         // Medido na CI (Windows Server, Bloco de Notas, 2026-11-26): a entrega em segundo plano (PostMessage) pode não
         // chegar, e o driver diz. Aí repete em primeiro plano: traz a janela um instante, digita e devolve o foco.
+        // 1º: o campo pode estar sem o foco do teclado dentro da janela (a entrega vai ao foco). Foca o elemento pela
+        // acessibilidade (sem cursor nem foco de janela) e digita de novo em segundo plano.
+        if (entregaNaoChegou(r) && "element_token" in elemento) {
+          await g.chamar("click", { ...base, ...elemento }).catch(() => null);
+          r = await g.chamar("type_text", args);
+        }
         if (entregaNaoChegou(r)) r = await g.chamar("type_text", { ...args, delivery_mode: "foreground" });
         // E quando o Windows não deixa trazer a janela (foreground_unavailable, a proteção contra roubo de foco): o campo
         // pelo próprio valor (UI Automation), lido agora e escrito com o texto no fim — sem foco e sem mouse.
