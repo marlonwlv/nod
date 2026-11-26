@@ -191,7 +191,7 @@
   grid-template-columns: 4px 16px 12px 28px minmax(0, 1fr) 88px minmax(0, max-content) 16px 4px;
 }
 @container cl-lista (min-width: 600px) { .cl-linha-g1 > .cl-corpo { min-width: 120px; } }
-.cl-lista:has(> .cl-linha-g1) > :not(.cl-linha-g1) { grid-column: 1 / -1; }
+.cl-lista > li:not(.cl-linha-g1) { grid-column: 1 / -1; }
 .cl-lista .cl-linha.cl-linha-g1 { grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: 10px; padding-inline: 0; }
 .cl-linha-g1 > .cl-alca { grid-column: 2; grid-row: 1; }
 .cl-linha-g1 > .cl-pos { grid-column: 3; grid-row: 1; }
