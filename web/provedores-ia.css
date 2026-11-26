@@ -180,13 +180,15 @@
    espaço ali e o nome cortava cedo. Agora as linhas dividem as colunas da lista (subgrid): a do estado tem a largura do
    maior selo presente (até 184 px, o "No limite até 27/11 às 13:00" inteiro;
    passou disso, "…" e o texto inteiro no title) e o uso continua alinhado entre as linhas. O nome guarda 120 px só na
-   lista larga (a coluna da lista encolhe até 0, senão a grade transbordava no celular). O respiro lateral virou coluna (4 px + o gap = os 14 px de antes) porque o padding de um subgrid empurra os
+   lista larga (a coluna da lista encolhe até 0, senão a grade transbordava no celular). O uso foi de 112 para 88 px
+   ("semana 100%" cabe inteiro): com o selo do limite a coluna do estado ocupa 219 px, e assim o nome fica com a mesma
+   largura de antes no pior caso. O respiro lateral virou coluna (4 px + o gap = os 14 px de antes) porque o padding de um subgrid empurra os
    itens das pontas para fora das colunas fixas. Lista estreita (modal apertado): o uso e o estado descem para a linha de
    baixo do nome, o uso com o que sobra e o estado com o que precisa. Celular (lista abaixo de 420 px): o uso numa linha
    (a partir do logo) e o estado na outra, com a largura toda, os dois inteiros. */
 .cl-lista:has(> .cl-linha-g1) {
   container: cl-lista / inline-size; display: grid; column-gap: 10px;
-  grid-template-columns: 4px 16px 12px 28px minmax(0, 1fr) 112px minmax(0, max-content) 16px 4px;
+  grid-template-columns: 4px 16px 12px 28px minmax(0, 1fr) 88px minmax(0, max-content) 16px 4px;
 }
 @container cl-lista (min-width: 600px) { .cl-linha-g1 > .cl-corpo { min-width: 120px; } }
 .cl-lista:has(> .cl-linha-g1) > :not(.cl-linha-g1) { grid-column: 1 / -1; }
@@ -200,6 +202,10 @@
 .cl-linha-g1 > .cl-mais { grid-column: 8; grid-row: 1; }
 .cl-linha-g1 .cl-dir > .contas-estado { display: block; flex: 0 1 auto; min-width: 0; max-width: 184px; overflow: hidden; text-overflow: ellipsis; }
 .cl-linha-g1 .cl-dir > .contas-estado::before { display: inline-block; vertical-align: 1px; margin-right: 6px; }
+/* Em bloco (para a reticência), o selo de 22 px do Paper centra o texto pela altura da linha e a bolinha fica a 5 px,
+   como no gap do inline-flex de antes. */
+.prov-contas .cl-linha-g1 .cl-dir > .contas-estado { line-height: 22px; }
+.prov-contas .cl-linha-g1 .cl-dir > .contas-estado::before { margin-right: 5px; }
 .cl-linha-g1 .cl-dir > :not(.contas-estado) { flex: none; }
 @container cl-lista (max-width: 599px) {
   .cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 4px auto auto 28px minmax(0, 1fr) 72px minmax(0, max-content) 16px 4px; row-gap: 8px; }

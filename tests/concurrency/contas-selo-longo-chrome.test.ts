@@ -159,6 +159,9 @@ descrever("Lista de contas de IA com selo longo (Chrome real)", () => {
     expect(linhas[0]!.nomeCortado).toBe(false);
     expect(linhas[1]!.nomeCortado).toBe(false);
     expect(linhas[2]!.nomeLargura).toBeGreaterThanOrEqual(longas[2]!.nomeLargura);
+    // Critério 4: com os selos longos do print, a linha "Disponível" segue como na main ("Claude · Leapy" inteiro).
+    expect(longas[2]!.estado).toBe("Disponível");
+    expect(longas[2]!.nomeCortado).toBe(false);
     // E nunca corta o nome com sobra na coluna.
     for (const l of [...longas, ...linhas]) if (l.nomeCortado) expect(l.sobraNoNome).toBeLessThan(4);
   });
