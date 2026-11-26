@@ -122,7 +122,9 @@ descrever("XUM-10: o Canvas abre sem as abas e o menu fica por cima (Chrome real
     expect(await avaliar<boolean>(cdp, `!!document.querySelector("#cabecalho .pilula-e-abas .qd-pil") && !!document.querySelector('#cabecalho .pilula-e-abas [data-act="mostrar-em-abas"]')`)).toBe(true);
     // A barra do canvas começa depois do botão de abas e está por cima de tudo no ponto do nome.
     await esperarAte(`(() => { const a = document.querySelector("#cabecalho .pilula-e-abas").getBoundingClientRect(); return document.querySelector(".cv-fer").getBoundingClientRect().left >= a.right; })()`, 3000);
-    expect(await avaliar<boolean>(cdp, `document.querySelector(".cv-fer").getBoundingClientRect().left >= document.querySelector("#cabecalho .pilula-e-abas").getBoundingClientRect().right`)).toBe(true);
+    const medidas = await avaliar<string>(cdp, `JSON.stringify({ fer: document.querySelector(".cv-fer").getBoundingClientRect().left, pil: document.querySelector("#cabecalho .pilula-e-abas").getBoundingClientRect().right, x: document.querySelector(".cv-host").style.getPropertyValue("--cv-barra-x"), host: document.querySelector(".cv-host").getBoundingClientRect().left, qd: document.querySelector("#cabecalho .qd-pil").getBoundingClientRect().right, anim: document.getAnimations().map((a) => a.effect?.target?.className + ":" + a.playState) })`);
+    const m = JSON.parse(medidas) as { fer: number; pil: number };
+    expect(m.fer, medidas).toBeGreaterThanOrEqual(m.pil);
     expect(await porCima(".cv-fer-nome")).toBe(true);
 
     // O menu abre com o clique de verdade, inteiro na tela e por cima em todos os cantos.

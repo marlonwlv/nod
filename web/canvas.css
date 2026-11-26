@@ -12,7 +12,7 @@
    canvas (o nome e o ▾ ficavam atrás). No Canvas o topo é só a pílula: a faixa fica transparente e deixa o clique
    passar, menos na pílula e no botão de abas ao lado dela. */
 .stage.palco-canvas > .cabecalho-pilula { background: transparent; pointer-events: none; }
-.stage.palco-canvas > .cabecalho-pilula > * { pointer-events: auto; }
+.stage.palco-canvas > .cabecalho-pilula > :is(.pilula-e-abas, .qd-pil, .pilula-bot, .painel-alternar, .nv-canto, .abrir-bots, .buscar-celular) { pointer-events: auto; }
 .cv { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .cv-link { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
 .cv-link:hover { color: var(--ink); }

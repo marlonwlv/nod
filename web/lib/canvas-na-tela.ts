@@ -542,11 +542,12 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
       if (a.width > 0) host.style.setProperty("--cv-barra-x", `${Math.max(12, Math.round(a.right - b.left + 10))}px`);
     };
     if (typeof ResizeObserver !== "undefined") { medindo?.disconnect(); medida = null; medindo = new ResizeObserver(medir); }
-    const cab = doc.getElementById("cabecalho");
+    const cab = doc.querySelector<HTMLElement>("#cabecalho");
     if (cab && typeof MutationObserver !== "undefined") {
       vigiando?.disconnect();
       let pedido = false;
-      vigiando = new MutationObserver(() => { if (pedido) return; pedido = true; win?.requestAnimationFrame(() => { pedido = false; medir(); }); });
+      // Mede no próximo quadro e de novo depois da sanfona do botão de abas (520 ms), que mexe na pílula sem mudar o tamanho dela.
+      vigiando = new MutationObserver(() => { if (pedido) return; pedido = true; win?.requestAnimationFrame(() => { pedido = false; medir(); win?.setTimeout(medir, 600); }); });
       vigiando.observe(cab, { childList: true, subtree: true });
     }
     medir();

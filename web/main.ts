@@ -1386,8 +1386,8 @@ const quadroNaTela = criarQuadroNaTela(document, {
   menuDaPilula: (ancora, itens, irPara) => abrirMenuDaPilula(ancora, itens, irPara),
   aoTrocar: (m) => {
     // Revisão 3 do PR #630: voltar do Quadro à Conversa é escolher a conversa, também a que o app abriu sozinho.
-    // XUM-10: indo para outra página, o render regrava o topo (a fileira de abas recolhe para a pílula).
     if (m === "conversa") { if (estado.tela.tipo === "conversa") conversaEscolhida = estado.tela.conversaId; lerConversaDaTela(); render(); } else { trilhaDaConversa.observar(); if (estado.tela.tipo === "conversa") render(); }
+    // XUM-10: indo para outra página, o render também regrava o topo (a fileira de abas recolhe para a pílula).
   },
   // A pessoa arrastou um ícone da pílula: a doca é redesenhada na ordem nova.
   aoMudarOrdem: () => render(),
