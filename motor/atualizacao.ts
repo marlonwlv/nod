@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { setTimeout as esperar } from "node:timers/promises";
 import { ARQUIVOS_DO_COMPUTADOR, ARQUIVOS_DO_MOTOR, ATUALIZACAO_PARADA, DESTINOS_DO_COMPUTADOR, ESPERA_DEPOIS_DE_FALHAR_MS, manifestoComparavel, motorDiferente, proximoPasso, type Drenagem, type EstadoDaAtualizacao } from "../src/domain/atualizacao-do-motor.ts";
 import { log } from "../src/obs/log.ts";
+import { ARQUIVO_DO_ULTIMO_PEDIDO, assinaturaDoManifesto } from "./atualizacao-no-windows.ts";
 
 /**
  * O motor que se atualiza sozinho (ADR-100), do lado do usuário `nod`. Ele NÃO troca os próprios arquivos (são do root,
@@ -39,8 +40,8 @@ export const ATUALIZADOR_DO_ROOT = "/usr/local/sbin/nod-motor-atualizar";
  * O manifesto do último pedido ao root (assinatura + quando). O root apaga o pedido, este fica: o motor que volta do
  * reinício ainda diferente do MESMO manifesto sabe que a troca não pegou e espera em vez de pedir de novo (2026-11-20).
  */
-export const arquivoDoUltimoPedido = (pastaDoMotor: string) => join(pastaDoMotor, "atualizacao-pedida.json");
-const assinatura = (m: Readonly<Record<string, string>>) => createHash("sha256").update(JSON.stringify(Object.entries(m).sort())).digest("hex");
+export const arquivoDoUltimoPedido = (pastaDoMotor: string) => join(pastaDoMotor, ARQUIVO_DO_ULTIMO_PEDIDO);
+const assinatura = assinaturaDoManifesto;
 
 export async function shaDosArquivos(dir: string): Promise<Record<string, string | null>> {
   const r: Record<string, string | null> = {};
