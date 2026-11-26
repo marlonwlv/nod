@@ -24,6 +24,12 @@ export const BLOQUEADOS_WINDOWS: readonly string[] = [
   "cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe", "wt.exe", "conhost.exe", "openconsole.exe", "wsl.exe", "bash.exe",
   "1password.exe", "bitwarden.exe", "keepass.exe", "keepassxc.exe", "lastpass.exe", "dashlane.exe",
   "nod.exe", "nod-motor.exe",
+  // Achado 2 do QA da rc.15 (2026-11-26): o cofre de credenciais por fora do control.exe (`rundll32 keymgr.dll,KRShowKeyMgr`,
+  // `credwiz`), o registro pelo outro editor, os hospedeiros de script que dirigem outros apps, elevação e mais terminais
+  // e gerenciadores de senha. O Explorer fica liberável: é app de arquivos da pessoa, não ajuste nem senha.
+  "rundll32.exe", "credwiz.exe", "cmdkey.exe", "vaultcmd.exe", "regedt32.exe", "mshta.exe", "wscript.exe", "cscript.exe",
+  "runas.exe", "sudo.exe", "useraccountcontrolsettings.exe", "netplwiz.exe", "mintty.exe", "git-bash.exe",
+  "enpass.exe", "nordpass.exe", "roboform.exe", "keeperpasswordmanager.exe", "protonpass.exe",
 ];
 
 const baseWindows = (id: string) => id.replace(/\//g, "\\").split("\\").pop()!.toLowerCase();
