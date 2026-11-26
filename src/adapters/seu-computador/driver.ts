@@ -304,6 +304,19 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     return nome;
   }
 
+  /** O campo de texto (o do token pedido, senão o primeiro editável) pelo valor: lê agora e escreve valor + texto. */
+  async function digitarPeloValor(g: Geracao, base: Record<string, unknown>, texto: string, token: string | null): Promise<ResultadoDriver | null> {
+    const lido = await g.chamar("get_window_state", { ...base, include_screenshot: false, tree_format: "elements" }).catch(() => null);
+    const elementos = Array.isArray(lido?.estruturado?.elements) ? lido!.estruturado!.elements.map(obj) : [];
+    const linha = token ? Number(token.split(":")[1]) : NaN;
+    const editavel = (e: Record<string, unknown>) => /edit|document|text ?area|textfield|text field/i.test(String(e.role ?? "")) && (!Array.isArray(e.actions) || e.actions.includes("set_value"));
+    const alvo = elementos.find((e) => e.element_index === linha && editavel(e)) ?? elementos.find(editavel);
+    if (!alvo || typeof alvo.element_token !== "string") return null;
+    const atual = typeof alvo.value === "string" ? alvo.value : "";
+    const r = await g.chamar("set_value", { element_token: alvo.element_token, value: atual + texto, session: base.session });
+    return r.erro ? null : { ...r, texto: `${r.texto}\n(Escrito pelo valor do campo: o Windows não deixou trazer a janela para a frente.)` };
+  }
+
   async function janelaDo(g: Geracao, pid: number, session: string): Promise<number | null> {
     const r = await g.chamar("list_windows", { pid, session });
     const id = escolherJanela(r.estruturado);
@@ -398,6 +411,9 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
         // Medido na CI (Windows Server, Bloco de Notas, 2026-11-26): a entrega em segundo plano (PostMessage) pode não
         // chegar, e o driver diz. Aí repete em primeiro plano: traz a janela um instante, digita e devolve o foco.
         if (entregaNaoChegou(r)) r = await g.chamar("type_text", { ...args, delivery_mode: "foreground" });
+        // E quando o Windows não deixa trazer a janela (foreground_unavailable, a proteção contra roubo de foco): o campo
+        // pelo próprio valor (UI Automation), lido agora e escrito com o texto no fim — sem foco e sem mouse.
+        if (entregaNaoChegou(r) || /foreground_unavailable/.test(r.texto)) r = await digitarPeloValor(g, base, String(p.args.texto ?? ""), typeof p.args.elemento === "string" ? p.args.elemento : null) ?? r;
         break;
       }
       case "tecla": {
