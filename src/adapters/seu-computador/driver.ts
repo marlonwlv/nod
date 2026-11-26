@@ -106,6 +106,11 @@ export function caixaDaJanela(estruturado: Record<string, unknown> | null, id: n
   return x !== null && y !== null && largura && altura && largura > 40 && altura > 40 ? { x, y, largura, altura } : null;
 }
 
+/** A digitação em segundo plano não chegou ao campo (o driver confere o valor e diz). */
+export function entregaNaoChegou(r: ResultadoDriver): boolean {
+  return /did not contain the requested text|delivery was incomplete|Retry with delivery_mode:"foreground"/i.test(r.texto);
+}
+
 /** O driver recusou (ou leu vazio) porque a tela está bloqueada ou no descanso de tela. */
 export function telaBloqueada(r: ResultadoDriver): boolean {
   return /screen_locked/.test(r.texto) || r.estruturado?.degraded_reason === "screen_locked" || JSON.stringify(r.estruturado ?? {}).includes("\"screen_locked\"");
@@ -367,9 +372,14 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
         if (p.args.duplo === true && "element_token" in elemento) r = await g.chamar("double_click", { ...base, ...elemento });
         break;
       }
-      case "digitar":
-        r = await g.chamar("type_text", { ...base, ...elemento, text: String(p.args.texto ?? "") });
+      case "digitar": {
+        const args = { ...base, ...elemento, text: String(p.args.texto ?? "") };
+        r = await g.chamar("type_text", args);
+        // Medido na CI (Windows Server, Bloco de Notas, 2026-11-26): a entrega em segundo plano (PostMessage) pode não
+        // chegar, e o driver diz. Aí repete em primeiro plano: traz a janela um instante, digita e devolve o foco.
+        if (entregaNaoChegou(r)) r = await g.chamar("type_text", { ...args, delivery_mode: "foreground" });
         break;
+      }
       case "tecla": {
         const mods = Array.isArray(p.args.modificadores) ? p.args.modificadores.map((m) => TECLAS_MODIFICADORAS[String(m)]).filter(Boolean) : [];
         const tecla = String(p.args.tecla ?? "");

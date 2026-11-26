@@ -3,7 +3,7 @@ import { criarSeuComputador } from "../../../src/adapters/fundo/seu-computador.t
 import { iniciarNavegadorDaMaquina, lerComandoNavegador, type CanalNavegadorDaMaquina, type NavegadorDaMaquina } from "../../../src/adapters/executor/navegador.ts";
 import { criarCanalNavegador } from "../../../src/adapters/navegador/canal-maquina.ts";
 import { lerApps } from "../../../src/adapters/seu-computador/apps-locais.ts";
-import { caixaDaJanela, criarSeuComputadorLocal, efeitoDoResultado, escolherJanela, lerResultadoDriver, telaBloqueada } from "../../../src/adapters/seu-computador/driver.ts";
+import { caixaDaJanela, criarSeuComputadorLocal, efeitoDoResultado, entregaNaoChegou, escolherJanela, lerResultadoDriver, telaBloqueada } from "../../../src/adapters/seu-computador/driver.ts";
 import { FERRAMENTAS_SEU_COMPUTADOR, type PedidoSeuComputador, type RespostaSeuComputador } from "../../../src/contracts/seu-computador.ts";
 import type { MotorNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { acharApp, liberadosAgora, manifestoBounded, motivoDoBloqueio, textoDoPedido } from "../../../src/domain/seu-computador.ts";
@@ -96,6 +96,8 @@ describe("respostas do cua-driver", () => {
     expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "Background input refused (screen_locked)" }], isError: true }))).toBe(true);
     expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "ok" }], structuredContent: { degraded_reason: "screen_locked" } }))).toBe(true);
     expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "ok" }] }))).toBe(false);
+    expect(entregaNaoChegou(lerResultadoDriver({ content: [{ type: "text", text: "Sent 20 char(s) via PostMessage, but the focused field's value did not contain the requested text after dispatch. Retry with delivery_mode:\"foreground\"." }] }))).toBe(true);
+    expect(entregaNaoChegou(lerResultadoDriver({ content: [{ type: "text", text: "Inserted 20 char(s) into AXTextArea" }] }))).toBe(false);
   });
 });
 

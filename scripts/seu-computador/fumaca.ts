@@ -83,8 +83,10 @@ try {
     dizer(`campo de texto: ${elemento.elemento ?? "(sem referência, vai pelo foco)"}`);
     const digitar = await passo("digitar", { ...base, acao: "digitar", args: { app: nomeDoApp, texto: ` ${MARCA}`, ...elemento } });
     if (digitar.tipo !== "feito") falhar(`digitar: ${digitar.tipo}`);
-    const depois = await passo("ver-depois", { ...base, acao: "ver", args: { app: nomeDoApp, busca: MARCA } });
-    if (depois.tipo !== "feito" || !depois.texto.includes(MARCA)) falhar("o texto digitado não apareceu na janela");
+    // A janela inteira, sem busca: o texto tem de estar no valor de um elemento (a busca ecoa a palavra na resposta).
+    const depois = await passo("ver-depois", { ...base, acao: "ver", args: { app: nomeDoApp, sem_imagem: false } });
+    const noValor = depois.tipo === "feito" && depois.texto.split("\n").some((l) => /^\s*-\s*\[\d+\]/.test(l) && l.includes(MARCA));
+    if (!noValor) falhar("o texto digitado não apareceu no campo da janela");
   }
 } catch (e) {
   falhar(e instanceof Error ? e.message : String(e));
