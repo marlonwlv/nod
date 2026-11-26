@@ -6,7 +6,7 @@ import { seletoresDoFoco } from "../lib/foco-do-bloco.ts";
 import { esc, hora } from "../lib/render.ts";
 import { aberto, emEspera, passoDaFrente, tempoDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { ROTULO_DO_OBJETIVO } from "./tarefa-detalhada.ts";
-import { ANEL_FILA, ANEL_RODANDO, DISCO_FALHOU, DISCO_FEITA, EXCLAMACAO_PRECISA, PAUSA_PARADA, PONTO_PRECISA, QUADRADO_PARADA } from "./icones-da-tarefa.ts";
+import { ANEL_FILA, ANEL_RODANDO, DISCO_FALHOU, DISCO_FEITA, DISCO_FEITA_12, EXCLAMACAO_PRECISA, PAUSA_PARADA, PONTO_PRECISA, QUADRADO_PARADA } from "./icones-da-tarefa.ts";
 
 /**
  * O progresso mora na fala que abriu as frentes (definido em 2026-10-18, chat limpo, PR 7; plano, Parte 4 · 4b; protótipo
@@ -192,8 +192,8 @@ export const IC_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none
 
 const ICONE: Record<EstadoNaFala, string> = { pronta: DISCO_FEITA, rodando: ANEL_RODANDO, precisa: PONTO_PRECISA, esperando: ANEL_FILA, parada: QUADRADO_PARADA, falhou: DISCO_FALHOU, sem_noticia: ANEL_FILA };
 
-/** XUM-6 (Paper 9f): na lista aberta da aba, o "!" no disco de quem precisa de você e a pausa no anel da parada. */
-const ICONE_NA_LISTA: Partial<Record<EstadoNaFala, string>> = { precisa: EXCLAMACAO_PRECISA, parada: PAUSA_PARADA };
+/** XUM-6 (Paper 9f): na lista aberta da aba, o "!" no disco de quem precisa de você, a pausa no anel da parada e o ✓ de 12 da feita. */
+const ICONE_NA_LISTA: Partial<Record<EstadoNaFala, string>> = { precisa: EXCLAMACAO_PRECISA, parada: PAUSA_PARADA, pronta: DISCO_FEITA_12 };
 
 function icone(e: EstadoNaFala, modo?: ModoDaLinha): string {
   return `<span class="tv-ic" aria-hidden="true">${(modo === "lista" ? ICONE_NA_LISTA[e] : undefined) ?? ICONE[e]}</span>`;
@@ -213,7 +213,7 @@ function textoDoEstado(f: FrenteNaFala, modo: ModoDaLinha): string {
     if (f.estado === "precisa") return f.passo ?? ROTULO.precisa;
     if (f.estado === "rodando") return f.tempo ?? f.passo ?? ROTULO.rodando;
     if (f.estado === "parada") return "você parou";
-    if (f.estado === "pronta") return ROTULO.pronta;
+    if (f.estado === "pronta") return "feita";
   }
   const fim = f.terminouEm && (f.estado === "pronta" || f.estado === "parada" || f.estado === "falhou") ? ` às ${hora(f.terminouEm)}` : "";
   // ADR-192 (emenda 5): com Tarefa, o fim é do objetivo — "Entregue às 16:13" (espera a avaliação) ou "Resolvida".
@@ -233,7 +233,7 @@ export function linhaDaTarefa(f: FrenteNaFala, modo: ModoDaLinha): string {
   const estado = textoDoEstado(f, modo);
   // Na lista, o tempo tomou o lugar do passo à direita (Paper 9f): o passo continua no nome acessível e no title.
   const passoFora = modo === "lista" && f.estado === "rodando" && f.passo && estado !== f.passo ? f.passo : null;
-  const sr = estado === ROTULO[f.estado] ? "" : `<span class="sr-only"> (${esc([ROTULO[f.estado], passoFora].filter(Boolean).join(", "))})</span>`;
+  const sr = estado === ROTULO[f.estado] || (modo === "lista" && f.estado === "pronta") ? "" : `<span class="sr-only"> (${esc([ROTULO[f.estado], passoFora].filter(Boolean).join(", "))})</span>`;
   const ver = modo === "lista" ? "" : `<span class="tv-ver">${f.estado === "precisa" ? "Responder" : "Ver"}</span>`;
   const dica = [curto === f.titulo ? null : f.titulo, passoFora].filter(Boolean).join(" · ");
   return `<li class="tv-item"><button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}" data-estado="${f.estado}"${dica ? ` title="${esc(dica)}"` : ""}>${icone(f.estado, modo)}<span class="tv-texto"><span class="tv-titulo">${esc(curto)}</span>${sr}<span class="tv-estado">${esc(estado)}</span></span>${ver}</button></li>`;

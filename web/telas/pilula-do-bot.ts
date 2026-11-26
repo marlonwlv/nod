@@ -9,7 +9,7 @@ import { aberto, emEspera, esperandoMaquina, maquinasDe, tituloCurto, trabalhosC
 import { avisoDaMaquina } from "../lib/aviso-da-maquina.ts";
 import { memoriaDoMac } from "./linha-do-dono.ts";
 import { conversaLimpa } from "./linhas-do-chat.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
+import { ANEL_RODANDO, EXCLAMACAO_PRECISA } from "./icones-da-tarefa.ts";
 import { frentesNaFala, linhaDaTarefa, type FrenteNaFala, type MemoriaNoProgresso } from "./progresso-na-fala.ts";
 import { agente, renderFaixaTrabalhos } from "./trabalhos.ts";
 
@@ -324,7 +324,9 @@ function corpoDaPilula(p: Pilula, novaTarefa: NovaTarefaNaAba | null): string {
   // A frase da memória só aqui dentro (decisão tomada 5); o ponto leva a Trabalhos, Este Mac ou Máquinas.
   const memoria = p.memoria ? `<button type="button" class="pf-memoria-linha ${p.memoria.nivel}" ${p.memoria.alvo}><span class="pf-memoria-ponto" aria-hidden="true"></span>${esc(p.memoria.texto)}</button>` : "";
   const nova = novaTarefa ? `<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="${esc(novaTarefa.aria)}"><span class="pf-nova-mais" aria-hidden="true">${MAIS_DA_ABA}</span><span class="pf-nova-texto">Nova tarefa</span><kbd class="pf-nova-atalho">${esc(novaTarefa.atalho)}</kbd></button>` : "";
-  return `${tarefas}${esperas}${fila}${memoria}${linhaDaMemoria(p)}${nova}`;
+  // XUM-6 (revisão de design): a 9f termina em feitas e "+ Nova tarefa"; o aviso da máquina, que não é uma tarefa, vem
+  // depois, como nota.
+  return `${tarefas}${esperas}${fila}${nova}${memoria}${linhaDaMemoria(p)}`;
 }
 const IC_OK_PRONTAS = '<svg class="pf-prontas-ic" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="currentColor"/><path d="M3.5 6.2l1.6 1.6 3.4-3.4" fill="none" stroke="var(--chat-superficie)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SETA_DIREITA = '<svg class="pf-prontas-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
@@ -338,9 +340,11 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   // o ponto azul quando alguma precisa da pessoa, o anel quando alguma roda; sem tarefas (espera, fila), o ponto de antes.
   // Paper 5c (3): o lugar ativo entra no fim ("2 tarefas · rodando · Navegador da Ada ao vivo") e no topo da lista aberta.
   const comLugares = [...p.resto, ...lugares.map((l) => `${l.rotulo} ${l.estado}`)];
-  const resto = comLugares.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(comLugares.join(" · "))}</span>` : "";
+  // XUM-6 (9f): o trecho "1 precisa de você" em âmbar, como o "!" da aba.
+  const trechos = comLugares.map((x) => (/precisa(m)? de você$/.test(x) ? `<span class="pf-resto-precisa">${esc(x)}</span>` : esc(x))).join(" · ");
+  const resto = comLugares.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${trechos}</span>` : "";
   const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
-  const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
+  const icone = p.grupos.length && precisa ? EXCLAMACAO_PRECISA.replace('class="tv-svg"', 'class="pf-aba-ic pf-precisa"') : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
   const botao = `${icone}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
   // ADR-187 (4t, opção A): o selo ao lado da aba diz o problema e a máquina; o ponto sem texto saiu. Sem `curto` (servidor
   // anterior), o texto do aviso do Mac.

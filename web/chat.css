@@ -168,7 +168,9 @@
 .pilula-frentes .pf-texto { font-weight: 500; }
 .pilula-frentes .pf-resto, .pilula-frentes .pf-seta { color: var(--chat-tinta-2); }
 .pilula-frentes .pf-aba-ic { flex: none; }
-.pilula-frentes .pf-precisa { color: var(--chat-aba-precisa); }
+.pilula-frentes .pf-precisa { color: var(--warning); }
+/* XUM-6 (9f): na aba, o trecho "1 precisa de você" em âmbar, como o "!" ao lado. */
+.pilula-frentes .pf-resto-precisa { color: var(--warning); }
 .pilula-frentes .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
 .pilula-frentes .pf-anel-arco { stroke: var(--chat-tinta); }
 .pilula-frentes .pf-anel { animation: pf-anel-gira 1s linear infinite; }
@@ -278,14 +280,18 @@
 .pf-lista .tv-linha { gap: 8px; min-height: 28px; padding: 0 8px; border-radius: var(--raio-8); font-size: 12px; line-height: 16px; }
 .pf-lista .tv-linha:hover { background: var(--hover); }
 .pf-lista .tv-linha[data-estado="precisa"] { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.pf-lista .tv-linha[data-estado="precisa"]:hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+/* O miolo rola (overflow): o anel de foco fica dentro da linha para não ser cortado nos lados. */
+.pf-lista .tv-linha:focus-visible, .pf-prontas summary:focus-visible, .pf-nova-linha:focus-visible { outline-offset: -2px; border-radius: var(--raio-8); }
 .pf-lista .tv-texto { gap: 8px; }
-.pf-lista .tv-titulo { flex: 1 1 0; width: auto; font-weight: 400; color: var(--ink); }
+.pf-lista .tv-titulo { flex: 0 1 auto; min-width: 40%; width: auto; font-weight: 400; color: var(--ink); }
 .pf-lista .tv-linha[data-estado="precisa"] .tv-titulo { font-weight: 500; }
-.pf-lista .tv-estado { flex: 0 1 auto; max-width: 60%; font-size: 11px; line-height: 16px; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pf-lista .tv-estado { flex: 1 1 0; min-width: 0; max-width: none; font-size: 11px; line-height: 16px; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .pf-lista .tv-linha[data-estado="precisa"] .tv-estado, .pf-lista [data-estado="precisa"] > .tv-ic { color: var(--warning); }
 .pf-lista [data-estado="parada"] > .tv-ic { color: var(--ink-3); }
 .pf-lista .tv-ic, .pf-lista .tv-ic svg, .pf-lista .tv-ic .pf-anel { width: 12px; height: 12px; }
 .pf-lista .tv-ic .pf-anel-trilho { stroke: var(--borda); }
+.pf-lista .tv-ic .pf-anel { stroke-width: 1.75; }
 .pf-lista .tv-linha:hover .tv-titulo { text-decoration: none; }
 .pf-nova-linha { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; border: 0;
   border-radius: var(--raio-8); background: none; color: var(--ink-2); font: inherit; font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -695,23 +701,25 @@
 .pf-item > .pf-ponto { width: 8px; height: 8px; margin: 0 2px; border: 1.5px solid var(--ink-3); animation: none; }
 .pf-comando { font-size: 11px; }
 .pf-sub, .pf-item-fim { font-size: 11px; line-height: 16px; color: var(--ink-3); }
-.pf-memoria-info { display: flex; align-items: center; gap: 8px; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; font-size: 11px; line-height: 16px; color: var(--ink-3); }
+.pf-memoria-info { display: flex; align-items: center; gap: 8px; min-height: 24px; box-sizing: border-box; margin: 0; padding: 0 8px; font-size: 11px; line-height: 16px; color: var(--ink-3); }
 .pf-memoria-info svg { width: 12px; height: 12px; color: var(--ink-3); flex: none; }
 .pf-memoria-linha { gap: 8px; min-height: 28px; margin: 0; padding: 0 8px; border: 0; font-size: 11px; line-height: 16px; }
 .pf-pe { display: flex; height: 28px; box-sizing: border-box; align-items: center; margin: 0; padding: 0 2px 0 8px; border-top: 1px solid var(--borda-sutil); gap: 4px; font-size: 12px; line-height: 16px; }
 .pf-ver { height: 22px; padding: 0 6px; border-radius: var(--raio-6); color: var(--ink-3); font-size: 11px; line-height: 16px; font-weight: var(--peso-regular); text-decoration: none; }
 .pf-ver:hover { background: var(--hover); color: var(--ink); }
 .pf-pe > :is(.pf-ver, .pf-ver-todas):first-child, .pf-parar + :is(.pf-ver, .pf-ver-todas) { margin-left: auto; }
-.pf-parar { gap: 8px; height: 22px; margin: 0 0 0 -2px; padding: 0 6px 0 2px; border-radius: var(--raio-6); background: none; color: var(--danger); font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); }
-.pf-parar:hover { background: var(--danger-soft); }
-.pf-parar svg { width: 12px; height: 12px; margin: 0 0 0 2px; }
+.pf-parar { gap: 8px; height: 22px; margin: 0 0 0 -6px; padding: 0 6px; border-radius: var(--raio-6); background: none; color: var(--ink-2); font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); }
+.pf-parar:hover { background: var(--danger-soft); color: var(--danger); }
+/* Só o quadrado é vermelho parado (cor com semântica: destrutivo); o texto vira vermelho no hover. */
+.pf-parar svg { width: 12px; height: 12px; margin: 0; color: var(--danger); }
 .pf-painel .pf-secao { margin: 0; padding: 6px 8px 2px; font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
 .pf-painel .pf-secao.pf-secao-precisa { color: var(--warning); }
 .pf-ver-todas { display: inline-flex; flex: none; align-items: center; gap: 2px; height: 22px; padding: 0 6px; border: 0; border-radius: var(--raio-6); background: transparent;
   color: var(--ink-3); font: inherit; font-size: 11px; line-height: 14px; cursor: pointer; }
 .pf-ver-todas:hover { background: var(--hover); color: var(--ink); }
-.pf-ver-todas:focus-visible, .pf-prontas summary:focus-visible, .pf-fechar-x:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.pf-fechar-x { display: grid; flex: none; place-items: center; width: 20px; height: 20px; margin-right: -4px; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-3); cursor: pointer; }
+.pf-ver-todas:focus-visible, .pf-fechar-x:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pf-prontas summary:focus-visible { outline: 2px solid var(--focus-ring); }
+.pf-fechar-x { display: grid; flex: none; place-items: center; width: 20px; height: 20px; margin-right: -7px; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-3); cursor: pointer; }
 .pf-fechar-x:hover { background: var(--hover); color: var(--ink); }
 .pf-prontas { margin: 0; padding: 0; border-top: 1px solid var(--borda-sutil); }
 .pf-prontas summary { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: var(--raio-8); list-style: none; cursor: pointer; font-size: 12px; line-height: 16px; color: var(--ink-2); }

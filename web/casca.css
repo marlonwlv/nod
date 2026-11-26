@@ -614,7 +614,7 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 64px; }
 .pf-moldura { display: flex; justify-content: flex-start; bottom: 32px; padding-left: 20px; }
 .pf-painel { width: min(100%, 300px); max-height: min(520px, 64vh); gap: 0; padding: 4px; border: 0; border-radius: var(--raio-12); background: var(--surface-elevated);
-  box-shadow: 0 0 0 0.5px var(--borda), 0 8px 20px color-mix(in srgb, var(--ink) 10%, transparent); font-size: 12px; line-height: 16px; }
+  box-shadow: var(--sombra-pilha); font-size: 12px; line-height: 16px; }
 /* XUM-6 (pedido do Marlon em 26/11): abrir é um fade com leve subida a partir da aba (8 px e 98 %, origem no canto de
    baixo à esquerda, onde a aba está) em 200 ms; fechar é mais rápido (120 ms). Só opacity e transform: o cartão flutua
    (absoluto) e nada no layout se mexe. O recorte de antes (clip-path a partir da pílula) e as linhas subindo uma a uma

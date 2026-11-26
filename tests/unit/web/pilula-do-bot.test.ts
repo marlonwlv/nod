@@ -146,7 +146,7 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     expect(ordem).toEqual(["w3", "w5", "w4", "w2", "w1"]);
     expect(p.partes.corpo).toContain('<button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="w3" data-estado="rodando" title="ajustando o contraste">');
     expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w3 · Terminal retrô</span><span class="sr-only"> (rodando, ajustando o contraste)</span><span class="tv-estado">12 min</span></span></button>');
-    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w1 · Aurora</span><span class="tv-estado">pronta</span>');
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w1 · Aurora</span><span class="tv-estado">feita</span>');
     // Na lista da aba a linha inteira abre a tarefa: sem "Ver", sem o tempo e sem o traço entre as que andam e as prontas.
     expect(p.partes.corpo).not.toContain("tv-ver");
     expect(p.partes.corpo).not.toContain("pf-depois");
@@ -170,6 +170,11 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     // O × recolhe a pílula (o mesmo data-act da aba, com data-recolher): fecha o cartão e não chama o Parar.
     expect(p.partes.cab).toMatch(/<button type="button" class="pf-fechar-x" data-act="pilula" data-recolher="1" aria-label="Fechar" title="Fechar" aria-expanded="true" aria-controls="pf-painel"><svg[^]*?<\/svg><\/button>$/);
     expect(p.partes.cab).not.toContain("pilula-parar");
+    // A aba (9f): o "!" em âmbar e o trecho "1 precisa de você" num span próprio.
+    const comPergunta = HEROS.map((t) => (t.id === "w5" ? { ...t, estado: "precisa_de_voce" as const } : t));
+    const botao = daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO)).partes.botao;
+    expect(botao).toMatch(/^<svg class="pf-aba-ic pf-precisa" width="12" height="12" viewBox="0 0 12 12"/);
+    expect(botao).toContain('<span class="pf-resto-precisa">1 precisa de você</span>');
     expect(p.partes.cab).not.toContain("pf-ver-todas");
     expect(p.partes.pe).toMatch(/^<button type="button" class="pf-parar" data-act="pilula-parar"><svg[^]*?<\/svg>Parar<\/button>/);
     expect(p.partes.pe).toContain('data-act="pilula-ver-na-conversa">Ver na conversa');
@@ -188,6 +193,8 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     expect(corpo).toContain('<span class="sr-only"> (parada)</span><span class="tv-estado">você parou</span>');
     expect(corpo).toMatch(/<summary>.*<span>1 feita<\/span>/);
     expect(corpo).toContain("Estas tarefas usam 416 MB do seu Mac</p>");
+    // Revisão de design: a 9f termina em "+ Nova tarefa"; o aviso da máquina vem depois, como nota (não parece uma tarefa).
+    expect(corpo.indexOf("pf-nova-linha") === -1 || corpo.indexOf("pf-nova-linha") < corpo.indexOf("pf-memoria-info")).toBe(true);
     expect(corpo).not.toMatch(/tarefas d[oa] /);
   });
 
