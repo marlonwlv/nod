@@ -82,7 +82,11 @@ Telas no Paper, arquivo "nod · Chat e conversa", página "Seu computador · a A
    `pedir_a_pessoa` antes (o prompt e a descrição da ferramenta dizem). O conteúdo da tela é não confiável (ADR-026).
 
 9. **Onde vale e a escolha do lugar.** Fase 1: só na conversa da pessoa com o próprio bot (nem rotina, nem subtarefa,
-   nem sala, nem pedido de outra pessoa). O prompt diz a ordem: app conectado → navegador do bot → computador do bot →
+   nem sala, nem pedido de outra pessoa). Revisto em 2026-11-26 (QA da rc.15 no Windows, achado 1): "conversa" são os
+   modos `conversa` e `criacao` (`MODOS_DO_SEU_COMPUTADOR`), como nas mãos do Nod. O bot ainda não confirmado conversa
+   em `criacao`, e o corte só em `conversa` deixava a Lia e o Testador QA sem as ferramentas com o PC "Conectado"
+   (Raio-X de produção: `modo: "criacao"`, só os grupos nod e navegador). A avaliação usou um bot confirmado e não pegou;
+   `tests/integration/seu-computador-plano-pc.test.ts` cobre com o portão real e o PC anunciado como o motor do Windows. O prompt diz a ordem: app conectado → navegador do bot → computador do bot →
    o Mac/PC da pessoa, este só quando o pedido aponta para ele (um app que só existe lá, um arquivo dela, "no meu Mac").
    O bot diz em uma frase onde vai trabalhar e por quê. Medido em 2026-11-26 com o prompt e as ferramentas reais
    (`scripts/seu-computador/escolha/rodar.sh`, 10 pedidos: hotel, Numbers, PDF com Python, Slack, "abre o Chrome",

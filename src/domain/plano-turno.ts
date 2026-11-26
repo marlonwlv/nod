@@ -392,6 +392,12 @@ export const MODOS_DO_QUADRO: readonly ModoTurno[] = ["conversa", "criacao", "ro
 export const MODOS_DO_CANVAS: readonly ModoTurno[] = MODOS_DO_QUADRO;
 /** NOD-445: os modos com gerir_apps (o mesmo experimento): a conversa (pedir, ordenar, remover) e a rotina (o retrato do app). */
 export const MODOS_DOS_APPS: readonly ModoTurno[] = ["conversa", "criacao", "rotina"];
+/**
+ * ADR-197 (item 9), revisto em 2026-11-26: o computador da pessoa nos modos em que é ela quem fala com o próprio bot
+ * (conversa e criação, como as mãos do Nod). Só "conversa" deixava de fora todo bot ainda não confirmado: no QA da
+ * rc.15 no Windows, a Lia e o Testador QA (os dois em criação) nunca receberam as seu_computador_*.
+ */
+export const MODOS_DO_SEU_COMPUTADOR: readonly ModoTurno[] = ["conversa", "criacao"];
 
 export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTurno" | "machineId"> {
   const esforco = entrada.raciocinio ?? entrada.agente.esforco ?? undefined;
@@ -454,8 +460,9 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
     ? Object.entries(FERRAMENTAS_NAVEGADOR_DIRETAS).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "navegador", conectorId: null, readOnlyHint: (NAVEGADOR_SO_LEITURA as readonly string[]).includes(nome), tocaDadoPessoal: true, schema }))
     : [];
   // ADR-197 (item 9): o computador da pessoa só na conversa dela com o próprio bot (nem rotina, nem subtarefa, nem sala,
-  // nem pedido de outra pessoa): a pessoa está ali para ver o cartão e a ilha.
-  const seuComputador: FerramentaPlano[] = entrada.seuComputador && modo === "conversa" && !deOutraPessoa
+  // nem pedido de outra pessoa): a pessoa está ali para ver o cartão e a ilha. revisto em 2026-11-26 (QA da rc.15 no
+  // Windows, achado 1): a conversa com o bot ainda não confirmado é modo "criacao" e ficava sem as ferramentas.
+  const seuComputador: FerramentaPlano[] = entrada.seuComputador && MODOS_DO_SEU_COMPUTADOR.includes(modo) && !deOutraPessoa
     ? Object.entries(FERRAMENTAS_SEU_COMPUTADOR).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "seu_computador", conectorId: null, readOnlyHint: (SEU_COMPUTADOR_SO_LEITURA as readonly string[]).includes(nome), tocaDadoPessoal: true, schema }))
     : [];
   /**

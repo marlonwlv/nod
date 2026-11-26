@@ -27,6 +27,14 @@ describe("o computador da pessoa no plano", () => {
     expect(nomes(montarPlano({ ...base, seuComputador: MAC, turno: { ...turno, sobProcuracaoDe: "outra" } })).some((n) => n.startsWith("seu_computador_"))).toBe(false);
   });
 
+  it("entra também na conversa com o bot ainda não confirmado (modo criacao): QA rc.15 no Windows, achado 1", () => {
+    const PC = { plataforma: "win32" as const, nome: "app do nod" };
+    const p = montarPlano({ ...base, agente: { ...agente, confirmado: false }, seuComputador: PC, modo: "criacao" });
+    expect(nomes(p)).toEqual(expect.arrayContaining(["seu_computador_ver", "seu_computador_digitar"]));
+    expect(p.promptSistema).toContain("o PC da pessoa (seu_computador_*)");
+    for (const modo of ["delegacao", "peer", "ligacao"] as const) expect(nomes(montarPlano({ ...base, seuComputador: PC, modo })).some((n) => n.startsWith("seu_computador_")), modo).toBe(false);
+  });
+
   it("o prompt traz a ordem dos lugares e o aparelho certo", () => {
     const mac = montarPlano({ ...base, seuComputador: MAC, navegador: true });
     expect(mac.promptSistema).toContain("Onde trabalhar, nesta ordem");
