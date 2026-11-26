@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { listarAppsLocais } from "../../src/adapters/seu-computador/apps-locais.ts";
 import { baixadorDoDriver } from "../../src/adapters/seu-computador/binario.ts";
 import { criarSeuComputadorLocal } from "../../src/adapters/seu-computador/driver.ts";
+import { criarPessoaWindows } from "../../src/adapters/seu-computador/pessoa-windows.ts";
 import type { AppDoComputador, PedidoSeuComputador, RespostaSeuComputador } from "../../src/contracts/seu-computador.ts";
 
 const args = process.argv.slice(2);
@@ -59,7 +60,19 @@ async function passo(nome: string, p: PedidoSeuComputador): Promise<RespostaSeuC
 }
 
 let falhou = false;
+const falharCedo: string[] = [];
+// No PC, o vigia da pessoa (a pausa quando ela mexe no app): o PowerShell de verdade tem de responder.
+if (plataforma === "win32") {
+  const pessoa = criarPessoaWindows({ env: process.env });
+  const t0 = Date.now();
+  await pessoa.naFrente("C:\\nada.exe");
+  const ocioso = pessoa.ociosoS();
+  dizer(`pessoa no PC: ocioso ${ocioso} s, em ${Date.now() - t0} ms`);
+  if (!Number.isFinite(ocioso)) falharCedo.push("o vigia da pessoa no PC não respondeu");
+  pessoa.parar();
+}
 const falhar = (m: string) => { dizer(`::error::${m}`); falhou = true; };
+for (const m of falharCedo) falhar(m);
 try {
   const base = { apps: [app], bot: "Fumaça" };
   const fora = await passo("fora-do-manifesto", { ...base, apps: [], acao: "ver", args: { app: nomeDoApp } });

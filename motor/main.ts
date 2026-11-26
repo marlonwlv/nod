@@ -29,6 +29,7 @@ import { criarSeuComputadorLocal, type SeuComputadorLocal } from "../src/adapter
 import { listarAppsLocais } from "../src/adapters/seu-computador/apps-locais.ts";
 import { aquecerDriver, baixadorDoDriver } from "../src/adapters/seu-computador/binario.ts";
 import { publicarAtividade, vigiarParada } from "../src/adapters/seu-computador/sinal-entre-processos.ts";
+import { criarPessoaWindows } from "../src/adapters/seu-computador/pessoa-windows.ts";
 import { agentBrowserDoLinux, agentBrowserNoWindows, chromeDoLinux, chromeDoWindows, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
 import { cookiesDoChromeDoPc, criarCofresDoWindows } from "../desktop/cofres-do-windows.ts";
 import { criarPonteDoChrome, pipeDoChrome, registrarHostNoWindows, rodarHostDoChrome, senhaDoChrome, type PonteDoChrome } from "../src/adapters/executor/chrome-da-pessoa.ts";
@@ -345,7 +346,8 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
       // A ilha e a borda são do app do Windows: o motor publica cada ação e ouve o Parar (sinal-entre-processos.ts).
       const binario = baixadorDoDriver({ plataforma: "win32", pasta, env: process.env });
       aquecerDriver(binario);
-      const sc = criarSeuComputadorLocal({ plataforma: "win32", binario, pasta, listarApps: () => listarAppsLocais("win32", { env: process.env }), aoAtividade: (a) => publicarAtividade(pasta, a) });
+      const pessoa = criarPessoaWindows({ env: process.env });
+      const sc = criarSeuComputadorLocal({ plataforma: "win32", binario, pasta, pessoa, listarApps: () => listarAppsLocais("win32", { env: process.env }), aoAtividade: (a) => publicarAtividade(pasta, a) });
       vigiarParada(pasta, () => { void sc.parar(); });
       seuComputadorPc = sc;
     }

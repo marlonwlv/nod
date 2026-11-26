@@ -34,3 +34,25 @@ describe("a ilha do PC entre o motor e o app", () => {
     writeFileSync(join(pasta, ARQUIVO_ATIVIDADE), "torto");
   });
 });
+
+describe("a pessoa no PC (pessoa-windows)", () => {
+  it("lê a resposta do PowerShell e o app da frente sem diferenciar maiúsculas", async () => {
+    const { lerRespostaPessoa, criarPessoaWindows } = await import("../../../src/adapters/seu-computador/pessoa-windows.ts");
+    expect(lerRespostaPessoa('{"frente":"C:\\\\Windows\\\\system32\\\\notepad.exe","ocioso":3}')).toEqual({ frente: "C:\\Windows\\system32\\notepad.exe", ociosoS: 3 });
+    expect(lerRespostaPessoa('{"frente":"","ocioso":-1}')).toBeNull();
+    expect(lerRespostaPessoa("torto")).toBeNull();
+    const { EventEmitter } = await import("node:events");
+    const { PassThrough } = await import("node:stream");
+    const falso = () => {
+      const p = new EventEmitter() as EventEmitter & { stdin: InstanceType<typeof PassThrough>; stdout: InstanceType<typeof PassThrough>; exitCode: number | null; kill(): void };
+      p.stdin = new PassThrough(); p.stdout = new PassThrough(); p.exitCode = null; p.kill = () => undefined;
+      p.stdin.on("data", () => p.stdout.write('{"frente":"C:\\\\Windows\\\\System32\\\\NOTEPAD.EXE","ocioso":0}\n'));
+      return p;
+    };
+    const pessoa = criarPessoaWindows({ spawnar: falso as never, env: {} });
+    expect(pessoa.ociosoS()).toBe(Number.POSITIVE_INFINITY);
+    expect(await pessoa.naFrente("c:\\windows\\system32\\notepad.exe")).toBe(true);
+    expect(pessoa.ociosoS()).toBe(0);
+    expect(await pessoa.naFrente("C:\\Program Files\\App\\app.exe")).toBe(false);
+  });
+});

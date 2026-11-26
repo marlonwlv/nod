@@ -184,8 +184,9 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
   const jpeg = (qualidade: number): Record<string, unknown> => (o.plataforma === "darwin" ? { screenshot_format: "jpeg", screenshot_quality: qualidade } : {});
   const dormir = o.dormir ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   async function mexendoAgora(appId: string): Promise<boolean> {
-    if (!o.pessoa || o.pessoa.ociosoS() >= MEXEU_S) return false;
-    return o.pessoa.naFrente(appId).catch(() => false);
+    // O app da frente primeiro: no PC a mesma leitura traz o tempo sem teclado e mouse (pessoa-windows.ts).
+    if (!o.pessoa || !await o.pessoa.naFrente(appId).catch(() => false)) return false;
+    return o.pessoa.ociosoS() < MEXEU_S;
   }
   let ultimaCaixa: CaixaDaJanela | null = null;
 
