@@ -4616,7 +4616,9 @@ function abrirFolhaMais(el: HTMLElement): void {
     const aoFechar = () => el.setAttribute("aria-expanded", "false");
     // Abre para cima: o campo fica embaixo da tela.
     if (moduloDosDialogos) moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { html, ancora: el, lado: "top", alinhar: "start", distancia: 8, aoEscolher, aoFechar });
-    else abrirMenuDaBarra(html, el, { x: r.left - 4, y: Math.max(12, r.top - 8 - 140) }, aoEscolher, false, aoFechar);
+    // Sem o Base UI (`?dialogos-react=0`): a altura pelo número de linhas (≈38 cada, mais o respiro do menu); o Ensinar tem
+    // duas linhas de texto.
+    else abrirMenuDaBarra(html, el, { x: r.left - 4, y: Math.max(12, r.top - 8 - (14 + 38 * (html.match(/role="menuitem"/g)?.length ?? 1) + (pc.ensinar ? 20 : 0))) }, aoEscolher, false, aoFechar);
     return;
   }
   if (!ehCelular()) { document.getElementById("composer-arquivos")?.click(); return; }
