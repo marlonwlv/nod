@@ -22,7 +22,8 @@ export function podeVirarRegra(i: Pick<ItemAprovacao, "origemSensivel" | "destin
   // nem mostra o botão nos outros (`revisorSemSempre` em sua-vez.ts).
   if ((i.motivoManual === "revisor_pediu" || i.motivoManual === "revisor_falhou") && i.sempreServe !== true) return false;
   // ADR-190: o navegador nunca vira regra por ferramenta ("não perguntar de novo" vale por destino de envio, A3).
-  return !i.origemSensivel && i.destino.conector !== "computador" && i.destino.conector !== "navegador" && i.destino.conector !== "terminal" && !nuncaPermanente(i.destino.ferramenta);
+  // ADR-197: o "Sempre no {app}" do computador da pessoa já grava a liberação no portão (seu_computador_apps).
+  return !i.origemSensivel && i.destino.conector !== "computador" && i.destino.conector !== "navegador" && i.destino.conector !== "seu_computador" && i.destino.conector !== "terminal" && !nuncaPermanente(i.destino.ferramenta);
 }
 
 export type EntradaPermitirSempre = { decisaoId: string; itemIds: readonly string[] };

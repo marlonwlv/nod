@@ -21,7 +21,7 @@ export async function fraseDoItem(
 ): Promise<FraseDaAcao | null> {
   const { destino } = item;
   if (tipo === "comando") return destino.conector === "terminal" && typeof destino.argumentos.comando === "string" ? fraseDoComando(item.textoFinal) : null;
-  if (tipo !== "app" || destino.conector === "terminal" || destino.conector === "computador" || destino.conector === "navegador") return null;
+  if (tipo !== "app" || destino.conector === "terminal" || destino.conector === "computador" || destino.conector === "navegador" || destino.conector === "seu_computador") return null;
   // Um conector por leitura: o lote de cinco itens no mesmo app busca o catálogo uma vez só.
   let busca = conectores.get(destino.conector);
   if (!busca) {
