@@ -77,6 +77,16 @@ Telas no Paper, arquivo "nod · Chat e conversa", página "Seu computador · a A
 7. **O que fica fora, sempre.** Ajustes do Sistema e Painel de Controle, gerenciadores de senha, terminais, Automator e
    Editor de Scripts, Monitor de Atividade e o próprio nod (`src/domain/seu-computador.ts`), nem com "Sempre". Diálogos
    de segurança do macOS e janelas elevadas o driver não alcança. O bot nunca digita senha, código ou cartão.
+   **Emenda (2026-11-26, achado 2 do QA da rc.15 no Windows):** a lista valia só para o manifesto do driver, e o terminal
+   do bot roda como a pessoa, na sessão dela: o bot abriu o Gerenciador de Credenciais (`control.exe`) e o Bloco de Notas
+   (`notepad.exe`) pelo shell, sem cartão, ilha nem borda. Agora, no Mac e no Windows, o hook das nativas (Bash e Monitor
+   do Claude, shell do Codex) nega antes do servidor, em qualquer modo, abrir ou controlar app de desktop pelo shell
+   (`start`, `Start-Process`, `Invoke-Item`, `explorer`, `notepad`…; no Mac `open`, `osascript`) e, com outra frase, o
+   sensível (`control`, `rundll32`/`keymgr`, `cmdkey`, `vaultcmd`, `ms-settings:`, `regedit`, gerenciadores de senha,
+   terminais, o nod; no Mac `security`, Acesso às Chaves, Ajustes). A resposta manda para `seu_computador_*` ou para a
+   pessoa (`src/domain/apps-pelo-shell.ts`), e o prompt traz a mesma regra. Linux fica de fora (máquina do bot, ADR-090).
+   A lista do driver ganhou `rundll32`, `credwiz`, `cmdkey`, `vaultcmd`, `regedt32`, os hospedeiros de script e afins; o
+   Explorer segue liberável pelo cartão.
 
 8. **A confirmação no ponto sem volta continua.** Enviar, excluir, pagar e publicar num app da pessoa passam por
    `pedir_a_pessoa` antes (o prompt e a descrição da ferramenta dizem). O conteúdo da tela é não confiável (ADR-026).

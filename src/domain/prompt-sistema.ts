@@ -121,6 +121,15 @@ export function textoDoSeuComputador(aparelho: "Mac" | "PC", outros: { navegador
   ].join(" ");
 }
 
+/**
+ * definido em 2026-11-26 (achado 2 do QA da rc.15, ADR-197 item 7): o terminal roda na sessão da pessoa, então abrir ou
+ * controlar app dela pelo shell furaria o cartão, a ilha e a borda. O hook do nod nega de qualquer forma; a linha evita a
+ * tentativa e diz para onde ir.
+ */
+export function linhaAppsPeloTerminal(aparelho: "Mac" | "PC"): string {
+  return `Apps do ${aparelho} da pessoa: o terminal roda no ${aparelho} dela, mas não abre nem controla apps de desktop dela (${aparelho === "PC" ? "start, Start-Process, explorer, notepad.exe" : "open, osascript"}): isso vai pelas ferramentas seu_computador_*, com o cartão, ou para a pessoa. Senhas, cofre e gerenciador de credenciais, ajustes do sistema, registro, terminais e o próprio nod ficam sempre de fora, também pelo terminal (${aparelho === "PC" ? "control, cmdkey, rundll32, ms-settings:, regedit" : "security, Acesso às Chaves, Ajustes do Sistema"}): peça para a pessoa fazer essa parte. O hook do nod recusa esses comandos; não procure outro caminho.`;
+}
+
 function instrucaoDoModo(modo: Exclude<ModoTurno, "delegacao">, pede: boolean, criaBots: boolean): string {
   if (modo === "criacao" && !criaBots) return INSTRUCAO_MODO.criacao.replace(CRIACAO_COM_CRIAR_BOTS, CRIACAO_SEM_CRIAR_BOTS);
   return modo === "rotina" && !pede ? INSTRUCAO_MODO.rotina.replace(ROTINA_CONSULTANDO_COLEGAS, "") : INSTRUCAO_MODO[modo];
@@ -607,6 +616,10 @@ export function partesDoPromptSistema(entrada: EntradaPromptSistema): { estavel:
     ? `Também há as ferramentas nativas ${nativas.join(", ")}, como no Claude Code do terminal. O diretório atual é a sua pasta no Mac de ${entrada.pessoaNome}: ~/nod/${entrada.pastaDoBot} (o que você grava ali ela abre no Finder); você lê e grava arquivos em qualquer lugar do Mac dela. O Bash é o terminal de verdade do Mac: tem rede e o gh, o git e o npm logados dela — use gh para o GitHub (por exemplo gh pr list -R dono/repo). ${worktree} Comando que só lê (git status/diff/log, gh pr list/view/diff, ls, rg, rodar testes) roda direto; ${regraDoTerminal(entrada, modoAprovacao)} Gravar arquivo fora da sua pasta segue a mesma regra do comando que muda algo. Comando demorado do seu trabalho (testes, build, QA) não tem limite de tempo: rode em segundo plano (run_in_background) ou acompanhe com Monitor e siga trabalhando — quando ele terminar, você é chamado de novo nesta mesma sessão. Não encerre dizendo que vai acompanhar depois: acompanhe agora, até concluir. ${MAQUINA_DIVIDIDA} A pessoa pode mandar mensagem enquanto você trabalha; ela chega no meio do trabalho. Para mandar um arquivo do Mac (vídeo, print, PDF) a um app, chame a ferramenta do app que recebe arquivo e ponha o caminho no campo s3key: o nod envia o arquivo. Nunca peça à pessoa para rodar um comando por você. Para entregar algo visual ou marcável, use publicar_artefato.`
     : `Também há as ferramentas nativas ${nativas.join(", ")}, só dentro das pastas de projeto autorizadas nesta conversa.`;
   linhas.push(`As únicas ferramentas disponíveis são: ${nomes.length === 0 ? "nenhuma" : nomes.join(", ")}.${comoChamarConector} ${nativas.length ? comNativas : semNativas}`);
+  // Achado 2 do QA da rc.15 (2026-11-26): no Mac e no PC o terminal é o da sessão da pessoa, e o bot abriu o Gerenciador de
+  // Credenciais e o Bloco de Notas pelo shell, sem cartão. O hook nega (apps-pelo-shell.ts); a linha diz o caminho certo.
+  const terminalNaSessaoDaPessoa = entrada.pastaDoBot && nativas.includes("Bash") && entrada.maquina?.plataforma !== "linux";
+  if (terminalNaSessaoDaPessoa) linhas.push(linhaAppsPeloTerminal(entrada.maquina?.plataforma === "win32" ? "PC" : "Mac"));
   if (entrada.semTerminal && !nativas.includes("Bash")) {
     volatil.push(linhaSemTerminal(entrada.semTerminal, {
       pessoaNome: entrada.pessoaNome,
@@ -672,7 +685,7 @@ const PREFIXOS_DAS_SECOES: readonly (readonly [SecaoDoPrompt, readonly string[]]
   ["colegas", ["Colaboração:", "Diretório de colegas", "Limite da corrente:", "Quem receber um pedido seu", "Colegas no nod"]],
   ["rotinas", ["Quando a pessoa pedir uma tarefa recorrente", "Se o pedido de rotina não diz quando", "Rotinas deste agente:", "Inventário de rotinas", "Pausar interrompe", "Pausar e reativar"]],
   ["apps", ["Apps que você pode pedir", "Apps do marketplace:", "Conector habilitado não é acesso", "Se a pessoa disser que já conectou", "Catálogo enxuto", "Conexões cadastradas", "Apps conectados"]],
-  ["ferramentas", ["Artefatos:", "Quadro:", "Tela inicial:", "Tasks:", "Frentes:", "Frente:", "Triagem:", "As únicas ferramentas", "Terminal:", "Skills:", "Capacidades:", "Forma de trabalho:", "Progresso:"]],
+  ["ferramentas", ["Artefatos:", "Quadro:", "Tela inicial:", "Tasks:", "Frentes:", "Frente:", "Triagem:", "As únicas ferramentas", "Terminal:", "Apps do Mac da pessoa:", "Apps do PC da pessoa:", "Skills:", "Capacidades:", "Forma de trabalho:", "Progresso:"]],
   ["memoria", ["Memória (", "- ["]],
   ["contexto", ["Task atual:", "Frente atual:", "Trabalhos em andamento", "Contexto recente da conversa"]],
 ];

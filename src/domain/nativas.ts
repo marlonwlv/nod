@@ -1,3 +1,4 @@
+import { motivoAppPeloShell } from "./apps-pelo-shell.ts";
 import { semPadraoDeBusca, tocaCredencial } from "./comando.ts";
 import { arquivoForaDaPastaDoBot, gitForaDaPastaDoBot, type ContextoDaPasta } from "./git-na-pasta-do-bot.ts";
 import { FERRAMENTAS_DE_TAREFA } from "./tarefas-do-bot.ts";
@@ -191,7 +192,12 @@ function textoDoMcp(ferramenta: string, entrada: Record<string, unknown>): strin
  * `mcpDaPessoa` (definido em 2026-10-14, ADR-103): o turno do Codex carregou os MCPs da pessoa, e uma ferramenta MCP que
  * não é do nod vai ao servidor. Sem a marca (o Claude, ou um modo que não é da dona), MCP segue com o proxy, como antes.
  */
-export function decidirNativa(p: { ferramenta: string; entrada: Record<string, unknown>; pasta?: ContextoDaPasta; mcpDaPessoa?: boolean }): DecisaoNativa {
+/**
+ * `plataforma` (definido em 2026-11-26, achado 2 do QA da rc.15): a do processo do hook. No Mac e no Windows o motor roda
+ * na sessão da pessoa, e o Bash que abre app dela (ou o que é sensível) é negado aqui, antes do servidor e em qualquer
+ * modo de aprovação (`apps-pelo-shell.ts`). Ausente = sem a cerca (o servidor e os testes antigos).
+ */
+export function decidirNativa(p: { ferramenta: string; entrada: Record<string, unknown>; pasta?: ContextoDaPasta; mcpDaPessoa?: boolean; plataforma?: string }): DecisaoNativa {
   // Ferramenta MCP do nod não é nativa: quem decide é o proxy (ADR-013), que também grava a trilha. Medido ao
   // vivo em 2026-09-28: com o matcher "*", o CLI consultava o hook para MCP e ele negava publicar_artefato.
   if (p.ferramenta.startsWith("mcp__nod__") || (p.ferramenta.startsWith("mcp__") && !p.mcpDaPessoa)) return { permitir: true, motivo: "ferramenta do nod: quem decide é o proxy", contamina: false };
@@ -245,6 +251,9 @@ export function decidirNativa(p: { ferramenta: string; entrada: Record<string, u
       const fora = p.pasta ? gitForaDaPastaDoBot(comando, p.pasta) : null;
       // Revisão 10 do PR #642 (médio 1): o servidor não sabe a plataforma e confere o comando só pelo texto. O que só a
       // regra do Windows pega (`cat ~/.AWS/credentials` no Git Bash, `~/.aws./credentials`) o hook do win32 nega aqui.
+      // Achado 2 do QA da rc.15: abrir app da pessoa pelo shell fura o cartão do seu_computador (ADR-197); nunca passa.
+      const app = !fora && p.plataforma !== undefined ? motivoAppPeloShell(comando, p.plataforma) : null;
+      if (app !== null) return { permitir: false, motivo: app, contamina: false };
       if (!fora && p.pasta?.windows === true && tocaCredencial(semPadraoDeBusca(comando), { windows: true }) && !tocaCredencial(comando)) return { permitir: false, motivo: FRASE_CREDENCIAL_NO_WINDOWS, contamina: false };
       return fora ? { permitir: false, motivo: fora, contamina: false } : { permitir: true, motivo: "o servidor do nod decide o comando", contamina: false, comando };
     }
