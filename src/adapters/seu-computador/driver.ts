@@ -304,17 +304,25 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     return nome;
   }
 
-  /** O campo de texto (o do token pedido, senão o primeiro editável) pelo valor: lê agora e escreve valor + texto. */
-  async function digitarPeloValor(g: Geracao, base: Record<string, unknown>, texto: string, token: string | null): Promise<ResultadoDriver | null> {
-    const lido = await g.chamar("get_window_state", { ...base, include_screenshot: false, tree_format: "elements" }).catch(() => null);
-    const elementos = Array.isArray(lido?.estruturado?.elements) ? lido!.estruturado!.elements.map(obj) : [];
+  /**
+   * O campo de texto (o do token pedido, senão o primeiro editável) pelo valor: lê agora e escreve valor + texto. Sem o
+   * valor atual lido, não escreve (trocaria o que a pessoa tem no campo). Devolve o resultado ou o porquê de não ter dado.
+   */
+  async function digitarPeloValor(g: Geracao, base: Record<string, unknown>, texto: string, token: string | null): Promise<ResultadoDriver | string> {
+    const lido = await g.chamar("get_window_state", { ...base, include_screenshot: false, tree_format: "elements" }).catch((e: unknown) => e instanceof Error ? e.message : "falhou");
+    if (typeof lido === "string") return `releitura: ${lido}`;
+    const bruto = lido.estruturado?.elements ?? obj(lido.estruturado?.tree).elements;
+    const elementos = Array.isArray(bruto) ? bruto.map(obj) : [];
+    if (!elementos.length) return `sem elementos estruturados (chaves: ${Object.keys(lido.estruturado ?? {}).join(",")})`;
     const linha = token ? Number(token.split(":")[1]) : NaN;
-    const editavel = (e: Record<string, unknown>) => /edit|document|text ?area|textfield|text field/i.test(String(e.role ?? "")) && (!Array.isArray(e.actions) || e.actions.includes("set_value"));
+    const editavel = (e: Record<string, unknown>) => /edit|document|text ?area|textfield|text field/i.test(String(e.role ?? e.control_type ?? "")) && (!Array.isArray(e.actions) || e.actions.includes("set_value"));
     const alvo = elementos.find((e) => e.element_index === linha && editavel(e)) ?? elementos.find(editavel);
-    if (!alvo || typeof alvo.element_token !== "string") return null;
+    if (!alvo || typeof alvo.element_token !== "string") return `nenhum campo editável (papéis: ${[...new Set(elementos.map((e) => String(e.role)))].slice(0, 8).join(",")})`;
+    if (typeof alvo.value !== "string" && alvo.value !== undefined && alvo.value !== null) return "o valor do campo não veio como texto";
     const atual = typeof alvo.value === "string" ? alvo.value : "";
     const r = await g.chamar("set_value", { element_token: alvo.element_token, value: atual + texto, session: base.session });
-    return r.erro ? null : { ...r, texto: `${r.texto}\n(Escrito pelo valor do campo: o Windows não deixou trazer a janela para a frente.)` };
+    if (r.erro) return `set_value: ${r.texto.slice(0, 200)}`;
+    return { ...r, texto: `${r.texto}\n(Escrito pelo valor do campo: o Windows não deixou trazer a janela para a frente.)` };
   }
 
   async function janelaDo(g: Geracao, pid: number, session: string): Promise<number | null> {
@@ -413,7 +421,10 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
         if (entregaNaoChegou(r)) r = await g.chamar("type_text", { ...args, delivery_mode: "foreground" });
         // E quando o Windows não deixa trazer a janela (foreground_unavailable, a proteção contra roubo de foco): o campo
         // pelo próprio valor (UI Automation), lido agora e escrito com o texto no fim — sem foco e sem mouse.
-        if (entregaNaoChegou(r) || /foreground_unavailable/.test(r.texto)) r = await digitarPeloValor(g, base, String(p.args.texto ?? ""), typeof p.args.elemento === "string" ? p.args.elemento : null) ?? r;
+        if (entregaNaoChegou(r) || /foreground_unavailable/.test(r.texto)) {
+          const pv = await digitarPeloValor(g, base, String(p.args.texto ?? ""), typeof p.args.elemento === "string" ? p.args.elemento : null);
+          r = typeof pv === "string" ? { ...r, erro: true, texto: `${r.texto}\nPelo valor do campo também não deu (${pv}). Peça para a pessoa clicar no app e tente de novo.` } : pv;
+        }
         break;
       }
       case "tecla": {
