@@ -69,8 +69,10 @@ Telas no Paper, arquivo "nod · Chat e conversa", página "Seu computador · a A
    `<pasta do executor>\seu-computador\atividade.json` e o Parar volta por `parar.json`. No Mac, a ilha do nod no topo da tela
    ("Ada está usando seu Mac · Numbers · clicando · Parar") aparece a cada ação e some 12 s depois, e uma borda âmbar contorna a janela do app (uma janela do nod transparente,
    que deixa o clique passar); Parar e bloquear a
-   tela derrubam o driver na hora e o bot recebe "a pessoa parou". O cursor do agente é o do próprio driver. A aba do
-   painel recebe o último quadro da janela e os passos (`GET /agentes/:id/seu-computador`, SSE `seu_computador.mudou`).
+   tela derrubam o driver na hora e o bot recebe "a pessoa parou". O cursor do agente é o do próprio driver. No painel, o lugar
+   "Seu Mac"/"Seu PC" (ao lado de Navegador e Computador) aparece quando o bot usou o computador da pessoa: o último quadro
+   da janela, com a borda âmbar enquanto está ao vivo, e "O que <bot> fez" (`GET /agentes/:id/seu-computador`, SSE
+   `seu_computador.mudou`; `web/lib/seu-computador-painel.ts`).
 
 7. **O que fica fora, sempre.** Ajustes do Sistema e Painel de Controle, gerenciadores de senha, terminais, Automator e
    Editor de Scripts, Monitor de Atividade e o próprio nod (`src/domain/seu-computador.ts`), nem com "Sempre". Diálogos

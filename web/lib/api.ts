@@ -1,5 +1,5 @@
 import type { TarefaDto } from "../../src/contracts/tarefa.ts";
-import type { RespostaSeuComputadorTela } from "../../src/contracts/seu-computador.ts";
+import type { RespostaSeuComputadorTela, RespostaVistaSeuComputador } from "../../src/contracts/seu-computador.ts";
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
 import type { ChaveDoCofreNaTela, CofreDto, DetalheDaChaveDto, ModoDeUsoDaChave, NovaChaveDoCofre } from "../../src/contracts/cofre.ts";
@@ -725,6 +725,7 @@ export function criarApi(escopo: Escopo) {
     chaves: () => get<{ chaves: ChaveMaquinaDto[] }>("maquinas/chaves"),
     /** ADR-197: Ajustes › Seu Mac e o "Tirar" (de um app, de um bot ou de tudo). */
     seuComputador: () => get<RespostaSeuComputadorTela>("seu-computador"),
+    vistaSeuComputador: (agenteId: string) => get<RespostaVistaSeuComputador>(`agentes/${encodeURIComponent(agenteId)}/seu-computador`),
     tirarDoSeuComputador: (p: { agenteId?: string; appId?: string }) => post<RespostaSeuComputadorTela & { ok: true; saiu: number }>("seu-computador/tirar", p),
     emitirChave: (nome: string) => post<ChaveEmitidaDto>("maquinas/chaves", { nome }),
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),

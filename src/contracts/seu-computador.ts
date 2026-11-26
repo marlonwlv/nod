@@ -89,6 +89,11 @@ export type RespostaSeuComputadorTela = {
   apps: { agenteId: string; plataforma: "darwin" | "win32"; id: string; nome: string; sempre: boolean; ate: number | null }[];
 };
 
+/** A aba "Seu Mac" do painel (GET /api/agentes/:id/seu-computador): o último quadro da janela e os passos do bot. */
+export type PassoSeuComputador = { acao: AcaoSeuComputador; app: string | null; efeito: string | null; ok: boolean; em: number };
+export type VistaSeuComputador = { agenteId: string; aparelho: "Mac" | "PC"; app: string | null; quadro: string | null; passos: PassoSeuComputador[]; ativoEm: number };
+export type RespostaVistaSeuComputador = { vista: VistaSeuComputador | null; aparelho: { plataforma: "darwin" | "win32"; nome: string } | null };
+
 /** definido em 2026-11-26: "Permitir desta vez" vale por 2 h (a tarefa de uma conversa); "Sempre" até a pessoa tirar. */
 export const DESTA_VEZ_MS = 2 * 60 * 60_000;
 

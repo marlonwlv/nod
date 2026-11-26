@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PlanoTurno } from "../../contracts/plano-turno.ts";
-import { DESTA_VEZ_MS, FERRAMENTAS_SEU_COMPUTADOR, SEU_COMPUTADOR_SO_LEITURA, TIPOS_RESPOSTA_SEU_COMPUTADOR, type AcaoSeuComputador, type AppDoComputador, type NomeFerramentaSeuComputador, type RespostaSeuComputador } from "../../contracts/seu-computador.ts";
+import { DESTA_VEZ_MS, FERRAMENTAS_SEU_COMPUTADOR, type VistaSeuComputador, SEU_COMPUTADOR_SO_LEITURA, TIPOS_RESPOSTA_SEU_COMPUTADOR, type AcaoSeuComputador, type AppDoComputador, type NomeFerramentaSeuComputador, type RespostaSeuComputador } from "../../contracts/seu-computador.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import { errosDoSchema } from "../../domain/schema-args.ts";
 import { idDeAppValido, liberadosAgora, motivoDoBloqueio, nomeDoAparelho, textoDoPedido, type PlataformaPessoa } from "../../domain/seu-computador.ts";
@@ -27,17 +27,6 @@ import { turnoPermitido } from "./computadores.ts";
 export const PRAZO_ACAO_MS = 90_000;
 const PASSOS_MAX = 30;
 const RESULTADOS_MAX = 500;
-
-export type PassoSeuComputador = { acao: AcaoSeuComputador; app: string | null; efeito: string | null; ok: boolean; em: number };
-export type VistaSeuComputador = {
-  agenteId: string;
-  aparelho: "Mac" | "PC";
-  app: string | null;
-  /** O último quadro da janela (data URL JPEG/PNG); some quando a pessoa para ou depois de 30 min. */
-  quadro: string | null;
-  passos: PassoSeuComputador[];
-  ativoEm: number;
-};
 
 /** A ação liberada no cartão, cifrada no item da decisão (só este portão a lê). */
 type AcaoPendente = { agenteId: string; turnoId: string; plataforma: PlataformaPessoa; app: AppDoComputador };

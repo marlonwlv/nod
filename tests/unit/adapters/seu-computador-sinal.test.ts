@@ -44,7 +44,7 @@ describe("a pessoa no PC (pessoa-windows)", () => {
     const { EventEmitter } = await import("node:events");
     const { PassThrough } = await import("node:stream");
     const falso = () => {
-      const p = new EventEmitter() as EventEmitter & { stdin: InstanceType<typeof PassThrough>; stdout: InstanceType<typeof PassThrough>; exitCode: number | null; kill(): void };
+      const p = new EventEmitter() as InstanceType<typeof EventEmitter> & { stdin: InstanceType<typeof PassThrough>; stdout: InstanceType<typeof PassThrough>; exitCode: number | null; kill(): void };
       p.stdin = new PassThrough(); p.stdout = new PassThrough(); p.exitCode = null; p.kill = () => undefined;
       p.stdin.on("data", () => p.stdout.write('{"frente":"C:\\\\Windows\\\\System32\\\\NOTEPAD.EXE","ocioso":0}\n'));
       return p;

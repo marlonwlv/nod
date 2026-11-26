@@ -1,4 +1,6 @@
 import { criarSugestoesDaNovaConversa } from "./lib/sugestao-nova-conversa.ts";
+import { htmlPainelSeuComputador } from "./lib/seu-computador-painel.ts";
+import type { RespostaVistaSeuComputador } from "../src/contracts/seu-computador.ts";
 import type { PermissoesDoMac } from "./telas/ajustes-seu-computador.ts";
 import { comFraseDoTeto, FRASE_TETO_ROTINAS, FRASE_TETO_TOKENS_MCP } from "./lib/frase-do-teto.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
@@ -1515,9 +1517,27 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
  * tela cheia e na folha do celular (web/telas/navegador.ts). Vive fora do reducer (o canal ao vivo e os quadros); a vista
  * em si vem de `estado.navegadores` (o REST e o `navegador.mudou`).
  */
+/** ADR-197 (S4): as vistas do computador da pessoa por bot (o último quadro e os passos), lidas pelo REST e pelo SSE. */
+const vistasSeuComputador = new Map<string, RespostaVistaSeuComputador | null>();
+const lendoSeuComputador = new Set<string>();
+function lerSeuComputador(agenteId: string): void {
+  const sessao = api;
+  if (!sessao?.vistaSeuComputador || lendoSeuComputador.has(agenteId)) return;
+  lendoSeuComputador.add(agenteId);
+  void sessao.vistaSeuComputador(agenteId)
+    .then((r) => { vistasSeuComputador.set(agenteId, r); navegadorNaTela.atualizarSeuComputador(agenteId); })
+    .catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) vistasSeuComputador.set(agenteId, null); })
+    .finally(() => lendoSeuComputador.delete(agenteId));
+}
 const navegadorNaTela = criarNavegadorNaTela({
   api: () => api,
   nome: (id) => botGerido(id)?.nome ?? "o bot",
+  seuComputador: {
+    tem: (id) => (vistasSeuComputador.get(id)?.vista?.passos.length ?? 0) > 0,
+    aparelho: () => (estado.seuComputador?.aparelho?.plataforma === "win32" ? "PC" : "Mac"),
+    html: (id) => { const r = vistasSeuComputador.get(id); return htmlPainelSeuComputador({ vista: r?.vista ?? null, nomeBot: botGerido(id)?.nome ?? "O bot", aparelho: r?.vista?.aparelho ?? (r?.aparelho?.plataforma === "win32" ? "PC" : "Mac"), agora: Date.now() }); },
+    ler: (id) => { if (!vistasSeuComputador.has(id)) lerSeuComputador(id); },
+  },
   avatar: (id) => { const b = botGerido(id); return b ? htmlMascote(b, "sm") : ""; },
   temComputador: () => estado.computadorPessoa !== null && estado.computadorPessoa !== undefined,
   abrirComputador: (id) => { const el = document.createElement("button"); el.dataset.id = id; void ACOES["abrir-computador"]?.(el); },
@@ -3017,6 +3037,8 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
   if (q.startsWith("diario:")) return { tipo: "hidratar-diario", agenteId: q.slice(7), pagina: await api.diarioMemoria(q.slice(7)) };
   if (q.startsWith("concessoes:")) return { tipo: "hidratar-concessoes", agenteId: q.slice(11), ...(await api.concessoes(q.slice(11))) };
   // ADR-190: a vista do navegador do bot (404: servidor de antes ou bot de outra pessoa — fica indisponível, sem faixa).
+  // ADR-197: a vista do computador da pessoa (fora do reducer, como o navegador ao vivo); o painel troca sozinho.
+  if (q.startsWith("seu-computador:")) { lerSeuComputador(q.slice(15)); return null; }
   if (q.startsWith("navegador:")) {
     const agenteId = q.slice(10);
     const navegador = await api.navegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
@@ -3225,7 +3247,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala" || modalDoMarketplace !== null;
   if (q === "chaves") return secao === "maquinas";
   if (q === "seu-computador") return secao === "maquinas";
-  if (q.startsWith("seu-computador:")) return false;
+  if (q.startsWith("seu-computador:")) return (t.tipo === "conversa" && t.agenteId === q.slice(15)) || navegadorNaTela.lugarAtivo(q.slice(15)) !== null;
   if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";

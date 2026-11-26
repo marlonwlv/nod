@@ -1,5 +1,5 @@
-import type { SeuComputadorGateway, VistaSeuComputador } from "../../fundo/seu-computador.ts";
-import type { RespostaSeuComputadorTela } from "../../../contracts/seu-computador.ts";
+import type { SeuComputadorGateway } from "../../fundo/seu-computador.ts";
+import type { RespostaSeuComputadorTela, RespostaVistaSeuComputador, VistaSeuComputador } from "../../../contracts/seu-computador.ts";
 import { liberadosAgora } from "../../../domain/seu-computador.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import type { Escopo } from "../../../shared/types.ts";
@@ -44,7 +44,8 @@ export function rotasSeuComputador(o: { dentro: <T>(escopo: Escopo, fn: (d: Deps
         const agente = await o.dentro(ctx.escopo, (d) => d.repos.agentes.buscar(id));
         if (!agente || agente.ownerId !== ctx.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
         const vista: VistaSeuComputador | null = o.portao?.vista(ctx.escopo, id) ?? null;
-        ctx.json(200, { vista, aparelho: o.portao?.disponivel(ctx.escopo) ?? null });
+        const r: RespostaVistaSeuComputador = { vista, aparelho: o.portao?.disponivel(ctx.escopo) ?? null };
+        ctx.json(200, r);
       },
     },
   ];
