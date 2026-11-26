@@ -82,7 +82,10 @@ Telas no Paper, arquivo "nod · Chat e conversa", página "Seu computador · a A
    O bot diz em uma frase onde vai trabalhar e por quê. Medido em 2026-11-26 com o prompt e as ferramentas reais
    (`scripts/seu-computador/escolha/rodar.sh`, 10 pedidos: hotel, Numbers, PDF com Python, Slack, "abre o Chrome",
    Excel, Keynote, portal da prefeitura, Mail do Mac, script): Sonnet e Haiku começaram no lugar esperado em 9 de 10; no
-   décimo (portal sem cidade) os dois procuraram nas conversas e perguntaram, sem errar de lugar.
+   décimo (portal sem cidade) os dois procuraram nas conversas e perguntaram, sem errar de lugar. De ponta a ponta
+   (`rodar-ponta-a-ponta.sh`: o portão e a fila reais até uma máquina simulada com o Editor de Texto), os dois modelos
+   pediram o app no cartão, leram a janela, escreveram a linha pela referência e releram; recusaram o Terminal sem
+   tentar; e no pedido de hotel foram ao navegador, sem tocar no computador da pessoa.
 
 10. **Registro.** Cada chamada vai à trilha (`tool_call`); a vista guarda os 30 últimos passos com o efeito que o driver
     relata (confirmado, sem prova, sem efeito). As imagens ficam só em memória, no servidor, para o painel.
