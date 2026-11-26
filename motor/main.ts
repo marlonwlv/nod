@@ -178,6 +178,8 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   let encerrado = false;
   /** ADR-100: o pedido de atualização ao root, quando o motor ficar diferente do servidor (só com a instalação nova). */
   let atualizador: Atualizador | null = null;
+  /** Aceite da rc.14 no Windows: renova o sinal `motor-se-atualiza` com os turnos da pessoa (null fora do Windows). */
+  let sinalizarMotor: (() => void) | null = null;
   /** NOD-9 PR4: a atualização das IAs desta máquina (npm do motor no ~/.local); criada depois dos drivers. */
   let atualizadorIas: AtualizadorDeIas | null = null;
 
@@ -362,7 +364,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
     laco = iniciarPoolDeLacos((ponte) => iniciarLaco({ ponte, registry: reg, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, relogio: () => Date.now(), renovacaoMs: 1_000, esperaVaziaMs: 1000, memoria, registroDaConta, urlNod: lig.urlNod,
       aoDelta: (p, t) => ponteHttp.delta(p.turnoId, t),
       aoEvento: (p, ev) => { repassarAcaoDoEvento(ponteHttp, p.turnoId, ev); tarefasVivas.evento(p.turnoId, ev); subagentesVivos.evento(p.turnoId, ev); },
-      aoIniciarTurno: (p) => { planosAqui.set(p.turnoId, p); },
+      aoIniciarTurno: (p) => { planosAqui.set(p.turnoId, p); if (sinalizarMotor) setTimeout(sinalizarMotor, 0).unref(); },
       aoTerminarTurno: (p) => { tarefasVivas.esquecer(p.turnoId); subagentesVivos.parar(p.turnoId); subagentesVivos.esquecer(p.turnoId); planosAqui.delete(p.turnoId); void atualizadorIas?.verificar().catch(() => undefined); },
       aoVigia: (p, aviso) => ponteHttp.vigia(p.turnoId, aviso),
       aoResultado: (p, r) => {
@@ -379,10 +381,11 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
     if (import.meta.url.endsWith(".mjs") && NO_WINDOWS && process.env.NOD_ATUALIZAR_SOZINHO !== "0" && !atualizador) {
       const ia = () => (iasAtualizando() ? 1 : 0);
       atualizador = iniciarAtualizacao({ url: c.url, dir, pastaDoMotor: pasta, turnosRodando: () => (laco?.turnosAtuais().length ?? 0) + ia(), turnosDaPessoa: () => (laco?.turnosDaPessoa() ?? 0) + ia(), drenar: (nivel) => laco?.drenar(nivel), pedir: () => atualizarNoWindows(c.url) });
-      // QA-234: o sinal diz ao app que este motor cuida da própria troca (o app não passa por cima dos turnos).
-      const sinalizar = () => void sinalizarQueSeAtualiza(process.env).catch(() => undefined);
-      sinalizar();
-      setInterval(sinalizar, INTERVALO_DO_SINAL_MS).unref();
+      // QA-234: o sinal diz ao app que este motor cuida da própria troca (o app não passa por cima dos turnos). Aceite da
+      // rc.14: leva os turnos da pessoa, renovado a cada minuto e no começo de cada turno (o app só passa por cima sem eles).
+      sinalizarMotor = () => void sinalizarQueSeAtualiza(process.env, Date.now(), laco?.turnosDaPessoa() ?? 0).catch(() => undefined);
+      sinalizarMotor();
+      setInterval(sinalizarMotor, INTERVALO_DO_SINAL_MS).unref();
     }
     if (import.meta.url.endsWith(".mjs") && !NO_WINDOWS) {
       void atualizacaoLigada({ url: c.url }).then((ligada) => {
