@@ -37,11 +37,10 @@ export function htmlAjustesSeuComputador(p: { dados: RespostaSeuComputadorTela |
     detalhe: `${nomeDo(a.agenteId)} · ${a.sempre ? "Sempre" : a.ate ? `até ${quando(a.ate)}` : "desta vez"} · ${a.plataforma === "win32" ? "PC" : "Mac"}`,
     controle: { tipo: "html", html: `<button type="button" class="bt sm" data-act="sc-tirar" data-agente="${esc(a.agenteId)}" data-app="${esc(a.id)}" aria-label="${esc(`Tirar o ${a.nome} de ${nomeDo(a.agenteId)}`)}">Tirar</button>` },
   }));
+  if (linhasApps.length > 1) linhasApps.push(linhaConfig({ titulo: "Tirar tudo", detalhe: "Os bots voltam a pedir na conversa na próxima vez.", perigo: true, controle: { tipo: "link", acao: "sc-tirar-tudo" } }));
   const grupoApps = grupoConfig("Apps que os bots podem usar", linhasApps, {
     contagem: apps.length,
-    notaHtml: apps.length
-      ? `<button type="button" class="bt sm" data-act="sc-tirar-tudo">Tirar tudo</button> Senhas, Ajustes do Sistema, gerenciadores de senha, Terminal e o próprio nod ficam sempre de fora.`
-      : "Nenhum ainda. Quando um bot precisar de um app, ele pede na conversa. Senhas, Ajustes do Sistema, gerenciadores de senha, Terminal e o próprio nod ficam sempre de fora.",
+    nota: `${apps.length ? "" : "Nenhum ainda. Quando um bot precisar de um app, ele pede na conversa. "}Senhas, Ajustes do Sistema, gerenciadores de senha, Terminal e o próprio nod ficam sempre de fora.`,
     id: "seu-computador-apps",
   });
   return `<section class="espaco-secao cfg-secao cfg-seu-computador" aria-label="Seu ${nomeAparelho}">${grupoConfig(`Seu ${nomeAparelho}`, linhas, { id: "seu-computador" })}${grupoApps}</section>`;
