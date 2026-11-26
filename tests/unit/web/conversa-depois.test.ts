@@ -466,7 +466,7 @@ describe("4–6. o card da aprovação de um item", () => {
     const vencido = { ...pedido("d1"), estadoColuna: "vencido" as const, decisao: { ...pedido("d1").decisao, estado: "vencida" as const } };
     const { e, c } = cenario([], [vencido]);
     const html = renderTimeline(c, e);
-    expect(html).toContain(">aprovação<");
+    expect(html).toContain('<span class="dec-tipo"> · aprovação</span>');
     expect(html).not.toContain("aprovação em lista");
   });
 
