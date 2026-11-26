@@ -111,6 +111,16 @@ export function entregaNaoChegou(r: ResultadoDriver): boolean {
   return /did not contain the requested text|delivery was incomplete|Retry with delivery_mode:"foreground"/i.test(r.texto);
 }
 
+/** A árvore veio vazia (o app subindo, a janela em outro Space): `elements=0` sem ser a resposta de uma busca. */
+export function arvoreVazia(r: ResultadoDriver): boolean {
+  return !r.erro && /\belements=0\b/.test(r.texto);
+}
+
+/** A ação por trás foi recusada porque a janela não está ao alcance da acessibilidade (outro Space, superfície não resolvida). */
+export function foraDoAlcance(r: ResultadoDriver): boolean {
+  return /off_space_or_ax_unresolved|ax_window_unresolved|ax_app_launching/.test(r.texto);
+}
+
 /** O driver recusou (ou leu vazio) porque a tela está bloqueada ou no descanso de tela. */
 export function telaBloqueada(r: ResultadoDriver): boolean {
   return /screen_locked/.test(r.texto) || r.estruturado?.degraded_reason === "screen_locked" || JSON.stringify(r.estruturado ?? {}).includes("\"screen_locked\"");
@@ -404,29 +414,36 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     const elemento = typeof p.args.elemento === "string" && p.args.elemento ? { element_token: p.args.elemento } : {};
     const ponto = typeof p.args.x === "number" && typeof p.args.y === "number" ? { x: p.args.x, y: p.args.y } : {};
     let r: ResultadoDriver;
+    // A última ação mandada ao driver (para repetir em primeiro plano quando a janela está fora do alcance).
+    let ultima: { nome: string; args: Record<string, unknown> } | null = null;
+    const acao = (nome: string, args: Record<string, unknown>) => { ultima = { nome, args }; return g.chamar(nome, args); };
     switch (p.acao) {
       case "ver": {
-        r = await g.chamar("get_window_state", { ...base, ...(typeof p.args.busca === "string" && p.args.busca ? { query: p.args.busca } : {}), include_screenshot: p.args.sem_imagem !== true, ...jpeg(70), max_image_dimension: 1400 });
+        const pedido = { ...base, ...(typeof p.args.busca === "string" && p.args.busca ? { query: p.args.busca } : {}), include_screenshot: p.args.sem_imagem !== true, ...jpeg(70), max_image_dimension: 1400 };
+        r = await g.chamar("get_window_state", pedido);
+        // Medido no Mac do dono (2026-11-26): logo depois de abrir, ou com a janela em outro Space (a pessoa num app em
+        // tela cheia), a árvore vem vazia. Lê de novo (o app termina de subir); a imagem já vale.
+        for (let i = 0; i < 2 && arvoreVazia(r); i++) { await dormir(1000); r = await g.chamar("get_window_state", pedido); }
         break;
       }
       case "clicar": {
         if (!("element_token" in elemento) && !("x" in ponto)) return { tipo: "falhou", texto: "Diga o elemento (da última leitura) ou x e y." };
-        r = await g.chamar("click", { ...base, ...elemento, ...ponto, ...(p.args.botao === "direito" ? { button: "right" } : {}), ...(p.args.duplo === true && "x" in ponto ? { count: 2 } : {}) });
-        if (p.args.duplo === true && "element_token" in elemento) r = await g.chamar("double_click", { ...base, ...elemento });
+        r = await acao("click", { ...base, ...elemento, ...ponto, ...(p.args.botao === "direito" ? { button: "right" } : {}), ...(p.args.duplo === true && "x" in ponto ? { count: 2 } : {}) });
+        if (p.args.duplo === true && "element_token" in elemento) r = await acao("double_click", { ...base, ...elemento });
         break;
       }
       case "digitar": {
         const args = { ...base, ...elemento, text: String(p.args.texto ?? "") };
-        r = await g.chamar("type_text", args);
+        r = await acao("type_text", args);
         // Medido na CI (Windows Server, Bloco de Notas, 2026-11-26): a entrega em segundo plano (PostMessage) pode não
         // chegar, e o driver diz. Aí repete em primeiro plano: traz a janela um instante, digita e devolve o foco.
         // 1º: o campo pode estar sem o foco do teclado dentro da janela (a entrega vai ao foco). Foca o elemento pela
         // acessibilidade (sem cursor nem foco de janela) e digita de novo em segundo plano.
         if (entregaNaoChegou(r) && "element_token" in elemento) {
-          await g.chamar("click", { ...base, ...elemento }).catch(() => null);
-          r = await g.chamar("type_text", args);
+          await acao("click", { ...base, ...elemento }).catch(() => null);
+          r = await acao("type_text", args);
         }
-        if (entregaNaoChegou(r)) r = await g.chamar("type_text", { ...args, delivery_mode: "foreground" });
+        if (entregaNaoChegou(r)) r = await acao("type_text", { ...args, delivery_mode: "foreground" });
         // E quando o Windows não deixa trazer a janela (foreground_unavailable, a proteção contra roubo de foco): o campo
         // pelo próprio valor (UI Automation), lido agora e escrito com o texto no fim — sem foco e sem mouse.
         if (entregaNaoChegou(r) || /foreground_unavailable/.test(r.texto)) {
@@ -438,20 +455,25 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
       case "tecla": {
         const mods = Array.isArray(p.args.modificadores) ? p.args.modificadores.map((m) => TECLAS_MODIFICADORAS[String(m)]).filter(Boolean) : [];
         const tecla = String(p.args.tecla ?? "");
-        r = mods.length ? await g.chamar("hotkey", { ...base, ...elemento, keys: [...mods, tecla] }) : await g.chamar("press_key", { ...base, ...elemento, key: tecla });
+        r = mods.length ? await acao("hotkey", { ...base, ...elemento, keys: [...mods, tecla] }) : await acao("press_key", { ...base, ...elemento, key: tecla });
         break;
       }
       case "rolar":
-        r = await g.chamar("scroll", { ...base, ...elemento, ...ponto, direction: DIRECAO[String(p.args.direcao)] ?? "down", amount: typeof p.args.quantidade === "number" ? p.args.quantidade : 3 });
+        r = await acao("scroll", { ...base, ...elemento, ...ponto, direction: DIRECAO[String(p.args.direcao)] ?? "down", amount: typeof p.args.quantidade === "number" ? p.args.quantidade : 3 });
         break;
       case "arrastar":
-        r = await g.chamar("drag", { ...base, from_x: p.args.de_x, from_y: p.args.de_y, to_x: p.args.para_x, to_y: p.args.para_y });
+        r = await acao("drag", { ...base, from_x: p.args.de_x, from_y: p.args.de_y, to_x: p.args.para_x, to_y: p.args.para_y });
         break;
       case "menu":
         if (janela === null) return { tipo: "falhou", texto: `O ${app.nome} não tem janela para o menu.` };
-        r = await g.chamar("invoke_menu", { pid, window_id: janela, session, path: Array.isArray(p.args.caminho) ? p.args.caminho.map(String) : [] });
+        r = await acao("invoke_menu", { pid, window_id: janela, session, path: Array.isArray(p.args.caminho) ? p.args.caminho.map(String) : [] });
         break;
     }
+    // A janela em outro Space (ou a superfície de acessibilidade ainda não resolvida): o driver recusa a entrada por trás
+    // para não cair numa janela irmã. Repete em primeiro plano (traz a janela um instante e devolve o foco).
+    // (O TypeScript não vê a atribuição dentro de `acao`: o tipo vem de volta aqui.)
+    const anterior = ultima as { nome: string; args: Record<string, unknown> } | null;
+    if (anterior && foraDoAlcance(r)) r = await g.chamar(anterior.nome, { ...anterior.args, delivery_mode: "foreground" });
     if (telaBloqueada(r)) return { tipo: "tela_bloqueada" };
     if (r.erro) return { tipo: "falhou", texto: r.texto || "O computador recusou a ação." };
     // A imagem depois da ação vai ao painel (a aba "Seu Mac"), não ao bot: um quadro pequeno, sem a árvore.

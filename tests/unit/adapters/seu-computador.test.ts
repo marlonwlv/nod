@@ -3,7 +3,7 @@ import { criarSeuComputador } from "../../../src/adapters/fundo/seu-computador.t
 import { iniciarNavegadorDaMaquina, lerComandoNavegador, type CanalNavegadorDaMaquina, type NavegadorDaMaquina } from "../../../src/adapters/executor/navegador.ts";
 import { criarCanalNavegador } from "../../../src/adapters/navegador/canal-maquina.ts";
 import { lerApps } from "../../../src/adapters/seu-computador/apps-locais.ts";
-import { caixaDaJanela, criarSeuComputadorLocal, efeitoDoResultado, entregaNaoChegou, escolherJanela, lerResultadoDriver, telaBloqueada } from "../../../src/adapters/seu-computador/driver.ts";
+import { arvoreVazia, caixaDaJanela, criarSeuComputadorLocal, efeitoDoResultado, entregaNaoChegou, escolherJanela, foraDoAlcance, lerResultadoDriver, telaBloqueada } from "../../../src/adapters/seu-computador/driver.ts";
 import { FERRAMENTAS_SEU_COMPUTADOR, type PedidoSeuComputador, type RespostaSeuComputador } from "../../../src/contracts/seu-computador.ts";
 import type { MotorNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { acharApp, liberadosAgora, manifestoBounded, motivoDoBloqueio, textoDoPedido } from "../../../src/domain/seu-computador.ts";
@@ -98,6 +98,11 @@ describe("respostas do cua-driver", () => {
     expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "ok" }] }))).toBe(false);
     expect(entregaNaoChegou(lerResultadoDriver({ content: [{ type: "text", text: "Sent 20 char(s) via PostMessage, but the focused field's value did not contain the requested text after dispatch. Retry with delivery_mode:\"foreground\"." }] }))).toBe(true);
     expect(entregaNaoChegou(lerResultadoDriver({ content: [{ type: "text", text: "Inserted 20 char(s) into AXTextArea" }] }))).toBe(false);
+    // Medido no Mac do dono: a janela em outro Space / app subindo (árvore vazia; entrada por trás recusada).
+    expect(arvoreVazia(lerResultadoDriver({ content: [{ type: "text", text: "window_id=1 pid=2 size=656x422 elements=0 ui_tree_revision=1" }] }))).toBe(true);
+    expect(arvoreVazia(lerResultadoDriver({ content: [{ type: "text", text: "window_id=1 elements=346 snapshot_id=s1" }] }))).toBe(false);
+    expect(foraDoAlcance(lerResultadoDriver({ content: [{ type: "text", text: "Background input refused (off_space_or_ax_unresolved): window 31635 is not among the process's current AXWindows" }], isError: true }))).toBe(true);
+    expect(foraDoAlcance(lerResultadoDriver({ content: [{ type: "text", text: "Inserted 20 char(s)" }] }))).toBe(false);
   });
 });
 
