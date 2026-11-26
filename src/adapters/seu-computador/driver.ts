@@ -218,16 +218,36 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     sessoes.clear();
   }
 
-  async function esperarSocket(socket: string, daemon: ChildProcess): Promise<void> {
-    const ate = agora() + (o.plataforma === "win32" ? PRAZO_SUBIR_WINDOWS_MS : PRAZO_SUBIR_MS);
-    let saiu = false;
-    daemon.once("exit", () => { saiu = true; });
-    while (agora() < ate) {
-      if (saiu) throw new Error("o driver saiu ao subir");
-      if (existsSync(socket)) return;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    throw new Error("o driver não subiu a tempo");
+  /**
+   * O daemon está pronto quando diz "listening on" (na saída padrão ou de erro). Medido na CI em 2026-11-26: no Windows o
+   * `existsSync` do named pipe não é confiável (ora via em 11 s, ora nunca); a frase do próprio driver vale nos dois.
+   * O Unix confere também o arquivo do socket. As últimas linhas do driver vão no erro.
+   */
+  function esperarSocket(socket: string, daemon: ChildProcess): Promise<void> {
+    const prazo = o.plataforma === "win32" ? PRAZO_SUBIR_WINDOWS_MS : PRAZO_SUBIR_MS;
+    return new Promise((resolver, rejeitar) => {
+      const linhas: string[] = [];
+      let feito = false;
+      const fim = (e?: Error) => {
+        if (feito) return;
+        feito = true;
+        clearTimeout(relogio);
+        clearInterval(olhar);
+        if (e) rejeitar(e); else resolver();
+      };
+      const ouvir = (d: Buffer | string) => {
+        const texto = String(d);
+        for (const l of texto.split(/\r?\n/)) if (l.trim()) { linhas.push(l.trim().slice(0, 200)); if (linhas.length > 5) linhas.shift(); }
+        if (/listening on/i.test(texto)) fim();
+      };
+      daemon.stdout?.on("data", ouvir);
+      daemon.stderr?.on("data", ouvir);
+      daemon.once("exit", (codigo) => fim(new Error(`o driver saiu ao subir (código ${String(codigo)}): ${linhas.join(" | ")}`)));
+      daemon.once("error", (e) => fim(e));
+      const olhar = setInterval(() => { if (o.plataforma !== "win32" && existsSync(socket)) fim(); }, 100);
+      const relogio = setTimeout(() => fim(new Error(`o driver não subiu a tempo: ${linhas.join(" | ") || "sem saída"}`)), prazo);
+      relogio.unref?.();
+    });
   }
 
   async function subir(appsDoManifesto: Map<string, AppDoComputador>): Promise<Geracao> {
@@ -241,7 +261,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     if (o.plataforma === "win32") socket = `\\\\.\\pipe\\nod-cua-${randomBytes(12).toString("hex")}`;
     else { dir = mkdtempSync(join(tmpdir(), "nod-cua-")); socket = join(dir, "d.sock"); }
     const env = ambiente();
-    const daemon = spawnar(binario, ["serve", "--embedded", "--parent-liveness-stdio", "--no-permissions-gate", "--socket", socket, "--permission-mode", "bounded", "--capability-manifest", manifesto, "--approve-capability-manifest", ...(o.bundleDoHost ? ["--host-bundle-id", o.bundleDoHost] : [])], { env, stdio: ["pipe", "ignore", "ignore"], windowsHide: true });
+    const daemon = spawnar(binario, ["serve", "--embedded", "--parent-liveness-stdio", "--no-permissions-gate", "--socket", socket, "--permission-mode", "bounded", "--capability-manifest", manifesto, "--approve-capability-manifest", ...(o.bundleDoHost ? ["--host-bundle-id", o.bundleDoHost] : [])], { env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     try { await esperarSocket(socket, daemon); } catch (e) { try { daemon.kill(); } catch { /* */ } if (dir) rmSync(dir, { recursive: true, force: true }); throw e; }
     const mcp = spawnar(binario, ["mcp", "--embedded", "--socket", socket], { env, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     const req = clienteMcp(mcp);
