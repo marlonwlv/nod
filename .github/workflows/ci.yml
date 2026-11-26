@@ -311,10 +311,10 @@ jobs:
         timeout-minutes: 5
         run: npx electron scripts/desktop/smoke-window.mjs
       # ADR-197: o computador da pessoa com o cua-driver de verdade (pacote fixo, sha256 conferido, modo bounded): abrir o
-      # Editor de Texto com um arquivo, ler, digitar e ler de novo. Sem Acessibilidade para o runner, avisa e passa.
+      # Editor de Texto com um arquivo, ler, digitar e ler de novo (o runner do macos-15 tem Acessibilidade: provado em 26/11).
       - name: Computador da pessoa (cua-driver no Mac)
         timeout-minutes: 5
-        run: npx tsx scripts/seu-computador/fumaca.ts --saida "$RUNNER_TEMP/fumaca-seu-computador"
+        run: npx tsx scripts/seu-computador/fumaca.ts --exigir --saida "$RUNNER_TEMP/fumaca-seu-computador"
       - if: always()
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

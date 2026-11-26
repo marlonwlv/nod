@@ -76,7 +76,12 @@ try {
     const ver = await passo("ver", { ...base, acao: "ver", args: { app: nomeDoApp } });
     if (ver.tipo !== "feito") falhar(`ver: ${ver.tipo}`);
     else if (!/linha do nod/.test(ver.texto)) dizer("::warning::a árvore não trouxe o texto do arquivo (segue para digitar)");
-    const digitar = await passo("digitar", { ...base, acao: "digitar", args: { app: nomeDoApp, texto: ` ${MARCA}` } });
+    // Como o bot: o campo de texto pela referência da leitura (<snapshot>:<linha>), não "o que estiver em foco".
+    const snap = ver.tipo === "feito" ? /snapshot_id=(s[0-9a-z]+)/.exec(ver.texto)?.[1] : undefined;
+    const linha = ver.tipo === "feito" ? /\[(\d+)\][^\n]*\b(AXTextArea|Edit|Document|RichEdit|Text Editor|TextArea)\b/i.exec(ver.texto)?.[1] : undefined;
+    const elemento = snap && linha ? { elemento: `${snap}:${linha}` } : {};
+    dizer(`campo de texto: ${elemento.elemento ?? "(sem referência, vai pelo foco)"}`);
+    const digitar = await passo("digitar", { ...base, acao: "digitar", args: { app: nomeDoApp, texto: ` ${MARCA}`, ...elemento } });
     if (digitar.tipo !== "feito") falhar(`digitar: ${digitar.tipo}`);
     const depois = await passo("ver-depois", { ...base, acao: "ver", args: { app: nomeDoApp, busca: MARCA } });
     if (depois.tipo !== "feito" || !depois.texto.includes(MARCA)) falhar("o texto digitado não apareceu na janela");

@@ -173,6 +173,8 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
   let cacheApps: { em: number; apps: AppLocal[] } | null = null;
   let fila: Promise<unknown> = Promise.resolve();
   const sessoes = new Set<string>();
+  // Medido na CI em 2026-11-26: o get_window_state do Windows (0.62.1) não aceita screenshot_format/quality (devolve PNG).
+  const jpeg = (qualidade: number): Record<string, unknown> => (o.plataforma === "darwin" ? { screenshot_format: "jpeg", screenshot_quality: qualidade } : {});
   const dormir = o.dormir ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   async function mexendoAgora(appId: string): Promise<boolean> {
     if (!o.pessoa || o.pessoa.ociosoS() >= MEXEU_S) return false;
@@ -354,7 +356,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     let r: ResultadoDriver;
     switch (p.acao) {
       case "ver": {
-        r = await g.chamar("get_window_state", { ...base, ...(typeof p.args.busca === "string" && p.args.busca ? { query: p.args.busca } : {}), include_screenshot: p.args.sem_imagem !== true, screenshot_format: "jpeg", screenshot_quality: 70, max_image_dimension: 1400 });
+        r = await g.chamar("get_window_state", { ...base, ...(typeof p.args.busca === "string" && p.args.busca ? { query: p.args.busca } : {}), include_screenshot: p.args.sem_imagem !== true, ...jpeg(70), max_image_dimension: 1400 });
         break;
       }
       case "clicar": {
@@ -388,7 +390,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     // A imagem depois da ação vai ao painel (a aba "Seu Mac"), não ao bot: um quadro pequeno, sem a árvore.
     let imagem = r.imagem;
     if (!imagem && janela !== null && p.acao !== "ver") {
-      const quadro = await g.chamar("get_window_state", { ...base, include_accessibility_tree: false, display_only: true, screenshot_format: "jpeg", screenshot_quality: 60, max_image_dimension: 1000 }).catch(() => null);
+      const quadro = await g.chamar("get_window_state", { ...base, include_accessibility_tree: false, display_only: true, ...jpeg(60), max_image_dimension: 1000 }).catch(() => null);
       imagem = quadro?.imagem ?? null;
     }
     const efeito = efeitoDoResultado(r);
