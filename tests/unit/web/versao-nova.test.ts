@@ -105,6 +105,12 @@ describe("lerDepoisDaRecarga", () => {
     expect(JSON.parse(storage.mapa.get(CHAVE_RECARGA)!)).toEqual({ em: 1000 });
     expect(lerDepoisDaRecarga(storage, 2000)).toBeNull();
   });
+  it("traz a conversa que estava aberta; conversa torta fica de fora", () => {
+    const com = armazenamento({ [CHAVE_RECARGA]: JSON.stringify({ em: 1000, depois: { tipo: "marketplace", inicial: { busca: "Gmail" }, conversa: { conversaId: "c1", agenteId: "a1" } } }) });
+    expect(lerDepoisDaRecarga(com, 2000)).toEqual({ tipo: "marketplace", inicial: { busca: "Gmail" }, conversa: { conversaId: "c1", agenteId: "a1" } });
+    const torta = armazenamento({ [CHAVE_RECARGA]: JSON.stringify({ em: 1000, depois: { tipo: "marketplace", inicial: {}, conversa: { conversaId: 5 } } }) });
+    expect(lerDepoisDaRecarga(torta, 2000)).toEqual({ tipo: "marketplace", inicial: {} });
+  });
   it("pedido velho (mais de um minuto), torto ou ausente: nada abre", () => {
     expect(lerDepoisDaRecarga(armazenamento({ [CHAVE_RECARGA]: JSON.stringify({ em: 0, depois: { tipo: "marketplace", inicial: {} } }) }), INTERVALO_RECARGA_MS)).toBeNull();
     expect(lerDepoisDaRecarga(armazenamento({ [CHAVE_RECARGA]: "{nao json" }), 0)).toBeNull();

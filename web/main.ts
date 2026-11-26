@@ -1978,7 +1978,8 @@ function desenharModalDoMarketplace(): void {
       carregandoMarketplace = false;
       const inicial = modalDoMarketplace?.inicial ?? {};
       modalDoMarketplace = null;
-      falhaAoBaixarTela(e, { tipo: "marketplace", inicial });
+      const t = estado.tela;
+      falhaAoBaixarTela(e, { tipo: "marketplace", inicial, ...(t.tipo === "conversa" ? { conversa: { conversaId: t.conversaId, agenteId: t.agenteId } } : {}) });
     });
     return;
   }
@@ -4876,9 +4877,14 @@ function render(): void {
   apiDoMarketplace?.avisar();
   // XUM-9: a página recarregou porque o modal do Marketplace era de um deploy anterior; ele abre agora, na versão nova.
   if (marketplaceDepoisDaRecarga && estado.sessao && estado.frota && !celular.ativo()) {
-    const inicial = marketplaceDepoisDaRecarga.inicial as InicialDoMarketplace;
+    const { inicial, conversa } = marketplaceDepoisDaRecarga;
     marketplaceDepoisDaRecarga = null;
-    queueMicrotask(() => abrirModalDoMarketplace(inicial));
+    queueMicrotask(() => {
+      // Volta à conversa de antes (a recarga abre outra), se o bot ainda está na frota.
+      const naFrota = conversa && estado.frota?.agentes.some((a) => a.id === conversa.agenteId && a.conversaId === conversa.conversaId);
+      if (naFrota && !(estado.tela.tipo === "conversa" && estado.tela.conversaId === conversa.conversaId)) navegar({ tipo: "conversa", ...conversa });
+      abrirModalDoMarketplace(inicial as InicialDoMarketplace);
+    });
   }
   if (ajusteDoLink && estado.sessao && estado.frota && !celular.ativo()) {
     const id = ajusteDoLink;

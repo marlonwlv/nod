@@ -5,6 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarCatcherDriver } from "../../src/adapters/executor/drivers/catcher.ts";
 import { cookieDeSessao } from "../../src/adapters/http/rotas/tela.ts";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
+import type { Agente } from "../../src/contracts/agente.ts";
+import type { Conversa } from "../../src/contracts/conversa.ts";
 import type { EstadoOnboarding } from "../../src/contracts/onboarding.ts";
 import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
@@ -115,6 +117,16 @@ descrever("botão de apps depois de um deploy (Chrome real)", () => {
 
   it("página de antes do deploy: o botão de apps recarrega uma vez e abre o Marketplace, sem o toast", async () => {
     await abrirApp();
+    // A conversa aberta antes do clique é a que fica aberta depois da recarga.
+    const r = await srv.json<{ agente: Agente; conversa: Conversa }>("POST", "agentes", { dono: "pessoa", nome: "Bot do Deploy", descricao: "Fica aberto" });
+    agentes.push(r.agente.id);
+    conversas.push(r.conversa.id);
+    await abrirApp();
+    const botao = `[data-bot-contexto="${r.agente.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${r.agente.id}"]`;
+    await ate(`document.querySelector(${JSON.stringify(botao)})`, "o bot novo na barra");
+    await avaliar(cdp, `document.querySelector(${JSON.stringify(botao)}).click()`);
+    const naConversa = `(document.getElementById("composer-texto")?.getAttribute("placeholder") ?? "").includes("Bot do Deploy")`;
+    await ate(naConversa, "a conversa do Bot do Deploy");
     await avaliar(cdp, `(window.__antesDoDeploy = true)`);
     // O deploy: o pedaço do modal some do servidor (404) e o index.html aponta para outro script principal.
     deploy.falhasDoPedaco = 1;
@@ -125,6 +137,7 @@ descrever("botão de apps depois de um deploy (Chrome real)", () => {
     expect(deploy.sondas).toBe(1);
     expect(deploy.pedidosDoPedaco).toBe(2);
     expect(await toast()).toBe(false);
+    expect(await avaliar<boolean>(cdp, naConversa)).toBe(true);
     // O Marketplace aberto é o de sempre: a busca dos apps à vista.
     expect(await avaliar<boolean>(cdp, `!!document.querySelector("#marketplace dialog.rx-mk[open] input[type=search], #marketplace dialog.rx-mk[open] input")`)).toBe(true);
   }, 90_000);

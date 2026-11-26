@@ -10,8 +10,11 @@
  * chama mostra o erro de sempre: nunca vira laço de recargas.
  */
 
-/** O que abrir depois da recarga (sessionStorage, JSON). Hoje só o Marketplace. */
-export type DepoisDaRecarga = { tipo: "marketplace"; inicial: Record<string, unknown> };
+/**
+ * O que abrir depois da recarga (sessionStorage, JSON). Hoje só o Marketplace, por cima da conversa que estava aberta (a
+ * página recarregada abriria outra).
+ */
+export type DepoisDaRecarga = { tipo: "marketplace"; inicial: Record<string, unknown>; conversa?: { conversaId: string; agenteId: string } };
 
 type Guardado = { em: number; depois?: DepoisDaRecarga };
 
@@ -112,6 +115,9 @@ export function lerDepoisDaRecarga(storage: Armazenamento | null, agora: number)
   } catch {
     // Sem gravar, o pedido fica: abre de novo só se a pessoa recarregar no mesmo minuto.
   }
-  if (agora - g.em >= INTERVALO_RECARGA_MS || g.depois.tipo !== "marketplace" || !g.depois.inicial || typeof g.depois.inicial !== "object") return null;
-  return g.depois;
+  const d = g.depois;
+  if (agora - g.em >= INTERVALO_RECARGA_MS || d.tipo !== "marketplace" || !d.inicial || typeof d.inicial !== "object") return null;
+  const c = d.conversa;
+  const conversa = c && typeof c.conversaId === "string" && typeof c.agenteId === "string" ? { conversaId: c.conversaId, agenteId: c.agenteId } : undefined;
+  return { tipo: "marketplace", inicial: d.inicial, ...(conversa ? { conversa } : {}) };
 }
