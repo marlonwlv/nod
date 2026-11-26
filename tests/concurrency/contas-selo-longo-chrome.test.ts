@@ -67,7 +67,8 @@ const MEDIR = `[...document.querySelectorAll(".cl-linha-g1")].map((li) => {
   return {
     estado: selo.textContent.trim(), title: selo.getAttribute("title"),
     truncado: selo.scrollWidth > selo.clientWidth + 0.5,
-    dentro: [selo, li.querySelector(".cl-fila"), nome].every((el) => { const a = el.getBoundingClientRect(), b = li.getBoundingClientRect(); return a.left >= b.left - 0.5 && a.right <= b.right + 0.5; }),
+    dentro: [selo, li.querySelector(".cl-fila"), nome, fios].filter(Boolean).every((el) => { const a = el.getBoundingClientRect(), b = li.getBoundingClientRect(); return a.left >= b.left - 0.5 && a.right <= b.right + 0.5; })
+      && li.getBoundingClientRect().right <= li.parentElement.getBoundingClientRect().right + 0.5 && document.documentElement.scrollWidth <= innerWidth,
     nomeLargura: nome.getBoundingClientRect().width,
     selo: r(selo), uso: [rot, fios].filter(Boolean).map(r),
     usoCortado: rot ? rot.scrollWidth > rot.clientWidth + 0.5 || rot.getBoundingClientRect().right > li.querySelector(".cl-uso-col").getBoundingClientRect().right + 0.5 : false,
@@ -132,7 +133,7 @@ descrever("Lista de contas de IA com selo longo (Chrome real)", () => {
         expect(l.usoCortado, `${l.estado}: o rótulo do uso cortou`).toBe(false);
         expect(l.fio, `${l.estado}: a barra de uso encolheu demais`).toBeGreaterThanOrEqual(48);
         expect(l.transborda, `${l.estado}: a linha transborda`).toBe(false);
-        expect(l.dentro, `${l.estado}: o selo, a chave ou o nome saem da linha`).toBe(true);
+        expect(l.dentro, `${l.estado}: o selo, a chave, o nome ou a barra saem da linha (ou a linha da lista)`).toBe(true);
         expect(l.nomeLargura, `${l.estado}: o nome some`).toBeGreaterThanOrEqual(80);
         // O texto inteiro do estado continua no DOM e, quando corta, no title.
         if (l.truncado) expect(l.title).toBe(l.estado);
@@ -140,19 +141,20 @@ descrever("Lista de contas de IA com selo longo (Chrome real)", () => {
       // "Disponível" nunca corta e segue sem title (a linha fica como era).
       for (const l of linhas.filter((x) => x.estado === "Disponível")) { expect(l.truncado).toBe(false); expect(l.title).toBeNull(); }
       expect(linhas[0]!.title).toBe(linhas[0]!.estado);
-      // No modal de 900 o limite cabe inteiro (a hora é o que importa nele).
-      if (largura >= 639) expect(linhas[0]!.truncado).toBe(false);
+      // O limite cabe inteiro em todas as larguras (a hora é o que importa nele).
+      expect(linhas[0]!.truncado).toBe(false);
     });
   }
 
   it("sem selo longo, a coluna do estado encolhe e o nome usa o espaço (modal de 900 px)", async () => {
     const longas = await medir("nod-motor-teste", 639);
     const { contas, maquinas } = cenario("nod-motor-teste");
-    const curtas = { ...contas, contas: contas.contas.map((c, i) => (i < 2 ? { ...c, noLimiteAte: null, maquinas: c.maquinas.map((m) => ({ ...m, maquinaId: MAC })) } : c)) };
+    const curtas = { ...contas, contas: contas.contas.map((c, i) => (i < 2 ? { ...c, noLimiteAte: null, maquinas: contas.contas[2]!.maquinas } : c)) };
     const html = renderListaDeContas({ contas: curtas, maquinas, detalhes: null, agora: AGORA, noApp: false, botsNaMaquina: () => [], cartaoDoMac: () => "", ui: UI_CONTAS_INICIAL });
     await avaliar(cdp, `document.querySelector("#app").innerHTML = ${JSON.stringify(html)}`);
     const linhas = await avaliar<Linha[]>(cdp, MEDIR);
-    expect(linhas.map((l) => l.estado)).not.toContain("No limite até 27/11 às 13:00");
+    // Logada nas duas máquinas, a 1ª fica só "Em uso"; a 2ª, "Disponível".
+    expect(linhas.slice(0, 2).map((l) => l.estado)).toEqual(["Em uso", "Disponível"]);
     // "Claude · Marlon (pessoal)" e "ChatGPT · Contato Gamefik" cabem inteiros quando nenhum selo pede espaço.
     expect(linhas[0]!.nomeCortado).toBe(false);
     expect(linhas[1]!.nomeCortado).toBe(false);
