@@ -625,8 +625,8 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .pf-item > .pf-ponto { width: 9px; height: 9px; margin: 0 4.5px; border: 1.6px solid var(--ink-3); animation: none; }
 .pf-comando { font-size: var(--fs-rotulo); }
 .pf-sub, .pf-item-fim { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
-.pf-memoria-info { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 10px 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
-.pf-memoria-info svg { color: var(--ink-3); flex: none; }
+.pf-memoria-info { display: flex; align-items: center; gap: 10px; min-height: 32px; box-sizing: border-box; margin: 0; padding: 0 10px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.pf-memoria-info svg { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
 .pf-pe { height: 44px; box-sizing: border-box; align-items: center; margin-top: 6px; padding: 0 8px 0 10px; border-top: 1px solid var(--divisoria); gap: 8px; }
 .pf-ver { height: 28px; padding: 0 10px; border-radius: var(--raio-8); color: var(--ink-2); font-weight: var(--peso-medio); text-decoration: none; }
 .pf-ver:hover { background: var(--hover); }

@@ -97,7 +97,7 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
     // recolhidas numa linha só.
     expect(p.partes.corpo).not.toContain("pf-lote");
     expect(p.partes.corpo).toContain('<h3 class="pf-secao">Rodando · 3</h3>');
-    expect(p.partes.corpo).toMatch(/<details class="pf-prontas"><summary>.*<span>4 prontas<\/span>/);
+    expect(p.partes.corpo).toMatch(/<details class="pf-prontas"><summary>.*<span>4 feitas<\/span>/);
   });
 
   it("sem frentes: a espera com o ponto vazado (\"Esperando a CI do #845 · 38 min\") ou a fila (\"1 pedido na fila\")", () => {
@@ -141,25 +141,27 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 describe("a pílula alargada (protótipo D4BE2)", () => {
   const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", progresso([], ["w1", "w2", "w3", "w4", "w5"])));
 
-  it("ADR-187 §5 (Paper 4d, 2026-11-18): a linha do cartão vivo — rodando primeiro com o passo, depois as prontas da mais nova para a mais velha, com o estado curto à direita", () => {
+  it("XUM-6 (Paper 9f): rodando primeiro com o tempo à direita (o passo no nome acessível e no title), depois as prontas da mais nova para a mais velha", () => {
     const ordem = [...p.partes.corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1]);
     expect(ordem).toEqual(["w3", "w5", "w4", "w2", "w1"]);
-    expect(p.partes.corpo).toContain('<button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="w3" data-estado="rodando">');
-    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w3 · Terminal retrô</span><span class="sr-only"> (rodando)</span><span class="tv-estado">ajustando o contraste</span></span></button>');
+    expect(p.partes.corpo).toContain('<button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="w3" data-estado="rodando" title="ajustando o contraste">');
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w3 · Terminal retrô</span><span class="sr-only"> (rodando, ajustando o contraste)</span><span class="tv-estado">12 min</span></span></button>');
     expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w1 · Aurora</span><span class="tv-estado">pronta</span>');
     // Na lista da aba a linha inteira abre a tarefa: sem "Ver", sem o tempo e sem o traço entre as que andam e as prontas.
     expect(p.partes.corpo).not.toContain("tv-ver");
     expect(p.partes.corpo).not.toContain("pf-depois");
   });
 
-  it("Paper 4d: a que precisa de você em cima, realçada, com \"precisa de você\"; e \"+ Nova tarefa ⌘N\" no fim quando a pessoa pode abrir uma", () => {
+  it("XUM-6 (Paper 9f): a que precisa de você em cima, realçada, com o \"!\" e a pergunta à direita; e \"+ Nova tarefa ⌘N\" no fim quando a pessoa pode abrir uma", () => {
     const comPergunta = HEROS.map((t) => (t.id === "w5" ? { ...t, estado: "precisa_de_voce" as const, ultimoPasso: "Posso incluir a Ásia?" } : t));
     const n = { atalho: "⌘N", aria: "Meta+N" };
     const corpo = daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO, n)).partes.corpo;
     expect([...corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1])).toEqual(["w5", "w3", "w4", "w2", "w1"]);
     expect(corpo).toContain('data-id="w5" data-estado="precisa"');
-    expect(corpo).toContain('<span class="tv-estado">precisa de você</span>');
-    expect(corpo).toMatch(/<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="Meta\+N">\+ Nova tarefa <kbd class="pf-nova-atalho">⌘N<\/kbd><\/button>$/);
+    expect(corpo).toContain('<span class="tv-titulo">Hero w5 · Boot do time</span><span class="sr-only"> (precisa de você)</span><span class="tv-estado">Posso incluir a Ásia?</span>');
+    expect(corpo).toMatch(/data-id="w5" data-estado="precisa"><span class="tv-ic" aria-hidden="true"><svg class="tv-svg" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="currentColor"\/><path d="M6 3\.2v3\.4"/);
+    // Paper 9f: o "+" na coluna do ícone, "Nova tarefa" e o atalho da plataforma à direita (o Paper desenha ⌃N; no Mac é ⌘N).
+    expect(corpo).toMatch(/<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="Meta\+N"><span class="pf-nova-mais" aria-hidden="true"><svg[^]*?<\/svg><\/span><span class="pf-nova-texto">Nova tarefa<\/span><kbd class="pf-nova-atalho">⌘N<\/kbd><\/button>$/);
     expect(daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO)).partes.corpo).not.toContain("pf-nova-linha");
   });
 
@@ -172,6 +174,18 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     expect(p.pilula.abertas.map((t) => t.id)).toEqual(["w3", "w5"]);
     // A fala fora da janela carregada: "Ver na conversa" não tem para onde levar.
     expect(daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", SEM_PROGRESSO)).partes.pe).not.toContain("Ver na conversa");
+  });
+
+  it("XUM-6 (Paper 9f): a parada com a pausa e \"você parou\"; \"1 feita\" no singular; o aviso de memória sem o nome do bot", () => {
+    const comParada = HEROS.map((t) => (t.id === "w5" ? { ...t, estado: "parado" as const, terminadoEm: AGORA - MIN } : t.id === "w3" ? { ...t, memoriaMb: 416 } : t.id === "w1" || t.id === "w2" ? { ...t, estado: "rodando" as const, turnoVivoId: null, terminadoEm: null } : t));
+    const extra = { conversas: { [C]: { mensagens: [{ id: "m1", conversaId: C, autor: "bot", texto: "oi", criadaEm: AGORA - MIN, destino: "chat" }] } } } as unknown as Partial<Estado>;
+    const corpo = daPilula(pilulaNaConversa(estadoCom(comParada, dono(), extra), "orq", SEM_PROGRESSO)).partes.corpo;
+    expect(corpo).toContain('<h3 class="pf-secao">Parada</h3>');
+    expect(corpo).toMatch(/data-id="w5" data-estado="parada"><span class="tv-ic" aria-hidden="true"><svg class="tv-svg" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="5\.25"/);
+    expect(corpo).toContain('<span class="sr-only"> (parada)</span><span class="tv-estado">você parou</span>');
+    expect(corpo).toMatch(/<summary>.*<span>1 feita<\/span>/);
+    expect(corpo).toContain("Estas tarefas usam 416 MB do seu Mac</p>");
+    expect(corpo).not.toMatch(/tarefas d[oa] /);
   });
 
   it("as seções Esperando e Na fila, abaixo das frentes, com o que a linha aberta mostrava", () => {
