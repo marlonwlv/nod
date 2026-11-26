@@ -59,7 +59,9 @@ export const MEXEU_S = 2;
 export const RETOMA_S = 10;
 /** Espera no máximo isto pela pessoa; depois o bot recebe "ela está usando o app" e decide (espera ou pergunta). */
 export const ESPERA_PESSOA_MS = 60_000;
+/** definido em 2026-11-26: no Windows a 1ª execução do binário novo passa pela varredura do antivírus (medido 11–16 s na CI). */
 const PRAZO_SUBIR_MS = 15_000;
+const PRAZO_SUBIR_WINDOWS_MS = 45_000;
 const PRAZO_CHAMADA_MS = 60_000;
 const CACHE_APPS_MS = 5_000;
 
@@ -212,7 +214,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
   }
 
   async function esperarSocket(socket: string, daemon: ChildProcess): Promise<void> {
-    const ate = agora() + PRAZO_SUBIR_MS;
+    const ate = agora() + (o.plataforma === "win32" ? PRAZO_SUBIR_WINDOWS_MS : PRAZO_SUBIR_MS);
     let saiu = false;
     daemon.once("exit", () => { saiu = true; });
     while (agora() < ate) {
@@ -238,7 +240,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     try { await esperarSocket(socket, daemon); } catch (e) { try { daemon.kill(); } catch { /* */ } if (dir) rmSync(dir, { recursive: true, force: true }); throw e; }
     const mcp = spawnar(binario, ["mcp", "--embedded", "--socket", socket], { env, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
     const req = clienteMcp(mcp);
-    await req("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "nod", version: "1" } }, PRAZO_SUBIR_MS);
+    await req("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "nod", version: "1" } }, o.plataforma === "win32" ? PRAZO_SUBIR_WINDOWS_MS : PRAZO_SUBIR_MS);
     mcp.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
     const g: Geracao = {
       daemon, mcp, socket, dir, apps: appsDoManifesto, vivo: true,
@@ -402,7 +404,8 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
       // Um comando por vez no driver: a ordem do bot é a ordem na tela (e dois bots não se atropelam no mesmo app).
       const r = fila.then(() => executarDentro(agenteId, pedido)).catch((e: unknown): RespostaSeuComputador => {
         if (e instanceof ErroIndisponivel) return { tipo: "indisponivel", texto: e.message };
-        return { tipo: "falhou", texto: e instanceof ErroDoDriver ? e.message : "O controle do computador falhou nesta ação." };
+        // As mensagens são do próprio nod ("o driver não subiu a tempo", "driver saiu") ou do driver: dizem o que houve.
+        return { tipo: "falhou", texto: e instanceof Error && e.message ? `O controle do computador falhou: ${e.message.slice(0, 300)}` : "O controle do computador falhou nesta ação." };
       });
       fila = r.catch(() => undefined);
       return r;

@@ -27,6 +27,14 @@ export function binarioNoApp(resources: string | undefined, existe: (p: string) 
   return existe(p) ? p : null;
 }
 
+/**
+ * Baixa (se faltar) e roda `--version` uma vez, em segundo plano, ao ligar o motor: no Windows a 1ª execução de um .exe
+ * novo passa pela varredura do antivírus (11–16 s na CI), e assim a primeira ação do bot não paga isso.
+ */
+export function aquecerDriver(obter: () => Promise<string | null>): void {
+  void obter().then((exe) => (exe ? executar(exe, ["--version"], 60_000) : undefined)).catch(() => undefined);
+}
+
 export type OpcoesBaixar = {
   plataforma: PlataformaPessoa;
   /** Pasta do nod onde o pacote fica (`<pasta>/cua-driver-<versão>/`). */
