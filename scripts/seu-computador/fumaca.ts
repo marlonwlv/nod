@@ -86,7 +86,9 @@ try {
     // O texto tem de estar no valor de um elemento: numa linha da árvore ou na busca do driver (que olha papel, rótulo,
     // valor e id) com ao menos um elemento achado — "0 of N elements match" ecoa a palavra e não conta.
     const depois = await passo("ver-depois", { ...base, acao: "ver", args: { app: nomeDoApp, busca: MARCA } });
-    const noValor = depois.tipo === "feito" && (depois.texto.split("\n").some((l) => /^\s*-\s*\[\d+\]/.test(l) && l.includes(MARCA)) || /\b[1-9]\d* of \d+ elements? match/.test(depois.texto));
+    // O valor pode ter quebra de linha (a marca cai na linha seguinte da árvore): vale qualquer linha com a marca, menos o
+    // eco da busca ("0 of N elements match query ...").
+    const noValor = depois.tipo === "feito" && depois.texto.split("\n").some((l) => l.includes(MARCA) && !/elements? match query/.test(l));
     if (!noValor) falhar("o texto digitado não apareceu no campo da janela");
   }
 } catch (e) {
