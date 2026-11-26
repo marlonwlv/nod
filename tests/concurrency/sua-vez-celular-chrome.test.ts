@@ -37,7 +37,7 @@ descrever("Sua vez no celular (Chrome real, 320×568)", () => {
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 320, height: 568, deviceScaleFactor: 2, mobile: true });
     await cdp.enviar("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     await cdp.enviar("Emulation.setEmulatedMedia", { features: [{ name: "hover", value: "none" }, { name: "pointer", value: "coarse" }] });
-    const css = ["web/tokens.css", "web/estilos.css", "web/interface.css", "web/mobile.css"].filter(existsSync).map((p) => readFileSync(p, "utf8")).join("\n");
+    const css = ["web/tokens.css", "web/estilos.css", "web/interface.css", "web/ds.css", "web/mobile.css"].filter(existsSync).map((p) => readFileSync(p, "utf8")).join("\n");
     const itens = [item("aberta"), ...Array.from({ length: 60 }, (_, n) => item(`vencida-${n}`, true))];
     const corpo = renderSuaVez({ ...estadoInicial, agora: Date.parse("2026-11-17T14:40:00Z"), suaVez: { itens, incidentes: [], foraDoAr: [], vazio: false, ultimaDecisaoEm: null } });
     const html = `<!doctype html><meta name="viewport" content="width=device-width"><style>${css}</style><main>${corpo}</main>`;
