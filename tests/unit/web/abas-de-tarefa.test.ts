@@ -170,9 +170,15 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(otimista).toContain('<span class="at-titulo">Revisão</span>');
   });
 
-  it("o ícone diz o estado: anel (na fila parado), ponto de quem precisa, ✓ e quadrado", () => {
+  it("o ícone diz o estado: anel de quem roda, tracejado de quem espera, ponto de quem precisa, ✓ e quadrado", () => {
     expect(iconeDaAba({ estado: "rodando" }).texto).toBe("trabalhando");
-    expect(iconeDaAba({ estado: "na_fila" }).html).toContain("at-quieto");
+    expect(iconeDaAba({ estado: "rodando" }).html).toContain("pf-anel");
+    // XUM-7: na fila e carregando não usam mais o anel de quem roda parado (parecia travado), e sim o tracejado.
+    for (const t of [{ estado: "na_fila" as const }, undefined]) {
+      expect(iconeDaAba(t).html).toContain("pf-espera");
+      expect(iconeDaAba(t).html).not.toContain("pf-anel");
+    }
+    expect(iconeDaAba(undefined).texto).toBe("carregando");
     expect(iconeDaAba({ estado: "fechado_ocioso" }).html).toContain("pf-precisa");
     expect(iconeDaAba({ estado: "terminado" }).html).toContain("at-feita");
     expect(iconeDaAba({ estado: "parado" }).html).toContain("at-parada");

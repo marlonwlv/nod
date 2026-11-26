@@ -10,7 +10,7 @@ import { esc, hora, horaSemZero, iconeAgente } from "../lib/render.ts";
 import { aberto, agrupar, trabalhosDaTela, dicaSemContato, emEspera, filtrar, meiaNoiteDe, naFilaDaCota, pilulaDaCota, situacaoDe, tempoDe, textoNaFilaDaCota, tituloCurto, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { iconeDaAba } from "./abas-de-tarefa.ts";
 import { botAceitaTarefa } from "./nova-tarefa.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
+import { ANEL_FILA, ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
 
@@ -29,8 +29,8 @@ export { trabalhosDaTela };
 type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 export type TelaTarefas = Extract<Tela, { tipo: "trabalhos" }>;
 
-// Paper 5a: o anel tracejado de quem espera (14 de caixa, raio 5,5, traço 1,6 em 2 2), o par do anel de quem roda.
-export const ANEL_ESPERANDO = '<svg class="pf-aba-ic tf-espera" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="7" cy="7" r="5.5"/></svg>';
+// Paper 5a: o anel tracejado de quem espera. XUM-7: é o mesmo do cartão vivo e das abas (icones-da-tarefa.ts), não uma cópia.
+export const ANEL_ESPERANDO = ANEL_FILA;
 export const SETA_DIREITA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
 export const SETA_CIMA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
 export const SETA_MENU = '<svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M2 3.5 H8 L5 7 Z"/></svg>';

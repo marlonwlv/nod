@@ -3,7 +3,7 @@ import type { Estado } from "../estado/reducer.ts";
 import { dividirAbas, tarefaAcabou, type AbaDeTarefa } from "../lib/abas-de-tarefa.ts";
 import { esc } from "../lib/render.ts";
 import { aberto, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "../lib/trabalhos.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
+import { ANEL_FILA, ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
 
@@ -64,12 +64,16 @@ export function precisaDaPessoa(estado: Pick<Estado, "trabalhos" | "conversas" |
   return e === "precisa_de_voce" || e === "fechado_ocioso";
 }
 
-/** O ícone do estado: o anel de quem roda, o ponto azul de quem precisa da pessoa, o ✓ de quem terminou e o quadrado da parada. */
+/**
+ * O ícone do estado: o anel de quem roda, o anel tracejado de quem espera (na fila ou ainda carregando; XUM-7: antes era o
+ * anel de quem roda parado, que parecia travado), o ponto azul de quem precisa da pessoa, o ✓ de quem terminou e o
+ * quadrado da parada.
+ */
 export function iconeDaAba(t: Pick<TrabalhoDto, "estado"> | undefined): { html: string; texto: string } {
   switch (t?.estado) {
-    case undefined: return { html: ANEL_RODANDO.replace("pf-anel\"", "pf-anel at-quieto\""), texto: "carregando" };
+    case undefined: return { html: ANEL_FILA, texto: "carregando" };
     case "rodando": return { html: ANEL_RODANDO, texto: "trabalhando" };
-    case "na_fila": return { html: ANEL_RODANDO.replace("pf-anel\"", "pf-anel at-quieto\""), texto: "na fila" };
+    case "na_fila": return { html: ANEL_FILA, texto: "na fila" };
     case "precisa_de_voce":
     case "fechado_ocioso": return { html: PONTO_PRECISA, texto: "precisa de você" };
     case "terminado": return { html: `<span class="pf-aba-ic at-feita">${IC_OK}</span>`, texto: "terminou" };
