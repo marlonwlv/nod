@@ -429,9 +429,10 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
      * convenção do computador: null = sem resposta; "sem_rota" = servidor sem o navegador na máquina (404).
      */
     navegador: {
-      async puxar(): Promise<unknown[] | null | "sem_rota"> {
+      /** ADR-197: `recursos` diz ao servidor o que esta máquina atende além do navegador (`seu_computador`). */
+      async puxar(recursos: readonly string[] = []): Promise<unknown[] | null | "sem_rota"> {
         try {
-          const r = await chamar<{ comandos?: unknown }>("navegador/puxar", {}, { rota404: true });
+          const r = await chamar<{ comandos?: unknown }>("navegador/puxar", recursos.length ? { recursos } : {}, { rota404: true });
           return Array.isArray(r.comandos) ? r.comandos : [];
         } catch (e) {
           return e instanceof FalhaPonte && e.codigo === "rota_ausente" ? "sem_rota" : null;

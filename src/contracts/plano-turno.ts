@@ -35,8 +35,9 @@ export type FerramentaPlano = {
   /**
    * "proxy" (2026-09-28): atendida pelo próprio proxy do turno, sem ida ao servidor — hoje só `ler_mais`.
    * "navegador" (2026-11-20, ADR-190): o Chrome do bot, pelo portão `adapters/fundo/navegadores.ts`.
+   * "seu_computador" (2026-11-26, ADR-197): os apps do Mac ou PC da pessoa, pelo portão `adapters/fundo/seu-computador.ts`.
    */
-  origem: "nod" | "conector" | "computador" | "navegador" | "workspace" | "proxy";
+  origem: "nod" | "conector" | "computador" | "navegador" | "seu_computador" | "workspace" | "proxy";
   conectorId: string | null;
   /** Capturado na DESCOBERTA (sonda), nunca em tempo de chamada (ADR-013). */
   readOnlyHint: boolean;

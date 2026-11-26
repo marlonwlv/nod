@@ -38,6 +38,7 @@ import { janelaDoModelo, orcamentoDoTurno, precisaEnxugar, type OrcamentoContext
 import { partesDoPromptSistema, trechoComClone, trechoDoClone, type BastidorNoPrompt, type EntradaPromptSistema, type RotinaNoPrompt, type TrabalhoNoPrompt } from "./prompt-sistema.ts";
 import { FERRAMENTAS_COMPUTADOR } from "../contracts/ferramentas-computador.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA } from "../contracts/ferramentas-navegador.ts";
+import { FERRAMENTAS_SEU_COMPUTADOR, SEU_COMPUTADOR_SO_LEITURA } from "../contracts/seu-computador.ts";
 import { FERRAMENTA_ANEXAR_MIDIA, FERRAMENTA_LER_MAIS } from "../contracts/ferramentas-proxy.ts";
 import type { ComputadorFora } from "./prompt-sistema.ts";
 import { FERRAMENTAS_WORKSPACE } from "../contracts/ferramentas-workspace.ts";
@@ -267,6 +268,11 @@ export type EntradaPlano = {
    * NOD_NAVEGADOR_NO_SERVIDOR=1). Só as 12 ferramentas diretas entram; o catálogo fica atrás de navegador_buscar/usar.
    */
   navegador?: boolean;
+  /**
+   * definido em 2026-11-26 (ADR-197): o Mac ou PC da pessoa que atende agora (app do nod aberto, anunciando
+   * `seu_computador`); null/ausente = sem as seu_computador_*. Fase 1: só na conversa com a dona.
+   */
+  seuComputador?: { plataforma: "darwin" | "win32"; nome: string } | null;
   turno: Turno;
   agente: Agente;
   memorias: readonly Memoria[];
@@ -447,6 +453,11 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   const navegador: FerramentaPlano[] = entrada.navegador === true && modo !== "peer" && !deOutraPessoa
     ? Object.entries(FERRAMENTAS_NAVEGADOR_DIRETAS).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "navegador", conectorId: null, readOnlyHint: (NAVEGADOR_SO_LEITURA as readonly string[]).includes(nome), tocaDadoPessoal: true, schema }))
     : [];
+  // ADR-197 (item 9): o computador da pessoa só na conversa dela com o próprio bot (nem rotina, nem subtarefa, nem sala,
+  // nem pedido de outra pessoa): a pessoa está ali para ver o cartão e a ilha.
+  const seuComputador: FerramentaPlano[] = entrada.seuComputador && modo === "conversa" && !deOutraPessoa
+    ? Object.entries(FERRAMENTAS_SEU_COMPUTADOR).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "seu_computador", conectorId: null, readOnlyHint: (SEU_COMPUTADOR_SO_LEITURA as readonly string[]).includes(nome), tocaDadoPessoal: true, schema }))
+    : [];
   /**
    * definido em 2026-09-18: sem projeto autorizado o agente só enxerga consultar e propor. Ver um
    * martelo que ainda não pode usar era o que o levava a tentar, falhar e virar tutorial de menu.
@@ -463,7 +474,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // punha label no Gmail na rotina (0 de 269 turnos, contra 67 de 67 na conversa) e o Chico não movia task no ClickUp
   // na rotina de 10 min: a fonte citava um app "de fora" e as ferramentas de escrita sumiam caladas. Conteúdo de fora
   // agora só pesa no modo manual, na hora de decidir cada ação (aprovacao-permanente.ts).
-  let ferramentas = montarFerramentas({ catalogo: [...nod, ...deConectores, ...computador, ...navegador, ...workspace], allowlistAgente: null, alcanceCanal: null, profundidade: entrada.profundidade });
+  let ferramentas = montarFerramentas({ catalogo: [...nod, ...(seuComputador.length ? deConectores.filter((f) => !/^mac__tela_/.test(f.nome)) : deConectores), ...computador, ...navegador, ...seuComputador, ...workspace], allowlistAgente: null, alcanceCanal: null, profundidade: entrada.profundidade });
   const decididoPor: `regra:${string}` = REGRA_MONTAGEM;
   // definido em 2026-09-28: quem pode receber resposta grande (conector, computador, pasta) recebe também
   // `ler_mais`, atendida pelo proxy. Leitura pura, em todo turno. NOD-61 (revisão do /codex no PR #594, P2): ler_conversa
@@ -490,7 +501,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // NOD-323 (ADR-126): quem tem pasta e terminal gera arquivos; `anexar_midia` os mostra no chat (atendida pelo proxy).
   // A sala fica fora nesta PR (a fala da sala vai por postarNaSala, que não prende a mídia).
   if (pasta && modo !== "sala" && entrada.semAnexarMidia !== true) ferramentas = [...ferramentas, FERRAMENTA_ANEXAR_MIDIA];
-  const entradaDoPrompt: EntradaPromptSistema = { agente: deOutraPessoa ? { ...entrada.agente, modoAprovacao: "manual" } : entrada.agente, memorias: deOutraPessoa ? [] : entrada.memorias, ferramentas, nativas, pastaDoBot: pasta, pessoaNome: entrada.pessoaNome, modo, colegas: deOutraPessoa ? [] : entrada.colegas, contextoConversa: entrada.contextoConversa, conectores: conectoresDoTurno, rotinas: deOutraPessoa ? [] : entrada.rotinasDoAgente, computadorFora: temComputador ? entrada.computadorFora ?? null : null, delegacao: modo === "delegacao" ? entrada.delegacao ?? null : null, profundidade: entrada.profundidade, semTerminal: motivoSemTerminal({ modo, confianca: entrada.confianca, terminal: entrada.terminal === true, deOutraPessoa }), harness: entrada.harness ?? null, trabalho: entrada.trabalho ?? null, trabalhosAbertos: podeAbrirTask(entrada.trabalho ?? null) && !deOutraPessoa ? entrada.trabalhosAbertos ?? [] : [], ...(comPedidos ? { pedidosPendentes: entrada.pedidosPendentes } : {}), ...(modo === "conversa" && entrada.bastidores?.length ? { bastidores: entrada.bastidores } : {}), ...(ehNod(entrada.agente) ? { manualDoNod: manualDoNod(entrada.revisor === true) } : {}), ...(entrada.maquina ? { maquina: entrada.maquina } : {}), ...(entrada.calibracao ? { calibracao: true } : {}), ...(entrada.whatsapp ? { whatsapp: true } : {}), ...(entrada.revisor ? { revisor: true } : {}), ...(entrada.sobreMim && !deOutraPessoa ? { sobreMim: entrada.sobreMim } : {}), ...(reconfigura ? { reconfiguracao: true } : {}), ...(geraQuadro.length ? { kitQuadro } : {}) };
+  const entradaDoPrompt: EntradaPromptSistema = { agente: deOutraPessoa ? { ...entrada.agente, modoAprovacao: "manual" } : entrada.agente, memorias: deOutraPessoa ? [] : entrada.memorias, ferramentas, nativas, pastaDoBot: pasta, pessoaNome: entrada.pessoaNome, modo, colegas: deOutraPessoa ? [] : entrada.colegas, contextoConversa: entrada.contextoConversa, conectores: conectoresDoTurno, rotinas: deOutraPessoa ? [] : entrada.rotinasDoAgente, computadorFora: temComputador ? entrada.computadorFora ?? null : null, delegacao: modo === "delegacao" ? entrada.delegacao ?? null : null, profundidade: entrada.profundidade, semTerminal: motivoSemTerminal({ modo, confianca: entrada.confianca, terminal: entrada.terminal === true, deOutraPessoa }), harness: entrada.harness ?? null, trabalho: entrada.trabalho ?? null, trabalhosAbertos: podeAbrirTask(entrada.trabalho ?? null) && !deOutraPessoa ? entrada.trabalhosAbertos ?? [] : [], ...(comPedidos ? { pedidosPendentes: entrada.pedidosPendentes } : {}), ...(modo === "conversa" && entrada.bastidores?.length ? { bastidores: entrada.bastidores } : {}), ...(ehNod(entrada.agente) ? { manualDoNod: manualDoNod(entrada.revisor === true) } : {}), ...(entrada.maquina ? { maquina: entrada.maquina } : {}), ...(seuComputador.length && entrada.seuComputador ? { aparelhoDaPessoa: entrada.seuComputador.plataforma === "win32" ? "PC" as const : "Mac" as const } : {}), ...(entrada.calibracao ? { calibracao: true } : {}), ...(entrada.whatsapp ? { whatsapp: true } : {}), ...(entrada.revisor ? { revisor: true } : {}), ...(entrada.sobreMim && !deOutraPessoa ? { sobreMim: entrada.sobreMim } : {}), ...(reconfigura ? { reconfiguracao: true } : {}), ...(geraQuadro.length ? { kitQuadro } : {}) };
   // NOD-480 (emenda da ADR-040): o orçamento pela janela do modelo. A decisão de enxugar mede só a parte estável (a do
   // bot), para o prompt não mudar de um turno para outro e o cache não se perder. A ligação tem o prompt de voz.
   const { prompt, orcamento } = comOrcamento(entrada, modo, entradaDoPrompt, ferramentas.length);

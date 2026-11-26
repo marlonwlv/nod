@@ -26,6 +26,8 @@ import { lugarPadrao } from "../../domain/computador-canal.ts";
 import type { EstadoComputadorRelatado } from "../../contracts/computador-motor.ts";
 import { type Computadores, criarComputadores, reconciliarTelas } from "../fundo/computadores.ts";
 import { criarNavegadores, type Navegadores } from "../fundo/navegadores.ts";
+import { criarSeuComputador } from "../fundo/seu-computador.ts";
+import { rotasSeuComputador } from "./rotas/seu-computador.ts";
 import { criarAvisoNavegadorMudou } from "../navegador/aviso-mudou.ts";
 import { criarVivoNavegador } from "../navegador/vivo.ts";
 import { criarCanalNavegador } from "../navegador/canal-maquina.ts";
@@ -968,6 +970,13 @@ export function comporApp(o: OpcoesCompor): App {
   vivoDoNavegador = vivoNavegador;
   aoFimDoTurno = (pessoaId, turnoId) => navegadores.turnoAcabou(pessoaId, turnoId);
   services.navegadores = navegadores;
+  // ADR-197 (2026-11-26): o computador da pessoa, pela mesma fila da máquina do navegador (só existe com ela, no modo
+  // compartilhado). NOD_SEU_COMPUTADOR=0 desliga (o plano sai sem as seu_computador_*). A vista muda → SSE para o painel.
+  const seuComputador = canalNavegador && env.NOD_SEU_COMPUTADOR !== "0"
+    ? criarSeuComputador({ dentro, canal: canalNavegador, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), agora: relogio,
+      aoMudar: (escopo, vista) => barramento.publicar(escopo.pessoaId, "seu_computador.mudou", { agenteId: vista.agenteId }) })
+    : null;
+  if (seuComputador) services.seuComputador = seuComputador;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") {
       // ADR-190: o bot excluído também perde o Chrome; desde 2026-11-22 (ponto 09 dos cenários), o perfil sai do disco.
@@ -1815,7 +1824,8 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasCofreLogins({ dentro, cifrar: (s) => cifrar(s, chave) }),
     ...rotasTarefasEnsinadas({ dentro, espaco: (escopo, agenteId) => navegadores.espaco(escopo, agenteId) }),
     ...rotasWorkspaces(workspaces, dentro),
-    ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
+    ...rotasSeuComputador({ dentro, portao: seuComputador }),
+    ...rotasInternas({ dentro, computadores, navegadores, ...(seuComputador ? { seuComputador } : {}), workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),
     // NOD-84 (ADR-139): a rota pública do webhook só no compartilhado — o nod local, no Mac, não é alcançável de fora.
     ...(compartilhado ? criarRotasWebhook({ ...depsL7, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave) }) : []),

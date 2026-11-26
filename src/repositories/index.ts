@@ -79,6 +79,7 @@ import { liberacoesDispensadasRepo } from "./liberacoes-dispensadas.repo.ts";
 import { nativasIdempotenciaRepo } from "./nativas-idempotencia.repo.ts";
 import { projetosRepo } from "./projetos.repo.ts";
 import { navegadorPreferenciasRepo, navegadorTarefasRepo } from "./navegador.repo.ts";
+import { seuComputadorAppsRepo } from "./seu-computador.repo.ts";
 import { cofreLoginsRepo } from "./cofre-logins.repo.ts";
 import { cofreRepo } from "./cofre.repo.ts";
 
@@ -88,6 +89,7 @@ export function criarRepos(conn: Conn, escopo: Escopo): Repos {
     computadores: computadoresRepo(conn, escopo),
     computadorTelas: computadorTelasRepo(conn, escopo),
     navegadorPreferencias: navegadorPreferenciasRepo(conn, escopo),
+    seuComputadorApps: seuComputadorAppsRepo(conn, escopo),
     navegadorTarefas: navegadorTarefasRepo(conn, escopo),
     cofreLogins: cofreLoginsRepo(conn, escopo),
     cofre: cofreRepo(conn, escopo),

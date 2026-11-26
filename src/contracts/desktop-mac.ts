@@ -33,6 +33,9 @@ export type PonteMacDesktop = {
   quickChatAbrir?(agenteId: string): Promise<void>;
   ferramentasMac?(): Promise<FamiliasMacLigadas>;
   definirFerramentaMac?(familia: FamiliaMac, ligada: boolean): Promise<FamiliasMacLigadas>;
+  seuComputadorPermissoes?(): Promise<{ acessibilidade: boolean; gravacaoDeTela: boolean }>;
+  seuComputadorPedirPermissao?(qual: "acessibilidade" | "gravacao_de_tela"): Promise<boolean>;
+  seuComputadorParar?(): Promise<boolean>;
 };
 
 export const CANAIS_MAC = {
@@ -47,4 +50,8 @@ export const CANAIS_MAC = {
   quickChatAbrir: "nod:quick-chat-abrir",
   ferramentasMac: "nod:ferramentas-mac",
   definirFerramentaMac: "nod:definir-ferramenta-mac",
+  /** ADR-197: Acessibilidade e Gravação de Tela do app nod, pedir uma delas e Parar o bot no computador. */
+  seuComputadorPermissoes: "nod:seu-computador-permissoes",
+  seuComputadorPedirPermissao: "nod:seu-computador-pedir-permissao",
+  seuComputadorParar: "nod:seu-computador-parar",
 } as const;

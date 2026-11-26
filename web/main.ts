@@ -1,4 +1,5 @@
 import { criarSugestoesDaNovaConversa } from "./lib/sugestao-nova-conversa.ts";
+import type { PermissoesDoMac } from "./telas/ajustes-seu-computador.ts";
 import { comFraseDoTeto, FRASE_TETO_ROTINAS, FRASE_TETO_TOKENS_MCP } from "./lib/frase-do-teto.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
@@ -464,8 +465,8 @@ function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; bu
 }
 /** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
-function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; sobre: () => string } {
-  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal(), botsDoCofre()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
+function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; permissoesSeuComputador: PermissoesDoMac | null; sobre: () => string } {
+  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal(), botsDoCofre()), mac: ajustesMac, permissoesSeuComputador, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
 }
 /** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
 let termoAjustes = "";
@@ -2931,6 +2932,8 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     return detalhe ? { tipo: "hidratar-trabalho", detalhe, agora } : { tipo: "trabalho-sumiu", id };
   }
   if (q === "chaves") return { tipo: "hidratar-chaves", chaves: (await api.chaves()).chaves };
+  // ADR-197: servidor sem a rota (404, versão anterior) = sem aparelho e sem apps.
+  if (q === "seu-computador") return { tipo: "hidratar-seu-computador", dados: await api.seuComputador().catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return { aparelho: null, apps: [] }; throw e; }) };
   if (q === "mcp-tokens") return { tipo: "hidratar-mcp-tokens", tokens: await api.mcpTokens() };
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
@@ -3221,6 +3224,8 @@ function relevante(q: Invalidacao): boolean {
   if (q === "agenda") return secao === "rotinas";
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala" || modalDoMarketplace !== null;
   if (q === "chaves") return secao === "maquinas";
+  if (q === "seu-computador") return secao === "maquinas";
+  if (q.startsWith("seu-computador:")) return false;
   if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";
@@ -7102,6 +7107,17 @@ const escolherBotDoQuick = (id: string): void => {
 if ((modoQuickChat || modoAvatar) && reactNaRegiao("janelas", window.location.href, guardadoDoNavegador())) {
   void import("./react/janelas/quick-chat.tsx").then((m) => { janelasRx = { modulo: m }; assinaturaQuickChat = ""; render(); }, () => undefined);
 }
+/** ADR-197: Acessibilidade e Gravação de Tela do app nod (só no app do Mac); relidas ao abrir Máquinas e ao voltar à janela. */
+let permissoesSeuComputador: PermissoesDoMac | null = null;
+async function carregarPermissoesSeuComputador(): Promise<void> {
+  const ponte = window.nodDesktop;
+  if (!ponte?.seuComputadorPermissoes) return;
+  const p = await ponte.seuComputadorPermissoes().catch(() => null);
+  if (!p) return;
+  const mudou = !permissoesSeuComputador || permissoesSeuComputador.acessibilidade !== p.acessibilidade || permissoesSeuComputador.gravacaoDeTela !== p.gravacaoDeTela;
+  permissoesSeuComputador = p;
+  if (mudou) render();
+}
 /** ADR-173: os ajustes do Mac (Configurações › Máquinas); null fora do app do Mac. */
 let ajustesMac: AjustesMac | null = null;
 async function carregarAjustesMac(): Promise<void> {
@@ -7129,6 +7145,9 @@ document.addEventListener("keydown", (ev) => {
   void gravarAtalhoQuick(atalho);
 }, true);
 void carregarAjustesMac();
+void carregarPermissoesSeuComputador();
+// A pessoa liga a permissão nos Ajustes do Sistema e volta: o nod percebe sozinho (S1), sem reiniciar.
+window.addEventListener("focus", () => { void carregarPermissoesSeuComputador(); });
 function pintarQuickChat(): void {
   if (window.nodDesktop?.capturarTela) {
     const clipe = document.querySelector("#composer .clipe");
@@ -9753,6 +9772,26 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const lembrar = el.closest(".nvc")?.querySelector<HTMLInputElement>(".nvc-lembrar-caixa")?.checked === true;
     marcarDecidida(el, id);
     await decidirAprovacaoReconciliando(id, aprovar ? (lembrar ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(id));
+  }),
+  // ADR-197: Ajustes › Seu Mac — abrir o Ajuste do Sistema da permissão que falta; tirar um app; tirar tudo.
+  "sc-permissao": (el) => agir(async () => {
+    const qual = el.dataset.qual === "gravacao_de_tela" ? "gravacao_de_tela" : "acessibilidade";
+    await window.nodDesktop?.seuComputadorPedirPermissao?.(qual);
+  }),
+  "sc-tirar": (el) => agir(async () => {
+    const r = await api!.tirarDoSeuComputador({ agenteId: el.dataset.agente ?? "", appId: el.dataset.app ?? "" });
+    dispatch({ tipo: "hidratar-seu-computador", dados: { aparelho: r.aparelho, apps: r.apps } });
+  }),
+  "sc-tirar-tudo": () => agir(async () => {
+    const r = await api!.tirarDoSeuComputador({});
+    dispatch({ tipo: "hidratar-seu-computador", dados: { aparelho: r.aparelho, apps: r.apps } });
+  }),
+  // ADR-197: o cartão "A {bot} quer usar seu Mac" — Permitir desta vez, Sempre no {app} (o `sempre` da decisão) ou Agora não.
+  "sc-decidir": (el) => agir(async () => {
+    const id = el.dataset.decisao ?? "";
+    const aprovar = el.dataset.aprovar === "1";
+    marcarDecidida(el, id);
+    await decidirAprovacaoReconciliando(id, aprovar ? (el.dataset.sempre === "1" ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(id));
   }),
   // ADR-190 (L5): "Guardar no cofre?" — o destino escolhido (só quando há mais de um) ou "Não".
   "nv-guardar": (el) => agir(async () => {
