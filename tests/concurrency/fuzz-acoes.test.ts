@@ -104,6 +104,9 @@ const ISENCOES_DE_ACOES_NOVAS: Readonly<Record<string, string>> = {
   // nessas sementes o plano não sorteia o id dela para `cofre.remover_chave` e a rota só leva o id. Semear a chave de um
   // jeito que toda semente alcance é da NOD-409 (as entidades do fuzz), como as do quadro abaixo.
   "cofre.remover_chave": "NOD-409",
+  // A semente 3152922348 (release rc.16, 2026-11-26): comentar no canvas só leva ids de um canvas e de um trecho que o
+  // fuzz não semeia; a busca nunca passa. Semear as entidades do canvas no fuzz é da NOD-409, como as acima.
+  "canvas.comentar": "NOD-409",
   // A main vermelha em 849a2d14 (semente 2224696596): o fuzz não semeia versão de perfil, e só a semente que sorteia um número
   // existente passa da busca. Semear a versão do perfil no fuzz é da NOD-20.
   "bots.restaurar_versao": "NOD-20",
