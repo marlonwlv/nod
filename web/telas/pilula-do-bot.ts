@@ -225,8 +225,9 @@ const TRIANGULO = '<svg class="pf-selo-ic" width="13" height="13" viewBox="0 0 1
 const SETA_BAIXO = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
 
-// Paper 15c (NCE-0): o quadrado vazado do Parar.
-const PARAR = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/></svg>';
+const PARAR = '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.5"/></svg>';
+/** XUM-6: o × do topo do cartão (10 px, traço 1,4). */
+const FECHAR_X = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6"/></svg>';
 
 /**
  * ADR-190 (Paper 5c, 3): um lugar onde o bot está agora (o navegador dele), como a pílula o lista: "● Navegador da Ada ·
@@ -348,15 +349,18 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;
   // O ponto na cor do bot (Paper: "ponto na cor do bot = bot trabalhando"); a classe só aceita o formato c-<nome>.
   const cor = p.cor && /^c-[a-z]+$/.test(p.cor) ? ` ${p.cor}` : "";
-  // Paper 9f (validação de 2026-11-18): com tarefas, o topo da lista é "Tarefas abertas" e "Ver todas ›" (a tela Tarefas
-  // deste bot); fechar é clicar fora, Esc ou a própria pílula. Sem tarefas (espera, fila), o topo de antes.
+  // XUM-6 (Paper 9f, RV3-0; pedido do Marlon em 26/11): com tarefas, o topo é "Tarefas abertas" e o × que fecha o cartão sem
+  // parar nada (no lugar do "Ver todas ›", que desceu para o pé). Sem tarefas (espera, fila), o topo de antes.
   const cab = p.grupos.length
-    ? `<span class="pf-cab-titulo"><b>Tarefas abertas</b></span><button type="button" class="pf-ver-todas" data-act="abrir-tarefas" data-agente="${esc(p.agenteId)}">Ver todas${SETA_DIREITA}</button>`
+    ? `<span class="pf-cab-titulo"><b>Tarefas abertas</b></span><button type="button" class="pf-fechar-x" data-act="pilula" data-recolher="1" aria-label="Fechar" title="Fechar" aria-expanded="true" aria-controls="${ID_PAINEL}">${FECHAR_X}</button>`
     : `${ponto(p.sinal).replace('class="pf-ponto ', `class="pf-ponto pf-cab-ponto${cor} `)}<span class="pf-cab-titulo"><b>${esc(p.texto)}</b>${doCab.length ? `<span class="pf-cab-resto">${esc(doCab.join(" · "))}</span>` : ""}</span><button type="button" class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">${SETA_BAIXO}fechar</button>`;
   const naConversa = p.grupos.some((g) => g.ids.some((id) => progresso.naTimeline.has(id)));
+  // O pé na anatomia das linhas da 9f (28 px): "Parar" à esquerda; "Ver na conversa ↑" (com a fala na janela) e "Ver todas ›"
+  // (a tela Tarefas deste bot) à direita.
   const pe = [
-    naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
     p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">${PARAR}Parar</button>` : "",
+    naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
+    p.grupos.length ? `<button type="button" class="pf-ver-todas" data-act="abrir-tarefas" data-agente="${esc(p.agenteId)}">Ver todas${SETA_DIREITA}</button>` : "",
   ].join("");
   const rotulo = p.grupos.length ? `Tarefas de ${p.nome}` : `O que ${p.nome} está esperando`;
   const mais = novaTarefa ? htmlDoMais(novaTarefa) : "";

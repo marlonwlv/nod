@@ -605,46 +605,46 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .progresso-ic.esperando { padding: 0; margin: 0; gap: 0; background: transparent; border-radius: 0; font-size: inherit; }
 @media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-passo::first-letter { text-transform: uppercase; } }
 
-/* A pílula do bot aberta acima do campo (Paper 15c, s15c): cartão de 680 px, raio 18, padding 4/4/0, sombra de popover;
-   cabeçalho de 40 px (ponto, "5 frentes do Dante" forte, "2 de 5 prontas" em cinza, "⌄ fechar" fantasma); linhas de 42 px
-   com o ícone em 18; seções em 12 médio; a memória numa linha de 12 com o chip; pé de 44 px com a borda de cima. */
+/* A lista aberta da aba (XUM-6, só a Paper 9f "Tudo junto", RV3-0, quadro 5 "Pelo campo", pilha S35-0): o cartão de 300 px
+   pendurado na aba, alinhado à esquerda dela e por cima da conversa (a aba continua à vista embaixo); padding 4, raio 12,
+   sombra de 0,5 px + 0 8 20; topo de 26 com "Tarefas abertas" 12/16 em 600 e o × (pedido do Marlon, no lugar do
+   "Ver todas"); seções em 10/14 600 caixa-alta; linhas de 28 (chat.css); o traço de 1 px antes das feitas; o pé na mesma
+   anatomia com Parar, "Ver na conversa" e "Ver todas ›". */
 @media not ((hover: none) and (pointer: coarse)) {
 .stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 64px; }
-.pf-moldura { display: flex; justify-content: center; bottom: 10px; }
-.pf-painel { width: min(100%, 680px); max-height: min(560px, 70vh); gap: 0; padding: 4px 4px 0; border: 1px solid var(--borda-sutil); border-radius: var(--raio-18); background: var(--surface-elevated); box-shadow: var(--sombra-popover); }
+.pf-moldura { display: flex; justify-content: flex-start; bottom: 32px; padding-left: 20px; }
+.pf-painel { width: min(100%, 300px); max-height: min(520px, 64vh); gap: 0; padding: 4px; border: 0; border-radius: var(--raio-12); background: var(--surface-elevated);
+  box-shadow: 0 0 0 0.5px var(--borda), 0 8px 20px color-mix(in srgb, var(--ink) 10%, transparent); font-size: 12px; line-height: 16px; }
 .pilula-frentes[data-estado="aberta"] .pf-painel { clip-path: none; }
-.pf-cab { height: 40px; padding: 0 6px 0 12px; gap: 8px; }
+/* A aba fica à vista embaixo do cartão aberto (9f): é nela que a pessoa clica de novo para fechar. */
+.pilula-frentes[data-estado="aberta"] .pf-fechada { opacity: 1; visibility: visible; }
+.pf-cab { height: 26px; padding: 0 8px; gap: 8px; }
 .pf-cab > .pf-ponto { width: 8px; height: 8px; }
-.pf-cab-titulo { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-corpo-2); font-weight: var(--peso-regular); color: var(--ink-3); }
-.pf-cab-titulo b { font-weight: var(--peso-forte); color: var(--ink); }
-.pf-fechar { gap: 4px; height: 24px; padding: 0 8px; border-radius: var(--raio-8); background: transparent; color: var(--ink-2); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
-.pf-fechar:hover { background: var(--hover); }
-.pf-miolo { padding: 0 4px; }
-.pf-lote, .pf-secao { margin: 0; padding: 10px 10px 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); }
-.pf-item { min-height: 42px; box-sizing: border-box; padding: 5px 10px; gap: 10px; }
-.pf-item > .pf-ponto { width: 9px; height: 9px; margin: 0 4.5px; border: 1.6px solid var(--ink-3); animation: none; }
-.pf-comando { font-size: var(--fs-rotulo); }
-.pf-sub, .pf-item-fim { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
-.pf-memoria-info { display: flex; align-items: center; gap: 10px; min-height: 32px; box-sizing: border-box; margin: 0; padding: 0 10px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
-.pf-memoria-info svg { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
-.pf-pe { height: 44px; box-sizing: border-box; align-items: center; margin-top: 6px; padding: 0 8px 0 10px; border-top: 1px solid var(--divisoria); gap: 8px; }
-.pf-ver { height: 28px; padding: 0 10px; border-radius: var(--raio-8); color: var(--ink-2); font-weight: var(--peso-medio); text-decoration: none; }
-.pf-ver:hover { background: var(--hover); }
-.pf-parar { gap: 6px; height: 28px; margin-left: auto; padding: 0 10px; border-radius: var(--raio-8); background: var(--danger-soft); color: var(--danger); font-weight: var(--peso-medio); }
+.pf-cab-titulo { display: flex; align-items: baseline; gap: 8px; font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); color: var(--ink-3); }
+.pf-cab-titulo b { font-weight: 600; color: var(--ink); }
+.pf-fechar { gap: 4px; height: 22px; padding: 0 6px; border-radius: var(--raio-6); background: transparent; color: var(--ink-3); font-size: 11px; font-weight: var(--peso-regular); }
+.pf-fechar:hover { background: var(--hover); color: var(--ink); }
+.pf-miolo { padding: 0; }
+.pf-lote, .pf-secao { margin: 0; }
+.pf-item { min-height: 28px; box-sizing: border-box; padding: 4px 8px; gap: 8px; font-size: 12px; line-height: 16px; }
+.pf-item > .pf-ponto { width: 8px; height: 8px; margin: 0 2px; border: 1.5px solid var(--ink-3); animation: none; }
+.pf-comando { font-size: 11px; }
+.pf-sub, .pf-item-fim { font-size: 11px; line-height: 14px; color: var(--ink-3); }
+.pf-memoria-info { display: flex; align-items: center; gap: 8px; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; font-size: 11px; line-height: 14px; color: var(--ink-3); }
+.pf-memoria-info svg { width: 12px; height: 12px; color: var(--ink-3); flex: none; }
+.pf-memoria-linha { gap: 8px; min-height: 28px; margin: 0; padding: 0 8px; border: 0; font-size: 11px; line-height: 14px; }
+.pf-pe { height: 28px; box-sizing: border-box; align-items: center; margin: 0; padding: 0 2px 0 8px; border-top: 1px solid var(--borda-sutil); gap: 4px; font-size: 12px; line-height: 16px; }
+.pf-ver { height: 22px; padding: 0 6px; border-radius: var(--raio-6); color: var(--ink-3); font-size: 11px; line-height: 14px; font-weight: var(--peso-regular); text-decoration: none; }
+.pf-ver:hover { background: var(--hover); color: var(--ink); }
+.pf-pe > :is(.pf-ver, .pf-ver-todas):first-child, .pf-parar + :is(.pf-ver, .pf-ver-todas) { margin-left: auto; }
+.pf-parar { gap: 8px; height: 22px; margin: 0 0 0 -2px; padding: 0 6px 0 2px; border-radius: var(--raio-6); background: none; color: var(--danger); font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); }
+.pf-parar:hover { background: var(--danger-soft); }
+.pf-parar svg { width: 12px; height: 12px; margin: 0 0 0 2px; }
 .lugar-faixa-trabalhos:has(> .pilula-frentes[data-estado="aberta"]) + .composer-wrap .composer .box { border-radius: var(--raio-22); }
-}
-@media not ((hover: none) and (pointer: coarse)) {
 /* O ponto do cabeçalho aberto na cor do bot, com o anel de 20 % (Paper sig "work"). */
 .pf-cab-ponto[class*=" c-"] { background: var(--mascote-cor); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mascote-cor) 20%, transparent); animation: none; }
-/* Aberta, a pílula entra no fluxo (Paper 15c): a conversa termina acima do cartão em vez de ficar por baixo dele. */
-.pilula-frentes[data-estado="aberta"] { height: auto; }
-.pilula-frentes[data-estado="aberta"] .pf-moldura { position: relative; bottom: 0; padding-bottom: 10px; pointer-events: auto; }
-}
-@media not ((hover: none) and (pointer: coarse)) {
 /* Painel fechado (Paper 15c, pad 180): a coluna da conversa vai a 808 px; o campo e a pílula ficam em 680, centrados. */
 .app.detalhes-ocultos .stage > .timeline-wrap > .timeline { max-width: 808px; }
-/* A pílula aberta já está no fluxo: a conversa não precisa da folga da pílula fechada. */
-.stage.com-pilula-frentes.palco-frentes-abertas > .timeline-wrap { padding-bottom: 16px; }
 }
 
 /* =====================================================================================

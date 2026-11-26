@@ -164,6 +164,31 @@ export function pedirGestao(titulo: string, corpo: string, confirmar: string, sa
   d.querySelector<HTMLInputElement>("input")?.select();
 }
 
+/**
+ * XUM-6 (26/11): a confirmação no design system atual — o mesmo padrão do diálogo do Cofre (Paper C4): título 17/24 em 500
+ * com o × à direita, o corpo em 13/18 cinza, o pé com "Cancelar" fantasma e o botão em pílula; `perigo` deixa o primário
+ * vermelho (destrutivo). Esc, o × e o clique fora fecham sem fazer nada; o foco nasce no Cancelar (a ação que não destrói).
+ */
+export function pedirConfirmacao(o: { titulo: string; corpo: string; confirmar: string; perigo?: boolean; salvar: () => Promise<void> }): HTMLDialogElement {
+  const fechar = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>';
+  const d = dialogo(`<form class="dlg-ds-form"><div class="dlg-ds-cab"><h2>${esc(o.titulo)}</h2><button type="button" class="dlg-ds-fechar" data-cancelar aria-label="Fechar">${fechar}</button></div>`
+    + `<div class="dlg-ds-corpo">${o.corpo}</div><p class="dialogo-erro dlg-ds-erro" role="alert"></p>`
+    + `<div class="dlg-ds-pe"><button class="bt dlg-ds-cancelar" type="button" data-cancelar>Cancelar</button><button class="bt dlg-ds-primario${o.perigo ? " perigo" : ""}" type="submit">${esc(o.confirmar)}</button></div></form>`);
+  d.classList.add("dlg-ds");
+  for (const b of d.querySelectorAll("[data-cancelar]")) b.addEventListener("click", () => d.close());
+  d.querySelector("form")!.addEventListener("submit", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const form = e.currentTarget as HTMLFormElement;
+    for (const b of form.querySelectorAll<HTMLButtonElement>("button")) b.disabled = true;
+    void o.salvar().then(() => d.close(), () => {
+      d.querySelector(".dialogo-erro")!.textContent = "Não foi possível concluir. Confira o aviso da página e tente novamente.";
+      for (const b of form.querySelectorAll<HTMLButtonElement>("button")) b.disabled = false;
+    });
+  });
+  d.querySelector<HTMLButtonElement>(".dlg-ds-cancelar")?.focus();
+  return d;
+}
+
 /** Spec do item 2: abrir e fechar o menu em 100 ms; trocar de submenu, o anterior sai em 50 ms. */
 export const MENU_CONTA_MS = 100;
 export const SUBMENU_SAI_MS = 50;

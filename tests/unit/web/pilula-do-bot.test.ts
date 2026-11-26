@@ -165,12 +165,15 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     expect(daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO)).partes.corpo).not.toContain("pf-nova-linha");
   });
 
-  it("o topo \"Tarefas abertas\" e \"Ver todas ›\" (Paper 9f); no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
+  it("XUM-6 (Paper 9f + pedido do Marlon): o topo \"Tarefas abertas\" com o × que fecha sem parar nada; no pé, Parar, \"Ver na conversa ↑\" (com a fala na janela) e \"Ver todas ›\"", () => {
     expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>Tarefas abertas</b></span>');
-    expect(p.partes.cab).toContain('class="pf-ver-todas" data-act="abrir-tarefas" data-agente="orq">Ver todas');
-    expect(p.partes.cab).not.toContain("pf-fechar");
+    // O × recolhe a pílula (o mesmo data-act da aba, com data-recolher): fecha o cartão e não chama o Parar.
+    expect(p.partes.cab).toMatch(/<button type="button" class="pf-fechar-x" data-act="pilula" data-recolher="1" aria-label="Fechar" title="Fechar" aria-expanded="true" aria-controls="pf-painel"><svg[^]*?<\/svg><\/button>$/);
+    expect(p.partes.cab).not.toContain("pilula-parar");
+    expect(p.partes.cab).not.toContain("pf-ver-todas");
+    expect(p.partes.pe).toMatch(/^<button type="button" class="pf-parar" data-act="pilula-parar"><svg[^]*?<\/svg>Parar<\/button>/);
     expect(p.partes.pe).toContain('data-act="pilula-ver-na-conversa">Ver na conversa');
-    expect(p.partes.pe).toMatch(/<button type="button" class="pf-parar" data-act="pilula-parar"><svg[^]*?<\/svg>Parar<\/button>/);
+    expect(p.partes.pe).toMatch(/<button type="button" class="pf-ver-todas" data-act="abrir-tarefas" data-agente="orq">Ver todas<svg[^]*?<\/svg><\/button>$/);
     expect(p.pilula.abertas.map((t) => t.id)).toEqual(["w3", "w5"]);
     // A fala fora da janela carregada: "Ver na conversa" não tem para onde levar.
     expect(daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", SEM_PROGRESSO)).partes.pe).not.toContain("Ver na conversa");
