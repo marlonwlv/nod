@@ -8,6 +8,11 @@
 .qd-vista > .cv-host { position: absolute; inset: 0; display: flex; width: auto; max-width: none; margin: 0; }
 .stage.palco-canvas > .cabecalho-pilula { align-items: flex-start; padding-left: 20px; }
 .stage.palco-canvas > .cabecalho-pilula::before { display: none; }
+/* XUM-10 (2026-11-26): a casca deu ao cabeçalho uma faixa sólida de 56 px por cima da vista, e ela cobria a barra do
+   canvas (o nome e o ▾ ficavam atrás). No Canvas o topo é só a pílula: a faixa fica transparente e deixa o clique
+   passar, menos na pílula e no botão de abas ao lado dela. */
+.stage.palco-canvas > .cabecalho-pilula { background: transparent; pointer-events: none; }
+.stage.palco-canvas > .cabecalho-pilula > * { pointer-events: auto; }
 .cv { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .cv-link { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
 .cv-link:hover { color: var(--ink); }
@@ -146,6 +151,9 @@ button.cv-nota { cursor: pointer; }
   background: color-mix(in srgb, var(--surface) 94%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: var(--shadow-pop); }
 .cv-menu-ver { margin-left: 64px; }
+/* XUM-10: com a barra perto da borda direita, o menu encosta à direita da barra em vez de sair da tela. */
+.cv-topo > .cv-menu { margin-left: min(0px, 100% - min(380px, 100vw - 40px)); }
+.cv-topo > .cv-menu-ver { margin-left: min(64px, 100% - min(380px, 100vw - 40px)); }
 .cv-menu-cab { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px 8px; }
 .cv-menu-cab b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .cv-menu-cab span { color: var(--ink-3); font-size: 12px; }
@@ -312,7 +320,7 @@ button.cv-nota { cursor: pointer; }
   .cv-fer-bt, .cv-fer-nome, .cv-fer-ver, .cv-fer-pct, .cv-fer-enviar { min-width: 44px; height: 44px; border-radius: 22px; }
   .cv-aviso { min-height: 44px; }
   .cv-aviso-x { width: 44px; height: 44px; border-radius: 22px; }
-  .cv-menu-ver { margin-left: 0; }
+  .cv-topo > .cv-menu-ver { margin-left: min(0px, 100% - min(380px, 100vw - 40px)); }
   .cv-filtros { flex-wrap: wrap; }
   .cv-filtro { min-height: 44px; border-radius: 22px; }
   .cv-lin-a { grid-template-columns: 72px minmax(0, 1fr); }

@@ -519,19 +519,37 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     if (a.foco) { const el = host?.querySelector<HTMLElement>(`#${CSS.escape(a.foco)}`); if (el && doc.activeElement !== el) { el.focus(); if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) { const n = el.value.length; el.setSelectionRange(n, n); } } }
   }
 
-  /** A barra começa logo depois da pílula do bot (que mora no cabeçalho, fora do host). */
+  /**
+   * A barra começa logo depois da pílula do bot e do botão de abas ao lado dela (o `.pilula-e-abas`, que mora no
+   * cabeçalho, fora do host). XUM-10: o cabeçalho é regravado depois de o canvas montar (a fileira de abas recolhe para
+   * a pílula na troca de página), então a peça é procurada de novo a cada medida e um MutationObserver no #cabecalho
+   * mede outra vez quando ele muda; medir com a peça velha (fora do DOM) deixava a barra embaixo da pílula.
+   */
   let medindo: ResizeObserver | null = null;
+  let vigiando: MutationObserver | null = null;
+  let medida: HTMLElement | null = null;
+  const pecaDoTopo = (): HTMLElement | null =>
+    doc.querySelector<HTMLElement>("#cabecalho.cabecalho-pilula .pilula-e-abas") ?? doc.querySelector<HTMLElement>(".cabecalho-pilula .qd-pil") ?? doc.querySelector<HTMLElement>(".qd-pil");
   function medirBarra(): void {
     if (!host || !win) return;
-    const pil = doc.querySelector<HTMLElement>(".cabecalho-pilula .qd-pil") ?? doc.querySelector<HTMLElement>(".qd-pil");
     const medir = (): void => {
-      if (!host || !pil) return;
+      if (!host) return;
+      const pil = pecaDoTopo();
+      if (!pil) return;
+      if (medindo && pil !== medida) { medindo.disconnect(); medindo.observe(pil); medindo.observe(host); medida = pil; }
       const a = pil.getBoundingClientRect();
       const b = host.getBoundingClientRect();
       if (a.width > 0) host.style.setProperty("--cv-barra-x", `${Math.max(12, Math.round(a.right - b.left + 10))}px`);
     };
+    if (typeof ResizeObserver !== "undefined") { medindo?.disconnect(); medida = null; medindo = new ResizeObserver(medir); }
+    const cab = doc.getElementById("cabecalho");
+    if (cab && typeof MutationObserver !== "undefined") {
+      vigiando?.disconnect();
+      let pedido = false;
+      vigiando = new MutationObserver(() => { if (pedido) return; pedido = true; win?.requestAnimationFrame(() => { pedido = false; medir(); }); });
+      vigiando.observe(cab, { childList: true, subtree: true });
+    }
     medir();
-    if (pil && typeof ResizeObserver !== "undefined") { medindo?.disconnect(); medindo = new ResizeObserver(medir); medindo.observe(pil); medindo.observe(host); }
   }
 
   // -------------------------------------------------------------------------------------------------------------------
