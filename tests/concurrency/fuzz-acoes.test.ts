@@ -100,6 +100,10 @@ const ACOES_SEMEADAS_NOD409 = new Set([
  * que vai semeá-la (o teste exige o id NOD-n). SO_404_403_ACEITAS só pode ter ações da foto: não serve de saída para nova.
  */
 const ISENCOES_DE_ACOES_NOVAS: Readonly<Record<string, string>> = {
+  // A main vermelha em c7d6bfdd e 43ef0804 (sementes 3466588689 e 1139738628): a chave do cofre é semeada (`itens`), mas
+  // nessas sementes o plano não sorteia o id dela para `cofre.remover_chave` e a rota só leva o id. Semear a chave de um
+  // jeito que toda semente alcance é da NOD-409 (as entidades do fuzz), como as do quadro abaixo.
+  "cofre.remover_chave": "NOD-409",
   // A main vermelha em 849a2d14 (semente 2224696596): o fuzz não semeia versão de perfil, e só a semente que sorteia um número
   // existente passa da busca. Semear a versão do perfil no fuzz é da NOD-20.
   "bots.restaurar_versao": "NOD-20",
