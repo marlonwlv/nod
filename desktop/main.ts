@@ -199,7 +199,7 @@ function seuComputador(): SeuComputadorLocal | null {
     pasta,
     bundleDoHost: "app.nod.desktop",
     listarApps: () => listarAppsLocais("darwin"),
-    aoAtividade: (a) => ilhaDoMac?.mostrar({ bot: a.bot, app: a.app, acao: a.acao }),
+    aoAtividade: (a) => ilhaDoMac?.mostrar({ bot: a.bot, app: a.app, acao: a.acao, janela: a.janela }),
   });
   // Bloquear a tela para o bot na hora (ADR-197, item 6).
   powerMonitor.on("lock-screen", () => { ilhaDoMac?.esconder(); void seuComputadorDoMac?.parar(); });

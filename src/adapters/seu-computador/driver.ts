@@ -18,7 +18,9 @@ import type { AppLocal } from "./apps-locais.ts";
  * - Telemetria e atualização do driver desligadas; o estado dele fica numa pasta do nod (`CUA_DRIVER_RS_HOME`).
  */
 
-export type Atividade = { agenteId: string; bot: string; app: string; acao: string; em: number };
+/** A caixa da janela na tela, em pontos (origem no canto de cima à esquerda da tela principal). */
+export type CaixaDaJanela = { x: number; y: number; largura: number; altura: number };
+export type Atividade = { agenteId: string; bot: string; app: string; acao: string; em: number; /** A janela que o bot usa (a borda âmbar); null = ainda não se sabe. */ janela: CaixaDaJanela | null };
 
 export type OpcoesSeuComputadorLocal = {
   plataforma: PlataformaPessoa;
@@ -78,6 +80,17 @@ export function efeitoDoResultado(r: ResultadoDriver): "confirmado" | "sem_prova
   if (/\bconfirmed\b/.test(s)) return "confirmado";
   if (/\bunverifiable\b/.test(s)) return "sem_prova";
   return undefined;
+}
+
+/** A caixa de uma janela numa resposta de `list_windows` (bounds/frame com x/y ou left/top). */
+export function caixaDaJanela(estruturado: Record<string, unknown> | null, id: number): CaixaDaJanela | null {
+  const janelas = Array.isArray(estruturado?.windows) ? estruturado!.windows.map(obj) : [];
+  const j = janelas.find((w) => w.window_id === id || w.id === id);
+  if (!j) return null;
+  const b = obj(j.bounds ?? j.frame);
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const x = n(b.x ?? b.left), y = n(b.y ?? b.top), largura = n(b.width ?? b.w), altura = n(b.height ?? b.h);
+  return x !== null && y !== null && largura && altura && largura > 40 && altura > 40 ? { x, y, largura, altura } : null;
 }
 
 /** O driver recusou (ou leu vazio) porque a tela está bloqueada ou no descanso de tela. */
@@ -149,6 +162,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
   let cacheApps: { em: number; apps: AppLocal[] } | null = null;
   let fila: Promise<unknown> = Promise.resolve();
   const sessoes = new Set<string>();
+  let ultimaCaixa: CaixaDaJanela | null = null;
 
   async function apps(forcar = false): Promise<AppLocal[]> {
     if (!forcar && cacheApps && agora() - cacheApps.em < CACHE_APPS_MS) return cacheApps.apps;
@@ -247,7 +261,9 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
 
   async function janelaDo(g: Geracao, pid: number, session: string): Promise<number | null> {
     const r = await g.chamar("list_windows", { pid, session });
-    return escolherJanela(r.estruturado);
+    const id = escolherJanela(r.estruturado);
+    ultimaCaixa = id === null ? null : caixaDaJanela(r.estruturado, id);
+    return id;
   }
 
   async function permissoesOk(g: Geracao): Promise<RespostaSeuComputador | null> {
@@ -281,7 +297,9 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     const falta = await permissoesOk(g);
     if (falta) return falta;
     const session = await sessao(g, agenteId, p.bot);
-    o.aoAtividade?.({ agenteId, bot: p.bot, app: app.nome, acao: p.acao, em: agora() });
+    ultimaCaixa = null;
+    const avisar = () => o.aoAtividade?.({ agenteId, bot: p.bot, app: app.nome, acao: p.acao, em: agora(), janela: ultimaCaixa });
+    avisar();
 
     const abrir = async (): Promise<number | null> => {
       const args: Record<string, unknown> = o.plataforma === "darwin" ? { bundle_id: app.id, session } : { name: app.id, session };
@@ -306,6 +324,7 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     }
     if (janela === null && p.acao !== "tecla" && p.acao !== "menu") return { tipo: "falhou", texto: `O ${app.nome} está aberto mas sem janela visível. Abra um documento ou peça para a pessoa abrir a janela.` };
 
+    if (ultimaCaixa) avisar();
     const base: Record<string, unknown> = { pid, session, ...(janela !== null ? { window_id: janela } : {}) };
     const elemento = typeof p.args.elemento === "string" && p.args.elemento ? { element_token: p.args.elemento } : {};
     const ponto = typeof p.args.x === "number" && typeof p.args.y === "number" ? { x: p.args.x, y: p.args.y } : {};

@@ -37,11 +37,32 @@ a:hover{background:#f1f1f1}
 </style></head><body><div class="ilha" role="status" aria-live="polite"><span class="ponto"></span><span class="texto"><b>${esc(p.bot)}</b> está usando seu ${p.aparelho} <span class="mudo">· ${esc(p.app)} · ${esc(passo)}</span></span><a href="nod-ilha://parar" aria-label="Parar ${esc(p.bot)}">Parar</a></div></body></html>`;
 }
 
-export type Ilha = { mostrar(p: { bot: string; app: string; acao: string }): void; esconder(): void };
+/** A borda âmbar (S2): só o contorno, 3 px, cantos de janela do macOS; a página não tem nada clicável. */
+export const HTML_BORDA = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}div{box-sizing:border-box;position:fixed;inset:0;border:3px solid #E8892B;border-radius:12px;box-shadow:0 0 0 1px rgba(232,137,43,.25),0 0 18px rgba(232,137,43,.35)}</style></head><body><div></div></body></html>`;
+
+export type CaixaNaTela = { x: number; y: number; largura: number; altura: number };
+export type Ilha = { mostrar(p: { bot: string; app: string; acao: string; janela?: CaixaNaTela | null }): void; esconder(): void };
 
 export function criarIlha(o: { aparelho: "Mac" | "PC"; aoParar: () => void }): Ilha {
   let janela: BrowserWindow | null = null;
+  let borda: BrowserWindow | null = null;
   let relogio: ReturnType<typeof setTimeout> | null = null;
+
+  /** A borda âmbar em volta da janela que o bot usa: por cima, transparente e sem receber clique (passa para o app). */
+  function mostrarBorda(c: CaixaNaTela): void {
+    const folga = 3;
+    const caixa = { x: Math.round(c.x - folga), y: Math.round(c.y - folga), width: Math.round(c.largura + 2 * folga), height: Math.round(c.altura + 2 * folga) };
+    if (!borda || borda.isDestroyed()) {
+      borda = new BrowserWindow({ ...caixa, show: false, frame: false, transparent: true, hasShadow: false, resizable: false, movable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, focusable: false, alwaysOnTop: true, title: "nod",
+        webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, javascript: false } });
+      borda.setIgnoreMouseEvents(true);
+      borda.setAlwaysOnTop(true, "floating");
+      borda.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      borda.on("closed", () => { borda = null; });
+      void borda.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(HTML_BORDA)}`);
+    } else borda.setBounds(caixa);
+    if (!borda.isVisible()) borda.showInactive();
+  }
   let ultimo = "";
 
   function abrir(): BrowserWindow {
@@ -66,6 +87,7 @@ export function criarIlha(o: { aparelho: "Mac" | "PC"; aoParar: () => void }): I
   function esconder(): void {
     if (relogio) { clearTimeout(relogio); relogio = null; }
     if (janela && !janela.isDestroyed()) janela.hide();
+    if (borda && !borda.isDestroyed()) borda.hide();
   }
 
   return {
@@ -74,6 +96,7 @@ export function criarIlha(o: { aparelho: "Mac" | "PC"; aoParar: () => void }): I
       const html = htmlDaIlha({ ...p, aparelho: o.aparelho });
       if (html !== ultimo) { ultimo = html; void w.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`); }
       if (!w.isVisible()) w.showInactive();
+      if (p.janela) mostrarBorda(p.janela);
       if (relogio) clearTimeout(relogio);
       relogio = setTimeout(esconder, SOME_MS);
       relogio.unref?.();

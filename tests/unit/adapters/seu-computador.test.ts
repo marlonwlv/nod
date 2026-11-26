@@ -3,7 +3,7 @@ import { criarSeuComputador } from "../../../src/adapters/fundo/seu-computador.t
 import { iniciarNavegadorDaMaquina, lerComandoNavegador, type CanalNavegadorDaMaquina, type NavegadorDaMaquina } from "../../../src/adapters/executor/navegador.ts";
 import { criarCanalNavegador } from "../../../src/adapters/navegador/canal-maquina.ts";
 import { lerApps } from "../../../src/adapters/seu-computador/apps-locais.ts";
-import { criarSeuComputadorLocal, efeitoDoResultado, escolherJanela, lerResultadoDriver } from "../../../src/adapters/seu-computador/driver.ts";
+import { caixaDaJanela, criarSeuComputadorLocal, efeitoDoResultado, escolherJanela, lerResultadoDriver, telaBloqueada } from "../../../src/adapters/seu-computador/driver.ts";
 import { FERRAMENTAS_SEU_COMPUTADOR, type PedidoSeuComputador, type RespostaSeuComputador } from "../../../src/contracts/seu-computador.ts";
 import type { MotorNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { acharApp, liberadosAgora, manifestoBounded, motivoDoBloqueio, textoDoPedido } from "../../../src/domain/seu-computador.ts";
@@ -87,6 +87,15 @@ describe("respostas do cua-driver", () => {
     expect(escolherJanela({ windows: [{ window_id: 1, bounds: { width: 10, height: 10 } }, { window_id: 2, bounds: { width: 800, height: 600 } }, { window_id: 3, bounds: { width: 2000, height: 2000 }, is_on_screen: false }] })).toBe(2);
     expect(escolherJanela({ windows: [] })).toBeNull();
     expect(escolherJanela(null)).toBeNull();
+  });
+
+  it("a caixa da janela para a borda âmbar, e a tela bloqueada reconhecida", () => {
+    expect(caixaDaJanela({ windows: [{ window_id: 7, bounds: { x: 100, y: 80, width: 900, height: 600 } }] }, 7)).toEqual({ x: 100, y: 80, largura: 900, altura: 600 });
+    expect(caixaDaJanela({ windows: [{ window_id: 7, frame: { left: 0, top: 0, w: 10, h: 10 } }] }, 7)).toBeNull();
+    expect(caixaDaJanela({ windows: [] }, 7)).toBeNull();
+    expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "Background input refused (screen_locked)" }], isError: true }))).toBe(true);
+    expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "ok" }], structuredContent: { degraded_reason: "screen_locked" } }))).toBe(true);
+    expect(telaBloqueada(lerResultadoDriver({ content: [{ type: "text", text: "ok" }] }))).toBe(false);
   });
 });
 
