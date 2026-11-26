@@ -320,7 +320,8 @@ export function criarSeuComputadorLocal(o: OpcoesSeuComputadorLocal): SeuComputa
     if (!alvo || typeof alvo.element_token !== "string") return `nenhum campo editável (papéis: ${[...new Set(elementos.map((e) => String(e.role)))].slice(0, 8).join(",")})`;
     if (typeof alvo.value !== "string" && alvo.value !== undefined && alvo.value !== null) return "o valor do campo não veio como texto";
     const atual = typeof alvo.value === "string" ? alvo.value : "";
-    const r = await g.chamar("set_value", { element_token: alvo.element_token, value: atual + texto, session: base.session });
+    // Com pid e janela: sem eles o modo bounded lê como entrada na área de trabalho inteira e recusa (medido na CI).
+    const r = await g.chamar("set_value", { element_token: alvo.element_token, value: atual + texto, pid: base.pid, ...(base.window_id !== undefined ? { window_id: base.window_id } : {}), session: base.session });
     if (r.erro) return `set_value: ${r.texto.slice(0, 200)}`;
     return { ...r, texto: `${r.texto}\n(Escrito pelo valor do campo: o Windows não deixou trazer a janela para a frente.)` };
   }
