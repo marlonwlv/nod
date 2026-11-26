@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **237**, mais 3 só de leitura. No chat: **81 vivas**, 8 parciais, 101 faltando e 50 que nunca vão para o chat. Piso de vivas: 81.
+Ações de pessoa que mudam algo: **241**, mais 3 só de leitura. No chat: **81 vivas**, 8 parciais, 103 faltando e 52 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -163,6 +163,10 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | --- | --- | --- | --- | --- |
 | `cofre.criar_login` | Guardar um login (site, usuário e senha) no cofre do nod | muda | nunca: a senha não passa pelo chat (ADR-177, ADR-190 decisão 6): ela entra pela tela e vai cifrada ao cofre | `POST ^\/cofre\/logins$` |
 | `cofre.apagar_login` | Apagar um login do cofre do nod | muda | falta (NOD-395) | `DELETE ^\/cofre\/logins\/(?<id>[^/]+)$` |
+| `cofre.criar_chave` | Guardar uma chave de API no Cofre (app, variável, valor, quem pode usar) | muda | nunca: o valor é segredo: pelo chat o bot pede a chave pelo cartão seguro (pedir_credencial), que vai direto ao Cofre | `POST ^\/cofre\/chaves$` |
+| `cofre.trocar_chave` | Trocar o valor de uma chave do Cofre (testada no app antes, quando ele é conhecido) | muda | nunca: o valor novo é segredo: pelo chat o bot pede pelo cartão seguro (pedir_credencial), que troca a chave do app | `POST ^\/cofre\/itens\/(?<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/trocar$` |
+| `cofre.mudar_acesso` | Dar, mudar (Sempre ou Perguntar antes) ou tirar o acesso de um bot a uma chave do Cofre | muda | falta (NOD-395) | `DELETE ^\/cofre\/itens\/(?<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/acessos\/(?<agente>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`<br>`PATCH ^\/cofre\/itens\/(?<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/acessos\/(?<agente>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$` |
+| `cofre.remover_chave` | Remover uma chave do Cofre | muda | falta (NOD-395) | `DELETE ^\/cofre\/itens\/(?<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$` |
 
 ## conversas
 
@@ -420,7 +424,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 - **NOD-393** (Onda 1: bots e rotinas): `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `apps.renomear_conta`, `apps.remover_conta`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
-- **NOD-395** (Onda 3: conta e segurança): `cofre.apagar_login`, `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
+- **NOD-395** (Onda 3: conta e segurança): `cofre.apagar_login`, `cofre.mudar_acesso`, `cofre.remover_chave`, `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`, `navegador.operar`, `navegador.apagar_tarefa`
 - **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`, `tarefas.criar`, `tarefas.enviar`, `tarefas.resolver`, `tarefas.reabrir`, `tarefas.arquivar`, `tarefas.desarquivar`, `tarefas.renomear`
 - **NOD-400** (Onda 4b: contas de IA): `bots.decidir_troca_de_ia`, `contas_ia.ordenar`, `contas_ia.mudar_modo`, `contas_ia.editar`, `contas_ia.sair`, `contas_ia.remover`, `contas_ia.seguir`, `contas_ia.tentar_de_novo`, `contas_ia.entrar`, `contas_ia.codigo_do_login`, `contas_ia.cancelar_login`, `contas_ia.trocar_executor`

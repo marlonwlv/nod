@@ -126,9 +126,24 @@ conhecido (começando pela Orgo), testa a chave antes de guardar e concede ao bo
    o repositório e os testes (unidade e integração sob `withRollback`, troca da mestra sem tocar os itens, AAD trocada
    falha, KMS fora usa o cache e depois falha fechado).
 2. A entrega selada ao motor e o redator; a Orgo passa a ler do cofre e o atalho da máquina de testes sai.
-3. As telas do Cofre e o alvo `app` do `pedir_credencial`.
+3. As telas do Cofre e o alvo `app` do `pedir_credencial`. Feita em 2026-11-26 (emenda abaixo).
 4. A migração dos quatro lugares de hoje para `cofre_itens`.
 5. O cartão no app do Mac e do PC.
+
+## Emenda de 2026-11-26: a Entrega 3
+
+- **Catálogo dos apps do Cofre** em `src/domain/apps-do-cofre.ts` (começa pela Orgo: `ORGO_API_KEY`, onde achar a chave, o
+  teste). A web não importa valores do servidor: o catálogo vai no `GET /cofre` e, no cartão, no payload do pedido.
+- **`pedir_credencial` com alvo `app`**: o bot só diz o app; o nome da variável é o do catálogo. A chave é testada no app
+  FORA de transação (Orgo: `GET /workspaces`; 401/403 recusa, o resto é "não respondeu") e vira item `chave` concedido ao
+  bot que pediu em `sempre`. Recusada ou sem resposta, nada é gravado e o cartão continua aberto.
+- **Telas (Paper C1, C2, C2b e C3)**: `POST /cofre/chaves` cria; o item guardado mora em `/cofre/itens/:id` (o segmento
+  `chaves` das rotas é o das chaves de máquina): abrir, trocar, `acessos/:bot` (Sempre, Perguntar antes ou tirar) e
+  remover (com Desfazer). Criar, trocar e mudar o acesso ficam fora do MCP.
+- **Trocar** cria a versão nova e copia as concessões da anterior na mesma transação.
+- **O uso** marcado por quem lê a cada chamada (o provedor da Orgo no servidor) conta no máximo uma vez a cada 5 minutos
+  por item, para o "usada há 3 min" não custar uma escrita por requisição. O provedor da Orgo lê primeiro do Cofre e cai
+  no conector `orgo` antigo até a Entrega 4. A entrega ao motor continua sendo a Entrega 2.
 
 ## Gatilhos de reversão
 

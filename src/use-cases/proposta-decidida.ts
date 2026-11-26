@@ -13,7 +13,10 @@ import type { CasoDeUso, Deps } from "./tipos.ts";
 export async function payloadDaPropostaDecidida(deps: Pick<Deps, "repos">, proposta: Proposta, estado: PayloadPropostaDecidida["estado"]): Promise<PayloadPropostaDecidida> {
   const doPayload = "turnoId" in proposta.payload ? proposta.payload.turnoId : undefined;
   const turnoId = doPayload ?? (await deps.repos.decisoes.buscar(proposta.id))?.turnoId ?? null;
-  return { kind: "proposta_decidida", propostaId: proposta.id, tipo: proposta.kind, titulo: tituloDaProposta(proposta), estado, turnoId };
+  const base: PayloadPropostaDecidida = { kind: "proposta_decidida", propostaId: proposta.id, tipo: proposta.kind, titulo: tituloDaProposta(proposta), estado, turnoId };
+  if (proposta.payload.kind !== "credencial" || proposta.payload.alvo !== "app" || estado !== "confirmada" || !proposta.agenteId) return base;
+  const bot = (await deps.repos.agentes.buscar(proposta.agenteId))?.nome;
+  return bot ? { ...base, noCofre: { bot } } : base;
 }
 
 /**

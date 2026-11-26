@@ -50,6 +50,9 @@ export const ACOES_FORA_DO_MCP: ReadonlySet<IdAcao> = new Set<IdAcao>([
   // apagar logins e tarefas ensinadas.
   "cofre.criar_login", "navegador.login", "navegador.codigo", "navegador.guardar_login", "navegador.trazer_do_chrome",
   "navegador.ir_para", "navegador.trocar_aba", "navegador.ensinar",
+  // ADR-195 (Entrega 3): a chave do Cofre leva o valor (criar e trocar); dar acesso a um bot entregaria o uso dela a quem
+  // tivesse o token vazado. Ficam abertos listar e remover.
+  "cofre.criar_chave", "cofre.trocar_chave", "cofre.mudar_acesso",
 ]);
 
 export function rotaForaDoMcp(rota: Rota, caminho: string): boolean {

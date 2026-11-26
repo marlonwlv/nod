@@ -5,6 +5,9 @@ import { responderErro } from "../../src/adapters/http/erros.ts";
 import { rotasCredencial } from "../../src/adapters/http/rotas/credencial.ts";
 import { criarRotasDecisoes } from "../../src/adapters/http/rotas/decisoes.ts";
 import type { ResultadoSonda } from "../../src/contracts/servicos.ts";
+import { chaveMestraLocal } from "../../src/adapters/cofre/chave-mestra.ts";
+import { criarChavesDoTenant } from "../../src/adapters/cofre/chaves-do-tenant.ts";
+import type { VereditoDaChave } from "../../src/adapters/cofre/testar-chave.ts";
 import { chaveDe, cifrar, decifrar } from "../../src/db/cifra.ts";
 import { ErroDeDominio } from "../../src/domain/erro.ts";
 import { chaveCandidataDoConector } from "../../src/use-cases/guardar-credencial.ts";
@@ -34,7 +37,7 @@ const SEGREDO = "exk_live_NOD50_s3gr3d0_que_nao_pode_vazar_9f2c";
  * VALOR em todas as tabelas legíveis (mensagens, events, propostas, decisões, trilha, turnos…) e em tudo o que foi logado.
  */
 describeIntegracao("cartão de pedido de credencial (NOD-50)", () => {
-  async function cenario(trx: Tx, opcoes: { modo?: "manual" | "automatico" | "total"; sonda?: (n: number, env: Record<string, string> | undefined) => ResultadoSonda | Promise<ResultadoSonda>; fetchImpl?: typeof fetch } = {}) {
+  async function cenario(trx: Tx, opcoes: { modo?: "manual" | "automatico" | "total"; sonda?: (n: number, env: Record<string, string> | undefined) => ResultadoSonda | Promise<ResultadoSonda>; fetchImpl?: typeof fetch; testar?: (app: string, valor: string) => Promise<VereditoDaChave> } = {}) {
     const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Ada", ...(opcoes.modo ? { modo: opcoes.modo } : {}) });
     const { deps, repos } = depsSobre(trx, MARLON, { agora: () => AGORA });
     let sondas = 0;
@@ -49,7 +52,9 @@ describeIntegracao("cartão de pedido de credencial (NOD-50)", () => {
       txAbertas++;
       try { return await fn(deps); } finally { txAbertas--; eventos.push("commit"); }
     };
-    const rota = rotasCredencial({ dentro, cifrar: cifra, decifrar: decifra, ...(opcoes.fetchImpl ? { fetchImpl: opcoes.fetchImpl, apiGithub: "https://api.github.test" } : {}) })[0];
+    const testes: string[] = [];
+    const cofre = { chaves: criarChavesDoTenant({ mestra: chaveMestraLocal("12".repeat(32)) }), testar: async (app: "orgo", valor: string) => { testes.push(`${app}:${txAbertas}`); return opcoes.testar ? opcoes.testar(app, valor) : "aceita" as const; } };
+    const rota = rotasCredencial({ dentro, cifrar: cifra, decifrar: decifra, ...(opcoes.fetchImpl ? { fetchImpl: opcoes.fetchImpl, apiGithub: "https://api.github.test" } : {}) }, cofre)[0];
     const decidir = criarRotasDecisoes({ dentro, services: deps.services }).find((r) => r.padrao.source.includes("decidir"));
     if (!rota || !decidir || decidir.publica) throw new Error("rotas");
     const chamar = async (r: typeof rota, id: string, corpo: unknown) => {
@@ -67,7 +72,7 @@ describeIntegracao("cartão de pedido de credencial (NOD-50)", () => {
     };
     const pedir = (args: Record<string, unknown>) => pedirCredencial(deps, { turnoId: turno.id, agenteId, conversaId, ...args } as Parameters<typeof pedirCredencial>[1]);
     return {
-      deps, repos, agenteId, conversaId, turno, conector: conector.data, sondas: () => sondas, eventos, pedir,
+      deps, repos, agenteId, conversaId, turno, conector: conector.data, sondas: () => sondas, eventos, pedir, testes,
       guardar: (id: string, valor: unknown) => chamar(rota, id, { valor }),
       recusar: (id: string) => chamar(decidir, id, { recusar: true }),
       env: async () => JSON.parse(decifra((await repos.conectores.buscar(conector.data.id))?.envCifrado ?? "{}")) as Record<string, string>,
@@ -136,6 +141,42 @@ describeIntegracao("cartão de pedido de credencial (NOD-50)", () => {
     } finally {
       espiao.mockRestore(); espiaoErro.mockRestore(); espiaoAviso.mockRestore();
     }
+  });
+
+  it("ADR-195 (Entrega 3, Paper O1–O4): alvo app — a Orgo testa FORA de tx; recusada ou sem resposta não grava nada; aceita vira chave do Cofre concedida ao bot, e o valor não fica em lugar nenhum", async () => {
+    semSegredoNoLog();
+    await withRollback(MARLON, async (trx) => {
+      const vereditos: VereditoDaChave[] = ["recusada", "indisponivel", "aceita"];
+      const c = await cenario(trx, { testar: async () => vereditos.shift() ?? "aceita" });
+      expect((await c.pedir({ alvo: "app", app: "nao-existe" })).data).toMatchObject({ estado: "recusada", erro: "app_desconhecido" });
+      expect((await c.pedir({ alvo: "app" })).data).toMatchObject({ estado: "recusada", erro: "app_desconhecido" });
+      const r = await c.pedir({ alvo: "app", app: "orgo" });
+      const id = r.data.estado === "pendente" ? r.data.proposta_id : "";
+      // O nome da variável é o do catálogo (o bot só diz o app) e o "para" padrão é o do Paper O1.
+      expect(await c.repos.propostas.buscar(id)).toMatchObject({ payload: { kind: "credencial", alvo: "app", appId: "orgo", app: "Orgo", chave: "ORGO_API_KEY", conectorId: null, para: "Controlar o computador da Orgo: tirar print, clicar, digitar e rodar comandos." } });
+      expect((await c.repos.decisoes.buscar(id))?.frase).toContain("pede a chave da Orgo");
+
+      await expect(c.guardar(id, SEGREDO)).rejects.toMatchObject({ codigo: "integracao_autenticacao" });
+      await expect(c.guardar(id, SEGREDO)).rejects.toMatchObject({ codigo: "conector_indisponivel" });
+      expect((await trx`select count(*)::int as n from cofre_itens`)[0]?.n).toBe(0);
+      expect(await c.repos.propostas.buscar(id)).toMatchObject({ estado: "pendente" });
+
+      expect(await c.guardar(id, `  ${SEGREDO}  `)).toEqual({ estado: "guardada" });
+      // O teste da chave rodou sem transação aberta, nas três tentativas.
+      expect(c.testes).toEqual(["orgo:0", "orgo:0", "orgo:0"]);
+      const [item] = await c.repos.cofre.listarItens();
+      expect(item).toMatchObject({ tipo: "chave", nome: "ORGO_API_KEY", app: "Orgo", dono: "pessoa", versao: 1, publico: { appId: "orgo", pedidaPor: c.agenteId } });
+      expect(await c.repos.cofre.concessao(item!.id, c.agenteId)).toBe("sempre");
+      expect(await c.repos.propostas.buscar(id)).toMatchObject({ estado: "confirmada" });
+      const recibo = (await c.repos.mensagens.listarDaConversa(c.conversaId)).find((m) => m.payload?.kind === "proposta_decidida");
+      expect(recibo).toMatchObject({ texto: "Chave da Orgo guardada no cofre.", payload: { titulo: "Chave da Orgo", estado: "confirmada" } });
+      const [retomada] = await trx<{ entrada_texto: string }[]>`select entrada_texto from turnos where retoma_turno_id = ${c.turno.id}`;
+      expect(retomada?.entrada_texto).toContain("a Orgo aceitou");
+      expect(retomada?.entrada_texto).toContain("ORGO_API_KEY");
+      // O conector do cenário não foi tocado: a chave do app mora só no Cofre, cifrada.
+      expect(await c.env()).toEqual({ EXEMPLO_API_KEY: "chave_velha", OUTRA_VAR: "fica_igual" });
+      expect((await tabelasCom(trx, SEGREDO)).achadas).toEqual([]);
+    });
   });
 
   it("sonda que recusa a chave: o env volta ao de antes, o cartão continua aberto, o conector não ganha falha e o turno não retoma; a segunda tentativa guarda", async () => {

@@ -87,6 +87,24 @@ export const ACOES_NAVEGADOR = [
     chat: { estado: "nunca", motivo: "a senha não passa pelo chat (ADR-177, ADR-190 decisão 6): ela entra pela tela e vai cifrada ao cofre" },
   },
   { id: "cofre.apagar_login", titulo: "Apagar um login do cofre do nod", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-395" } },
+  // ADR-195 (Entrega 3, Paper C2 e C3): as chaves do Cofre pela tela. O valor nunca passa pelo chat: pela conversa, o bot
+  // pede a chave pelo cartão seguro (pedir_credencial, alvo "app"), que guarda e concede na mesma ação.
+  {
+    id: "cofre.criar_chave",
+    titulo: "Guardar uma chave de API no Cofre (app, variável, valor, quem pode usar)",
+    risco: "muda",
+    cartaoNoChat: false,
+    chat: { estado: "nunca", motivo: "o valor é segredo: pelo chat o bot pede a chave pelo cartão seguro (pedir_credencial), que vai direto ao Cofre" },
+  },
+  {
+    id: "cofre.trocar_chave",
+    titulo: "Trocar o valor de uma chave do Cofre (testada no app antes, quando ele é conhecido)",
+    risco: "muda",
+    cartaoNoChat: false,
+    chat: { estado: "nunca", motivo: "o valor novo é segredo: pelo chat o bot pede pelo cartão seguro (pedir_credencial), que troca a chave do app" },
+  },
+  { id: "cofre.mudar_acesso", titulo: "Dar, mudar (Sempre ou Perguntar antes) ou tirar o acesso de um bot a uma chave do Cofre", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-395" } },
+  { id: "cofre.remover_chave", titulo: "Remover uma chave do Cofre", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-395" } },
   {
     id: "navegador.apagar_tarefa",
     titulo: "Apagar uma tarefa ensinada (habilidade) do bot",

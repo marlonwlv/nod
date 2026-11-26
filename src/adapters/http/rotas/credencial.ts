@@ -5,7 +5,10 @@ import { log } from "../../../obs/log.ts";
 import { aoConectarApp } from "../../../use-cases/ao-conectar-app.ts";
 import { guardarTokenGithub } from "../../../use-cases/conectar-github.ts";
 import { chaveCandidataDoConector, fecharPedidoDeCredencial, gravarChaveCandidata, pedidoDeCredencialAberto, sondarChaveCandidata, valorDeCredencial } from "../../../use-cases/guardar-credencial.ts";
+import { appDoCofre } from "../../../domain/apps-do-cofre.ts";
+import { guardarChaveDoCartao } from "../../../use-cases/cofre-chaves.ts";
 import { conectorPublico } from "../../../use-cases/registrar-conector.ts";
+import { testarNoApp, type OpcoesRotasCofre } from "./cofre.ts";
 import type { Rota } from "../roteador.ts";
 import { executar } from "./dentro-de-tx.ts";
 import type { OpcoesRotasMarketplace } from "./marketplace.ts";
@@ -19,16 +22,32 @@ import { conferirChaveComposio, conferirTokenGithub } from "./segredos-de-app.ts
  *     causa: integracao_autenticacao (chave recusada) ou conector_indisponivel (serviço fora);
  *   - github_token: o GitHub confere o token antes (GET /user); grava, sonda fora de tx e habilita + fecha numa segunda tx
  *     (a sonda que falha fecha como guardada com `nao_habilitado`);
- *   - composio: o Composio valida a chave antes; grava só se o time ainda não tem chave e fecha na mesma tx.
+ *   - composio: o Composio valida a chave antes; grava só se o time ainda não tem chave e fecha na mesma tx;
+ *   - app (ADR-195, Entrega 3; Paper O1–O4): o app conhecido testa a chave FORA de tx; aceita, ela vira item `chave` do
+ *     Cofre concedido ao bot que pediu (Sempre) e o cartão fecha na mesma tx. Recusada ou sem resposta: nada é gravado e o
+ *     cartão continua aberto (O3).
  * O corpo não é logado (roteador), o valor não entra em erro nem em evento, e a resposta não o devolve.
  */
-export function rotasCredencial(op: OpcoesRotasMarketplace): Rota[] {
+export function rotasCredencial(op: OpcoesRotasMarketplace, cofre?: OpcoesRotasCofre): Rota[] {
   return [
     { metodo: "POST", acao: "cartoes.guardar_credencial", padrao: /^\/propostas\/(?<id>[0-9a-f-]{36})\/credencial$/, async handler(ctx) {
       const propostaId = ctx.params.id ?? "";
       const body = await ctx.corpo() as { valor?: unknown } | null;
       const valor = valorDeCredencial(body?.valor);
-      const { payload } = await op.dentro(ctx.escopo, (d) => executar(d, pedidoDeCredencialAberto, { propostaId }));
+      const { payload, proposta } = await op.dentro(ctx.escopo, (d) => executar(d, pedidoDeCredencialAberto, { propostaId }));
+
+      if (payload.alvo === "app") {
+        const app = appDoCofre(payload.appId);
+        if (!app || !cofre) throw new ErroDeDominio("integracao_nao_configurada", { cause: "app do cofre" });
+        const testadaEm = await testarNoApp(cofre, app.id, valor, () => Date.now());
+        await op.dentro(ctx.escopo, async (d) => {
+          await executar(d, pedidoDeCredencialAberto, { propostaId });
+          await executar(d, guardarChaveDoCartao, { app, agenteId: proposta.agenteId, valor, testadaEm: testadaEm ?? Date.now(), chaves: cofre.chaves });
+          await executar(d, fecharPedidoDeCredencial, { propostaId, resultado: "guardada" });
+        });
+        ctx.json(200, { estado: "guardada" });
+        return;
+      }
 
       if (payload.alvo === "github_token") {
         const token = await conferirTokenGithub(valor, op);

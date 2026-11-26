@@ -228,6 +228,36 @@ export function cofreRepo(conn: Conn, escopo: Escopo) {
       return l?.modo ?? null;
     },
 
+    /** Tira o acesso do bot ao item. false = não havia (ou não é da pessoa). */
+    async revogarConcessao(itemId: string, agenteId: string): Promise<boolean> {
+      const ls = await conn<{ id: string }[]>`
+        delete from cofre_concessoes where tenant_id = ${escopo.tenantId} and item_id = ${itemId} and agente_id = ${agenteId} returning id`;
+      return ls.length > 0;
+    },
+
+    /**
+     * Entrega 3: trocar a chave cria a versão nova com outro id; quem podia usar a anterior continua podendo, no mesmo modo.
+     * Roda na transação da troca, depois do insert da versão nova.
+     */
+    async copiarConcessoes(deItem: string, paraItem: string): Promise<number> {
+      const ls = await conn<{ id: string }[]>`
+        insert into cofre_concessoes (tenant_id, owner_id, item_id, agente_id, modo)
+        select ${escopo.tenantId}, ${escopo.pessoaId}, ${paraItem}, c.agente_id, c.modo
+        from cofre_concessoes c where c.tenant_id = ${escopo.tenantId} and c.item_id = ${deItem}
+        on conflict (tenant_id, item_id, agente_id) do nothing
+        returning id`;
+      return ls.length;
+    },
+
+    /** Quem pode usar cada item (Paper C1 e C2), na ordem em que foi concedido. */
+    async concessoesDosItens(itemIds: readonly string[]): Promise<{ itemId: string; agenteId: string; modo: ModoConcessaoCofre; criadaEm: EpochMs }[]> {
+      if (!itemIds.length) return [];
+      const ls = await conn<{ item_id: string; agente_id: string; modo: ModoConcessaoCofre; criada_em: Date }[]>`
+        select item_id, agente_id, modo, criada_em from cofre_concessoes
+        where tenant_id = ${escopo.tenantId} and item_id = any(${itemIds as string[]}::uuid[]) order by criada_em, id`;
+      return ls.map((l) => ({ itemId: l.item_id, agenteId: l.agente_id, modo: l.modo, criadaEm: ms(l.criada_em) }));
+    },
+
     // -------------------------------------------------------------------------------------------------- eventos
 
     /** Só acrescenta (nod_app sem UPDATE/DELETE). O evento tem a visibilidade do item: o do time, o tenant vê. */
@@ -242,6 +272,26 @@ export function cofreRepo(conn: Conn, escopo: Escopo) {
       const ls = await conn<{ id: string; item_id: string | null; agente_id: string | null; tipo: TipoEventoCofre; detalhe: Record<string, unknown>; criado_em: Date }[]>`
         select id, item_id, agente_id, tipo, detalhe, criado_em from cofre_eventos
         where tenant_id = ${escopo.tenantId} and item_id = ${itemId} order by criado_em, id`;
+      return ls.map((l) => ({ id: l.id, itemId: l.item_id, agenteId: l.agente_id, tipo: l.tipo, detalhe: l.detalhe, criadoEm: ms(l.criado_em) }));
+    },
+
+    /**
+     * O uso recente de um item e das versões anteriores dele (Paper C2): a troca cria outro id, e o histórico segue a
+     * corrente `anterior` gravada no evento 'trocado'. Os mais novos primeiro, até `limite`.
+     */
+    async eventosRecentes(itemId: string, limite: number): Promise<EventoDoCofre[]> {
+      const ls = await conn<{ id: string; item_id: string | null; agente_id: string | null; tipo: TipoEventoCofre; detalhe: Record<string, unknown>; criado_em: Date }[]>`
+        with recursive versoes(id, n) as (
+          select ${itemId}::uuid, 0
+          union all
+          select (e.detalhe ->> 'anterior')::uuid, v.n + 1 from versoes v
+          join cofre_eventos e on e.tenant_id = ${escopo.tenantId} and e.item_id = v.id and e.tipo = 'trocado'
+            and e.detalhe ->> 'anterior' ~ '^[0-9a-f-]{36}$'
+          where v.n < 50
+        )
+        select e.id, e.item_id, e.agente_id, e.tipo, e.detalhe, e.criado_em from cofre_eventos e
+        where e.tenant_id = ${escopo.tenantId} and e.item_id in (select id from versoes)
+        order by e.criado_em desc, e.id desc limit ${limite}`;
       return ls.map((l) => ({ id: l.id, itemId: l.item_id, agenteId: l.agente_id, tipo: l.tipo, detalhe: l.detalhe, criadoEm: ms(l.criado_em) }));
     },
   };
