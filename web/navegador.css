@@ -406,7 +406,11 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .menu-do-mais .mm-item > span { width: auto; font-size: inherit; }
 .menu-do-mais .mm-item[data-mais-pc="nova-tarefa"] { display: flex; align-items: center; }
 .menu-do-mais .mm-atalho { margin-left: auto; padding-left: 16px; color: var(--ink-3); }
-.menu-do-mais .mm-ensinar { flex-direction: column; align-items: flex-start; gap: 0; }
+/* XUM-8: cada linha do menu do + com ícone (18, na cor do texto secundário) e rótulo; o Ensinar põe o subtítulo embaixo. */
+.menu-do-mais .mm-item > .mm-ic { color: var(--ink-2); }
+.menu-do-mais .mm-ensinar { align-items: flex-start; }
+.menu-do-mais .mm-ensinar > .mm-ic { margin-top: 1px; }
+.menu-do-mais .mm-ensinar > .mm-txt { display: flex; flex-direction: column; gap: 0; }
 
 /* T2: gravando na tela cheia — a barra no topo, a moldura vermelha fina e os passos no painel escuro ao lado. */
 .nv-tc-topo[hidden], .nv-grav-topo[hidden], .nv-tc-lado[hidden] { display: none; }

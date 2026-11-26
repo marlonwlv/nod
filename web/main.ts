@@ -79,7 +79,7 @@ import { baixaveis } from "./lib/midia.ts";
 import { botDaFala, citacaoDaFala, htmlMenuDaFala, htmlSeletorDeReacao, linhaDeEmojis, reacoesDaFala, textoAbrirTask, textoParaLembrar } from "./telas/acoes-da-fala.ts";
 import { podeAbrirCartao, TEXTO_DA_RECUSA } from "./telas/desfazer.ts";
 import { renderChipModo } from "./telas/aprovacoes.ts";
-import { controleDaFolha, htmlMenuDoMais, linhasDoBot, linhasVisiveis, renderFolhaMais, rotuloDoMais, travarToqueDuploEm, type EscolhaDaFolhaMais, type LinhasDaFolhaMais } from "./telas/folha-mais.ts";
+import { controleDaFolha, htmlMenuDoMais, linhasDoBot, linhasVisiveis, menuDoMaisAbre, renderFolhaMais, rotuloDoMais, travarToqueDuploEm, type EscolhaDaFolhaMais, type LinhasDaFolhaMais, type OpcoesDoMenuDoMais } from "./telas/folha-mais.ts";
 import { abrirMenuModo } from "./lib/menu-modo.ts";
 import { abrirMenuIa } from "./lib/menu-ia.ts";
 import { dadosDoSeletor, mioloDoSeletor, pedidoDoSeletor, renderMenuIa, rotuloDoSeletor } from "./telas/seletor-ia.ts";
@@ -4558,6 +4558,22 @@ function ensinarNoMais(): { agenteId: string; nome: string } | null {
   return { agenteId: bot.id, nome: bot.nome };
 }
 
+/**
+ * XUM-8: o que o menu do + tem no computador. O Capturar vale quando a ponte do app do Mac sabe capturar (a mesma regra do
+ * antigo botão da barra); na web e no celular ele não existe. Fora do Quick Chat, que mantém o botão (tela 10 do Paper).
+ */
+function opcoesDoMaisNoPc(l: LinhasDaFolhaMais): OpcoesDoMenuDoMais {
+  const t = estado.tela;
+  const ensinar = ensinarNoMais();
+  return {
+    anexar: l.anexar,
+    capturar: Boolean(window.nodDesktop?.capturarTela) && !modoQuickChat,
+    // Nova tarefa só vem junto do Ensinar, como antes (o menu de Anexar e Capturar é o que o Marlon pediu: duas linhas).
+    novaTarefa: ensinar && t.tipo === "conversa" && botAceitaTarefa(estado, t.agenteId) ? ATALHO_NOVA_TAREFA : null,
+    ensinar,
+  };
+}
+
 /** O + só aparece quando a folha teria o que mostrar (bot de outra pessoa sem anexo, frota ainda chegando: escondido). */
 function atualizarMais(): void {
   const mais = document.querySelector<HTMLButtonElement>("#composer .mais-campo");
@@ -4570,7 +4586,8 @@ function atualizarMais(): void {
   const t = estado.tela;
   const atencao = t.tipo === "conversa" && botGerido(t.agenteId)?.modoAprovacao === "total";
   if (mais.hasAttribute("data-atencao") !== atencao) mais.toggleAttribute("data-atencao", atencao);
-  const rotulo = rotuloDoMais(l, atencao);
+  // XUM-8: no computador o + com menu diz o que o menu tem ("Anexar e capturar"); o aviso do total continua no fim.
+  const rotulo = rotuloDoMais(l, atencao, ehCelular() ? null : opcoesDoMaisNoPc(l));
   if (mais.getAttribute("aria-label") !== rotulo) mais.setAttribute("aria-label", rotulo);
 }
 
@@ -4583,18 +4600,18 @@ function abrirFolhaMais(el: HTMLElement): void {
   const l = linhasDaFolhaMais();
   const ensinar = ensinarNoMais();
   if (linhasVisiveis(l).length === 0 && !ensinar) return;
-  if (!ehCelular() && ensinar) {
-    // T1: o menu pequeno acima do + (Foto ou arquivo · Nova tarefa · Ensinar uma tarefa).
+  const pc = ehCelular() ? null : opcoesDoMaisNoPc(l);
+  if (pc && menuDoMaisAbre(pc)) {
+    // T1 + XUM-8: o menu pequeno acima do + (Anexar · Capturar · Nova tarefa · Ensinar uma tarefa).
     const r = el.getBoundingClientRect();
-    const t = estado.tela;
-    const novaTarefa = t.tipo === "conversa" && botAceitaTarefa(estado, t.agenteId) ? ATALHO_NOVA_TAREFA : null;
     el.setAttribute("aria-expanded", "true");
-    const html = htmlMenuDoMais({ anexar: l.anexar, novaTarefa, ensinar });
+    const html = htmlMenuDoMais(pc);
     const aoEscolher = (b: HTMLButtonElement) => {
       const q = b.dataset.maisPc;
       if (q === "anexar") document.getElementById("composer-arquivos")?.click();
+      else if (q === "capturar") void capturarParaOComposer();
       else if (q === "nova-tarefa") abrirNovaTarefa(el);
-      else if (q === "ensinar") void navegadorNaTela.ensinar(b.dataset.agente ?? ensinar.agenteId);
+      else if (q === "ensinar" && pc.ensinar) void navegadorNaTela.ensinar(b.dataset.agente ?? pc.ensinar.agenteId);
     };
     const aoFechar = () => el.setAttribute("aria-expanded", "false");
     // Abre para cima: o campo fica embaixo da tela.
@@ -7057,8 +7074,8 @@ function alternarConfirmaWebhook(el: HTMLElement, abrir: boolean): void {
 // ---- Quick Chat e captura (ADR-173) ---------------------------------------------------------------------------------
 // `?janela=quick-chat`: a janela pequena do atalho global (desktop/quick-chat.ts). O modo é lido uma vez; o CSS
 // (`html[data-janela="quick-chat"]`) faz o resto. O topo mora fora do #app regravado, e só é repintado quando a lista de
-// bots ou o bot aberto mudam. O Capturar entra ao lado do clipe em qualquer janela do app do Mac (o composer não é
-// regravado dentro da mesma conversa, então o botão fica até a próxima troca de conversa).
+// bots ou o bot aberto mudam. O Capturar entra ao lado do clipe no Quick Chat (o composer não é regravado dentro da mesma
+// conversa, então o botão fica até a próxima troca de conversa); na janela grande ele é a 2ª linha do menu do + (XUM-8).
 const modoQuickChat = ehJanelaQuickChat(window.location.search);
 const modoAvatar = ehJanelaAvatar(window.location.search);
 /**
@@ -7126,7 +7143,9 @@ document.addEventListener("keydown", (ev) => {
 }, true);
 void carregarAjustesMac();
 function pintarQuickChat(): void {
-  if (window.nodDesktop?.capturarTela) {
+  // XUM-8: na janela grande o Capturar mora no menu do + (opcoesDoMaisNoPc); o botão ao lado do clipe fica só no Quick
+  // Chat, onde a tela 10 do Paper o põe (lá o + não aparece e o clipe está à vista).
+  if (modoQuickChat && window.nodDesktop?.capturarTela) {
     const clipe = document.querySelector("#composer .clipe");
     if (clipe && !clipe.parentElement?.querySelector('[data-act="capturar-tela"]')) clipe.insertAdjacentHTML("afterend", htmlBotaoCapturar());
   }
