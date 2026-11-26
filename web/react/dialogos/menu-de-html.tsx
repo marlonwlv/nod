@@ -1,6 +1,6 @@
 import { createElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Menu } from "@base-ui/react/menu";
-import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
+import { criarConversor, estiloDoTexto, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import { MenuAncorado, montarMenu, type Ancora } from "./menu-ancorado.tsx";
 
 /**
@@ -31,9 +31,17 @@ export interface MenuDeHtml extends Ancora {
 
 const PROPS: Record<string, string> = { class: "className", tabindex: "tabIndex", for: "htmlFor" };
 
-function propsDe(el: Element, fora: readonly string[] = []): Record<string, string> {
-  const p: Record<string, string> = {};
-  for (const a of el.attributes) if (!fora.includes(a.name)) p[PROPS[a.name] ?? a.name] = a.value;
+/**
+ * Os atributos do HTML como props do React. O `style` vira objeto (`estiloDoTexto`, o mesmo do conversor): o React recusa
+ * a string e derruba a árvore inteira — o menu de IA do campo (a régua de raciocínio tem `style="grid-template-columns…"`)
+ * não abria, e o botão ficava com a seta para cima e um clique mudo.
+ */
+function propsDe(el: Element, fora: readonly string[] = []): Record<string, unknown> {
+  const p: Record<string, unknown> = {};
+  for (const a of el.attributes) {
+    if (fora.includes(a.name)) continue;
+    p[PROPS[a.name] ?? a.name] = a.name === "style" ? estiloDoTexto(a.value) : a.value;
+  }
   return p;
 }
 
