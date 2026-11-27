@@ -1,0 +1,65 @@
+# ADR-198 — Catálogo de apps sob demanda: poucas diretas por app, o resto atrás de apps_buscar e apps_usar
+
+Status: aceita (2026-11-27, XUM-11; implementa a proposta do PR #411) · Emenda a E6 (o catálogo de conectores no plano,
+`ferramentasDeConectores`) e a NOD-480 (o `catalogoEnxuto` da ADR-040) ·
+Relacionadas: [ADR-013](adr-013-o-proxy-mcp-e-o-ponto-de-decisao-do-produto.md) (o servidor decide cada chamada),
+[ADR-026](adr-026-a-marca-de-nao-confiavel-e-propriedade-do-conteudo-carre.md) (conteúdo de app é não confiável),
+[ADR-062](adr-062-aprovacoes-que-cumprem-o-que-prometem.md) (a chamada direta passa pela decisão do card),
+[ADR-190](adr-190-o-navegador-do-bot.md) (o molde: navegador_buscar/navegador_usar).
+Proposta: [docs/propostas/catalogo-de-apps-sob-demanda.md](../propostas/catalogo-de-apps-sob-demanda.md).
+
+## Contexto
+
+Em 27/11, o raio-x de um bot com o Outlook concedido mostrou **251 ferramentas do Outlook e 513.411 caracteres de
+esquema em todo turno**, inclusive no "acessa o WhatsApp Web". A rotina dele usa 3. Conceder "escrita" de um app do
+Composio concede o app inteiro, e `ferramentasDeConectores` punha toda capacidade concedida no plano. O `catalogoEnxuto`
+(NOD-480) só valia no `claude-cli`, perto do limiar, e só enxugava a lista `outras_do_app` do prompt.
+
+## Decisão
+
+1. **Diretas por app.** Depois da montagem (concessão, profundidade, Mac), cada app com mais capacidades que o teto
+   (12, `NOD_APPS_DIRETAS_TETO`) mais 5 separa as diretas, nesta ordem: as da **rotina** do turno (todas, mesmo acima do
+   teto), as **usadas nos últimos 30 dias** pelo bot naquele conector (`trilha.capacidadesUsadas`, uma consulta por
+   turno pelo índice parcial 0128), as **essenciais** do mapa `ESSENCIAIS_POR_APP` (11 apps) e, sem mapa, as 8 de
+   leitura mais genéricas pelo nome. Cada uma entra se couber no teto de quantidade **e** no orçamento de 28 mil
+   caracteres de esquema do app (`ORCAMENTO_CHARS_POR_APP`): 12 do Outlook somavam ~50 mil, 12 do Google Calendar ~72 mil.
+   App pequeno vai inteiro. O GitHub nativo e o Mac ficam sempre diretos (a execução na máquina é pelo nome da ferramenta).
+2. **O resto fica em `catalogo.sobDemanda`** do plano: concedido, fora do `tools/list`. Duas ferramentas novas, de
+   origem `apps`, atendidas pelo servidor dentro de `chamarFerramentaFase1`:
+   - `apps_buscar {busca, app?}` procura por nome e descrição (português ou inglês, com um mapa curto de sinônimos)
+     nas capacidades de app do plano e nas que o bot ainda não tem; devolve até 10, com o esquema das sob demanda e
+     `concedida: false` nas outras (o caminho é `pedir_acesso`). Entra quando há sob demanda ou capacidade sem acesso.
+   - `apps_usar {ferramenta, argumentos}` resolve a capacidade no plano e **volta a `chamarFerramentaFase1` pela via do
+     catálogo**: concessão lida agora, nível da dona, decisão de aprovação, "Sempre permitir", revisor, schema, trilha
+     com o nome da capacidade e marca de conteúdo de fora — o mesmo código da direta. A via não vem do corpo da rota.
+     Fora do plano não roda: sem acesso volta com a instrução de `pedir_acesso` (sem a negação terminal, que encerraria
+     o turno); inexistente, com a de `apps_buscar`; argumento inválido, com os erros e o esquema.
+3. **Prompt.** Ligado, o bloco de apps vira uma linha por app com contagens (`na_lista`, `no_catalogo`, `sem_acesso`),
+   sem os nomes de `concedidas_a_voce` e `outras_do_app`, em qualquer harness, e uma linha diz como achar e chamar.
+4. **Raio-x.** Cada grupo de app mostra `+ N sob demanda`.
+5. **Achados do eval que viraram código:** o `pedir_aprovacao` aceita o nome inteiro (`outlook__OUTLOOK_X`) no destino
+   (o Codex copiava o nome de `apps_buscar` e o pedido caía em "fora do catálogo"); `errosDoSchema` ignora `enum` e
+   `required` que não são lista (esquema torto de app derrubava a chamada com TypeError).
+6. **Interruptor:** `NOD_APPS_SOB_DEMANDA=0` volta ao catálogo inteiro sem deploy de código. Ligado por padrão.
+
+## Os outros grupos de ferramentas
+
+| Grupo | Tamanho hoje | Decisão |
+|---|---|---|
+| Apps (Composio/MCP) | Outlook 336 / ~590 mil caracteres | **Sob demanda** (esta ADR). |
+| Navegador | 12 diretas / 7,8 mil + 21 no catálogo | Já sob demanda (ADR-190). |
+| nod (nativas do produto) | 35 / ~51 mil na conversa | **Fica.** Cada uma tem portão e linha de prompt próprios (pedido de outra pessoa, frente, quadro, kit do quadro); o maior ganho é encolher esquemas por contexto, como o `kitDoQuadro` já faz com o `gerir_quadro`. Follow-up: kit por contexto para `gerir_apps` e `gerir_canvas` (~14 mil). |
+| Computador do bot | 13 / 9,7 mil | **Fica.** Abaixo do mínimo útil; o fluxo é visual e passo a passo, um passo de busca a mais custaria mais que economiza. |
+| Computador da pessoa | 9 / 8,3 mil | **Fica.** Mesmo motivo. |
+| Pastas (workspace) | 8 / 6,1 mil | **Fica.** Mesmo motivo. |
+
+## Medido
+
+Ver o PR (tabela antes/depois e eval). Catálogos públicos do Composio raspados em 27/11 (`scripts/catalogo-apps/raspar.py`):
+o Outlook tem 336 capacidades e ~520 mil caracteres de esquema, compatível com os 513 mil de 251 do raio-x de produção.
+
+## Gatilho de reversão
+
+Se a taxa de `apps_buscar` sem `apps_usar` (ou chamada direta) em seguida passar de 30% num app, o bot não está achando:
+rever as essenciais, as descrições e os sinônimos da busca. Se o eval de escolha (`scripts/catalogo-apps/avaliar.ts`)
+cair abaixo do catálogo inteiro em qualquer modelo, desligar (`NOD_APPS_SOB_DEMANDA=0`) e voltar a esta ADR.

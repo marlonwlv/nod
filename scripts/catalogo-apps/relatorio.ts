@@ -8,7 +8,10 @@ type Linha = { harness: string; modelo: string; condicao: "antes" | "depois"; pe
 const args = process.argv.slice(2);
 const iMd = args.indexOf("--md");
 const arquivos = args.filter((a, i) => a !== "--md" && (iMd < 0 || i !== iMd + 1));
-const linhas = arquivos.flatMap((a) => readFileSync(a, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Linha));
+// Execução em que o CLI falhou (limite de uso, queda) não é acerto nem erro do modelo: fica de fora, contada à parte.
+const todas = arquivos.flatMap((a) => readFileSync(a, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Linha));
+const linhas = todas.filter((l) => !l.falha);
+const descartadas = todas.length - linhas.length;
 
 const media = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -24,7 +27,7 @@ for (const g of grupos) {
     const rodadas = [...new Set(ls.map((l) => l.rodada))].sort();
     const porRodada = rodadas.map((r) => media(ls.filter((l) => l.rodada === r).map((l) => Number(l.acerto))));
     const comArg = ls.filter((l) => l.argOk !== null);
-    saida.push(`| ${g} | ${condicao} | ${pct(media(ls.map((l) => Number(l.acerto))))} | ${porRodada.map(pct).join(" · ")} (±${Math.round((Math.max(...porRodada) - Math.min(...porRodada)) * 50)} p.p.) | ${pct(media(comArg.map((l) => Number(l.argOk))))} | ${media(ls.map((l) => l.passos)).toFixed(1)} | ${media(ls.map((l) => l.erros)).toFixed(2)} | ${ls.reduce((s, l) => s + l.escritaErrada, 0)} | ${mil(media(ls.map((l) => l.tokensEntrada)))} | ${(media(ls.map((l) => l.ms)) / 1000).toFixed(1)} s | ${ls.length}${ls.some((l) => l.falha) ? ` (${ls.filter((l) => l.falha).length} com falha do CLI)` : ""} |`);
+    saida.push(`| ${g} | ${condicao} | ${pct(media(ls.map((l) => Number(l.acerto))))} | ${porRodada.map(pct).join(" · ")} (±${Math.round((Math.max(...porRodada) - Math.min(...porRodada)) * 50)} p.p.) | ${pct(media(comArg.map((l) => Number(l.argOk))))} | ${media(ls.map((l) => l.passos)).toFixed(1)} | ${media(ls.map((l) => l.erros)).toFixed(2)} | ${ls.reduce((s, l) => s + l.escritaErrada, 0)} | ${mil(media(ls.map((l) => l.tokensEntrada)))} | ${(media(ls.map((l) => l.ms)) / 1000).toFixed(1)} s | ${ls.length} |`);
   }
 }
 
@@ -46,6 +49,7 @@ for (const g of grupos) for (const pedido of [...new Set(linhas.map((l) => l.ped
 porPedido.sort((x, y) => (x.d / Math.max(1, x.nd) - x.a / Math.max(1, x.na)) - (y.d / Math.max(1, y.nd) - y.a / Math.max(1, y.na)));
 for (const p of porPedido) saida.push(`| ${p.g} | ${p.pedido} | ${p.tipo} | ${p.a}/${p.na} | ${p.d}/${p.nd} | ${p.pa.toFixed(1)} → ${p.pd.toFixed(1)} |`);
 
+if (descartadas) saida.push("", `${descartadas} execuções com falha do CLI (limite de uso, queda) ficaram de fora.`);
 const texto = saida.join("\n");
 process.stdout.write(`${texto}\n`);
 if (iMd >= 0 && args[iMd + 1]) writeFileSync(args[iMd + 1]!, `${texto}\n`);
