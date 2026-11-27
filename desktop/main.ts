@@ -884,7 +884,7 @@ async function conectar(c: Config) {
     desfazeresDoMac = iniciarDesfazeres({ ponte: ponteHttp.ponte, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, home: homeDoMac });
     // ADR-190: o navegador do bot neste Mac (não depende da VM local). Chrome: o Google Chrome do sistema, senão o Chrome
     // for Testing que o agent-browser instala na primeira vez (chromeDoMac, motorDaMaquina).
-    motorDoNavegador ??= motorDaMaquina({ dados: join(app.getPath("userData"), "navegadores"), binario: binarioDoNavegador(), chrome: () => chromeDoMac(homedir()) });
+    motorDoNavegador ??= motorDaMaquina({ dados: join(app.getPath("userData"), "navegadores"), binario: binarioDoNavegador(), chrome: () => chromeDoMac(homedir()), comJanela: true });
     navegadorDoMac?.parar();
     // ADR-177/190 (L, A1): o 1Password, o Bitwarden, os cookies do Chrome da pessoa e o Touch ID, para os comandos da fila.
     const sc = seuComputador();

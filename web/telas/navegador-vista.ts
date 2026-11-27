@@ -222,7 +222,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     img.hidden = !temQuadro || e === "segredo" || e === "desligado" || e === "pausa" || e === "erro" || e === "indisponivel" || e === "ligando";
     // A pílula (D1b, A) na faixa de 52 px. Sem vista ou parada, sem pílula (o estado tem o botão).
     const comPilula = !!v && pilula !== null && (e === "ao_vivo" || e === "rede_fraca" || e === "terminou" || e === "segredo" || e === "conectando" || v.pedido !== null || v.controle !== "bot");
-    const htmlP = comPilula ? htmlPilula(nome, pilula!, v!.pedido, e === "terminou" && pilula === "assistindo" ? v!.atividadeEm : null, v!.devolveEm ?? null, v!.aparelho) : "";
+    const htmlP = comPilula ? htmlPilula(nome, pilula!, v!.pedido, e === "terminou" && pilula === "assistindo" ? v!.atividadeEm : null, v!.devolveEm ?? null, v!.aparelho, v!.janela === true) : "";
     if (htmlP !== pintadoPilula) {
       const tinhaFoco = pilulaLugar.contains(document.activeElement);
       const antiga = pilulaLugar.querySelector<HTMLElement>(".nv-pilula:not(.nv-pilula-sai)");

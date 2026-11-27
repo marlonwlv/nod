@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA, type NomeFerramentaNavegador } from "../../contracts/ferramentas-navegador.ts";
 import type { JsonSchema } from "../../contracts/json-schema.ts";
 import type { Executor } from "../../contracts/evento.ts";
-import type { AbaNavegador, CaixaNavegador, EntradaNavegador, EscolhaLoginNavegador, FonteCofre, GravacaoNavegador, LugarNavegador, OpcaoLogin, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
+import type { AbaNavegador, CaixaNavegador, EntradaNavegador, EscolhaLoginNavegador, FonteCofre, GravacaoNavegador, LugarNavegador, OndeDoNavegador, OpcaoLogin, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { PlanoTurno } from "../../contracts/plano-turno.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import { modoNoTurno } from "../../domain/modo-aprovacao.ts";
@@ -132,6 +132,8 @@ type Estado = {
   siteAntesDoGoogle: string | null;
   /** L2: o preenchimento em segundo plano (o Mac pede o Touch ID ou o Keychain). */
   loginEmCurso: Promise<void> | null;
+  /** 2026-11-27: a troca do Chrome com/sem janela em curso (o bot só segue depois dela). */
+  trocandoJanela: Promise<void> | null;
   /** L5: o que a pessoa digita no login "Entrar eu mesmo", só em memória e cifrado, até `ate`. */
   captura: Captura | null;
   /** A3: o último texto que o BOT preencheu e em que página (a citação do cartão de envio). Nunca o que a pessoa digita. */
@@ -420,7 +422,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, paginasComSegredo: new Set(), vivo: false,
-      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, siteAntesDoGoogle: null, loginEmCurso: null, captura: null, ultimoTexto: null,
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, siteAntesDoGoogle: null, loginEmCurso: null, trocandoJanela: null, captura: null, ultimoTexto: null,
       tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null, assumidoEm: null, entradaPessoaEm: null, turnoEsperando: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
@@ -542,6 +544,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   /** Fecha os Chromes parados há 10 min (D0): a vista fica "em pausa" e o perfil guarda os logins. */
   async function pausarOciosos(): Promise<number> {
     await devolverParados();
+    // A janela do login ficou aberta sem pedido (a pessoa seguiu conversando e o pedido foi dispensado): fecha.
+    for (const est of estados.values()) if (est.vista.janela && !est.vista.pedido && est.vista.controle !== "pessoa") await fecharJanela(est);
     await marcarTerminados();
     let pausados = 0;
     for (const est of estados.values()) {
@@ -560,7 +564,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     est.vivo = false;
     est.refs = null; est.refsPorTamanho = false;
     await motor?.fechar(sessao(est.vista.agenteId)).catch((e: unknown) => log("aviso", "navegador_pausar_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
-    mudar(est, { estado: "pausa", passo: null });
+    mudar(est, { estado: "pausa", passo: null, janela: false });
     // Ponto 09 dos cenários (2026-11-22): com o Chrome fechado, o cache sai do disco (os logins ficam).
     if (motor?.limparCache && !est.vivo) await motor.limparCache(sessao(est.vista.agenteId)).catch((e: unknown) => log("aviso", "navegador_limpar_cache_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
   }
@@ -782,8 +786,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       doMac = (opcoesDoMacVistas.get(chave) ?? []).map((x) => ({ fonte: x.fonte, ref: x.ref, rotulo: x.rotulo, disponivel: false, motivoIndisponivel: textos(escopo).semAparelho }));
     }
     // No PC (2026-11-23) a opção vem pela extensão do nod no Chrome da pessoa (o perfil do dia a dia prende os cookies ao
-    // Chrome, "v20"); sem a extensão, o motor responde com o que fazer (instalar a extensão).
-    return { opcoes: ordenarOpcoes([...doMac, ...doNod]).slice(0, OPCOES_MAX), podeTrazerDoChrome: macLigado !== null };
+    // Chrome, "v20"). Revisto em 2026-11-27 (o login de uma usuária no PC): sem a extensão ligada o cartão nem oferece — tocar só
+    // dava "feche o Chrome" e, fechado, "instale a extensão", que não está na loja. "Entrar eu mesmo" vira o botão preto.
+    return { opcoes: ordenarOpcoes([...doMac, ...doNod]).slice(0, OPCOES_MAX), podeTrazerDoChrome: macLigado !== null && o.mac?.chromePronto?.(escopo) !== false };
   }
 
   /** O pedido aberto com esta decisão (e ainda aberto no banco), de um dos tipos, ou o erro de estado para a rota. */
@@ -802,7 +807,44 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   async function fecharPedido(est: Estado, decisaoId: string, texto: string): Promise<void> {
     mudar(est, { controle: "bot", pedido: null, atividadeEm: agora() });
     est.loginHost = null;
+    await fecharJanela(est);
     await (o.retomarPedido ?? retomarDoPedido)(est.escopo, decisaoId, texto);
+  }
+
+  /**
+   * 2026-11-27 (o login de uma usuária no PC, num birô de crédito): no aparelho da pessoa o Chrome do bot roda sem janela e ela só o
+   * via pela imagem do painel, por onde clique e tecla não chegaram ao campo. "Entrar eu mesmo" agora abre o Chrome do bot
+   * numa janela de verdade, na tela dela, no mesmo perfil e na mesma página (como o "Entrar neste computador" dos apps de
+   * referência). Ela entra ali, com o gerenciador de senhas e o teclado dela; "Pronto" volta o Chrome a rodar sem janela.
+   * Sem a operação (app antigo) ou se a janela não abrir, fica a vista do painel, como antes.
+   */
+  function abrirJanela(est: Estado): void {
+    const motor = motorDe(est);
+    if (est.vista.lugar.tipo !== "mac" || !est.vivo || !motor?.janela || est.vista.janela) return;
+    const s = sessao(est.vista.agenteId);
+    est.trocandoJanela = (async () => {
+      try {
+        await motor.janela!(s, true);
+        est.refs = null; est.refsPorTamanho = false;
+        // A pessoa pode ter terminado (ou desistido) enquanto a janela abria: aí ela volta a fechar já.
+        if (est.vista.pedido?.tipo === "login" && est.vista.controle === "pessoa") mudar(est, { janela: true });
+        else await motor.janela!(s, false).catch(() => undefined);
+      } catch (e) {
+        log("aviso", "navegador_janela_nao_abriu", { agente_id: est.vista.agenteId, erro: ehFalhaNavegador(e) ? e.motivo : e instanceof Error ? e.name : "desconhecido" });
+      } finally {
+        est.trocandoJanela = null;
+      }
+    })();
+  }
+
+  /** A janela do login volta a ser o Chrome sem janela (antes de o bot seguir: a leitura dele cai no Chrome novo). */
+  async function fecharJanela(est: Estado): Promise<void> {
+    if (est.trocandoJanela) await est.trocandoJanela;
+    if (!est.vista.janela) return;
+    mudar(est, { janela: false });
+    const motor = motorDe(est);
+    await motor?.janela?.(sessao(est.vista.agenteId), false).catch((e: unknown) => log("aviso", "navegador_janela_nao_fechou", { agente_id: est.vista.agenteId, erro: ehFalhaNavegador(e) ? e.motivo : e instanceof Error ? e.name : "desconhecido" }));
+    est.refs = null; est.refsPorTamanho = false;
   }
 
   /** O motor com o Chrome aberto e a URL de agora (o login e o código mexem na página que está lá). */
@@ -1262,6 +1304,19 @@ export function criarNavegadores(o: OpcoesNavegadores) {
      * Sem argumentos (o plano): algum lugar pode rodar o navegador (`algumLugar`; padrão, o motor do nod). Com o lugar e o
      * escopo (a tela): aquele lugar tem motor agora.
      */
+    /** 2026-11-27: onde o navegador do bot roda agora, para o prompt (a mesma decisão do portão, sem mexer no Chrome). */
+    async onde(escopo: Escopo, agenteId: string): Promise<OndeDoNavegador | null> {
+      if (!o.lugarDe) return o.motor({ tipo: "nod" }, escopo) ? { tipo: "nod" } : null;
+      try {
+        const l = await o.dentro(escopo, (d) => o.lugarDe!(d, escopo, agenteId));
+        if (l.tipo === "espera") return { tipo: "espera", instrucao: l.instrucao };
+        if (l.lugar.tipo === "nod") return { tipo: "nod" };
+        if (l.lugar.tipo === "mac") return { tipo: "aparelho", aparelho: aparelhoDe(escopo) === "pc" ? "PC" : "Mac" };
+        return { tipo: "maquina", nome: l.lugar.nome };
+      } catch {
+        return null;
+      }
+    },
     disponivel: (lugar?: LugarNavegador, escopo?: Escopo) => (lugar && escopo ? o.motor(lugar, escopo) !== null : o.algumLugar?.() ?? o.motor({ tipo: "nod" }, { tenantId: "", pessoaId: "" }) !== null),
     async chamar(escopo: Escopo, plano: PlanoTurno, nome: string, argumentos: unknown): Promise<ResultadoChamada> {
       const args = obj(argumentos);
@@ -1538,6 +1593,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           if (aberta) { mudar(est, { controle: "precisa_de_voce", atividadeEm: agora() }); return est.vista; }
         }
         const esperando = soltarDaPessoa(est);
+        await fecharJanela(est);
         if (pedido && pedido.tipo !== "aprovacao") await (o.retomarPedido ?? retomarDoPedido)(escopo, pedido.decisaoId, RETOMADA[op]);
         else if (!pedido && esperando) await retomarDevolvido(escopo, esperando, false);
         return est.vista;
@@ -1555,7 +1611,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         est.abasGuardadas = [];
         await motorDe(est)?.fechar(sessao(agenteId));
         est.assumidoEm = null; est.entradaPessoaEm = null; est.turnoEsperando = null;
-        mudar(est, { estado: "desligado", passo: null, abas: [], devolveEm: null, controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
+        mudar(est, { estado: "desligado", passo: null, abas: [], devolveEm: null, janela: false, controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
         return est.vista;
       }
       // Recarregar vale assistindo (D1c: "Recarregar e copiar funcionam assistindo, sem assumir"); voltar é da barra no
@@ -1654,6 +1710,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if (escolha === "eu_mesmo") {
         comecarCaptura(est, est.loginHost ?? hostDoSite(pedido.site));
         mudar(est, { controle: "pessoa", pedido: { ...pedido, etapa: "eu_mesmo", erro: null }, atividadeEm: agora() });
+        abrirJanela(est);
         return { vista: est.vista, aviso: null };
       }
       const { motor, url } = await motorAberto(est);

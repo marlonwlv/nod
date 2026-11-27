@@ -161,6 +161,37 @@ describe("argv e ambiente", () => {
   });
 });
 
+describe("2026-11-27: a janela do login no aparelho da pessoa", () => {
+  it("mostrar fecha e reabre na mesma página com AGENT_BROWSER_HEADED; esconder volta sem; repetir não mexe", async () => {
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, comJanela: true });
+    respostas.push(() => ({ codigo: 0, saida: ok({ url: "https://www.itau.com.br/login" }) }));
+    await m.janela!(s, true);
+    expect(recebidos.map((r) => r.args.slice(0, 2))).toEqual([["get", "url"], ["close", "--session"], ["open", "https://www.itau.com.br/login"]]);
+    expect(recebidos[1]!.env.AGENT_BROWSER_HEADED).toBeUndefined();
+    expect(recebidos[2]!.env.AGENT_BROWSER_HEADED).toBe("1");
+    // Os comandos seguintes (o quadro, a leitura) vão ao mesmo Chrome com janela.
+    await m.url(s);
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_HEADED).toBe("1");
+    await m.janela!(s, true);
+    expect(recebidos).toHaveLength(4);
+    respostas.push(() => ({ codigo: 0, saida: ok({ url: "https://www.itau.com.br/conta" }) }));
+    await m.janela!(s, false);
+    expect(recebidos.slice(4).map((r) => r.args[0])).toEqual(["get", "close", "open"]);
+    expect(recebidos.at(-1)!.args[1]).toBe("https://www.itau.com.br/conta");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_HEADED).toBeUndefined();
+  });
+
+  it("fechar (pausa, encerrar) esquece a janela: o Chrome volta a nascer sem; no servidor a operação nem existe", async () => {
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, comJanela: true });
+    respostas.push(() => ({ codigo: 0, saida: ok({ url: "https://exemplo.com/" }) }));
+    await m.janela!(s, true);
+    await m.fechar(s);
+    await m.url(s);
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_HEADED).toBeUndefined();
+    expect(motor().janela).toBeUndefined();
+  });
+});
+
 describe("o disco do perfil (cenários 22/11, ponto 09)", () => {
   it("limpar tira os caches e mantém cookies, logins e dados dos sites; apagar tira a pasta do bot", async () => {
     const m = motor();

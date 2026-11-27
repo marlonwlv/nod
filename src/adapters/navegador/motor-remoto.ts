@@ -19,7 +19,7 @@ import { lerValor } from "./operacoes-remotas.ts";
 const PRAZO_COMUM_MS = 30_000;
 const PRAZO_LONGO_MS = 60_000;
 const PRAZO_ESPERAR_MS = 12_000;
-const LONGOS: ReadonlySet<OperacaoMotorNavegador> = new Set(["abrir", "historico", "abaNova", "baixar", "pdf"]);
+const LONGOS: ReadonlySet<OperacaoMotorNavegador> = new Set(["abrir", "historico", "abaNova", "baixar", "pdf", "janela"]);
 
 export function prazoDaOperacao(op: OperacaoMotorNavegador): number {
   if (op === "esperar") return PRAZO_ESPERAR_MS;
@@ -75,6 +75,7 @@ export function criarMotorRemoto(o: { canal: CanalNavegador; escopo: Escopo; maq
     definirCookies: (s, cookies) => vazio("definirCookies", s, [cookies.map((c) => ({ ...c }))]),
     portaDoStream: async () => null,
     tamanho: (s, w, h) => vazio("tamanho", s, [w, h]),
+    janela: (s, mostrar) => vazio("janela", s, [mostrar]),
     fechar: (s) => vazio("fechar", s, []),
   };
 }

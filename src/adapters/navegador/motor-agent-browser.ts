@@ -115,6 +115,11 @@ export interface MotorNavegador {
   portaDoStream(s: SessaoNavegador): Promise<number | null>;
   /** O tamanho da página em CSS px (`set viewport`): acompanha a área de quem assiste (emenda de 2026-11-20 da ADR-190). */
   tamanho(s: SessaoNavegador, w: number, h: number): Promise<void>;
+  /**
+   * 2026-11-27: o Chrome do bot com janela na tela da pessoa (`mostrar`) ou de volta sem janela. Fecha e reabre a sessão
+   * no MESMO perfil (os cookies e o login ficam) e na mesma página. Só faz sentido no aparelho da pessoa; no nod não existe.
+   */
+  janela?(s: SessaoNavegador, mostrar: boolean): Promise<void>;
   fechar(s: SessaoNavegador): Promise<void>;
   /**
    * Ponto 09 dos cenários (2026-11-22): com o Chrome fechado, apaga o que o Chrome refaz sozinho (caches, o modelo do
@@ -152,6 +157,11 @@ export type ExecutorProcesso = (p: { bin: string; args: readonly string[]; env: 
 export type OpcoesMotorAgentBrowser = {
   /** Diretório de dados do nod para os navegadores (perfis, prints e arquivos por bot). */
   dados: string;
+  /**
+   * 2026-11-27: este motor roda no aparelho da pessoa (o app do Mac, o motor do PC), na sessão gráfica dela: o Chrome do
+   * bot pode abrir com janela para ela entrar num site (`janela`). No servidor e no Linux sempre ligado, ausente.
+   */
+  comJanela?: boolean;
   /** A chave mestra do servidor (a mesma das credenciais): a cifra do estado de cada bot sai dela por HKDF. */
   segredo: Buffer;
   /** O binário; ausente = o do pacote npm desta plataforma. */
@@ -528,6 +538,8 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, pastaDoBot(s.agenteId));
   const pedidoDirSocket = o.dirSocket === undefined ? dirSocketPadrao() : o.dirSocket;
+  /** Os bots cujo Chrome está com janela na tela da pessoa agora (o daemon nasce com AGENT_BROWSER_HEADED). */
+  const comJanela = new Set<string>();
   /**
    * Conferida a cada comando, não uma vez por processo (QA-208, 2026-11-25): a limpeza do /tmp pode apagar a pasta com o
    * motor vivo, e aí quem a refaz é o agent-browser (0755, medido no Chromium real) ou outro usuário (link ou pasta dele),
@@ -583,6 +595,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       ...(o.chrome ? { AGENT_BROWSER_EXECUTABLE_PATH: o.chrome } : {}),
       AGENT_BROWSER_ARGS: ARGS_CHROME_DO_BOT.join(","),
       ...(agente ? { AGENT_BROWSER_USER_AGENT: agente } : {}),
+      ...(comJanela.has(s.agenteId) ? { AGENT_BROWSER_HEADED: "1" } : {}),
     };
   }
 
@@ -869,7 +882,23 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     },
     portaDoStream,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
-    async fechar(s) { await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; }); },
+    ...(o.comJanela ? {
+      // 2026-11-27: o daemon do agent-browser decide com ou sem janela quando nasce; trocar é fechar e reabrir no mesmo
+      // perfil (cookies, login e Local Storage ficam no disco) e na mesma página. A janela que a pessoa fechou à mão
+      // derruba o daemon: o próximo comando reabre (sem janela, depois do `janela(false)`).
+      async janela(s: SessaoNavegador, mostrar: boolean) {
+        if (comJanela.has(s.agenteId) === mostrar) return;
+        const url = str((await rodar(s, ["get", "url"]).catch(() => ({} as Record<string, unknown>))).url);
+        await rodar(s, ["close"]).catch(() => undefined);
+        if (mostrar) comJanela.add(s.agenteId); else comJanela.delete(s.agenteId);
+        await rodar(s, ["open", /^https?:/iu.test(url) ? url : "about:blank"], PRAZO_ABRIR_MS);
+      },
+    } : {}),
+    async fechar(s) {
+      // Fechado (pausa, encerrar), o Chrome volta a nascer sem janela.
+      comJanela.delete(s.agenteId);
+      await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; });
+    },
     async limparCache(s) {
       const perfil = join(pasta(s), "perfil");
       for (const c of CACHES_DO_PERFIL) await rm(join(perfil, c), { recursive: true, force: true }).catch(() => undefined);

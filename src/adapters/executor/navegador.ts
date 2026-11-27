@@ -56,6 +56,11 @@ export type RecursosDoMac = {
   cookiesDoChrome(host: string): Promise<CookieNavegador[]>;
   /** true = a pessoa confirmou no Touch ID; false = cancelou (ou o Mac não tem Touch ID e ela recusou a senha). */
   touchId(motivo: string): Promise<boolean>;
+  /**
+   * 2026-11-27: o "Trazer do meu Chrome" funciona agora? No PC só pela extensão do nod ligada (o Chrome aberto com ela);
+   * sem ela o cartão nem oferece (a cópia do perfil esbarra no Chrome aberto e nos cookies `v20`). Ausente = sim (o Mac).
+   */
+  chromePronto?(): boolean;
 };
 
 export type OpcoesNavegadorDaMaquina = {
@@ -220,7 +225,7 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
       return { quantos: cookies.length };
     }
     const p = c.pedido;
-    if (p.operacao === "listar") return { opcoes: await mac.listar(p.host) };
+    if (p.operacao === "listar") return { opcoes: await mac.listar(p.host), ...(mac.chromePronto ? { chrome: mac.chromePronto() } : {}) };
     if (p.operacao === "guardar") { await mac.guardar(p.fonte, p.site, p.usuario, p.senha); return { guardado: true }; }
     const cred = await mac.ler(p.fonte, p.ref, p.host);
     if (p.operacao === "ler") return cred;
@@ -429,7 +434,7 @@ const PRAZO_INSTALAR_MS = 10 * 60_000;
  * `agent-browser install` em segundo plano e responde `indisponivel` com a frase para o bot ("tente em 2 min") até
  * terminar; a marca `chrome-instalado` na pasta evita repetir nas próximas aberturas.
  */
-export function motorDaMaquina(o: { dados: string; binario: string | null | (() => Promise<string | null>); chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>>; plataforma?: string }): () => Promise<MotorNavegador> {
+export function motorDaMaquina(o: { dados: string; binario: string | null | (() => Promise<string | null>); chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>>; plataforma?: string; /** No aparelho da pessoa: o Chrome pode abrir com janela (o login dela). */ comJanela?: boolean }): () => Promise<MotorNavegador> {
   let motor: MotorNavegador | null = null;
   let instalando: Promise<boolean> | null = null;
   let falhouAInstalar = false;
@@ -454,7 +459,7 @@ export function motorDaMaquina(o: { dados: string; binario: string | null | (() 
       })().finally(() => { instalando = null; });
       throw new FalhaNavegador("indisponivel", "estou preparando o Chrome nesta máquina pela primeira vez (alguns minutos); tente de novo em 2 minutos");
     }
-    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}) });
+    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}), ...(o.comJanela ? { comJanela: true } : {}) });
     return motor;
   };
 }

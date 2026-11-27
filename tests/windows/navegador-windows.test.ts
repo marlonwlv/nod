@@ -87,6 +87,39 @@ describe.skipIf(!noWindows)("o navegador do bot no Windows de verdade", () => {
     }
   });
 
+  // 2026-11-27: "Entrar eu mesmo" no PC abre o Chrome do bot com janela na sessão interativa e volta sem, no mesmo perfil.
+  it("a janela do login: com janela e de volta sem, na mesma página e com a sessão do site", async () => {
+    const chrome = chromeDoWindows(process.env);
+    const dados = mkdtempSync(join(tmpdir(), "nod-nav-janela-"));
+    const motor = criarMotorAgentBrowser({ dados, segredo: randomBytes(32), binario: binarioAgentBrowser(), chrome, comJanela: true });
+    const s = { agenteId: "33333333-3333-4333-8333-333333333333" };
+    const chromesDoBot = (): string[] => {
+      const saida = execFileSync("powershell.exe", ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*nod-nav-janela-*' -and $_.CommandLine -notlike '*--type=*' } | ForEach-Object { $_.CommandLine }"], { encoding: "utf8" });
+      return saida.split(/\r?\n/u).filter((l) => /--user-data-dir/u.test(l));
+    };
+    try {
+      await motor.abrir(s, `${base}/`);
+      await motor.avaliar(s, "document.cookie = 'nod_janela=ok; max-age=3600; path=/'");
+      expect(chromesDoBot().every((l) => /--headless/u.test(l))).toBe(true);
+      let t = Date.now();
+      await motor.janela!(s, true);
+      const comJanela = chromesDoBot();
+      process.stdout.write(`janela(true) em ${Date.now() - t} ms; ${comJanela.length} Chrome(s)\n`);
+      expect(comJanela.length).toBeGreaterThan(0);
+      expect(comJanela.some((l) => /--headless/u.test(l))).toBe(false);
+      expect(await motor.url(s)).toContain("127.0.0.1");
+      expect(await motor.avaliar(s, "document.cookie")).toContain("nod_janela=ok");
+      t = Date.now();
+      await motor.janela!(s, false);
+      process.stdout.write(`janela(false) em ${Date.now() - t} ms\n`);
+      expect(chromesDoBot().every((l) => /--headless/u.test(l))).toBe(true);
+      expect(await motor.avaliar(s, "document.cookie")).toContain("nod_janela=ok");
+    } finally {
+      await motor.fechar(s).catch(() => undefined);
+      rmSync(dados, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+    }
+  });
+
   it("Trazer do meu Chrome: o Chrome da pessoa devolve o cookie que ele mesmo cifrou, lido de uma cópia do perfil", async () => {
     const chrome = googleChromeDoWindows(process.env);
     expect(chrome).toMatch(/chrome\.exe$/u);

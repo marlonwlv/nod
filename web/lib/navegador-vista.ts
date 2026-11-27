@@ -153,7 +153,7 @@ const PERGUNTA_CURTA: Readonly<Record<"pagar" | "apagar" | "enviar", string>> = 
  * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito). Na
  * aprovação (A1) o "sim" é preto como o botão do cartão e, sem o app do Mac, o aviso curto do cartão vai embaixo.
  */
-export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null, devolveEm: number | null = null, aparelho?: "mac" | "pc"): string {
+export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null, devolveEm: number | null = null, aparelho?: "mac" | "pc", janela = false): string {
   const nomeE = esc(nome);
   // D4 (Paper): "A Ada espera você entrar", "A Ada está terminando um clique…", "A Ada espera · ⌘⇧A devolve".
   const quem = esc(fraseMaiuscula(comArtigo(nome)));
@@ -171,7 +171,10 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       corpo = `<span class="ctc-estado nv-precisa-txt"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="resolver">Já resolvi</button>${pedido?.tipo === "ajuda" ? "" : assumir()}</span>`;
       break;
     case "login":
-      corpo = `<span class="ctc-estado nv-precisa-txt"><span>${quem} espera você entrar</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, pode seguir</button>`;
+      // 2026-11-27: com a janela do Chrome aberta na tela da pessoa, a pílula diz onde entrar (o quadro aqui só acompanha).
+      corpo = janela
+        ? `<span class="ctc-estado nv-precisa-txt" role="status"><span>Entre na janela do Chrome que abriu no seu ${aparelho === "pc" ? "PC" : "Mac"}</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, já entrei</button>`
+        : `<span class="ctc-estado nv-precisa-txt"><span>${quem} espera você entrar</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, pode seguir</button>`;
       break;
     case "aprovacao": {
       const p = pedido?.tipo === "aprovacao" ? pedido : null;

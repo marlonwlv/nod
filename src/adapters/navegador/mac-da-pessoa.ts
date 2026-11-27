@@ -21,6 +21,11 @@ export type MacDaPessoa = {
   aparelho?(escopo: Escopo): AparelhoDaPessoa | null;
   /** Os itens que casam com o host (sem segredo). null = o Mac não respondeu a tempo. */
   listar(escopo: Escopo, agenteId: string, host: string): Promise<OpcaoLogin[] | null>;
+  /**
+   * 2026-11-27: o "Trazer do meu Chrome" funciona no aparelho, pela última lista: false = o PC sem a extensão do nod
+   * ligada; null = o aparelho não disse (o Mac e os motores de antes: vale).
+   */
+  chromePronto?(escopo: Escopo): boolean | null;
   /** Lê e preenche no navegador do bot QUE RODA NESTE Mac (o segredo não sai dele). */
   preencher(escopo: Escopo, agenteId: string, fonte: FonteDoMac, ref: string, host: string): Promise<{ usuario: boolean; senha: boolean }>;
   /** Lê e devolve (o navegador roda em outro lugar): o portão preenche e esquece. */
@@ -64,6 +69,8 @@ export function criarMacDaPessoa(o: { canal: CanalNavegador }): MacDaPessoa {
   const doAparelho = (escopo: Escopo) => o.canal.ligadas(escopo).find((m) => m.plataforma === "darwin" || m.plataforma === "win32") ?? null;
   const maquina = (escopo: Escopo) => doAparelho(escopo)?.maquinaId ?? null;
   const aparelho = (escopo: Escopo): AparelhoDaPessoa | null => { const m = doAparelho(escopo); return m ? aparelhoDaPlataforma(m.plataforma) : null; };
+  /** O que a última lista do cofre disse do "Trazer do meu Chrome", por pessoa (null = não disse). */
+  const chromeDaPessoa = new Map<string, boolean | null>();
 
   async function enviar(escopo: Escopo, pedido: PedidoNavegadorMaquina, prazoMs: number): Promise<unknown> {
     const id = maquina(escopo);
@@ -81,8 +88,12 @@ export function criarMacDaPessoa(o: { canal: CanalNavegador }): MacDaPessoa {
       // O canal só corta no prazo + a folga da rede; a lista do cartão não espera tanto.
       const corte = new Promise<null>((r) => { const t = setTimeout(() => r(null), PRAZO_LISTAR_MS); t.unref?.(); });
       const valor = await Promise.race([enviar(escopo, { tipo: "cofre", agenteId, pedido: { operacao: "listar", host } }, PRAZO_LISTAR_MS).catch(() => null), corte]);
-      return valor === null ? null : lerOpcoesDoMac(valor);
+      if (valor === null) return null;
+      const chrome = obj(valor).chrome;
+      chromeDaPessoa.set(`${escopo.tenantId}:${escopo.pessoaId}`, typeof chrome === "boolean" ? chrome : null);
+      return lerOpcoesDoMac(valor);
     },
+    chromePronto: (escopo) => chromeDaPessoa.get(`${escopo.tenantId}:${escopo.pessoaId}`) ?? null,
     async preencher(escopo, agenteId, fonte, ref, host) {
       const v = obj(await enviar(escopo, { tipo: "cofre", agenteId, pedido: { operacao: "preencher", fonte, ref, host } }, PRAZO_LER_MS));
       return { usuario: v.usuario === true, senha: v.senha === true };

@@ -332,9 +332,9 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   navegador = iniciarNavegadorDaMaquina({
     canal: ponteHttp.navegador,
     motor: motorDaMaquina(NO_WINDOWS
-      ? { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserNoWindows({ env: process.env, pastaDoMotor: dir }), chrome: () => chromeDoWindows(process.env), plataforma: "win32" }
+      ? { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserNoWindows({ env: process.env, pastaDoMotor: dir }), chrome: () => chromeDoWindows(process.env), plataforma: "win32", comJanela: true }
       : { dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserDoLinux(process.env, process.arch), chrome: () => chromeDoLinux(process.env) }),
-    ...(NO_WINDOWS ? { mac: criarCofresDoWindows({ env: process.env, cookies: (host) => cookiesDoChromeDoPc(host, process.env, ponteDoChrome) }) } : {}),
+    ...(NO_WINDOWS ? { mac: criarCofresDoWindows({ env: process.env, cookies: (host) => cookiesDoChromeDoPc(host, process.env, ponteDoChrome), chromePronto: () => ponteDoChrome?.conectada() === true }) } : {}),
     // ADR-197: o computador da pessoa no PC. O motor roda na sessão interativa dela (tarefa AtLogOn, sem elevação), então
     // o cua-driver que ele sobe enxerga os apps dela pela UI Automation. O pacote fixo é baixado uma vez para a pasta do
     // executor (sha256 conferido); sem ele, o comando responde indisponível.
