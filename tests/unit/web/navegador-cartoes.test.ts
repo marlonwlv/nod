@@ -193,10 +193,10 @@ describe("T: ensinar uma tarefa", () => {
   });
 
   it("T1: o menu do + no computador com Ensinar uma tarefa", () => {
-    const html = htmlMenuDoMais({ anexar: true, novaTarefa: { texto: "⌘N", aria: "Meta+N" }, ensinar: { agenteId: "a1", nome: "Ada" } });
+    const html = htmlMenuDoMais({ anexar: true, capturar: false, novaTarefa: { texto: "⌘N", aria: "Meta+N" }, ensinar: { agenteId: "a1", nome: "Ada" } });
     // Achado 15 do crítico: o atalho à direita (o CSS empurra) e o subtítulo igual ao do ⋯ do navegador.
-    expect(html.replace(/<[^>]+>/g, "|").split("|").filter(Boolean)).toEqual(["Foto ou arquivo", "Nova tarefa", "⌘N", "Ensinar uma tarefa", "Mostre no navegador da Ada; ela aprende"]);
-    expect(htmlMenuDoMais({ anexar: false, novaTarefa: null, ensinar: { agenteId: "a2", nome: "Milton" } })).toContain("Mostre no navegador do Milton; ele aprende");
+    expect(html.replace(/<[^>]+>/g, "|").split("|").filter(Boolean)).toEqual(["Anexar", "Nova tarefa", "⌘N", "Ensinar uma tarefa", "Mostre no navegador da Ada; ela aprende"]);
+    expect(htmlMenuDoMais({ anexar: false, capturar: false, novaTarefa: null, ensinar: { agenteId: "a2", nome: "Milton" } })).toContain("Mostre no navegador do Milton; ele aprende");
   });
 
   it("T3: Habilidades — carregando, vazia, a lista com Ver e Apagar, o que está apagando some", () => {

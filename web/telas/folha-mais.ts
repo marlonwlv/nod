@@ -88,9 +88,12 @@ export function controleDaFolha(mais: { setAttribute(nome: string, valor: string
   };
 }
 
-/** O nome do + para leitor de tela: o que a folha tem e, no modo total, o aviso (revisão 2 do PR 545). */
-export function rotuloDoMais(l: LinhasDaFolhaMais, modoTotal = l.modo?.atencao === true): string {
-  const base = l.modo || l.ia ? "Anexar, modo e IA" : "Anexar";
+/**
+ * O nome do + para leitor de tela: o que a folha tem e, no modo total, o aviso (revisão 2 do PR 545). XUM-8: no computador
+ * (`pc`), quando o + abre o menu, o nome é o do menu ("Anexar e capturar").
+ */
+export function rotuloDoMais(l: LinhasDaFolhaMais, modoTotal = l.modo?.atencao === true, pc: OpcoesDoMenuDoMais | null = null): string {
+  const base = pc && menuDoMaisAbre(pc) ? rotuloDoMenuDoMais(pc) : l.modo || l.ia ? "Anexar, modo e IA" : "Anexar";
   return modoTotal ? `${base} · ${MODOS.total.titulo} ligado` : base;
 }
 
@@ -121,17 +124,50 @@ export function travarToqueDuploEm(d: { addEventListener(tipo: "click", f: (e: C
   }, { capture: true });
 }
 
+const ICONE_MENU = (d: string) => `<svg class="mm-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const IC_ANEXAR = ICONE_MENU(`<path d="${ICONE.anexar}"/>`);
+/** O mesmo desenho do antigo botão "Capturar" da barra (os quatro cantos e o ponto), no traço dos outros ícones do menu. */
+const IC_CAPTURAR = ICONE_MENU('<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><circle cx="12" cy="12" r="3"/>');
+const IC_NOVA_TAREFA = ICONE_MENU('<path d="M12 5v14M5 12h14"/>');
+const IC_ENSINAR = ICONE_MENU('<path d="M5 3l14 8-6 1.5L10 19z"/>');
+
+/** O que o + do computador pode ter no menu (a ordem é a do menu). */
+export type OpcoesDoMenuDoMais = {
+  anexar: boolean;
+  /** XUM-8: a captura de janela ou região do app do Mac (a ponte tem `capturarTela`); só com o anexo, onde ela cai. */
+  capturar: boolean;
+  novaTarefa: { texto: string; aria: string } | null;
+  ensinar: { agenteId: string; nome: string } | null;
+};
+
+/** XUM-8: o + abre o menu quando tem mais de um caminho; com só o anexo, ele segue abrindo o seletor de arquivo direto. */
+export function menuDoMaisAbre(o: OpcoesDoMenuDoMais): boolean {
+  return o.ensinar !== null || (o.anexar && o.capturar);
+}
+
 /**
- * ADR-190 (T1; Paper Y27-0): no computador, com o navegador do bot à mão, o + abre um menu pequeno — "Foto ou arquivo",
+ * ADR-190 (T1; Paper Y27-0): no computador, com o navegador do bot à mão, o + abre um menu pequeno — "Anexar",
  * "Nova tarefa ⌘N" e "Ensinar uma tarefa / Mostre no navegador da Ada; ela aprende". Sem o navegador, o + segue abrindo
  * o seletor de arquivo direto (validação de 2026-11-18). Nunca no celular: um passo a passo longo não cabe ali.
+ *
+ * XUM-8 (pedido do Marlon, 2026-11-26): o "Capturar" sai da barra do campo e vira a 2ª linha do menu, logo depois do
+ * Anexar (antes "Foto ou arquivo"); cada linha com ícone e rótulo. O + então abre o menu também sem o navegador, quando
+ * o app do Mac sabe capturar.
  */
-export function htmlMenuDoMais(o: { anexar: boolean; novaTarefa: { texto: string; aria: string } | null; ensinar: { agenteId: string; nome: string } | null }): string {
+export function htmlMenuDoMais(o: OpcoesDoMenuDoMais): string {
   const itens = [
-    o.anexar ? '<button type="button" role="menuitem" class="mm-item" data-mais-pc="anexar">Foto ou arquivo</button>' : "",
-    o.novaTarefa ? `<button type="button" role="menuitem" class="mm-item" data-mais-pc="nova-tarefa" aria-keyshortcuts="${esc(o.novaTarefa.aria)}">Nova tarefa<span class="mm-atalho">${esc(o.novaTarefa.texto)}</span></button>` : "",
-    o.ensinar ? `<button type="button" role="menuitem" class="mm-item mm-ensinar" data-mais-pc="ensinar" data-agente="${esc(o.ensinar.agenteId)}"><span>Ensinar uma tarefa</span><small>${esc(subtituloDeEnsinar(o.ensinar.nome))}</small></button>` : "",
+    o.anexar ? `<button type="button" role="menuitem" class="mm-item" data-mais-pc="anexar">${IC_ANEXAR}<span>Anexar</span></button>` : "",
+    o.anexar && o.capturar ? `<button type="button" role="menuitem" class="mm-item" data-mais-pc="capturar" title="Capturar janela ou região (Espaço troca para janela)">${IC_CAPTURAR}<span>Capturar</span></button>` : "",
+    o.novaTarefa ? `<button type="button" role="menuitem" class="mm-item" data-mais-pc="nova-tarefa" aria-keyshortcuts="${esc(o.novaTarefa.aria)}">${IC_NOVA_TAREFA}<span>Nova tarefa</span><span class="mm-atalho">${esc(o.novaTarefa.texto)}</span></button>` : "",
+    o.ensinar ? `<button type="button" role="menuitem" class="mm-item mm-ensinar" data-mais-pc="ensinar" data-agente="${esc(o.ensinar.agenteId)}">${IC_ENSINAR}<span class="mm-txt"><span>Ensinar uma tarefa</span><small>${esc(subtituloDeEnsinar(o.ensinar.nome))}</small></span></button>` : "",
   ].join("");
-  return `<div role="menu" class="menu-do-mais" aria-label="Anexar, tarefa e ensinar">${itens}</div>`;
+  return `<div role="menu" class="menu-do-mais" aria-label="${esc(rotuloDoMenuDoMais(o))}">${itens}</div>`;
+}
+
+/** O nome do menu pelo que ele tem: "Anexar e capturar", "Anexar, tarefa e ensinar"… */
+export function rotuloDoMenuDoMais(o: OpcoesDoMenuDoMais): string {
+  const partes = [o.anexar ? "anexar" : null, o.anexar && o.capturar ? "capturar" : null, o.novaTarefa ? "tarefa" : null, o.ensinar ? "ensinar" : null].filter((x): x is string => x !== null);
+  const frase = partes.length > 1 ? `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}` : partes[0] ?? "mais";
+  return frase[0]!.toUpperCase() + frase.slice(1);
 }
 
