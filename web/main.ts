@@ -186,7 +186,7 @@ import { criarPilulaNaTela } from "./lib/pilula-na-tela.ts";
 import { memoriaNaPilula, pilulaNaConversa, type NovaTarefaNaAba, type Pilula } from "./telas/pilula-do-bot.ts";
 import { botAceitaTarefa, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa } from "./telas/nova-tarefa.ts";
 import { abasDoBot, botaoDeAbas, feitasDaFileira, htmlDoMenuDaAba, htmlDoMenuDasOutras, outrasDaFileira, renderFileiraDeAbas } from "./telas/abas-de-tarefa.ts";
-import { abasAoMostrar, abrirAba, CHAVE_DAS_ABAS, CHAVE_DO_MODO_ABAS, fecharAba, gravarAbas, gravarModoAbas, lerAbas, lerModoAbas, podarAbas, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
+import { abasAoMostrar, abrirAba, CHAVE_DAS_ABAS, CHAVE_DO_MODO_ABAS, fecharAba, gravarAbas, gravarModoAbas, lerAbas, lerModoAbas, podarAbas, topoDaConversa, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
 import { guardarCampo, restaurarCampo } from "./lib/campos-de-decisao.ts";
 import { renderNovoBot } from "./telas/novo-bot.ts";
 import { renderNovaRotina } from "./telas/nova-rotina.ts";
@@ -1386,7 +1386,8 @@ const quadroNaTela = criarQuadroNaTela(document, {
   menuDaPilula: (ancora, itens, irPara) => abrirMenuDaPilula(ancora, itens, irPara),
   aoTrocar: (m) => {
     // Revisão 3 do PR #630: voltar do Quadro à Conversa é escolher a conversa, também a que o app abriu sozinho.
-    if (m === "conversa") { if (estado.tela.tipo === "conversa") conversaEscolhida = estado.tela.conversaId; lerConversaDaTela(); render(); } else trilhaDaConversa.observar();
+    if (m === "conversa") { if (estado.tela.tipo === "conversa") conversaEscolhida = estado.tela.conversaId; lerConversaDaTela(); render(); } else { trilhaDaConversa.observar(); if (estado.tela.tipo === "conversa") render(); }
+    // XUM-10: indo para outra página, o render também regrava o topo (a fileira de abas recolhe para a pílula).
   },
   // A pessoa arrastou um ícone da pílula: a doca é redesenhada na ordem nova.
   aoMudarOrdem: () => render(),
@@ -3943,12 +3944,13 @@ function renderPrincipal(): void {
     case "conversa":
       if (comQuadro(t.agenteId)) lerPaginas(t.agenteId);
       // Paper 10b e 10c A: no modo abas a Conversa também tem a fileira, começando pela pílula; no modo pílula, a pílula de
-      // sempre com o botão de abas ao lado (quando há tarefas).
-      if (fileiraNaConversa(t.agenteId)) {
+      // sempre com o botão de abas ao lado (quando há tarefas). XUM-10: nas outras páginas (Quadro, Canvas, um app) a
+      // fileira recolhe para a pílula sem desligar o modo abas; o aoTrocar do quadroNaTela regrava o topo na troca.
+      if (topoDaConversa({ fileira: fileiraNaConversa(t.agenteId), pagina: quadroNaTela.modo() }) === "fileira") {
         cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)((navegadorNaTela.abaAberta(t.agenteId) ? "" : cantoDoNavegador(t.agenteId)) + botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
         comAbas = true;
       } else {
-        guardarModoAbas(t.agenteId, false);
+        if (!fileiraNaConversa(t.agenteId)) guardarModoAbas(t.agenteId, false);
         cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId, lugaresAtivos(t.agenteId)) ?? "" }) + cantoDoNavegador(t.agenteId);
       }
       partes = partesDaTimeline();
@@ -5877,16 +5879,17 @@ function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = fals
  */
 function mostrarEmAbas(agenteId: string): void {
   if (!agenteId) return;
-  if (modoAbas.has(agenteId) && document.querySelector(".stage.qd-no-quadro")) {
-    document.querySelector<HTMLElement>('#cabecalho .pg-ic[data-pg-id="conversa"]')?.click();
-    return;
+  // XUM-10: numa outra página a fileira não aparece (o topo é a pílula); o botão liga o modo e volta para a Conversa.
+  const noutraPagina = quadroNaTela.modo() === "quadro";
+  if (!(modoAbas.has(agenteId) && noutraPagina)) {
+    const abertas = trabalhosConhecidos(estado).filter((t) => t.agenteId === agenteId && aberto(t)).sort((a, b) => a.criadoEm - b.criadoEm).map((t) => ({ id: t.id, agenteId }));
+    guardarAbas(abasAoMostrar(abasDeTarefa, abertas));
+    // ADR-190 (Paper 5c, 2): o lugar ativo vem junto para a fileira (a aba dele, sem abrir: a Conversa continua à vista).
+    if (lugaresAtivos(agenteId).length) navegadorNaTela.porNaFileira(agenteId);
+    guardarModoAbas(agenteId, true);
   }
-  const abertas = trabalhosConhecidos(estado).filter((t) => t.agenteId === agenteId && aberto(t)).sort((a, b) => a.criadoEm - b.criadoEm).map((t) => ({ id: t.id, agenteId }));
-  guardarAbas(abasAoMostrar(abasDeTarefa, abertas));
-  // ADR-190 (Paper 5c, 2): o lugar ativo vem junto para a fileira (a aba dele, sem abrir: a Conversa continua à vista).
-  if (lugaresAtivos(agenteId).length) navegadorNaTela.porNaFileira(agenteId);
-  guardarModoAbas(agenteId, true);
-  render();
+  if (noutraPagina) quadroNaTela.trocar("conversa", { foco: false });
+  else render();
 }
 
 /**

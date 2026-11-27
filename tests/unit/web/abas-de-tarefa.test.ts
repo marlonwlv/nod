@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
-import { abasAoMostrar, abrirAba, dividirAbas, fecharAba, gravarAbas, gravarModoAbas, lerAbas, lerModoAbas, MAX_ABAS_GUARDADAS, podarAbas, tarefaAcabou, vizinhaAoFechar, type AbaDeTarefa } from "../../../web/lib/abas-de-tarefa.ts";
+import { abasAoMostrar, abrirAba, dividirAbas, fecharAba, gravarAbas, gravarModoAbas, lerAbas, lerModoAbas, MAX_ABAS_GUARDADAS, podarAbas, tarefaAcabou, topoDaConversa, vizinhaAoFechar, type AbaDeTarefa } from "../../../web/lib/abas-de-tarefa.ts";
 import { botaoDeAbas, feitasDaFileira, htmlDoMenuDaAba, htmlDoMenuDasOutras, iconeDaAba, outrasDaFileira, renderFileiraDeAbas } from "../../../web/telas/abas-de-tarefa.ts";
 import { renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
 
@@ -265,5 +265,18 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(htmlDoMenuDasOutras([], feitas.length)).toContain("data-tirar-feitas>Tirar as 2 feitas das abas</button>");
     expect(htmlDoMenuDasOutras([], 1)).toContain("Tirar a feita das abas");
     expect(htmlDoMenuDasOutras([])).not.toContain("data-tirar-feitas");
+  });
+});
+
+describe("XUM-10: o topo nas outras páginas da pílula (topoDaConversa)", () => {
+  it("na Conversa, com o modo abas e abas guardadas, a fileira", () => {
+    expect(topoDaConversa({ fileira: true, pagina: "conversa" })).toBe("fileira");
+  });
+  it("no Canvas, no Quadro ou num app (modo quadro), a pílula, mesmo com abas abertas", () => {
+    expect(topoDaConversa({ fileira: true, pagina: "quadro" })).toBe("pilula");
+  });
+  it("sem o modo abas, a pílula nas duas", () => {
+    expect(topoDaConversa({ fileira: false, pagina: "conversa" })).toBe("pilula");
+    expect(topoDaConversa({ fileira: false, pagina: "quadro" })).toBe("pilula");
   });
 });
