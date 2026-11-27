@@ -385,7 +385,7 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     // 2026-10-19 (PR 6 dos modos de aprovação): as linhas "Aprovações:" e "Terminal:" do total não dizem mais que a
     // credencial para. Regenerado em 2026-10-31 (NOD-444): linha nova só na conversa (perguntar o horário e repropor sem duplicar); rotina e delegação seguem iguais.
     // 2026-11-18: integração da orientação semântica e do gateway com o aviso de acompanhar pelo Computador do preview.
-    // 2026-11-27 (ADR-198): o aviso do computador fora do ar vale para o computador e para o turno (saiu o "não tente contornar").
+    // 2026-11-27 (ADR-199): o aviso do computador fora do ar vale para o computador e para o turno (saiu o "não tente contornar").
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     // 2026-11-18: atualização deliberada da política do computador (gateway único e confirmação explícita).
     // 2026-11-18: catálogo Microsoft/reuniões da main (#171) somado ao da preview; só a linha de apps/slugs mudou.

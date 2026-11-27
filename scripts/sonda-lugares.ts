@@ -1,5 +1,5 @@
 /**
- * Sonda dos lugares do bot (definido em 2026-11-27, ADR-198): o servidor de verdade, com o Claude Code e o Codex de
+ * Sonda dos lugares do bot (definido em 2026-11-27, ADR-199): o servidor de verdade, com o Claude Code e o Codex de
  * verdade, percorrendo os cenários em que um lugar do bot (computador, navegador) cai, entra ou volta no meio de uma
  * conversa. PAGA: usa as assinaturas (cerca de 15 turnos curtos por IA). Não entra no `check` nem na CI.
  *

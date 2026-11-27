@@ -3,7 +3,7 @@ import { avisoDosLugares, lerMarcaDosLugares, lugaresQueMelhoraram, lugaresRecus
 
 const l = (computador: EstadoDoLugar, navegador: "ausente" | "no_plano" = "ausente", seuComputador: "ausente" | "no_plano" = "ausente"): LugaresDoTurno => ({ computador, navegador, seuComputador });
 
-describe("ADR-198: os lugares da sessão", () => {
+describe("ADR-199: os lugares da sessão", () => {
   it("a marca vai e volta, e texto que não se entende é 'não se sabe'", () => {
     const x = l("fora_do_ar", "no_plano", "no_plano");
     expect(marcaDosLugares(x)).toBe("computador=fora_do_ar;navegador=no_plano;seuComputador=no_plano");
@@ -48,7 +48,7 @@ describe("ADR-198: os lugares da sessão", () => {
   });
 });
 
-describe("ADR-198: o alarme da recusa sem tentativa", () => {
+describe("ADR-199: o alarme da recusa sem tentativa", () => {
   const comNavegador = l("ausente", "no_plano");
 
   it("conta a fala que diz 'indisponível' com o lugar no plano e nenhuma chamada a ele", () => {

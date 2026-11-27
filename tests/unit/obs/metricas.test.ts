@@ -4,9 +4,9 @@ import { AJUDA, TIPO_METRICA, criarMetricas, type NomeMetrica, type Rotulo } fro
 const T = "11111111-1111-4111-8111-111111111111";
 const P = "22222222-2222-4222-8222-222222222222";
 
-describe("métricas do ADR-017: sete rótulos (mais o da ADR-198), union fechado, texto Prometheus", () => {
-  // ADR-198: a oitava, `lugar_recusado_sem_tentar`, entrou por decisão registrada lá (promessa: o bot usa o lugar que tem).
-  it("são exatamente as sete do ADR-017 e a da ADR-198, com tipo e ajuda declarados", () => {
+describe("métricas do ADR-017: sete rótulos (mais o da ADR-199), union fechado, texto Prometheus", () => {
+  // ADR-199: a oitava, `lugar_recusado_sem_tentar`, entrou por decisão registrada lá (promessa: o bot usa o lugar que tem).
+  it("são exatamente as sete do ADR-017 e a da ADR-199, com tipo e ajuda declarados", () => {
     const nomes = Object.keys(TIPO_METRICA).sort();
     expect(nomes).toEqual(["custo_servidor_mes", "expiracao", "lugar_recusado_sem_tentar", "outbox_abandonados", "pendencia_mais_velha_s", "polls_abertos", "pos_restart", "turno_velho_na_fila"]);
     for (const n of nomes as NomeMetrica[]) expect(AJUDA[n].length).toBeGreaterThan(10);

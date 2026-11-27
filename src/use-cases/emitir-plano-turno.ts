@@ -292,7 +292,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     : !computadorDoAgente.habilitado ? { estado: "desligado" }
       : computadorDoAgente.indisponivelDesde !== null ? { estado: "fora_do_ar", motivo: MOTIVO_FALHA_EM_PORTUGUES[computadorDoAgente.falhaMotivo ?? "sem_resposta"] }
         : null;
-  // ADR-198: os lugares deste turno, decididos ANTES da sessão (a sessão só é retomada se eles não melhoraram). No
+  // ADR-199: os lugares deste turno, decididos ANTES da sessão (a sessão só é retomada se eles não melhoraram). No
   // pedido de colega e no turno a pedido de outra pessoa o plano sai sem lugar nenhum por regra, não por estado: sem marca.
   const navegadorNoPlano = deps.services.navegadores?.disponivel() === true;
   const seuComputadorAgora = deps.services.seuComputador?.disponivel(deps.escopo) ?? null;
@@ -331,7 +331,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   // Sem a IA gravada (turno de antes da 0079), como antes.
   const sessaoDaCadeiaCandidata = daCadeia && daCadeia.executor === executor && (daCadeia.harness === null || !escolha || daCadeia.harness === escolha.harness)
     && mesmaConta(daCadeia.contaId) && mesmaMaquina(daCadeia.machineId) ? daCadeia.sessaoCli : null;
-  // ADR-198: a sessão guardou o que o bot viu e ouviu sobre os lugares dele (a tentativa que falhou, o "fora do ar", as
+  // ADR-199: a sessão guardou o que o bot viu e ouviu sobre os lugares dele (a tentativa que falhou, o "fora do ar", as
   // próprias recusas). Se um lugar entrou ou um aviso saiu desde o último turno dela, o turno começa numa sessão nova, com
   // o histórico, o resumo e o aviso do recomeço. Falha ao ler a marca: retoma como antes (nunca derruba a emissão).
   const sessaoCandidata = sessaoDoTrabalhoCandidata ?? sessaoDaConversaCandidata ?? sessaoDaCadeiaCandidata;
@@ -621,7 +621,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     // QA (bug 2): a fala com "/" vai crua, mas o turno recomeçou do mesmo jeito — o Raio-X diz isso, como a marca da fala.
     partesDoRecomeco = { motivo: motivoRecomeco, avisoChars: 0, resumoChars: 0, historicoChars: JSON.stringify(historico).length };
   }
-  // ADR-198: a sessão largada pelos lugares (conversa, task ou cadeia) leva a frase que diz o que há NESTE turno e manda
+  // ADR-199: a sessão largada pelos lugares (conversa, task ou cadeia) leva a frase que diz o que há NESTE turno e manda
   // conferir pela ferramenta: o histórico e a passagem que acompanham a sessão nova ainda trazem as recusas antigas.
   if (largaPelosLugares && lugaresAgora && modo !== "ligacao" && !comandoDaConversa(parcial.entrada.texto) && !parcial.entrada.texto.trimStart().startsWith("/")) {
     const frase = avisoDosLugares(lugaresMelhores, lugaresAgora);
@@ -682,7 +682,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   // NOD-312: só grava sobre a coluna nula (a repetição da sessão recusada já veio com o motivo). A recomposição nem chega
   // aqui: volta antes, e com permitirResume false nem calcula o motivo.
   if (motivoRecomeco && !turno.motivoRecomeco) await deps.repos.turnos.registrarMotivoRecomeco(turno.id, motivoRecomeco);
-  // ADR-198: a marca dos lugares deste turno; o próximo turno da mesma sessão compara com ela.
+  // ADR-199: a marca dos lugares deste turno; o próximo turno da mesma sessão compara com ela.
   if (lugaresAgora) await deps.repos.turnos.registrarLugares(turno.id, marcaDosLugares(lugaresAgora));
   // Revisão 4: a repetição nasceu com 'sessao_recusada', mas outro turno gravou sessão nova antes e esta a retomou.
   if (sessaoCli && turno.motivoRecomeco) await deps.repos.turnos.limparMotivoRecomeco(turno.id);

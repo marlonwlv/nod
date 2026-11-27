@@ -152,7 +152,7 @@ export function marcaDoRecomeco(id: string, alvo: AlvoDoRecomeco): { marca: stri
     instavel: `O serviço da IA ficou instável e o nod tentou de novo sozinho.`,
     erro_repetido: `A IA parou com um erro e o nod tentou de novo sozinho, uma vez.`,
     nod_atualizou: `O nod atualizou no meio da resposta e ${esc(bot)} retomou sozinho.`,
-    // ADR-198: um lugar entrou no plano (ou voltou); a sessão antiga ainda achava que ele não funcionava.
+    // ADR-199: um lugar entrou no plano (ou voltou); a sessão antiga ainda achava que ele não funcionava.
     lugares_mudaram: `${esc(bot)} ganhou ou recuperou um lugar para trabalhar (o navegador ou o computador dele), então o nod recomeçou numa sessão nova para ele usar.`,
   };
   const explicacao = `<div class="p312-explica" id="${esc(idDaExplicacao(id))}" role="region" aria-label="${esc(bot)} recomeçou"${aberta ? "" : " hidden"}><b>${esc(bot)} recomeçou</b><p>${porque[alvo.motivo]} Ele recomeçou pela conversa e por um resumo do trabalho, e releu só o necessário.</p></div>`;

@@ -1075,19 +1075,19 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       return l?.n ?? 0;
     },
 
-    /** ADR-198 (0188): a marca dos lugares do bot neste turno (`marcaDosLugares`), gravada na emissão do plano. */
+    /** ADR-199 (0188): a marca dos lugares do bot neste turno (`marcaDosLugares`), gravada na emissão do plano. */
     async registrarLugares(id: string, marca: string): Promise<void> {
       await conn`update turnos set lugares = ${marca} where tenant_id = ${escopo.tenantId} and id = ${id} and lugares is distinct from ${marca}`;
     },
 
-    /** ADR-198: a marca dos lugares deste turno (para o alarme do assentar). */
+    /** ADR-199: a marca dos lugares deste turno (para o alarme do assentar). */
     async lugaresDoTurno(id: string): Promise<string | null> {
       const [l] = await conn<{ lugares: string | null }[]>`select lugares from turnos where tenant_id = ${escopo.tenantId} and id = ${id}`;
       return l?.lugares ?? null;
     },
 
     /**
-     * ADR-198: a marca dos lugares do último turno que rodou nesta sessão do CLI, antes do turno `menosEste`. Null = a
+     * ADR-199: a marca dos lugares do último turno que rodou nesta sessão do CLI, antes do turno `menosEste`. Null = a
      * sessão não tem turno com marca (é de antes da 0188): não se sabe, e quem chama retoma como antes. Usa o índice
      * turnos_por_sessao_cli (0035).
      */

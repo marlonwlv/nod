@@ -92,7 +92,7 @@ export type SaidaAssentarTurno = {
   duplicada: boolean;
   /** Turno já terminal (varredor/parar chegaram antes): a fala entra como anexo parcial, sem reabrir (ADR-010). */
   tardia: boolean;
-  /** ADR-198 (alarme): os lugares do plano que o bot disse não funcionar sem chamar a ferramenta deles. A borda conta. */
+  /** ADR-199 (alarme): os lugares do plano que o bot disse não funcionar sem chamar a ferramenta deles. A borda conta. */
   lugaresRecusados?: ("navegador" | "computador")[];
   /** 0068: a IA do turno entrou no limite ou saiu dele — a ponte esquece o que leu dos limites e avisa a tela. */
   limiteMudou?: boolean;
@@ -243,7 +243,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // definido em 2026-10-05: com `causaSemIa` não há fala — o que veio é a recusa do fornecedor, nunca texto do bot.
   // NOD-353: o resumo das ações vai na fala final do bot (texto ou só mídia); turno sem ferramenta fica sem payload.
   const listaDeAcoes = acoesDoTurno(resultado.ferramentasChamadas, resultado.ferramentasFalharam);
-  // ADR-198 (alarme): o bot disse que um lugar do plano não funciona sem ter chamado a ferramenta dele. Só mede: o log e
+  // ADR-199 (alarme): o bot disse que um lugar do plano não funciona sem ter chamado a ferramenta dele. Só mede: o log e
   // o contador (na borda) dizem quantos turnos assim acontecem; a fala e o turno seguem iguais. Falha ao ler: sem alarme.
   let lugaresRecusados: ("navegador" | "computador")[] = [];
   if (resultado.desfecho === "sucesso" && resultado.texto) {

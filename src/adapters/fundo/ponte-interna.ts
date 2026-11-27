@@ -810,7 +810,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         if (!r.data.tardia && r.data.turno?.motivoInterrupcao === "maquina_sem_contato") registroPadrao.incrementar({ metrica: "pos_restart", desfecho: "perdido", origem: "maquina_sumida", tenant_id: escopo.tenantId });
         // NOD-245: o turno adotado que o reinício derrubou (a máquina desistiu antes de o servidor voltar).
         if (!r.data.tardia && r.data.turno?.motivoInterrupcao === "reinicio_servidor") registroPadrao.incrementar({ metrica: "pos_restart", desfecho: "perdido", origem: "restart_servidor", tenant_id: escopo.tenantId });
-        // ADR-198: o bot disse que um lugar do plano não funciona sem chamar a ferramenta dele (alarme, por lugar e IA).
+        // ADR-199: o bot disse que um lugar do plano não funciona sem chamar a ferramenta dele (alarme, por lugar e IA).
         for (const lugar of r.data.lugaresRecusados ?? []) registroPadrao.incrementar({ metrica: "lugar_recusado_sem_tentar", lugar, harness: harnessDoTurno ?? "desconhecida", tenant_id: escopo.tenantId });
         // NOD-452: distribuição para escolher o teto pelo p99 real. Só metadados fechados; nenhum texto, id ou argumento.
         const duracao = !r.data.duplicada ? metadadosDuracaoBastidores(r.data.turno, agora()) : null;

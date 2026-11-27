@@ -446,7 +446,7 @@ export function partesDoPromptSistema(entrada: EntradaPromptSistema): { estavel:
   // definido em 2026-09-24 (emenda da ADR-037): sem as ferramentas, o agente ainda precisa saber POR
   // QUE — senão promete usar o computador, ou tenta contornar e vira tutorial para a pessoa.
   const computadorFora: string[] = [];
-  // revisto em 2026-11-27 (ADR-198): o aviso vale para o computador e para ESTE turno. A versão de antes ("não prometa
+  // revisto em 2026-11-27 (ADR-199): o aviso vale para o computador e para ESTE turno. A versão de antes ("não prometa
   // usá-lo nem tente contornar") ficava na memória da sessão como proibição geral: o bot recusava o navegador junto e
   // seguia recusando depois de o aviso sair.
   const outrosLugares = entrada.ferramentas.some((f) => f.origem === "navegador") ? "sites seguem pelo seu navegador (navegador_*), e os outros acessos do turno seguem valendo" : "os outros acessos do turno seguem valendo";

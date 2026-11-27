@@ -1,5 +1,5 @@
 /**
- * definido em 2026-11-27 (ADR-198): a sessão do CLI só é retomada enquanto os LUGARES onde o bot trabalha não melhoraram.
+ * definido em 2026-11-27 (ADR-199): a sessão do CLI só é retomada enquanto os LUGARES onde o bot trabalha não melhoraram.
  *
  * Origem: um bot passou cinco dias com "seu computador está fora do ar… não tente contornar" no prompt. Quando o
  * navegador entrou no plano e o aviso saiu, a mesma sessão seguiu respondendo "o navegador continua indisponível" sem
@@ -12,7 +12,7 @@
  * - um lugar que SAI não larga nada: o prompt do turno diz o estado e não há crença errada a desfazer.
  *
  * O computador da pessoa (ADR-197) fica gravado na marca mas não dispara a regra: ele entra e sai com a tampa do
- * laptop, e uma sessão nova por dia custaria mais memória do que o risco que evita. O alarme da ADR-198 mede se isso
+ * laptop, e uma sessão nova por dia custaria mais memória do que o risco que evita. O alarme da ADR-199 mede se isso
  * precisa mudar.
  */
 
@@ -88,7 +88,7 @@ export function avisoDosLugares(mudou: readonly LugarQueMudou[], agora: LugaresD
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// O alarme (ADR-198): o bot disse que um lugar não funciona sem ter chamado a ferramenta dele
+// O alarme (ADR-199): o bot disse que um lugar não funciona sem ter chamado a ferramenta dele
 
 const SEM_ACENTO = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const QUEM: Record<LugarQueMudou["lugar"], RegExp> = {

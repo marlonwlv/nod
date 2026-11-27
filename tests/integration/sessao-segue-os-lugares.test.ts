@@ -15,7 +15,7 @@ import { depsSobre, servicosDeTeste } from "../helpers/l5.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
 
 /**
- * ADR-198: a sessão do CLI só é retomada enquanto os lugares do bot (computador, navegador) não melhoraram. Um lugar que
+ * ADR-199: a sessão do CLI só é retomada enquanto os lugares do bot (computador, navegador) não melhoraram. Um lugar que
  * entra, ou um aviso de "fora do ar"/"desligado" que some, larga a sessão: o turno recomeça com o histórico, o resumo e a
  * frase dos lugares. Um lugar que sai não larga nada. Vale igual para o Claude e para o Codex.
  */
@@ -62,7 +62,7 @@ async function montar(trx: Trx) {
   return { ...base, ligado, rodar, computador, derrubar, trx };
 }
 
-describeIntegracao("ADR-198: a sessão segue os lugares do bot", () => {
+describeIntegracao("ADR-199: a sessão segue os lugares do bot", () => {
   for (const harness of ["claude-cli", "codex-cli"] as const) {
     it(`${harness}: o navegador entra no plano → a sessão é largada, o turno leva o aviso e o seguinte retoma a sessão nova`, async () => {
       await withRollback(ESCOPO, async (trx) => {

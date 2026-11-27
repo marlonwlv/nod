@@ -1,4 +1,4 @@
-# ADR-198 — A sessão segue os lugares do bot: lugar que entra ou aviso que some larga a sessão do CLI
+# ADR-199 — A sessão segue os lugares do bot: lugar que entra ou aviso que some larga a sessão do CLI
 
 Status: proposta (2026-11-27, a partir de um caso de produção) · Frente "Navegador, computador e seu Mac" · Emenda a
 regra de sessão da [ADR-107](adr-107-sessao-do-cli-por-maquina.md) e o aviso de recomeço da NOD-312, sem mudar o

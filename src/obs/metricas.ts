@@ -1,5 +1,5 @@
 /**
- * As SETE métricas do ADR-017 (revisado + refinamentos de 2026-09-16 e 2026-10-13) e a da ADR-198, cada uma ligada a uma
+ * As SETE métricas do ADR-017 (revisado + refinamentos de 2026-09-16 e 2026-10-13) e a da ADR-199, cada uma ligada a uma
  * promessa de produto — nenhuma de infraestrutura (checkout do pool, distância de partição e taxa
  * de resumed:false ficaram de fora por decisão). O rótulo é um UNION FECHADO: nenhuma string
  * livre entra, e nunca id/email de terceiros (tenant_id e pessoa_id identificam quem usa o nod).
@@ -17,7 +17,7 @@
  *  - turno_velho_na_fila (contador, por bloqueio) → o varredor de turnos órfãos (src/use-cases/turnos-orfaos.ts, NOD-219),
  *    no máximo uma vez por hora por turno;
  *  - lugar_recusado_sem_tentar (contador, por lugar e IA) → quem assenta o turno (ponte-interna.ts), a partir do que
- *    `assentarTurno` devolve (ADR-198). `harness` é o id fechado da IA (claude-cli, codex-cli…), nunca texto livre.
+ *    `assentarTurno` devolve (ADR-199). `harness` é o id fechado da IA (claude-cli, codex-cli…), nunca texto livre.
  */
 export type Rotulo = { tenant_id: string; pessoa_id?: string } & (
   | { metrica: "pendencia_mais_velha_s" }
@@ -52,7 +52,7 @@ export const AJUDA: Record<NomeMetrica, string> = {
   polls_abertos: "conexões de eventos (SSE) e polls abertos agora, por pessoa (ADR-017 #6)",
   outbox_abandonados: "itens do outbox abandonados pelas DUAS condições, contados e nunca apagados (ADR-010/017 refinados)",
   turno_velho_na_fila: "pendentes que passaram do prazo da fila e seguem presos, por bloqueio; no máximo uma vez por hora por turno (ADR-017, refinamento de 2026-10-13, NOD-219)",
-  lugar_recusado_sem_tentar: "turnos em que o bot disse que o navegador ou o computador não funciona, com o lugar no plano e sem chamar a ferramenta dele, por lugar e IA (ADR-198)",
+  lugar_recusado_sem_tentar: "turnos em que o bot disse que o navegador ou o computador não funciona, com o lugar no plano e sem chamar a ferramenta dele, por lugar e IA (ADR-199)",
 };
 
 type NomeContador = { [N in NomeMetrica]: (typeof TIPO_METRICA)[N] extends "counter" ? N : never }[NomeMetrica];

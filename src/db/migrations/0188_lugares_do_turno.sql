@@ -1,4 +1,4 @@
--- definido em 2026-11-27 (ADR-198): a sessão do CLI só é retomada enquanto os lugares do bot não melhoraram.
+-- definido em 2026-11-27 (ADR-199): a sessão do CLI só é retomada enquanto os lugares do bot não melhoraram.
 -- - turnos.lugares: a marca dos lugares do bot no turno ("computador=fora_do_ar;navegador=no_plano;seuComputador=ausente",
 --   src/domain/lugares-da-sessao.ts), gravada na emissão do plano. O turno seguinte da mesma sessão compara com ela pelo
 --   índice turnos_por_sessao_cli (0035). Nasce nula: o turno de antes desta migração é "não se sabe" e retoma como antes.
