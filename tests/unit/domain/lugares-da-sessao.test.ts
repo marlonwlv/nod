@@ -73,4 +73,13 @@ describe("ADR-199: o alarme da recusa sem tentativa", () => {
     expect(lugaresRecusadosSemTentar({ texto: "A palavra-código é abacaxi-42.", chamadas: [], lugares: comNavegador })).toEqual([]);
     expect(lugaresRecusadosSemTentar({ texto: "O navegador está indisponível.", chamadas: [], lugares: null })).toEqual([]);
   });
+
+  it("a ferramenta do computador da pessoa (seu_computador_*) não conta como tentativa no computador do bot (Codex, revisão do #415)", () => {
+    const tudo: LugaresDoTurno = { computador: "no_plano", navegador: "no_plano", seuComputador: "no_plano" };
+    expect(lugaresRecusadosSemTentar({ texto: "O computador está fora do ar agora.", chamadas: ["mcp__nod__seu_computador_observar"], lugares: tudo })).toEqual(["computador"]);
+    expect(lugaresRecusadosSemTentar({ texto: "O computador está fora do ar agora.", chamadas: ["seu_computador_clicar"], lugares: tudo })).toEqual(["computador"]);
+    // A chamada de verdade, com ou sem o prefixo do MCP, segue valendo como tentativa.
+    expect(lugaresRecusadosSemTentar({ texto: "O computador está fora do ar agora.", chamadas: ["mcp__nod__computador_observar"], lugares: tudo })).toEqual([]);
+    expect(lugaresRecusadosSemTentar({ texto: "O computador está fora do ar agora.", chamadas: ["computador_terminal"], lugares: tudo })).toEqual([]);
+  });
 });

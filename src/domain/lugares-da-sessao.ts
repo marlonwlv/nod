@@ -112,6 +112,7 @@ export function lugaresRecusadosSemTentar(p: { texto: string; chamadas: readonly
     QUEM[lugar].test(f) || (lugar === "navegador" && p.lugares!.computador !== "no_plano" && QUEM.computador.test(f));
   return (["navegador", "computador"] as const).filter((lugar) =>
     p.lugares![lugar] === "no_plano"
-    && !p.chamadas.some((c) => c.includes(`${lugar}_`))
+    // O nome da ferramenta, sem o prefixo do MCP, começa pelo lugar: `seu_computador_*` é o computador da pessoa, outro lugar.
+    && !p.chamadas.some((c) => c.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, "").startsWith(`${lugar}_`))
     && frases.some((f) => fala(lugar, f) && RECUSA.test(f)));
 }
