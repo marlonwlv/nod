@@ -144,7 +144,7 @@ describe("plano de turno com o computador fora de uso (emenda da ADR-037)", () =
   it("fora do ar: nenhuma ferramenta de computador, e o prompt diz por quê (sem tutorial)", () => {
     const p = montarPlano({ ...base, computadorFora: { estado: "fora_do_ar", motivo: MOTIVO_FALHA_EM_PORTUGUES.navegador_nao_abriu } });
     expect(doComputador(p)).toEqual([]);
-    expect(p.promptSistema).toContain("Seu computador está fora do ar (o navegador do computador não abriu)");
+    expect(p.promptSistema).toContain("Seu computador está fora do ar neste turno (o navegador do computador não abriu)");
     expect(p.promptSistema).not.toContain("Você tem um computador persistente");
   });
 

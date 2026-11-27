@@ -215,7 +215,7 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 /** "O computador está fora do ar desde …" para o agente, sem tocar no Docker (falha rápida). */
 function foraDoArParaAgente(c: Computador): { erro: MotivoFalhaComputador; instrucao: string } {
   const motivo = c.falhaMotivo ?? "sem_resposta";
-  return { erro: motivo, instrucao: `O computador está fora do ar desde ${new Date(c.indisponivelDesde ?? 0).toISOString()}: ${MOTIVO_FALHA_EM_PORTUGUES[motivo]}. A pessoa já foi avisada. Não tente usá-lo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.` };
+  return { erro: motivo, instrucao: `O computador está fora do ar desde ${new Date(c.indisponivelDesde ?? 0).toISOString()}: ${MOTIVO_FALHA_EM_PORTUGUES[motivo]}. A pessoa já foi avisada. Isso vale só para o computador e só para este turno: siga com os outros acessos do turno (o navegador, se você o tiver) e diga em uma frase o que ficou de fora.` };
 }
 
 /**

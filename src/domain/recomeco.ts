@@ -69,6 +69,8 @@ const COMO_RECOMECOU: Record<MotivoRecomeco, string> = {
   instavel: "o serviço da IA ficou instável e o nod tentou de novo",
   erro_repetido: "a IA parou com um erro e o nod tentou de novo",
   nod_atualizou: "o nod atualizou no meio da resposta e retomou",
+  // ADR-198: um lugar do bot entrou no plano ou um aviso de indisponibilidade saiu; a sessão antiga guardava o estado velho.
+  lugares_mudaram: "os lugares onde você trabalha mudaram e o nod recomeçou numa sessão nova",
 };
 
 /** O teto do resumo do trabalho no turno de conversa que recomeça (a passagem da task tem 9 mil; aqui as falas já vão no histórico). */

@@ -13,7 +13,7 @@ import { esc } from "./render.ts";
 export type AlvoDoRecomeco = { tipo: "carona" | "marca"; motivo: MotivoRecomeco; nomeDoBot: string | null };
 
 /** A lista do contrato, repetida aqui (a web só importa tipos de src/contracts, ADR-018); o Record trava a exaustão. */
-const MOTIVOS: Record<MotivoRecomeco, true> = { troca_de_conta: true, troca_de_ia: true, troca_de_maquina: true, sessao_recusada: true, autocompactacao: true, instavel: true, erro_repetido: true, nod_atualizou: true };
+const MOTIVOS: Record<MotivoRecomeco, true> = { troca_de_conta: true, troca_de_ia: true, troca_de_maquina: true, sessao_recusada: true, autocompactacao: true, instavel: true, erro_repetido: true, nod_atualizou: true, lugares_mudaram: true };
 export function ehMotivoRecomeco(v: unknown): v is MotivoRecomeco {
   return typeof v === "string" && Object.hasOwn(MOTIVOS, v);
 }
@@ -99,6 +99,7 @@ const QUEM_NAO_TRAZ: Record<MotivoRecomeco, string> = {
   instavel: "A nova tentativa",
   erro_repetido: "A nova tentativa",
   nod_atualizou: "A volta",
+  lugares_mudaram: "A sessão nova",
 };
 
 const idDaExplicacao = (id: string): string => `recomeco-explica-${id}`;
@@ -151,6 +152,8 @@ export function marcaDoRecomeco(id: string, alvo: AlvoDoRecomeco): { marca: stri
     instavel: `O serviço da IA ficou instável e o nod tentou de novo sozinho.`,
     erro_repetido: `A IA parou com um erro e o nod tentou de novo sozinho, uma vez.`,
     nod_atualizou: `O nod atualizou no meio da resposta e ${esc(bot)} retomou sozinho.`,
+    // ADR-198: um lugar entrou no plano (ou voltou); a sessão antiga ainda achava que ele não funcionava.
+    lugares_mudaram: `${esc(bot)} ganhou ou recuperou um lugar para trabalhar (o navegador ou o computador dele), então o nod recomeçou numa sessão nova para ele usar.`,
   };
   const explicacao = `<div class="p312-explica" id="${esc(idDaExplicacao(id))}" role="region" aria-label="${esc(bot)} recomeçou"${aberta ? "" : " hidden"}><b>${esc(bot)} recomeçou</b><p>${porque[alvo.motivo]} Ele recomeçou pela conversa e por um resumo do trabalho, e releu só o necessário.</p></div>`;
   return { marca, explicacao };
@@ -168,6 +171,7 @@ export function notaDasEtapas(motivo: MotivoRecomeco, nomeDoBot: string | null):
     instavel: "depois de o serviço da IA ficar instável",
     erro_repetido: "depois de um erro da IA",
     nod_atualizou: "depois de o nod atualizar",
+    lugares_mudaram: "numa sessão nova (os lugares onde ele trabalha mudaram)",
   };
   return `<p class="p312-etapa-nota">${esc(bot)} recomeçou ${onde[motivo]} e relê o necessário antes de seguir.</p>`;
 }

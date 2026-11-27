@@ -88,7 +88,7 @@ describeIntegracao("computador do bot fora do ar: três falhas, um aviso, plano 
     // O plano seguinte sai sem as ferramentas e com a linha que diz por quê.
     const p2 = await plano();
     expect(doComputador(p2)).toEqual([]);
-    expect(p2.promptSistema).toContain("Seu computador está fora do ar (o navegador do computador não abriu)");
+    expect(p2.promptSistema).toContain("Seu computador está fora do ar neste turno (o navegador do computador não abriu)");
 
     // A frota diz sem abrir o computador; a tela dele diz o motivo, as três falhas e os reinícios.
     const frota = await srv.json<FrotaDto>("GET", "frota");

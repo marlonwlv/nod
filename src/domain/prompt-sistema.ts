@@ -446,8 +446,12 @@ export function partesDoPromptSistema(entrada: EntradaPromptSistema): { estavel:
   // definido em 2026-09-24 (emenda da ADR-037): sem as ferramentas, o agente ainda precisa saber POR
   // QUE — senão promete usar o computador, ou tenta contornar e vira tutorial para a pessoa.
   const computadorFora: string[] = [];
-  if (entrada.computadorFora?.estado === "fora_do_ar") computadorFora.push(`Seu computador está fora do ar (${entrada.computadorFora.motivo}) e as ferramentas dele não estão neste turno; a pessoa já foi avisada. Não prometa usá-lo nem tente contornar: siga com os acessos que você tem e, se a tarefa depender do computador, diga em uma frase o que ficou de fora.`);
-  if (entrada.computadorFora?.estado === "desligado") computadorFora.push("Seu computador está desligado pela pessoa e as ferramentas dele não estão neste turno. Não tente contornar: se a tarefa depender do computador, diga isso em uma frase.");
+  // revisto em 2026-11-27 (ADR-198): o aviso vale para o computador e para ESTE turno. A versão de antes ("não prometa
+  // usá-lo nem tente contornar") ficava na memória da sessão como proibição geral: o bot recusava o navegador junto e
+  // seguia recusando depois de o aviso sair.
+  const outrosLugares = entrada.ferramentas.some((f) => f.origem === "navegador") ? "sites seguem pelo seu navegador (navegador_*), e os outros acessos do turno seguem valendo" : "os outros acessos do turno seguem valendo";
+  if (entrada.computadorFora?.estado === "fora_do_ar") computadorFora.push(`Seu computador está fora do ar neste turno (${entrada.computadorFora.motivo}) e as ferramentas dele não vieram; a pessoa já foi avisada. Isso vale só para o computador e só para este turno: ${outrosLugares}. Se a tarefa depender do computador, diga em uma frase o que ficou de fora. Num turno seguinte, vale o que estiver naquele turno.`);
+  if (entrada.computadorFora?.estado === "desligado") computadorFora.push(`Seu computador está desligado pela pessoa neste turno e as ferramentas dele não vieram. Isso vale só para o computador e só para este turno: ${outrosLugares}. Se a tarefa depender do computador, diga isso em uma frase. Num turno seguinte, vale o que estiver naquele turno.`);
   // revisto em 2026-11-25 (QA do navegador no Windows): com o navegador no mesmo turno, o computador dizia "use
   // computador_navegar para abrir sites" e o bot tentava o computador antes (e contava à pessoa que ele não ligou). Como
   // no OpenMausBot, o texto descreve só o que está no turno; como no openbot, uma regra só divide: site é do navegador.
