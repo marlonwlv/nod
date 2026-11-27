@@ -66,8 +66,27 @@ Composio concede o app inteiro, e `ferramentasDeConectores` punha toda capacidad
 
 ## Medido
 
-Ver o PR (tabela antes/depois e eval). Catálogos públicos do Composio raspados em 27/11 (`scripts/catalogo-apps/raspar.py`):
-o Outlook tem 336 capacidades e ~520 mil caracteres de esquema, compatível com os 513 mil de 251 do raio-x de produção.
+Catálogos públicos do Composio raspados em 27/11 (`scripts/catalogo-apps/raspar.py`): o Outlook tem 336 capacidades e
+~520 mil caracteres de esquema, compatível com os 513 mil de 251 do raio-x de produção. `scripts/catalogo-apps/medir.ts`:
+
+| Bot (conversa, com navegador e computador) | Ferramentas | Esquemas (caracteres) | Prompt + esquemas (≈ tokens) |
+|---|---|---|---|
+| Outlook (o caso de produção) | 396 → 71 | 661.570 → 95.933 (grupo outlook: 592.603 → 24.666) | 173 mil → 29 mil |
+| Assistente: Outlook + Slack + Agenda + Notion | 682 → 94 | 1.118.674 → 177.660 | 289 mil → 49 mil |
+| Engenharia: GitHub + Linear + Slack | 1.187 → 96 | 1.382.924 → 143.997 | 361 mil → 41 mil |
+
+Eval de escolha (`scripts/catalogo-apps/avaliar.ts`, 27 pedidos: comuns, raros só achados pela busca, sem ferramenta e
+escolha de lugar; modelo real contra um MCP falso que responde apps_buscar/apps_usar com o domínio do servidor):
+
+| Modelo | Acerto antes → depois | Tokens de entrada por pedido | Passos |
+|---|---|---|---|
+| Claude Sonnet (3 rodadas) | 100% → 100% | 184 mil → 53 mil | 2,2 → 2,4 |
+| Claude Haiku (2 rodadas) | 93% → 93% | 236 mil → 68 mil | 2,6 → 2,9 |
+| Codex gpt-5.6-sol (1 rodada; a conta bateu o limite de uso) | 100% → 100% | 73 mil → 73 mil (o Codex 0.165 já adia catálogos MCP grandes) | 1,3 → 2,0 |
+
+O primeiro eval do Haiku caiu para 81%: ele trocava "agendar/lembrete no Slack" por uma rotina do nod e "release" por
+terminal. A linha do prompt passou a mandar procurar com `apps_buscar` antes de outro caminho, e lembrete e mensagem
+agendada entraram nas essenciais do Slack.
 
 ## Gatilho de reversão
 
