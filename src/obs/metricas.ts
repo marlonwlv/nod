@@ -1,5 +1,5 @@
 /**
- * As SETE métricas do ADR-017 (revisado + refinamentos de 2026-09-16 e 2026-10-13) e a da ADR-199, cada uma ligada a uma
+ * As SETE métricas do ADR-017 (revisado + refinamentos de 2026-09-16 e 2026-10-13) e a oitava (refinamento de 2026-11-27, ADR-199), cada uma ligada a uma
  * promessa de produto — nenhuma de infraestrutura (checkout do pool, distância de partição e taxa
  * de resumed:false ficaram de fora por decisão). O rótulo é um UNION FECHADO: nenhuma string
  * livre entra, e nunca id/email de terceiros (tenant_id e pessoa_id identificam quem usa o nod).
@@ -19,6 +19,8 @@
  *  - lugar_recusado_sem_tentar (contador, por lugar e IA) → quem assenta o turno (ponte-interna.ts), a partir do que
  *    `assentarTurno` devolve (ADR-199). `harness` é o id fechado da IA (claude-cli, codex-cli…), nunca texto livre.
  */
+import type { IdHarness } from "../contracts/harness.ts";
+
 export type Rotulo = { tenant_id: string; pessoa_id?: string } & (
   | { metrica: "pendencia_mais_velha_s" }
   | { metrica: "expiracao"; causa: "expirou_sem_ninguem_ver" | "expirou_com_alguem_ciente" }
@@ -27,7 +29,7 @@ export type Rotulo = { tenant_id: string; pessoa_id?: string } & (
   | { metrica: "polls_abertos" }
   | { metrica: "outbox_abandonados" }
   | { metrica: "turno_velho_na_fila"; bloqueio: "depois_de" | "faixa_ocupada" | "condicao_da_maquina" }
-  | { metrica: "lugar_recusado_sem_tentar"; lugar: "navegador" | "computador"; harness: string }
+  | { metrica: "lugar_recusado_sem_tentar"; lugar: "navegador" | "computador"; harness: IdHarness | "desconhecida" }
 );
 
 export type NomeMetrica = Rotulo["metrica"];

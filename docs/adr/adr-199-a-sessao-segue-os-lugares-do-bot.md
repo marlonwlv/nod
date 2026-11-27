@@ -66,7 +66,7 @@ tem conversa aberta.
    - log `lugar_recusado_sem_tentar` (aviso), com o turno, o bot e a IA;
    - campo `lugares_recusados` no evento `turno_encerrado`, que fica no banco e responde por consulta;
    - contador `lugar_recusado_sem_tentar{lugar, harness}` em `/metrics`. É a oitava métrica: a ADR-017 fechou sete, todas
-     ligadas a promessa de produto, e esta é a promessa "o bot usa o lugar que tem".
+     ligadas a promessa de produto, e esta é a promessa "o bot usa o lugar que tem". Fica registrada na própria ADR-017 (refinamento de 2026-11-27), com `harness` no union fechado (`IdHarness` ou `desconhecida`).
 
 ## O que a sonda mediu (2026-11-27)
 
