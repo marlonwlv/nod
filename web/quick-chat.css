@@ -1,6 +1,7 @@
 /* Quick Chat (ADR-173, 2026-11-12; tela 10 do protótipo no Paper): a janela de 560×392 do atalho global (rodada 3: o cartão do Paper; a sombra é a da janela do macOS). Só o que muda
    no modo compacto (`html[data-janela="quick-chat"]`): some a barra lateral, o cabeçalho, os detalhes e a faixa de
-   trabalhos; fica a conversa e o composer, com o topo do seletor de bot. O botão Capturar vale em qualquer janela.
+   trabalhos; fica a conversa e o composer, com o topo do seletor de bot. O botão Capturar é só daqui (XUM-8: na janela
+   grande ele mora no menu do +).
    Só tokens existentes; nenhum token global novo. */
 html[data-janela="quick-chat"] .sidebar,
 html[data-janela="quick-chat"] .borda-barra,

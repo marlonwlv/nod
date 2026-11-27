@@ -7,7 +7,8 @@ import { esc } from "./escape.ts";
  *
  * - o modo compacto, ligado por `?janela=quick-chat` (o CSS esconde a barra lateral, o cabeçalho e os detalhes);
  * - o topo com o seletor de bot (a pílula "Ada ⌄"), o ⤢ que abre a conversa na janela grande e o ✕;
- * - o botão Capturar ao lado do clipe, em qualquer janela do app do Mac: a captura vira um anexo comum do composer.
+ * - o botão Capturar ao lado do clipe, no Quick Chat (na janela grande ele mora no menu do +, XUM-8): a captura vira um
+ *   anexo comum do composer.
  *
  * Puro e sem DOM, menos `arquivoDaCaptura` (File existe no navegador e no Node 24 do teste).
  */
@@ -58,7 +59,7 @@ export function htmlTopoQuickChat(bots: readonly BotDoQuickChat[], atual: string
   return `<div class="qc-topo"><label class="qc-bot">${escolhido && avatar ? `<span class="qc-bot-av" aria-hidden="true">${avatar}</span>` : ""}<span class="qc-bot-nome">${esc(escolhido?.nome ?? "Escolha um bot")}</span>${SETA}<select class="qc-bot-select" data-quick="bot" aria-label="Bot da conversa">${vazio}${opcoes}</select></label><span class="qc-espaco"></span>${mesa.pode && escolhido ? `<button type="button" class="qc-bt${mesa.montado ? " ativo" : ""}" data-act="${mesa.montado ? "quick-desmontar" : "quick-montar"}" data-id="${esc(escolhido.id)}" aria-pressed="${mesa.montado}" aria-label="${mesa.montado ? "Tirar da área de trabalho" : "Montar na área de trabalho"}" title="${mesa.montado ? "Tirar da área de trabalho" : "Montar na área de trabalho"}">${ALFINETE}</button>` : ""}<button type="button" class="qc-bt" data-act="quick-expandir" aria-label="Abrir na janela do nod" title="Abrir na janela do nod">${EXPANDIR}</button><button type="button" class="qc-bt" data-act="quick-fechar" aria-label="Fechar o Quick Chat" title="Fechar (Esc)">${FECHAR}</button></div>`;
 }
 
-/** O botão do composer (ao lado do clipe). Só aparece quando a ponte do Mac tem `capturarTela`. */
+/** O botão do composer do Quick Chat (ao lado do clipe). Só aparece quando a ponte do Mac tem `capturarTela`. */
 export function htmlBotaoCapturar(): string {
   return `<button type="button" class="qc-capturar" data-act="capturar-tela" aria-label="Capturar janela ou região" title="Capturar janela ou região (Espaço troca para janela)">${CAPTURAR}<span>Capturar</span></button>`;
 }
