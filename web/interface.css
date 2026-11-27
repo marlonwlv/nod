@@ -187,6 +187,13 @@
   .tela-cab h1 { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* XUM-7: o corte acima congela os spinners de borda (um arco de ¼ ou ¾ que parece travado). Com movimento reduzido, cada um
+   vira o círculo inteiro, apagado — uma marca estática de "ocupado", como o .bt-girando do DS (ds.css) e o anel de quem roda
+   (.pf-anel, chat.css). Os de SVG com o arco quase fechado (atualização, desfazer, ouvir) já leem como um círculo. */
+@media (prefers-reduced-motion: reduce) {
+  :is(.giro, .giro-conversa, .nv-giro, .nv-favicon-giro, .nvc-giro, .qc-giro, .lote-gira, .ob-gira, .rx-mk-giro, .pensar-acao[data-estado="rodando"] .pensar-ic),
+  .ta-run[data-estado="rodando"]:not([data-esperando="1"]) .ta-run-av::after { border-color: currentColor !important; border-style: solid; opacity: .55; }
+}
 .list { background: transparent; box-shadow: none; border: 0; margin: 0; }
 @media (max-width: 1099px) {
   .com-detalhes.detalhes-abertos .detalhes { display: flex; position: fixed; top: 0; bottom: 0; right: 0; width: 380px; max-width: 100vw; z-index: 8; box-shadow: var(--shadow-pop); }
