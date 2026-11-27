@@ -60,7 +60,7 @@ export const APPS_USAR = "apps_usar" as const;
 
 const SCHEMA_APPS_BUSCAR: JsonSchema = {
   type: "object",
-  description: "Procura capacidades dos apps conectados que NÃO estão na sua lista de ferramentas (cada app traz só as mais usadas; as outras ficam aqui). Busca por nome e descrição, em português ou inglês (\"mover e-mails para pasta\", \"move message folder\"); app restringe a um app (slug, como outlook). Devolve até 10 com o nome exato, a descrição e o esquema dos argumentos; chame a escolhida com apps_usar. As que ainda não são suas vêm com concedida: false (peça com pedir_acesso).",
+  description: "Procura capacidades dos apps conectados que NÃO estão na sua lista de ferramentas (cada app traz só as mais usadas; as outras, como agendar, lembrete, regra, release, duplicar, arquivar, ficam aqui). Use antes de trocar o app por rotina, navegador ou terminal. Busca por nome e descrição, em português ou inglês (\"mover e-mails para pasta\", \"move message folder\"); app restringe a um app (slug, como outlook). Devolve até 10 com o nome exato, a descrição e o esquema dos argumentos; chame a escolhida com apps_usar. As que ainda não são suas vêm com concedida: false (peça com pedir_acesso).",
   properties: {
     busca: { type: "string", minLength: 1, maxLength: 200, description: "O que a capacidade faz, em poucas palavras (português ou inglês)." },
     app: { type: "string", minLength: 1, maxLength: 80, description: "Opcional: o slug do app (outlook, gmail, slack…)." },

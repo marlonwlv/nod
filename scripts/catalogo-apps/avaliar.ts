@@ -64,7 +64,7 @@ function executar(bin: string, args: string[], opcoes: { cwd: string; entrada?: 
 type Uso = { entrada: number; saida: number; ferramentaBusca: number };
 
 /** As coisas que o pedido cita (ids, pastas, canais), que o mundo fictício do MCP falso faz existir. */
-const entidadesDo = (p: Pedido): string => JSON.stringify([...new Set([...(p.texto.match(/\b(?:AAMk[\w-]+|C0\d+|evt-\d+|fld-\d+|cal-[\w-]+|proj-\d+|team-[\w-]+|[0-9a-f]{8})\b/g) ?? []), ...(p.argContem ? [p.argContem] : [])])]);
+const entidadesDo = (p: Pedido): string => JSON.stringify([...new Set([...(p.texto.match(/\b(?:AAMk[\w-]+|C0\d+|evt-\d+|fld-\d+|cal-[\w-]+|proj-\d+|team-[\w-]+|[0-9a-f]{8})\b/g) ?? []), ...(p.texto.match(/#[\w-]+/g) ?? []).flatMap((c) => [c, c.slice(1)]), ...(p.argContem ? [p.argContem] : [])])]);
 async function rodarClaude(prep: ReturnType<typeof preparar>, pedido: Pedido, log: string, trabalho: string): Promise<{ ms: number; uso: Uso; resposta: string; falha: string | null }> {
   const mcp = join(trabalho, "mcp.json");
   writeFileSync(mcp, JSON.stringify({ mcpServers: { nod: { command: TSX, args: [join(AQUI, "mcp-falso.ts"), join(prep.dir, "plano.json"), log, entidadesDo(pedido)] } } }));
