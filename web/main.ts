@@ -1,4 +1,7 @@
 import { criarSugestoesDaNovaConversa } from "./lib/sugestao-nova-conversa.ts";
+import { htmlPainelSeuComputador } from "./lib/seu-computador-painel.ts";
+import type { RespostaVistaSeuComputador } from "../src/contracts/seu-computador.ts";
+import type { PermissoesDoMac } from "./telas/ajustes-seu-computador.ts";
 import { comFraseDoTeto, FRASE_TETO_ROTINAS, FRASE_TETO_TOKENS_MCP } from "./lib/frase-do-teto.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
@@ -13,7 +16,7 @@ import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard
 import { IGUAIS_UM_A_UM } from "./telas/pedidos-iguais.ts";
 import { criarTelaAprovacoes } from "./lib/ajustes-aprovacao.ts";
 import { criarTelaCofre } from "./lib/cofre.ts";
-import { renderCofre } from "./telas/config-cofre.ts";
+import { renderCofre, type BotDoCofre } from "./telas/config-cofre.ts";
 import { renderConfigAprovacoes, type BotDaTela } from "./telas/config-aprovacoes.ts";
 import { escNoEspaco, focoAoAbrirEspaco, voltarParaLista } from "./lib/navegacao-config.ts";
 import { perfilMudou } from "./lib/perfil-mudou.ts";
@@ -464,8 +467,8 @@ function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; bu
 }
 /** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
-function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; sobre: () => string } {
-  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
+function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; permissoesSeuComputador: PermissoesDoMac | null; sobre: () => string } {
+  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now(), fusoLocal(), botsDoCofre()), mac: ajustesMac, permissoesSeuComputador, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
 }
 /** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
 let termoAjustes = "";
@@ -699,6 +702,10 @@ function botsDaTelaAprovacoes(): BotDaTela[] {
 }
 const htmlAprovacoes = (): string => renderConfigAprovacoes(telaAprovacoes.estado(), botsDaTelaAprovacoes());
 /** Paper 07 (rodada 2): Configurações › Cofre, lido ao abrir a seção (web/lib/cofre.ts). */
+/** ADR-195 (Entrega 3): os bots que a pessoa pode pôr em "Quem pode usar" de uma chave (os da frota, sem os excluídos). */
+function botsDoCofre(): BotDoCofre[] {
+  return (estado.frota?.agentes ?? []).filter((a) => !a.excluidoEm).map((a) => ({ id: a.id, nome: a.nome, cor: a.cor }));
+}
 const telaCofre = criarTelaCofre({
   api: () => api,
   render: () => render(),
@@ -1510,9 +1517,27 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
  * tela cheia e na folha do celular (web/telas/navegador.ts). Vive fora do reducer (o canal ao vivo e os quadros); a vista
  * em si vem de `estado.navegadores` (o REST e o `navegador.mudou`).
  */
+/** ADR-197 (S4): as vistas do computador da pessoa por bot (o último quadro e os passos), lidas pelo REST e pelo SSE. */
+const vistasSeuComputador = new Map<string, RespostaVistaSeuComputador | null>();
+const lendoSeuComputador = new Set<string>();
+function lerSeuComputador(agenteId: string): void {
+  const sessao = api;
+  if (!sessao?.vistaSeuComputador || lendoSeuComputador.has(agenteId)) return;
+  lendoSeuComputador.add(agenteId);
+  void sessao.vistaSeuComputador(agenteId)
+    .then((r) => { vistasSeuComputador.set(agenteId, r); navegadorNaTela.atualizarSeuComputador(agenteId); })
+    .catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) vistasSeuComputador.set(agenteId, null); })
+    .finally(() => lendoSeuComputador.delete(agenteId));
+}
 const navegadorNaTela = criarNavegadorNaTela({
   api: () => api,
   nome: (id) => botGerido(id)?.nome ?? "o bot",
+  seuComputador: {
+    tem: (id) => (vistasSeuComputador.get(id)?.vista?.passos.length ?? 0) > 0,
+    aparelho: () => (estado.seuComputador?.aparelho?.plataforma === "win32" ? "PC" : "Mac"),
+    html: (id) => { const r = vistasSeuComputador.get(id); return htmlPainelSeuComputador({ vista: r?.vista ?? null, nomeBot: botGerido(id)?.nome ?? "O bot", aparelho: r?.vista?.aparelho ?? (r?.aparelho?.plataforma === "win32" ? "PC" : "Mac"), agora: Date.now() }); },
+    ler: (id) => { if (!vistasSeuComputador.has(id)) lerSeuComputador(id); },
+  },
   avatar: (id) => { const b = botGerido(id); return b ? htmlMascote(b, "sm") : ""; },
   temComputador: () => estado.computadorPessoa !== null && estado.computadorPessoa !== undefined,
   abrirComputador: (id) => { const el = document.createElement("button"); el.dataset.id = id; void ACOES["abrir-computador"]?.(el); },
@@ -2927,6 +2952,8 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     return detalhe ? { tipo: "hidratar-trabalho", detalhe, agora } : { tipo: "trabalho-sumiu", id };
   }
   if (q === "chaves") return { tipo: "hidratar-chaves", chaves: (await api.chaves()).chaves };
+  // ADR-197: servidor sem a rota (404, versão anterior) = sem aparelho e sem apps.
+  if (q === "seu-computador") return { tipo: "hidratar-seu-computador", dados: await api.seuComputador().catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return { aparelho: null, apps: [] }; throw e; }) };
   if (q === "mcp-tokens") return { tipo: "hidratar-mcp-tokens", tokens: await api.mcpTokens() };
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
@@ -3010,6 +3037,8 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
   if (q.startsWith("diario:")) return { tipo: "hidratar-diario", agenteId: q.slice(7), pagina: await api.diarioMemoria(q.slice(7)) };
   if (q.startsWith("concessoes:")) return { tipo: "hidratar-concessoes", agenteId: q.slice(11), ...(await api.concessoes(q.slice(11))) };
   // ADR-190: a vista do navegador do bot (404: servidor de antes ou bot de outra pessoa — fica indisponível, sem faixa).
+  // ADR-197: a vista do computador da pessoa (fora do reducer, como o navegador ao vivo); o painel troca sozinho.
+  if (q.startsWith("seu-computador:")) { lerSeuComputador(q.slice(15)); return null; }
   if (q.startsWith("navegador:")) {
     const agenteId = q.slice(10);
     const navegador = await api.navegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
@@ -3217,6 +3246,8 @@ function relevante(q: Invalidacao): boolean {
   if (q === "agenda") return secao === "rotinas";
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala" || modalDoMarketplace !== null;
   if (q === "chaves") return secao === "maquinas";
+  if (q === "seu-computador") return secao === "maquinas";
+  if (q.startsWith("seu-computador:")) return (t.tipo === "conversa" && t.agenteId === q.slice(15)) || navegadorNaTela.lugarAtivo(q.slice(15)) !== null;
   if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";
@@ -7098,6 +7129,17 @@ const escolherBotDoQuick = (id: string): void => {
 if ((modoQuickChat || modoAvatar) && reactNaRegiao("janelas", window.location.href, guardadoDoNavegador())) {
   void import("./react/janelas/quick-chat.tsx").then((m) => { janelasRx = { modulo: m }; assinaturaQuickChat = ""; render(); }, () => undefined);
 }
+/** ADR-197: Acessibilidade e Gravação de Tela do app nod (só no app do Mac); relidas ao abrir Máquinas e ao voltar à janela. */
+let permissoesSeuComputador: PermissoesDoMac | null = null;
+async function carregarPermissoesSeuComputador(): Promise<void> {
+  const ponte = window.nodDesktop;
+  if (!ponte?.seuComputadorPermissoes) return;
+  const p = await ponte.seuComputadorPermissoes().catch(() => null);
+  if (!p) return;
+  const mudou = !permissoesSeuComputador || permissoesSeuComputador.acessibilidade !== p.acessibilidade || permissoesSeuComputador.gravacaoDeTela !== p.gravacaoDeTela;
+  permissoesSeuComputador = p;
+  if (mudou) render();
+}
 /** ADR-173: os ajustes do Mac (Configurações › Máquinas); null fora do app do Mac. */
 let ajustesMac: AjustesMac | null = null;
 async function carregarAjustesMac(): Promise<void> {
@@ -7125,6 +7167,9 @@ document.addEventListener("keydown", (ev) => {
   void gravarAtalhoQuick(atalho);
 }, true);
 void carregarAjustesMac();
+void carregarPermissoesSeuComputador();
+// A pessoa liga a permissão nos Ajustes do Sistema e volta: o nod percebe sozinho (S1), sem reiniciar.
+window.addEventListener("focus", () => { void carregarPermissoesSeuComputador(); });
 function pintarQuickChat(): void {
   if (window.nodDesktop?.capturarTela) {
     const clipe = document.querySelector("#composer .clipe");
@@ -8943,6 +8988,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "mudar-time-selecao": (el) => abrirEscolhaDeTime([...selecaoBots], el),
   "limpar-selecao": () => limparSelecao(true),
   "abrir-avancado": () => abrirMarketplace(true),
+  // ADR-195 (Entrega 3, Paper O4): o "Trocar" do recibo da chave guardada no Cofre abre o Cofre nas chaves.
+  "abrir-cofre": () => { abrirEspaco("cofre"); telaCofre.aba("chaves"); },
   "navegar-marketplace": () => abrirMarketplace(),
   // ADA-13 (ADR-150): o app Canvas (instalar, desinstalar e o nível por bot; só pela tela).
   "instalar-canvas": () => agir(async () => { guardarAppCanvas(await api!.instalarCanvas()); }),
@@ -9748,6 +9795,26 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     marcarDecidida(el, id);
     await decidirAprovacaoReconciliando(id, aprovar ? (lembrar ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(id));
   }),
+  // ADR-197: Ajustes › Seu Mac — abrir o Ajuste do Sistema da permissão que falta; tirar um app; tirar tudo.
+  "sc-permissao": (el) => agir(async () => {
+    const qual = el.dataset.qual === "gravacao_de_tela" ? "gravacao_de_tela" : "acessibilidade";
+    await window.nodDesktop?.seuComputadorPedirPermissao?.(qual);
+  }),
+  "sc-tirar": (el) => agir(async () => {
+    const r = await api!.tirarDoSeuComputador({ agenteId: el.dataset.agente ?? "", appId: el.dataset.app ?? "" });
+    dispatch({ tipo: "hidratar-seu-computador", dados: { aparelho: r.aparelho, apps: r.apps } });
+  }),
+  "sc-tirar-tudo": () => agir(async () => {
+    const r = await api!.tirarDoSeuComputador({});
+    dispatch({ tipo: "hidratar-seu-computador", dados: { aparelho: r.aparelho, apps: r.apps } });
+  }),
+  // ADR-197: o cartão "A {bot} quer usar seu Mac" — Permitir desta vez, Sempre no {app} (o `sempre` da decisão) ou Agora não.
+  "sc-decidir": (el) => agir(async () => {
+    const id = el.dataset.decisao ?? "";
+    const aprovar = el.dataset.aprovar === "1";
+    marcarDecidida(el, id);
+    await decidirAprovacaoReconciliando(id, aprovar ? (el.dataset.sempre === "1" ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(id));
+  }),
   // ADR-190 (L5): "Guardar no cofre?" — o destino escolhido (só quando há mais de um) ou "Não".
   "nv-guardar": (el) => agir(async () => {
     const agenteId = el.dataset.agente ?? "";
@@ -9776,14 +9843,39 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "cofre-menu-item": (el) => { const qual = el.dataset.id ?? ""; telaCofre.menu(qual); if (telaCofre.estado().menu === qual) requestAnimationFrame(() => el.closest(".cl-mais")?.querySelector<HTMLElement>('.cl-menu [role^="menuitem"]')?.focus()); },
   "cofre-ver-todos": () => telaCofre.verTodos(),
   "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
+  // ADR-195 (Entrega 3): as chaves do cofre (Paper C1–C3). O valor só existe no campo até o POST e é limpo em seguida.
+  "cofre-nova-chave": () => { telaCofre.novaChave(true); requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-nova-chave select[name="app"]')?.focus()); },
+  "cofre-cancelar-chave": () => { for (const c of document.querySelectorAll<HTMLInputElement>(".cofre-nova-chave input")) c.value = ""; telaCofre.novaChave(false); document.querySelector<HTMLElement>('#espaco [data-act="cofre-menu-novo"]')?.focus(); },
+  "cofre-abrir-chave": async (el) => {
+    const id = el.dataset.id ?? "";
+    const trocar = el.dataset.trocar === "1";
+    await telaCofre.abrirChave(id, trocar);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(trocar ? '#espaco .cofre-troca input[name="valor"]' : "#espaco .cofre-chave-aberta .cofre-fechar")?.focus());
+  },
+  "cofre-fechar-chave": () => {
+    const id = telaCofre.estado().aberta?.id ?? "";
+    for (const c of document.querySelectorAll<HTMLInputElement>(".cofre-troca input")) c.value = "";
+    telaCofre.fecharChave();
+    document.querySelector<HTMLElement>(`#espaco [data-act="cofre-menu-item"][data-id="${CSS.escape(`chave:${id}`)}"]`)?.focus();
+  },
+  "cofre-trocar-chave": () => { telaCofre.trocando(true); requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-troca input[name="valor"]')?.focus()); },
+  "cofre-cancelar-troca": () => { for (const c of document.querySelectorAll<HTMLInputElement>(".cofre-troca input")) c.value = ""; telaCofre.trocando(false); requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco [data-act="cofre-trocar-chave"]')?.focus()); },
+  "cofre-menu-dar": () => { telaCofre.menuDar(); if (telaCofre.estado().aberta?.dando) requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .cofre-dar-menu [role="menuitem"]')?.focus()); },
+  // Dar a outro bot: entra em Sempre (o C3 também concede Sempre); o seletor ao lado muda para Perguntar antes.
+  "cofre-dar-acesso": async (el) => {
+    await telaCofre.mudarAcesso(el.dataset.id ?? "", el.dataset.agente ?? "", "sempre");
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`#espaco .cofre-chave-aberta select[data-agente="${CSS.escape(el.dataset.agente ?? "")}"]`)?.focus());
+  },
+  "cofre-remover-chave": (el) => telaCofre.removerChave(el.dataset.id ?? telaCofre.estado().aberta?.id ?? ""),
   // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
   "cofre-mostrar-senha": (el) => {
-    const campo = el.closest(".cofre-senha")?.querySelector<HTMLInputElement>('input[name="senha"]');
+    const campo = el.closest(".cofre-senha")?.querySelector<HTMLInputElement>('input[name="senha"], input[name="valor"]');
     if (!campo) return;
     const mostrar = campo.type === "password";
+    const oque = campo.name === "senha" ? "a senha" : "o valor";
     campo.type = mostrar ? "text" : "password";
     el.setAttribute("aria-pressed", String(mostrar));
-    el.setAttribute("aria-label", mostrar ? "Ocultar a senha" : "Mostrar a senha");
+    el.setAttribute("aria-label", mostrar ? `Ocultar ${oque}` : `Mostrar ${oque}`);
     el.title = mostrar ? "Ocultar" : "Mostrar";
   },
   "navegador-aba": (el) => navegadorNaTela.mostrarAba(el.dataset.agente ?? ""),
@@ -10673,6 +10765,22 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     }
   },
   // ADR-190 (decisão 6): o login novo do Cofre. A senha sai do campo direto para o POST e o formulário é limpo em seguida.
+  // ADR-195 (Entrega 3, Paper C3): a chave nova vai do campo direto ao POST; o campo do valor é limpo em seguida.
+  "cofre-guardar-chave": async (form) => {
+    const d = new FormData(form);
+    const texto = (n: string) => String(d.get(n) ?? "");
+    const ok = await telaCofre.guardarChave({ appId: texto("app"), nome: texto("nome"), valor: texto("valor"), agenteId: texto("agente"), dicas: texto("dicas") });
+    for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-nova-chave input[name="valor"]')) c.value = "";
+    if (ok) document.querySelector<HTMLElement>('#espaco [data-act="cofre-menu-novo"]')?.focus();
+    else requestAnimationFrame(() => document.querySelector<HTMLInputElement>('#espaco .cofre-nova-chave input[name="valor"]')?.focus());
+  },
+  // Paper C2 (Trocar): o valor novo vai do campo direto ao POST; app conhecido testa antes.
+  "cofre-guardar-troca": async (form) => {
+    const campo = form.querySelector<HTMLInputElement>('input[name="valor"]');
+    const ok = await telaCofre.trocarValor(campo?.value ?? "");
+    for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-troca input[name="valor"]')) c.value = "";
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(ok ? '#espaco [data-act="cofre-trocar-chave"]' : '#espaco .cofre-troca input[name="valor"]')?.focus());
+  },
   "cofre-guardar-login": async (form) => {
     const d = new FormData(form);
     const senha = form.querySelector<HTMLInputElement>('input[name="senha"]');
@@ -10855,6 +10963,7 @@ document.addEventListener("click", (ev) => {
   const u = estado.contasUi;
   if ((u.menu || u.maquinaMenu) && !(ev.target as HTMLElement).closest(".cl-mais")) dispatch({ tipo: "contas-ui", mudanca: { menu: null, maquinaMenu: null } });
   if (telaCofre.estado().menu && !(ev.target as HTMLElement).closest(".cfg-cofre .cl-mais")) telaCofre.menu(null);
+  if (telaCofre.estado().aberta?.dando && !(ev.target as HTMLElement).closest(".cofre-dar")) telaCofre.menuDar();
   if (estado.nuvem.sonoMenu && !(ev.target as HTMLElement).closest(".nv-ajuste-wrap")) dispatch({ tipo: "nuvem-ui", mudanca: { sonoMenu: null } });
   // NOD-58: o "…" da memória aberto é como um modal leve: o clique fora só fecha (no celular, o fundo escurecido da folha
   // não deixa o toque acertar a memória de baixo).
@@ -10926,6 +11035,17 @@ document.addEventListener("keydown", (ev) => {
     ev.stopPropagation();
     ev.preventDefault();
     telaMinhaConta.fecharJanela();
+    return;
+  }
+  // ADR-195 (Entrega 3): na chave aberta (C2), o Esc fecha o menu do "Dar a outro bot", depois o campo do Trocar, depois o
+  // diálogo; na "Nova chave" (C3), fecha o diálogo (e o valor some com ele).
+  const cofreAgora = telaCofre.estado();
+  if (cofreAgora.aberta || cofreAgora.novaChave) {
+    ev.stopPropagation();
+    if (cofreAgora.aberta?.dando) { telaCofre.menuDar(); document.querySelector<HTMLElement>('#espaco [data-act="cofre-menu-dar"]')?.focus(); }
+    else if (cofreAgora.aberta?.trocando) void ACOES["cofre-cancelar-troca"]!(document.body);
+    else if (cofreAgora.aberta) void ACOES["cofre-fechar-chave"]!(document.body);
+    else void ACOES["cofre-cancelar-chave"]!(document.body);
     return;
   }
   // O Cofre: o Esc fecha primeiro o menu aberto, depois o diálogo "Novo login" (e a senha some com ele).
@@ -12621,6 +12741,29 @@ function escolherTema(valor: string | undefined): EscolhaTema {
 
 /** NOD-367: as trocas dos seletores das Configurações (`data-act-change`), com o valor escolhido. */
 const ACOES_CHANGE: Record<string, (valor: string, el: HTMLSelectElement) => Promise<void> | void> = {
+  // ADR-195 (Entrega 3, Paper C2): Sempre, Perguntar antes ou Tirar o acesso de um bot à chave aberta.
+  "cofre-modo-acesso": (valor, el) => telaCofre.mudarAcesso(el.dataset.id ?? "", el.dataset.agente ?? "", valor === "sempre" || valor === "perguntar" ? valor : null),
+  // Paper C3: trocar o app redesenha a ajuda e o nome da variável; o valor digitado volta ao campo (não passa por estado).
+  "cofre-app-da-chave": (valor, el) => {
+    const form = el.closest("form");
+    if (!form) return;
+    const campo = (n: string) => form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${n}"]`)?.value ?? "";
+    const segredo = campo("valor");
+    const antes = telaCofre.appDoCofre(telaCofre.estado().novaChave?.appId);
+    const app = telaCofre.appDoCofre(valor);
+    const nome = campo("nome");
+    // O nome que veio do app anterior acompanha a troca; o que a pessoa escreveu fica.
+    const novoNome = !nome || nome === antes?.variavel ? (app?.variavel ?? "") : nome;
+    telaCofre.editarNovaChave({ appId: app?.id ?? "", nome: novoNome, agenteId: campo("agente"), dicas: campo("dicas") });
+    // O redesenho morfa o campo (o atributo muda, o valor na tela não): o nome é escrito no campo também.
+    requestAnimationFrame(() => {
+      const n = document.querySelector<HTMLInputElement>('#espaco .cofre-nova-chave input[name="nome"]');
+      if (n) n.value = novoNome;
+      const v = document.querySelector<HTMLInputElement>('#espaco .cofre-nova-chave input[name="valor"]');
+      if (v && segredo) v.value = segredo;
+      document.querySelector<HTMLElement>('#espaco .cofre-nova-chave select[name="app"]')?.focus();
+    });
+  },
   ...telaAprovacoes.change,
   "escolher-tema": (valor) => { escolherTema(valor); },
   // NOD-367: a máquina padrão (Máquinas) e a do bot (ficha dele), no mesmo seletor; "" = qualquer uma.

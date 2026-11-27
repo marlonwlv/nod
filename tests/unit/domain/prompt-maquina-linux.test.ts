@@ -28,12 +28,16 @@ describe("prompt por máquina (ADR-090)", () => {
 
   it("ADA-11 (ADR-147): Windows nomeia a máquina como PC com Windows, no Claude e no Codex, sem Finder", () => {
     const claude = montarPromptSistema({ ...base, maquina: { nome: "pc-bia", plataforma: "win32" } });
-    expect(claude).toContain("Você trabalha na máquina pc-bia de Marlon, um PC com Windows, e não no Mac dela.");
+    expect(claude).toContain("Você trabalha na máquina pc-bia de Marlon, o PC com Windows dela.");
+    expect(claude).toContain("Os arquivos ficam neste PC; mesmo assim, entregue o resultado");
+    expect(claude).not.toContain("não no Mac dela");
+    expect(claude).not.toContain("não os vê no Mac");
     expect(claude).not.toContain("Linux sempre ligado");
     expect(claude).not.toContain("Finder");
     expect(claude).toContain("credencial desta máquina");
     const codex = montarPromptSistema({ ...base, harness: "codex-cli", maquina: { nome: "pc-bia", plataforma: "win32" } });
-    expect(codex).toContain("Você trabalha na máquina pc-bia de Marlon, um PC com Windows, e não no Mac dela.");
+    expect(codex).toContain("Você trabalha na máquina pc-bia de Marlon, o PC com Windows dela.");
+    expect(codex).not.toContain("não os vê no Mac");
     expect(codex).not.toContain("Linux sempre ligado");
   });
 

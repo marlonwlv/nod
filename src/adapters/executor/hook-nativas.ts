@@ -105,7 +105,8 @@ export async function decidirHook(evento: unknown, confirmar: Confirmar, pastas?
   const entrada = typeof e.tool_input === "object" && e.tool_input !== null ? (e.tool_input as Record<string, unknown>) : {};
   // ADR-065: o `cwd` do evento é a pasta em que o Bash está agora (o Claude Code a mantém entre comandos).
   const pasta = pastas?.pastaDoBot && pastas.home ? { cwd: typeof e.cwd === "string" ? e.cwd : null, pastaDoBot: pastas.pastaDoBot, home: pastas.home, daTask: pastas.daTask === true, windows: (pastas.plataforma ?? process.platform) === "win32" } : undefined;
-  const d = decidirNativa({ ferramenta, entrada, ...(pasta ? { pasta } : {}), ...(pastas?.mcpDaPessoa ? { mcpDaPessoa: true } : {}) });
+  // Achado 2 do QA da rc.15: a plataforma é a do processo do hook (a máquina que roda o comando), nunca a do modelo.
+  const d = decidirNativa({ ferramenta, entrada, ...(pasta ? { pasta } : {}), ...(pastas?.mcpDaPessoa ? { mcpDaPessoa: true } : {}), plataforma: pastas?.plataforma ?? process.platform });
   if (!d.permitir) return saida(false, d.motivo);
   // MCP do nod: o proxy já decide e registra; o hook não confirma de novo no servidor (a rota só aceita nativas).
   // ADR-103: o MCP da pessoa (no Codex) vai ao servidor como a nativa NATIVA_MCP_DA_PESSOA, com o texto do pedido.

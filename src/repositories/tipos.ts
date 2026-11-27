@@ -77,6 +77,7 @@ import type { ligacoesRepo } from "./ligacoes.repo.ts";
 import type { liberacoesDispensadasRepo } from "./liberacoes-dispensadas.repo.ts";
 import type { nativasIdempotenciaRepo } from "./nativas-idempotencia.repo.ts";
 import type { navegadorPreferenciasRepo, navegadorTarefasRepo } from "./navegador.repo.ts";
+import type { seuComputadorAppsRepo } from "./seu-computador.repo.ts";
 import type { cofreLoginsRepo } from "./cofre-logins.repo.ts";
 import type { cofreRepo } from "./cofre.repo.ts";
 
@@ -190,6 +191,8 @@ export interface Repos {
   nativasIdempotencia: ReturnType<typeof nativasIdempotenciaRepo>;
   /** ADR-190 (0180): onde o navegador do bot continua e as liberações de antemão (A2/A3). */
   navegadorPreferencias: ReturnType<typeof navegadorPreferenciasRepo>;
+  /** ADR-197 (0187): os apps do computador da pessoa que cada bot pode usar. */
+  seuComputadorApps: ReturnType<typeof seuComputadorAppsRepo>;
   /** ADR-190 (0180): as tarefas ensinadas (T). */
   navegadorTarefas: ReturnType<typeof navegadorTarefasRepo>;
   /** ADR-190 (0180): o cofre do nod (L); a senha só cifrada. */

@@ -14,15 +14,22 @@ import type { JsonSchema } from "./json-schema.ts";
  * campo que vai da web direto ao cofre (POST /propostas/:id/credencial). O payload NUNCA leva o valor: só o alvo, o nome
  * legível do app e o "para" que o bot escreveu. Decisão de mesmo id em "Sua vez"; o modo automático nunca a resolve.
  */
-export type AlvoCredencial = "conector" | "github_token" | "composio";
+export type AlvoCredencial = "conector" | "github_token" | "composio" | "app";
 export type PayloadPropostaCredencial = {
   kind: "credencial";
   alvo: AlvoCredencial;
   /** O conector alvo (alvo "conector"); null nos outros. */
   conectorId: string | null;
-  /** Nome legível do app para o cartão ("Exemplo", "GitHub", "Composio"). */
+  /** Nome legível do app para o cartão ("Exemplo", "GitHub", "Composio", "Orgo"). */
   app: string;
-  /** Nome da chave do env/header (alvo "conector"); null nos outros. */
+  /**
+   * ADR-195 (Entrega 3): o app conhecido do Cofre (alvo "app", src/domain/apps-do-cofre.ts). A chave vira item `chave` do
+   * Cofre com o nome da variável em `chave`, é testada no app antes de guardar e é concedida ao bot que pediu.
+   */
+  appId?: string;
+  /** Alvo "app": o que o cartão mostra do app (Paper O1), do catálogo do servidor — a web não tem o catálogo. */
+  appNaTela?: { artigo: "a" | "o"; ondeAchar: { rotulo: string; url: string }; dica: string };
+  /** Nome da chave do env/header (alvo "conector") ou da variável do Cofre (alvo "app"); null nos outros. */
   chave: string | null;
   /** Para que o bot quer a chave, até 80 caracteres (sempre preenchido: há um padrão). */
   para: string;
@@ -36,9 +43,10 @@ export const FERRAMENTAS_CREDENCIAL = {
   pedir_credencial: {
     type: "object",
     description:
-      "Pede à pessoa UMA chave, token ou senha de API por um cartão seguro: ela cola o valor num campo que vai direto ao cofre, e você nunca o vê. Use sempre que faltar uma credencial — nunca peça para colar segredo no chat. Alvos: 'conector' (uma chave do env ou header de um conector que a pessoa já tem; informe conector e chave), 'github_token' (o token pessoal do GitHub) ou 'composio' (a chave do Composio do time). Se voltar 'pendente', diga em uma frase que pediu e ENCERRE o turno: a resposta volta como guardada ou recusada.",
+      "Pede à pessoa UMA chave, token ou senha de API por um cartão seguro: ela cola o valor num campo que vai direto ao cofre, e você nunca o vê. Use sempre que faltar uma credencial — nunca peça para colar segredo no chat. Alvos: 'app' (a chave de um app que o Cofre conhece, como a Orgo; informe app — ela vai para o Cofre e só você usa), 'conector' (uma chave do env ou header de um conector que a pessoa já tem; informe conector e chave), 'github_token' (o token pessoal do GitHub) ou 'composio' (a chave do Composio do time). Se voltar 'pendente', diga em uma frase que pediu e ENCERRE o turno: a resposta volta como guardada ou recusada.",
     properties: {
-      alvo: { type: "string", enum: ["conector", "github_token", "composio"], description: "Onde a chave vai ser guardada." },
+      alvo: { type: "string", enum: ["app", "conector", "github_token", "composio"], description: "Onde a chave vai ser guardada." },
+      app: { type: "string", enum: ["orgo"], description: "O app conhecido do Cofre (só no alvo 'app'): 'orgo' para a ORGO_API_KEY da Orgo." },
       conector: { type: "string", description: "Slug do conector já registrado (só no alvo 'conector').", minLength: 1, maxLength: 64 },
       chave: { type: "string", description: "Nome exato da variável de ambiente (stdio) ou do header (http) que falta, como EXEMPLO_API_KEY (só no alvo 'conector').", minLength: 1, maxLength: 128 },
       para: { type: "string", description: "Para que você precisa da chave, numa frase curta que começa com verbo no infinitivo. Ex.: \"Ler os pedidos de hoje da loja\".", maxLength: 200 },
@@ -48,16 +56,16 @@ export const FERRAMENTAS_CREDENCIAL = {
   },
 } as const satisfies Record<string, JsonSchema>;
 
-export type ArgsPedirCredencial = { alvo: AlvoCredencial; conector?: string; chave?: string; para?: string };
+export type ArgsPedirCredencial = { alvo: AlvoCredencial; app?: string; conector?: string; chave?: string; para?: string };
 
 /**
  * conector_nao_encontrado: não há conector com esse slug que seja da pessoa. conector_nativo: o conector é do nod
  * (`nod:`), e as chaves dele têm caminho próprio — use o alvo github_token ou composio. chave_invalida: o nome da chave não
  * serve para o transporte do conector, é variável de sistema (PATH, NODE_*, LD_*…) ou faltou. composio_ja_configurado: o
- * time já tem chave do Composio — trocar a do time inteiro é na tela do Composio, não por pedido do bot. Em todos, nenhum
- * cartão nasce.
+ * time já tem chave do Composio — trocar a do time inteiro é na tela do Composio, não por pedido do bot. app_desconhecido:
+ * o alvo 'app' sem um app que o Cofre conheça. Em todos, nenhum cartão nasce.
  */
-export type ErroPedirCredencial = "conector_nao_encontrado" | "conector_nativo" | "chave_invalida" | "composio_ja_configurado";
+export type ErroPedirCredencial = "conector_nao_encontrado" | "conector_nativo" | "chave_invalida" | "composio_ja_configurado" | "app_desconhecido";
 
 export type ResultadoPedirCredencial =
   | { estado: "pendente"; proposta_id: string; instrucao: string }

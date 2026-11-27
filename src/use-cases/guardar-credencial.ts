@@ -1,6 +1,7 @@
 import type { PayloadPropostaCredencial, Proposta } from "../contracts/conversa.ts";
 import type { CapacidadeConector, Conector } from "../contracts/conector.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
+import { appDoCofre, tituloDoPedidoDeChave } from "../domain/apps-do-cofre.ts";
 import { chavePedivel, conectorGeridoPeloNod, validarCredenciais } from "../domain/credenciais-conector.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { autoriaPessoa, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
@@ -121,7 +122,7 @@ export const gravarChaveCandidata: CasoDeUso<{ candidata: ChaveCandidata; ferram
 export type DetalheDaGuarda = "aceita" | "nao_testada" | "ja_havia" | "nao_habilitado";
 
 function textoDoRecibo(p: PayloadPropostaCredencial, resultado: ResultadoCredencial, detalhe: DetalheDaGuarda): string {
-  const o_que = p.alvo === "github_token" ? "Token do GitHub" : p.alvo === "composio" ? "Chave do Composio" : `Chave do ${p.app}`;
+  const o_que = p.alvo === "github_token" ? "Token do GitHub" : p.alvo === "composio" ? "Chave do Composio" : p.alvo === "app" ? tituloDoPedidoDeChave(p) : `Chave do ${p.app}`;
   if (resultado === "recusada") return `${o_que} deixada de lado.`;
   return detalhe === "ja_havia" ? "O time já tinha uma chave do Composio; a colada não foi usada." : `${o_que} guardada no cofre.`;
 }
@@ -132,13 +133,16 @@ function textoDoRecibo(p: PayloadPropostaCredencial, resultado: ResultadoCredenc
  * quase nenhum servidor autentica, então o bot ouve que a chave só se confere no primeiro uso (revisão 4 do PR #553).
  */
 function entradaDaRetomada(p: PayloadPropostaCredencial, resultado: ResultadoCredencial, original: string, detalhe: DetalheDaGuarda): string {
-  const alvo = p.alvo === "github_token" ? "o token do GitHub" : p.alvo === "composio" ? "a chave do Composio" : `a chave ${p.chave ?? ""} do conector ${p.app}`;
+  const artigo = appDoCofre(p.appId)?.artigo ?? "o";
+  const alvo = p.alvo === "github_token" ? "o token do GitHub" : p.alvo === "composio" ? "a chave do Composio" : p.alvo === "app" ? `a chave ${p.chave ?? ""} d${artigo} ${p.app}` : `a chave ${p.chave ?? ""} do conector ${p.app}`;
   const como = detalhe === "aceita" ? (p.alvo === "conector" ? "e a conexão foi testada com ela" : `e o ${p.app} aceitou`) : "e o conector subiu com ela (a chave só se confere no primeiro uso)";
   return [
     resultado === "guardada" && detalhe === "ja_havia"
       ? "pedir_credencial: guardada. O time já tinha uma chave do Composio configurada (a que a pessoa colou não foi usada). Você não vê o valor e não precisa dele: siga com as ferramentas do Composio."
       : resultado === "guardada" && detalhe === "nao_habilitado"
       ? `pedir_credencial: guardada. A pessoa guardou ${alvo} no cofre e o GitHub aceitou, mas o conector não subiu com ele. Você não vê o valor e não precisa dele: chame ver_apps_conectados e, se o GitHub seguir fora, diga à pessoa que a tela de apps mostra o que falhou (não peça o token de novo).`
+      : resultado === "guardada" && p.alvo === "app"
+      ? `pedir_credencial: guardada. A pessoa guardou ${alvo} no Cofre e ${artigo} ${p.app} aceitou. Você pode usá-la sempre, sem ver o valor: as ferramentas que precisam dela (como o computador d${artigo} ${p.app}) a leem do Cofre pelo nome ${p.chave ?? ""}. Se uma delas ainda disser que falta a chave, avise a pessoa em vez de pedir de novo.`
       : resultado === "guardada"
       ? `pedir_credencial: guardada. A pessoa guardou ${alvo} no cofre ${como}. Você não vê o valor e não precisa dele: as ferramentas do app passam a usá-lo (se uma delas ainda falhar, chame ver_apps_conectados antes de pedir de novo).`
       : `pedir_credencial: recusada. A pessoa deixou ${alvo} de lado. Siga sem ele: diga o que não dá para fazer sem a chave e não peça o valor no chat.`,

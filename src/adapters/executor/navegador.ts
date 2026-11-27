@@ -4,6 +4,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join, win32 } from "node:path";
 import { FONTES_DO_MAC, MOTIVOS_FALHA_NAVEGADOR, type ComandoNavegadorMaquina, type CookieNavegador, type FonteDoMac, type PedidoCofreDoMac, type ResultadoComandoNavegador } from "../../contracts/navegador-maquina.ts";
 import type { OpcaoLogin } from "../../contracts/navegador-do-bot.ts";
+import { ACOES_SEU_COMPUTADOR, type AcaoSeuComputador, type PedidoSeuComputador, type RespostaSeuComputador } from "../../contracts/seu-computador.ts";
 import { preencherLogin } from "../navegador/preencher-login.ts";
 import { log } from "../../obs/log.ts";
 import { ambienteDoSistema, criarMotorAgentBrowser, ehFalhaNavegador, executorPadrao, FalhaNavegador, type ExecutorProcesso, type MotorNavegador } from "../navegador/motor-agent-browser.ts";
@@ -36,7 +37,7 @@ export type SocketDoVivoMaquina = {
 
 /** O que o laço usa da ponte HTTP (`criarPonteHttp(...).navegador`). */
 export type CanalNavegadorDaMaquina = {
-  puxar(): Promise<unknown[] | null | "sem_rota">;
+  puxar(recursos?: readonly string[]): Promise<unknown[] | null | "sem_rota">;
   resultado(r: ResultadoComandoNavegador): Promise<boolean>;
   vivo(agenteId: string, token: string): Promise<SocketDoVivoMaquina | null>;
 };
@@ -67,6 +68,11 @@ export type OpcoesNavegadorDaMaquina = {
   relay?: (porta: number, comando: Readonly<Record<string, unknown>>) => Promise<boolean>;
   agora?: () => number;
   dormir?: (ms: number) => Promise<void>;
+  /**
+   * ADR-197: o computador da pessoa (o cua-driver desta máquina). Presente = a puxada anuncia `seu_computador` e os
+   * comandos `seu_computador` rodam aqui; ausente = esta máquina não atende (o servidor nem manda).
+   */
+  seuComputador?: { executar(agenteId: string, pedido: PedidoSeuComputador): Promise<RespostaSeuComputador> };
 };
 
 const ESPERA_SEM_ROTA_MS = 10 * 60_000;
@@ -91,7 +97,20 @@ export function lerComandoNavegador(v: unknown): ComandoNavegadorMaquina | null 
   if (c.tipo === "cofre") { const pedido = lerPedidoCofre(c.pedido); return pedido ? { ...base, tipo: "cofre", pedido } : null; }
   if (c.tipo === "chrome" && typeof c.host === "string" && HOST.test(c.host)) return { ...base, tipo: "chrome", host: c.host, aplicar: c.aplicar === true };
   if (c.tipo === "touch_id" && typeof c.motivo === "string" && c.motivo.length >= 1 && c.motivo.length <= 200) return { ...base, tipo: "touch_id", motivo: c.motivo };
+  if (c.tipo === "seu_computador") { const pedido = lerPedidoSeuComputador(c.pedido); return pedido ? { ...base, tipo: "seu_computador", pedido } : null; }
   return null;
+}
+
+/** O pedido ao computador da pessoa, conferido: a ação conhecida, os apps no formato do sistema e o nome do bot. */
+function lerPedidoSeuComputador(v: unknown): PedidoSeuComputador | null {
+  const p = obj(v);
+  if (typeof p.acao !== "string" || !(ACOES_SEU_COMPUTADOR as readonly string[]).includes(p.acao)) return null;
+  if (!Array.isArray(p.apps) || p.apps.length > 200 || typeof p.bot !== "string" || p.bot.length > 80) return null;
+  const apps = p.apps.map(obj).filter((a) => typeof a.id === "string" && a.id.length <= 400 && typeof a.nome === "string" && a.nome.length <= 200).map((a) => ({ id: String(a.id), nome: String(a.nome) }));
+  if (apps.length !== p.apps.length) return null;
+  const args = obj(p.args);
+  if (JSON.stringify(args).length > 40_000) return null;
+  return { acao: p.acao as AcaoSeuComputador, args, apps, bot: p.bot };
 }
 
 const HOST = /^[a-z0-9.-]{1,253}$/;
@@ -185,7 +204,7 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
    * Os comandos que só o Mac atende (L1, L2, L5, A1). O segredo que `preencher` lê vai direto para o navegador do bot
    * desta máquina e some; só `ler` o devolve, e só pela resposta à ponte.
    */
-  async function doMac(c: Exclude<ComandoNavegadorMaquina, { tipo: "motor" | "assistir" }>): Promise<unknown> {
+  async function doMac(c: Exclude<ComandoNavegadorMaquina, { tipo: "motor" | "assistir" | "seu_computador" }>): Promise<unknown> {
     const mac = exigirMac();
     const s = { agenteId: c.agenteId };
     if (c.tipo === "touch_id") {
@@ -213,7 +232,10 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
     let r: ResultadoComandoNavegador;
     try {
       if (c.tipo === "assistir") r = await abrirVivo(c);
-      else if (c.tipo !== "motor") {
+      else if (c.tipo === "seu_computador") {
+        if (!o.seuComputador) throw new FalhaNavegador("indisponivel", "esta máquina não controla o computador");
+        r = { id: c.id, ok: true, valor: await o.seuComputador.executar(c.agenteId, c.pedido) };
+      } else if (c.tipo !== "motor") {
         const valor = await doMac(c);
         r = { id: c.id, ok: true, ...(valor === undefined ? {} : { valor }) };
       } else {
@@ -244,7 +266,7 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
 
   void (async () => {
     while (!parado) {
-      const r = await o.canal.puxar().catch(() => null);
+      const r = await o.canal.puxar(o.seuComputador ? ["seu_computador"] : []).catch(() => null);
       if (parado) break;
       if (r === "sem_rota") { await dormir(ESPERA_SEM_ROTA_MS); continue; }
       if (r === null) { await dormir(ESPERA_SEM_RESPOSTA_MS); continue; }

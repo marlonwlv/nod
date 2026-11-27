@@ -9,6 +9,8 @@
  * quando um dos lados fecha esse WebSocket.
  */
 
+import type { PedidoSeuComputador } from "./seu-computador.ts";
+
 /** Por que um comando do navegador falhou (o mesmo motivo do motor local, `FalhaNavegador`). */
 export const MOTIVOS_FALHA_NAVEGADOR = ["alvo_invalido", "tempo_esgotado", "acao_falhou", "indisponivel", "recusado"] as const;
 export type MotivoFalhaNavegador = (typeof MOTIVOS_FALHA_NAVEGADOR)[number];
@@ -63,7 +65,9 @@ export type ComandoNavegadorMaquina =
    */
   | (BaseComando & { tipo: "chrome"; host: string; aplicar: boolean })
   /** A1 (ADR-177): o Touch ID do Mac antes de pagar. `motivo` aparece no diálogo do sistema. */
-  | (BaseComando & { tipo: "touch_id"; motivo: string });
+  | (BaseComando & { tipo: "touch_id"; motivo: string })
+  /** ADR-197: uma ação no computador da pessoa (o cua-driver desta máquina); a resposta vem em `valor` (RespostaSeuComputador). */
+  | (BaseComando & { tipo: "seu_computador"; pedido: PedidoSeuComputador });
 
 export type ResultadoComandoNavegador =
   | { id: string; ok: true; valor?: unknown }

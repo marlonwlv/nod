@@ -44,6 +44,8 @@ export type EntradaGuardar = {
   /** O segredo. Proibido no cartão (o número fica no aparelho da pessoa, ADR-195 §1). */
   valor?: string | null;
   dono: DonoItemCofre;
+  /** O que mais o evento 'guardado' ou 'trocado' leva (o bot do cartão que pediu). Nunca o valor. */
+  detalheDoEvento?: Record<string, unknown>;
 };
 
 /** A chave viva do tenant, aberta (cópia do chamador, que zera). Cria a versão 1 no primeiro uso. */
@@ -113,10 +115,12 @@ export async function guardarItem(deps: DepsDoCofre, chaves: ChavesDoTenant, ent
     }
   }
   const item = await deps.repos.cofre.inserirItem({ id, tipo: e.tipo, nome: e.nome, app: e.app, publico: e.publico, dono: e.dono, versao, cifra, agora });
+  // Entrega 3: quem podia usar a versão anterior continua podendo, no mesmo modo (a versão nova tem outro id).
+  if (anterior) await deps.repos.cofre.copiarConcessoes(anterior.id, item.id);
   await deps.repos.cofre.gravarEvento({
     itemId: id,
     tipo: anterior ? "trocado" : "guardado",
-    detalhe: anterior ? { versao, anterior: anterior.id } : { versao },
+    detalhe: { ...entrada.detalheDoEvento, ...(anterior ? { versao, anterior: anterior.id } : { versao }) },
     doTime: e.dono === "time",
     agora,
   });
@@ -127,8 +131,13 @@ export async function guardarItem(deps: DepsDoCofre, chaves: ChavesDoTenant, ent
  * SÓ PARA USO INTERNO DO SERVIDOR: decifra o valor de um item vivo para entregá-lo (a Entrega 2 sela para o motor; a
  * concessão ao bot também é conferida lá, não aqui). Marca o uso e grava 'entregue' (sem o valor). Cartão não tem
  * valor no servidor: `estado_invalido`.
+ *
+ * Entrega 3: quem lê a cada chamada de um app (o provedor da Orgo lê a chave em toda requisição) passa `onde` e registra o
+ * uso no máximo a cada INTERVALO_DO_USO_MS por item — o "usada há 3 min" do C1 não precisa de uma escrita por requisição.
  */
-export async function lerValorParaEntrega(deps: DepsDoCofre, chaves: ChavesDoTenant, p: { itemId: string; agenteId?: string | null; turnoId?: string | null }): Promise<{ item: ItemDoCofre; valor: string }> {
+export const INTERVALO_DO_USO_MS = 5 * 60_000;
+
+export async function lerValorParaEntrega(deps: DepsDoCofre, chaves: ChavesDoTenant, p: { itemId: string; agenteId?: string | null; turnoId?: string | null; onde?: string; espacarUso?: boolean }): Promise<{ item: ItemDoCofre; valor: string }> {
   const achado = await deps.repos.cofre.itemParaEntrega(p.itemId);
   if (!achado) throw new ErroDeDominio("nao_encontrado");
   if (!achado.cifra) throw new ErroDeDominio("estado_invalido");
@@ -146,12 +155,14 @@ export async function lerValorParaEntrega(deps: DepsDoCofre, chaves: ChavesDoTen
     zerar(chaveItem, chaveTenant);
   }
   const agora = deps.agora();
+  const recente = p.espacarUso === true && achado.item.ultimoUsoEm !== null && agora - achado.item.ultimoUsoEm < INTERVALO_DO_USO_MS;
+  if (recente) return { item: achado.item, valor };
   await deps.repos.cofre.marcarUso(achado.item.id, agora);
   await deps.repos.cofre.gravarEvento({
     itemId: achado.item.id,
     agenteId: p.agenteId ?? null,
     tipo: "entregue",
-    detalhe: { versao: achado.item.versao, ...(p.turnoId ? { turnoId: p.turnoId } : {}) },
+    detalhe: { versao: achado.item.versao, ...(p.turnoId ? { turnoId: p.turnoId } : {}), ...(p.onde ? { onde: p.onde } : {}) },
     doTime: achado.item.dono === "time",
     agora,
   });
