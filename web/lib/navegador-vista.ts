@@ -171,9 +171,10 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       corpo = `<span class="ctc-estado nv-precisa-txt"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="resolver">Já resolvi</button>${pedido?.tipo === "ajuda" ? "" : assumir()}</span>`;
       break;
     case "login":
-      // 2026-11-27: com a janela do Chrome aberta na tela da pessoa, a pílula diz onde entrar (o quadro aqui só acompanha).
+      // 2026-11-27 (Paper D4 · F): com a janela do Chrome aberta na tela da pessoa, a pílula diz onde entrar (o quadro aqui
+      // só acompanha). Curto como o D, para caber no painel estreito; o aparelho vai no title e na linha da conversa.
       corpo = janela
-        ? `<span class="ctc-estado nv-precisa-txt" role="status"><span>Entre na janela do Chrome que abriu no seu ${aparelho === "pc" ? "PC" : "Mac"}</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, já entrei</button>`
+        ? `<span class="ctc-estado nv-precisa-txt" role="status" title="A janela do Chrome abriu no seu ${aparelho === "pc" ? "PC" : "Mac"}"><span>Entre pela janela do Chrome</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, já entrei</button>`
         : `<span class="ctc-estado nv-precisa-txt"><span>${quem} espera você entrar</span></span><button type="button" class="ctc-bt nv-pronto" data-nv="resolver">Pronto, pode seguir</button>`;
       break;
     case "aprovacao": {

@@ -498,3 +498,16 @@ describe("o navegador no PC (2026-11-22): os textos do aparelho", () => {
     expect(login).not.toContain("Touch ID");
   });
 });
+
+describe("2026-11-27 (Paper D4 · F): a pílula do login com a janela do Chrome aberta", () => {
+  it("diz para entrar pela janela e o botão é 'Pronto, já entrei'; sem janela, o texto de antes", async () => {
+    const { htmlPilula } = await import("../../../web/lib/navegador-vista.ts");
+    const com = htmlPilula("Ada", "login", null, null, null, "pc", true);
+    expect(com).toContain("Entre pela janela do Chrome");
+    expect(com).toContain("Pronto, já entrei");
+    expect(com).toContain("abriu no seu PC");
+    const sem = htmlPilula("Ada", "login", null, null, null, "pc");
+    expect(sem).toContain("espera você entrar");
+    expect(sem).toContain("Pronto, pode seguir");
+  });
+});
