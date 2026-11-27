@@ -57,3 +57,33 @@ describe("hook no Windows (ADR-147)", () => {
     for (const ruim of ["CON", "nul", "Com1", "LPT9.txt", "aux.md", "Quem?", "a*b", "a<b", 'a"b', "a|b", "Ana Jr.", "Ada ", "a\u0001b", "", "Ada/", "Ada/..", "Ada/NUL"]) expect(pastaValidaNoWindows(ruim), JSON.stringify(ruim)).toBe(false);
   });
 });
+
+describe("achado 2 do QA da rc.15: apps da pessoa pelo terminal (ADR-197 item 7)", () => {
+  it.each([
+    "control.exe /name Microsoft.CredentialManager",
+    "rundll32 keymgr.dll,KRShowKeyMgr",
+    "cmdkey /list",
+    "cmd /c start ms-settings:",
+    "notepad.exe C:\\Users\\Bia\\nod\\ze-1\\teste.txt",
+    "C:\\Windows\\System32\\NOTEPAD.EXE",
+  ])("no win32 o hook nega %s sem perguntar ao servidor, em qualquer modo, e manda para seu_computador_* ou para a pessoa", async (comando) => {
+    const pedidos: string[] = [];
+    const confirmar: Confirmar = async (p) => { pedidos.push(p.comando ?? ""); return { permitir: true }; };
+    const r = await decidirHook(evento(comando), confirmar, { pastaDoBot: BOT, home: HOME, plataforma: "win32" });
+    expect(r.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(r.hookSpecificOutput.permissionDecisionReason).toMatch(/seu_computador_\*|peça para a pessoa/);
+    expect(pedidos).toEqual([]);
+  });
+
+  it("no Mac o hook nega open -a e security; git segue para o servidor", async () => {
+    const pedidos: string[] = [];
+    const confirmar: Confirmar = async (p) => { pedidos.push(p.comando ?? ""); return { permitir: true }; };
+    const pastas = { pastaDoBot: "/Users/bia/nod/ze-1", home: "/Users/bia", plataforma: "darwin" as const };
+    const ev = (command: string) => ({ tool_name: "Bash", tool_input: { command }, cwd: pastas.pastaDoBot });
+    expect((await decidirHook(ev("open -a Numbers"), confirmar, pastas)).hookSpecificOutput.permissionDecision).toBe("deny");
+    expect((await decidirHook(ev("security find-generic-password -s x -w"), confirmar, pastas)).hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(pedidos).toEqual([]);
+    expect((await decidirHook(ev("git status"), confirmar, pastas)).hookSpecificOutput.permissionDecision).toBe("allow");
+    expect(pedidos).toEqual(["git status"]);
+  });
+});

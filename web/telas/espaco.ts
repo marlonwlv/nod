@@ -1,4 +1,5 @@
 import type { Estado, SecaoEspaco } from "../estado/reducer.ts";
+import { htmlAjustesSeuComputador, type PermissoesDoMac } from "./ajustes-seu-computador.ts";
 import { htmlAjustesDoMac, type AjustesMac } from "./ajustes-mac.ts";
 import type { EstadoAvisos } from "../lib/avisos.ts";
 import { ehCelular } from "../lib/celular.ts";
@@ -109,6 +110,8 @@ export type ExtrasEspaco = {
   cofre?: () => string;
   /** ADR-173: Quick Chat e ferramentas do Mac; só no app do Mac (null/ausente na web, no Windows e na VM). */
   mac?: AjustesMac | null;
+  /** ADR-197: as permissões do macOS para o bot usar os apps (só no app do Mac). */
+  permissoesSeuComputador?: PermissoesDoMac | null;
   /** ADR-188: Configurações › Sobre o nod (a versão e a atualização do app). */
   sobre?: () => string;
 };
@@ -235,7 +238,7 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
     case "conexao":
       return renderProvedores(estado);
     case "maquinas":
-      return `${renderSecaoMaquinas(estado)}${extras.mac ? htmlAjustesDoMac(extras.mac) : ""}`;
+      return `${renderSecaoMaquinas(estado)}${htmlAjustesSeuComputador({ dados: estado.seuComputador, permissoes: extras.permissoesSeuComputador ?? null, bots: (estado.frota?.agentes ?? []).filter((a) => a.ownerId === estado.sessao?.pessoaId).map((a) => ({ id: a.id, nome: a.nome })) })}${extras.mac ? htmlAjustesDoMac(extras.mac) : ""}`;
     case "computador":
       return renderSecaoComputador(estado, avisoRecriadoDispensado());
     case "agentes":

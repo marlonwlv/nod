@@ -490,6 +490,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     computador: temComputador,
     computadorFora,
     navegador: deps.services.navegadores?.disponivel() === true,
+    seuComputador: deps.services.seuComputador?.disponivel(deps.escopo) ?? null,
     turno: { ...turno, sobProcuracaoDe, ...(modeloEscolhido ? { modelo: modeloEscolhido } : {}) },
     agente,
     ...(raciocinio ? { raciocinio } : {}),

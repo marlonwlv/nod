@@ -40,6 +40,12 @@ extraResources:
     to: agent-browser
     filter:
       - '**/*'
+  # ADR-197: o cua-driver (o bot usa os apps da pessoa), universal e fora do asar porque o app o roda como processo
+  # filho; montado por scripts/desktop/cua-driver-binario.mjs com o sha256 fixado (o electron-builder reassina).
+  - from: dist/cua-driver
+    to: cua-driver
+    filter:
+      - cua-driver
 npmRebuild: false
 artifactName: nod-${version}-${os}-${arch}.${ext}
 mac:

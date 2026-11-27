@@ -1,5 +1,6 @@
 import type { Computadores } from "../../fundo/computadores.ts";
 import type { Navegadores } from "../../fundo/navegadores.ts";
+import type { SeuComputadorGateway } from "../../fundo/seu-computador.ts";
 import type { Workspaces } from "../../fundo/workspaces.ts";
 import type { ClasseNegacao } from "../../../contracts/negacao.ts";
 import { MOTIVOS_NEGACAO, type MotivoNegacao } from "../../../contracts/motivos.ts";
@@ -36,6 +37,8 @@ export type DepsRotasInternas = {
   computadores?: Computadores;
   /** ADR-190: o navegador do bot; ausente = as navegador_* caem no caminho comum (fora do catálogo). */
   navegadores?: Navegadores;
+  /** ADR-197: o computador da pessoa; ausente = as seu_computador_* caem no caminho comum (fora do catálogo). */
+  seuComputador?: SeuComputadorGateway;
   dentro: DentroDeTx;
   /**
    * revisto em 2026-10-12 (NOD-214): o plano sai de `planoOuRecompor` — o do turno adotado depois de um reinício do
@@ -197,6 +200,12 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
           ctx.json(200, await deps.navegadores.chamar(ctx.escopo, plano, ctx.params.nome, corpo?.argumentos ?? {}));
           return;
         }
+        // ADR-197: o computador da pessoa tem portão próprio (liberação por app, fila da máquina dela).
+        if (ctx.params.nome?.startsWith("seu_computador_") && plano && deps.seuComputador) {
+          await deps.dentro(ctx.escopo, (d) => d.repos.trilha.registrar({ agenteId: plano.agenteId, turnoId, ferramenta: nomeParaTrilha(ctx.params.nome ?? ""), kind: "tool_call", regra: REGRA_CHAMADA, regraVersao: VERSAO_REGRA_CHAMADA }));
+          ctx.json(200, await deps.seuComputador.chamar(ctx.escopo, plano, ctx.params.nome, corpo?.argumentos ?? {}));
+          return;
+        }
         // NOD-263 (emenda ao ADR-001): três tempos. FASE 1 numa tx curta (portões, trilha, decisão do lote); o EFEITO fora de
         // tx, sob o contexto de log da fase 1; a FASE 2 numa tx nova, só quando há o que gravar (o app falhou, ou o lote).
         const contexto: { correlationId?: string; services?: Parameters<typeof executarEfeito>[0] } = {};
@@ -279,7 +288,7 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
               if (decisao.estado === "decidida" && (await d.repos.decisoes.reivindicarContinuacao(decisaoId, "turno", deps.agora())) === "retomada") return { estado: "da_retomada" as const };
               // Item 10, rodada 2: a mensagem nova substituiu o pedido (src/use-cases/substituir-aprovacoes.ts); o hook diz isso ao modelo.
               const substituida = decisao.desfecho?.tipo === "decidida_por_regra" && decisao.desfecho.regra === REGRA_APROVACAO_SUBSTITUIDA;
-              return { estado: "decidida" as const, substituida, itens: itens.map((i) => ({ idx: i.idx, desfecho: i.desfecho, de: i.destino.conector === "navegador" ? "navegador" as const : "computador" as const, acaoId: (i.destino.conector === "computador" || i.destino.conector === "navegador") && typeof i.destino.argumentos?.acaoId === "string" ? i.destino.argumentos.acaoId : null })) };
+              return { estado: "decidida" as const, substituida, itens: itens.map((i) => ({ idx: i.idx, desfecho: i.desfecho, de: i.destino.conector === "navegador" ? "navegador" as const : i.destino.conector === "seu_computador" ? "seu_computador" as const : "computador" as const, acaoId: (i.destino.conector === "computador" || i.destino.conector === "navegador" || i.destino.conector === "seu_computador") && typeof i.destino.argumentos?.acaoId === "string" ? i.destino.argumentos.acaoId : null })) };
             }
             return { estado: "pendente" as const, desde: Date.parse(decisao.criadoEm) };
           });
@@ -310,7 +319,7 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
             // 0032: o resultado da ação aprovada no computador volta junto (cifrado até aqui, entregue uma vez).
             // ADR-190: o da ação aprovada no navegador também (em memória, cifrado, entregue uma vez).
             const itens = await Promise.all(olhada.itens.map(async ({ acaoId, de, ...i }) => {
-              const resultado = !acaoId ? null : de === "navegador" ? deps.navegadores?.resultadoDaAcao(ctx.escopo, acaoId) ?? null : deps.computadores ? await deps.computadores.resultadoDaAcao(ctx.escopo, acaoId) : null;
+              const resultado = !acaoId ? null : de === "navegador" ? deps.navegadores?.resultadoDaAcao(ctx.escopo, acaoId) ?? null : de === "seu_computador" ? deps.seuComputador?.resultadoDaAcao(ctx.escopo, acaoId) ?? null : deps.computadores ? await deps.computadores.resultadoDaAcao(ctx.escopo, acaoId) : null;
               return resultado ? { ...i, resultado, ...(de === "navegador" ? { origem: "navegador" as const } : {}) } : i;
             }));
             ctx.json(200, { estado: "decidida", ...(olhada.substituida ? { substituida: true } : {}), itens });

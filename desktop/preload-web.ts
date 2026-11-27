@@ -145,6 +145,9 @@ const ponte: NodDesktop = {
   quickChatAbrir: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.quickChatAbrir, agenteId),
   ferramentasMac: () => ipcRenderer.invoke(CANAIS_MAC.ferramentasMac),
   definirFerramentaMac: (familia: FamiliaMac, ligada: boolean) => ipcRenderer.invoke(CANAIS_MAC.definirFerramentaMac, familia, ligada),
+  seuComputadorPermissoes: () => ipcRenderer.invoke(CANAIS_MAC.seuComputadorPermissoes),
+  seuComputadorPedirPermissao: (qual: "acessibilidade" | "gravacao_de_tela") => ipcRenderer.invoke(CANAIS_MAC.seuComputadorPedirPermissao, qual),
+  seuComputadorParar: () => ipcRenderer.invoke(CANAIS_MAC.seuComputadorParar),
   aoAbrir: (fn: (alvo: AlvoAviso) => void) => {
     // Um ouvinte só (a página registra uma vez; recarregar recria o preload). O evento do IPC não vai à página.
     ipcRenderer.removeAllListeners(CANAIS_DESKTOP.abrir);

@@ -23,12 +23,12 @@ export const PRESENCA_MS = 45_000;
 export const FOLGA_RESULTADO_MS = 10_000;
 
 type Pendente = { comando: ComandoNavegadorMaquina; maquinaId: string; escopo: Escopo; reservado: boolean; resolver: (r: ResultadoComandoNavegador) => void; relogio: ReturnType<typeof setTimeout> };
-type Presenca = { escopo: Escopo; plataforma: PlataformaMaquina; nome: string; em: number };
+type Presenca = { escopo: Escopo; plataforma: PlataformaMaquina; nome: string; em: number; recursos: readonly string[] };
 
 /** O comando sem o que a fila põe (id e prazo). */
 export type PedidoNavegadorMaquina = ComandoNavegadorMaquina extends infer C ? (C extends ComandoNavegadorMaquina ? Omit<C, "id" | "prazoEm"> : never) : never;
 
-export type MaquinaComNavegador = { maquinaId: string; plataforma: PlataformaMaquina; nome: string; em: number };
+export type MaquinaComNavegador = { maquinaId: string; plataforma: PlataformaMaquina; nome: string; em: number; /** ADR-197: o que a máquina atende além do navegador (`seu_computador`). */ recursos: readonly string[] };
 
 export type CanalNavegador = ReturnType<typeof criarCanalNavegador>;
 
@@ -59,9 +59,9 @@ export function criarCanalNavegador(o: {
 
   return {
     /** A máquina puxou agora (o long-poll do navegador): conta como ligada por PRESENCA_MS. */
-    presenca(escopo: Escopo, maquinaId: string, m: { plataforma: PlataformaMaquina; nome: string }): void {
+    presenca(escopo: Escopo, maquinaId: string, m: { plataforma: PlataformaMaquina; nome: string; recursos?: readonly string[] }): void {
       const nova = !ligada(escopo, maquinaId);
-      presencas.set(maquinaId, { escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, plataforma: m.plataforma, nome: m.nome, em: o.agora() });
+      presencas.set(maquinaId, { escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, plataforma: m.plataforma, nome: m.nome, em: o.agora(), recursos: m.recursos ?? [] });
       if (nova) { try { o.aoLigar?.(escopo, maquinaId, m.plataforma); } catch (e) { log("aviso", "navegador_ao_ligar_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }); } }
     },
     ligada,
@@ -69,7 +69,7 @@ export function criarCanalNavegador(o: {
     ligadas(escopo: Escopo): MaquinaComNavegador[] {
       const agora = o.agora();
       return [...presencas.entries()].filter(([, p]) => mesmaPessoa(p.escopo, escopo) && agora - p.em < PRESENCA_MS)
-        .map(([maquinaId, p]) => ({ maquinaId, plataforma: p.plataforma, nome: p.nome, em: p.em })).sort((a, b) => b.em - a.em);
+        .map(([maquinaId, p]) => ({ maquinaId, plataforma: p.plataforma, nome: p.nome, em: p.em, recursos: p.recursos })).sort((a, b) => b.em - a.em);
     },
     /**
      * Põe o comando na fila da máquina e devolve a resposta dela. Máquina sem o navegador ligado: volta na hora como

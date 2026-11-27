@@ -2,7 +2,7 @@ import { spawn, type SpawnOptions } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ARQUIVOS_DO_MOTOR, motorDiferente } from "../src/domain/atualizacao-do-motor.ts";
+import { ARQUIVOS_DO_MOTOR, manifestoComparavel, motorDiferente } from "../src/domain/atualizacao-do-motor.ts";
 
 /**
  * Definido em 2026-11-25: o motor do Windows se atualiza sozinho. Até aqui ele só mudava quando a pessoa rodava de novo
@@ -37,8 +37,27 @@ export const CARENCIA_DO_APP_MS = 60 * 60_000;
  * script cortava o turno no meio. O app segue cobrindo o motor antigo (sem sinal) e o motor que parou de sinalizar.
  */
 export const SINAL_DO_MOTOR = "motor-se-atualiza";
-export const INTERVALO_DO_SINAL_MS = 5 * 60_000;
-export const VALIDADE_DO_SINAL_MS = 3 * INTERVALO_DO_SINAL_MS;
+/**
+ * Aceite da rc.14 no Windows (2026-11-26): o sinal leva os turnos da pessoa (`turnos_da_pessoa`) e é renovado a cada
+ * minuto e no começo de cada turno, para o app saber se tem alguém esperando antes de passar por cima. A validade fica
+ * em 15 min: o motor até a rc.15 renova a cada 5 min, só com a hora, e não pode parecer morto para o app novo.
+ */
+export const INTERVALO_DO_SINAL_MS = 60_000;
+export const VALIDADE_DO_SINAL_MS = 15 * 60_000;
+/**
+ * Aceite da rc.14 no Windows (2026-11-26): o motor rc.13 renova o sinal mas a troca dele nunca roda (o `detached` do
+ * #358), e o app que respeitava o sinal sem prazo deixava a pessoa presa no rc.13. O app passa por cima do sinal quando
+ * a troca que o motor pediu para ESTE manifesto (o `atualizacao-pedida.json`) não pegou em PRAZO_DA_TROCA_PEDIDA_MS
+ * (a troca leva poucos minutos; é a validade da marca), ou quando o motor segue diferente além de PRAZO_COM_SINAL_MS
+ * (folga sobre a espera mais longa do motor: janela ociosa, drenagem e a hora depois de desistir). Nos dois casos, só
+ * sem turno da pessoa no sinal (QA-234, #365): o motor até a rc.15 não conta os turnos, e o app segue em frente.
+ */
+export const PRAZO_DA_TROCA_PEDIDA_MS = VALIDADE_DA_MARCA_MS;
+export const PRAZO_COM_SINAL_MS = 3 * CARENCIA_DO_APP_MS;
+/** O motor grava aqui o manifesto do último pedido de troca (assinatura + quando), na pasta do motor. */
+export const ARQUIVO_DO_ULTIMO_PEDIDO = "atualizacao-pedida.json";
+/** A assinatura do manifesto que o motor compara (a mesma do `atualizacao-pedida.json`). */
+export const assinaturaDoManifesto = (m: Readonly<Record<string, string>>): string => createHash("sha256").update(JSON.stringify(Object.entries(m).sort())).digest("hex");
 /** De quanto em quanto tempo o app confere o motor com o manifesto. */
 export const INTERVALO_DO_APP_MS = 30 * 60_000;
 
@@ -130,16 +149,38 @@ export async function atualizandoAgora(env: Env, agora = Date.now()): Promise<bo
   return marcaValida(m, agora);
 }
 
-/** O motor (que sabe se atualizar) diz que está vivo e cuidando da própria troca. */
-export async function sinalizarQueSeAtualiza(env: Env, agora = Date.now()): Promise<void> {
+/** O motor (que sabe se atualizar) diz que está vivo e cuidando da própria troca, e quantos turnos da pessoa rodam. */
+export async function sinalizarQueSeAtualiza(env: Env, agora = Date.now(), turnosDaPessoa?: number): Promise<void> {
   await mkdir(pastaDoNodNoWindows(env), { recursive: true });
-  await writeFile(arquivoDoSinal(env), `${new Date(agora).toISOString()}\n`);
+  const conteudo = turnosDaPessoa === undefined ? new Date(agora).toISOString() : JSON.stringify({ em: new Date(agora).toISOString(), turnos_da_pessoa: turnosDaPessoa });
+  await writeFile(arquivoDoSinal(env), `${conteudo}\n`);
+}
+
+/** O sinal lido pelo app. `turnosDaPessoa` null: o motor não conta (até a rc.15 o sinal é só a hora). */
+export type SinalDoMotor = { vivo: boolean; turnosDaPessoa: number | null };
+
+export async function lerSinalDoMotor(env: Env, agora = Date.now()): Promise<SinalDoMotor> {
+  const m = await stat(arquivoDoSinal(env)).then((s) => s.mtimeMs, () => null);
+  if (m === null || agora - m >= VALIDADE_DO_SINAL_MS) return { vivo: false, turnosDaPessoa: null };
+  const texto = await readFile(arquivoDoSinal(env), "utf8").catch(() => "");
+  let turnos: unknown = null;
+  try { turnos = (JSON.parse(texto) as { turnos_da_pessoa?: unknown } | null)?.turnos_da_pessoa ?? null; } catch { turnos = null; }
+  return { vivo: true, turnosDaPessoa: typeof turnos === "number" && Number.isFinite(turnos) && turnos >= 0 ? turnos : null };
 }
 
 /** O app: o motor instalado sinalizou há pouco que cuida da própria troca? */
 export async function motorSeAtualiza(env: Env, agora = Date.now()): Promise<boolean> {
-  const m = await stat(arquivoDoSinal(env)).then((s) => s.mtimeMs, () => null);
-  return m !== null && agora - m < VALIDADE_DO_SINAL_MS;
+  return (await lerSinalDoMotor(env, agora)).vivo;
+}
+
+/**
+ * Quando o motor pediu a troca para o manifesto desta assinatura (o `atualizacao-pedida.json` na pasta do motor).
+ * null: sem pedido, pedido ilegível ou de outro manifesto.
+ */
+export async function trocaPedidaPeloMotor(pastaDoMotor: string, assinatura: string): Promise<number | null> {
+  const texto = await readFile(join(pastaDoMotor, ARQUIVO_DO_ULTIMO_PEDIDO), "utf8").catch(() => null);
+  const p = ((): { assinatura?: unknown; em?: unknown } | null => { try { return texto === null ? null : (JSON.parse(texto) as { assinatura?: unknown; em?: unknown } | null); } catch { return null; } })();
+  return p?.assinatura === assinatura && typeof p.em === "number" && Number.isFinite(p.em) ? p.em : null;
 }
 
 /** O sha256 dos arquivos do motor instalado (o que falta vem null). */
@@ -156,30 +197,53 @@ export function manifestoDoWindows(arquivos: Readonly<Record<string, string>>): 
 
 /** O motor instalado difere do servidor? null = não deu para saber (servidor fora, rota antiga): não faz nada. */
 export async function motorDoWindowsDiferente(o: { servidor: string; env: Env; buscar?: typeof fetch }): Promise<boolean | null> {
+  return (await conferirMotorDoWindows(o))?.diferente ?? null;
+}
+
+/**
+ * O motor instalado comparado com o manifesto do servidor, com a assinatura que o motor grava no pedido de troca (a do
+ * manifesto inteiro sem os arquivos do computador, como o motor do Windows compara). null = não deu para saber.
+ */
+export async function conferirMotorDoWindows(o: { servidor: string; env: Env; buscar?: typeof fetch }): Promise<{ diferente: boolean; assinatura: string } | null> {
   const r = await (o.buscar ?? fetch)(`${o.servidor}/api/motor/manifesto`, { redirect: "error", signal: AbortSignal.timeout(15_000) }).catch(() => null);
   if (!r?.ok) return null;
   const m = (await r.json().catch(() => null)) as { arquivos?: Record<string, string> } | null;
   if (!m?.arquivos) return null;
   const manifesto = manifestoDoWindows(m.arquivos);
   if (Object.keys(manifesto).length === 0) return null;
-  return motorDiferente(await shaDoMotorInstalado(o.env), manifesto);
+  return { diferente: motorDiferente(await shaDoMotorInstalado(o.env), manifesto), assinatura: assinaturaDoManifesto(manifestoComparavel(m.arquivos, "")) };
 }
 
-export type EstadoDoApp = { diferenteDesde: number | null; jaConferiu: boolean };
+/** `disparouEm`: quando o app passou por cima do sinal por último (a troca dele também pode falhar: tenta de hora em hora). */
+export type EstadoDoApp = { diferenteDesde: number | null; jaConferiu: boolean; disparouEm?: number | null };
 export const APP_PARADO: EstadoDoApp = { diferenteDesde: null, jaConferiu: false };
+
+export type MotivoDoApp = "motor_antigo" | "carencia" | "troca_do_motor_nao_pegou" | "motor_preso_com_sinal";
 
 /**
  * O app decide se atualiza o motor. A primeira conferência depois de abrir atualiza na hora (é o caminho do motor antigo,
  * e o app recém-aberto quase nunca tem turno no meio); depois, só se o motor seguir diferente além da carência — o motor
- * novo pede sozinho, esperando os turnos da pessoa. Troca em curso (marca), motor novo vivo (o sinal, QA-234) ou sem
- * resposta do servidor: nada.
+ * novo pede sozinho, esperando os turnos da pessoa. Troca em curso (marca) ou sem resposta do servidor: nada.
+ *
+ * Motor vivo com o sinal (QA-234): o app espera, mas não para sempre (aceite da rc.14): passa por cima quando a troca
+ * que o motor pediu para este manifesto (`trocaPedidaEm`) não pegou em PRAZO_DA_TROCA_PEDIDA_MS, ou quando o motor
+ * segue diferente além de PRAZO_COM_SINAL_MS — e nunca com turno da pessoa no sinal (`turnosDaPessoa` > 0).
  */
-export function appDeveAtualizar(e: EstadoDoApp, o: { agora: number; diferente: boolean | null; atualizando: boolean; motorCuida?: boolean }): { estado: EstadoDoApp; atualizar: boolean } {
+export function appDeveAtualizar(e: EstadoDoApp, o: { agora: number; diferente: boolean | null; atualizando: boolean; motorCuida?: boolean; turnosDaPessoa?: number | null; trocaPedidaEm?: number | null }): { estado: EstadoDoApp; atualizar: boolean; motivo?: MotivoDoApp } {
   if (o.diferente === null) return { estado: e, atualizar: false };
-  // QA-234: o motor novo vivo cuida da troca esperando os turnos da pessoa; a carência só conta quando ele para de cuidar.
-  if (!o.diferente || o.motorCuida) return { estado: { diferenteDesde: null, jaConferiu: true }, atualizar: false };
+  if (!o.diferente) return { estado: { diferenteDesde: null, jaConferiu: true }, atualizar: false };
   const desde = e.diferenteDesde ?? o.agora;
-  if (o.atualizando) return { estado: { diferenteDesde: desde, jaConferiu: true }, atualizar: false };
-  const atualizar = !e.jaConferiu || o.agora - desde >= CARENCIA_DO_APP_MS;
-  return { estado: { diferenteDesde: atualizar ? null : desde, jaConferiu: true }, atualizar };
+  const disparouEm = e.disparouEm ?? null;
+  const parado = { estado: { diferenteDesde: desde, jaConferiu: true, disparouEm }, atualizar: false };
+  if (o.atualizando) return parado;
+  if (o.motorCuida) {
+    // #365: com turno da pessoa rodando, o motor (ou o app) esperaria; o app não corta o turno no meio.
+    if ((o.turnosDaPessoa ?? 0) > 0) return parado;
+    if (disparouEm !== null && o.agora - disparouEm < CARENCIA_DO_APP_MS) return parado;
+    const motivo: MotivoDoApp | null = o.trocaPedidaEm != null && o.agora - o.trocaPedidaEm >= PRAZO_DA_TROCA_PEDIDA_MS ? "troca_do_motor_nao_pegou"
+      : o.agora - desde >= PRAZO_COM_SINAL_MS ? "motor_preso_com_sinal" : null;
+    return motivo ? { estado: { diferenteDesde: desde, jaConferiu: true, disparouEm: o.agora }, atualizar: true, motivo } : parado;
+  }
+  const motivo: MotivoDoApp | null = !e.jaConferiu ? "motor_antigo" : o.agora - desde >= CARENCIA_DO_APP_MS ? "carencia" : null;
+  return motivo ? { estado: { diferenteDesde: null, jaConferiu: true, disparouEm }, atualizar: true, motivo } : parado;
 }

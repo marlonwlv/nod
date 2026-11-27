@@ -596,8 +596,10 @@ export function criarPonteHttpServidor(d: {
      * ADR-190 (definido em 2026-11-20): a máquina PUXA os comandos do navegador do bot (o servidor nunca disca, ADR-021).
      * Long-poll como o do computador; cada puxada também é a presença do navegador desta máquina (o lugar a vê "ligada").
      */
-    rota("navegador/puxar", async (ctx) => {
+    rota("navegador/puxar", async (ctx, b) => {
       const c = conexao(ctx);
+      // ADR-197: a máquina diz o que atende além do navegador (o app novo e o motor novo mandam `seu_computador`).
+      const recursos = Array.isArray(b.recursos) ? b.recursos.filter((x): x is string => x === "seu_computador") : [];
       if (!d.navegador) { ctx.json(404, { codigo: "sem_navegador" }); return; }
       const id = ctx.params.chaveId!;
       if (puxandoNavegador.has(id)) throw new ErroDeDominio("estado_invalido");
@@ -608,7 +610,7 @@ export function criarPonteHttpServidor(d: {
         do {
           if (ctx.res.destroyed) return;
           c.ultimo = d.agora();
-          canal.presenca(ctx.escopo, id, { plataforma: c.plataforma, nome: c.nome });
+          canal.presenca(ctx.escopo, id, { plataforma: c.plataforma, nome: c.nome, recursos });
           if (drenando) break;
           if (canal.temPara(ctx.escopo, id)) { ctx.json(200, { comandos: canal.puxar(ctx.escopo, id) }); return; }
           await esperar(250);

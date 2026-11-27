@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  APP_PARADO, appDeveAtualizar, arquivoDaMarca, atualizandoAgora, CARENCIA_DO_APP_MS, codificar, comandoDeAtualizarSolto, dispararSolto, manifestoDoWindows, OPCOES_DO_DISPARO,
-  marcaValida, motorDoWindowsDiferente, motorSeAtualiza, scriptDaAtualizacao, sinalizarQueSeAtualiza, VALIDADE_DA_MARCA_MS, VALIDADE_DO_SINAL_MS,
+  APP_PARADO, appDeveAtualizar, arquivoDaMarca, arquivoDoSinal, assinaturaDoManifesto, atualizandoAgora, CARENCIA_DO_APP_MS, codificar, comandoDeAtualizarSolto, conferirMotorDoWindows,
+  dispararSolto, lerSinalDoMotor, manifestoDoWindows, OPCOES_DO_DISPARO, marcaValida, motorDoWindowsDiferente, motorSeAtualiza, PRAZO_COM_SINAL_MS, PRAZO_DA_TROCA_PEDIDA_MS,
+  scriptDaAtualizacao, sinalizarQueSeAtualiza, trocaPedidaPeloMotor, VALIDADE_DA_MARCA_MS, VALIDADE_DO_SINAL_MS,
 } from "../../../motor/atualizacao-no-windows.ts";
 import { ARQUIVO_LOG_DO_MOTOR, destinoDoLogNoWindows } from "../../../motor/log-no-windows.ts";
 
@@ -94,21 +95,96 @@ describe("o motor do Windows se atualiza sozinho (2026-11-25)", () => {
 
   // Regression: QA-234 — o app derrubava o motor novo no meio do turno da pessoa (ao abrir e depois de 1 h), passando
   // por cima da espera dos turnos (ADR-100/131) que o próprio motor faz. Found by QA Nod (r238) on 2026-11-25.
-  it("QA-234: motor novo com o sinal vivo (ele espera os turnos da pessoa): o app não dispara, nem ao abrir nem além da carência", () => {
+  it("QA-234: motor novo com o sinal vivo (ele espera os turnos da pessoa): o app não dispara ao abrir nem além da carência", () => {
     const cuida = { diferente: true, atualizando: false, motorCuida: true };
     expect(appDeveAtualizar(APP_PARADO, { agora: 0, ...cuida }).atualizar).toBe(false);
     let e = appDeveAtualizar(APP_PARADO, { agora: 0, ...cuida }).estado;
-    for (const agora of [30 * MIN, CARENCIA_DO_APP_MS, 3 * CARENCIA_DO_APP_MS]) {
+    for (const agora of [30 * MIN, CARENCIA_DO_APP_MS, PRAZO_COM_SINAL_MS - 1]) {
       const d = appDeveAtualizar(e, { agora, ...cuida });
       expect(d.atualizar).toBe(false);
       e = d.estado;
     }
-    // O motor parou de sinalizar (caiu, ou é o antigo que não sabe se atualizar): a carência conta a partir daqui.
-    const sem = { diferente: true, atualizando: false, motorCuida: false };
-    let d = appDeveAtualizar(e, { agora: 4 * CARENCIA_DO_APP_MS, ...sem });
+    // O motor parou de sinalizar (caiu, ou é o antigo que não sabe se atualizar) e segue diferente há horas: o app entra.
+    const d = appDeveAtualizar(e, { agora: PRAZO_COM_SINAL_MS - 1 + 30 * MIN, diferente: true, atualizando: false, motorCuida: false });
+    expect(d).toMatchObject({ atualizar: true, motivo: "carencia" });
+  });
+
+  // Regression: aceite da rc.14 no Windows, achado 1 (bloqueante) — o motor rc.13 renovava o sinal, a troca dele nunca
+  // rodava (o `detached` do #358) e o app desistia sempre que havia sinal: a pessoa ficava presa no rc.13. Found by Chico
+  // (QA no Windows) on 2026-11-26.
+  it("aceite rc.14: sinal vivo, mas a troca que o motor pediu para este manifesto não pegou: o app passa por cima depois do prazo", () => {
+    const pedido = 0;
+    const cuida = { diferente: true, atualizando: false, motorCuida: true, turnosDaPessoa: null, trocaPedidaEm: pedido };
+    // Antes do prazo a troca pode estar rodando (o motor a dispara e sai): o app espera, mesmo na primeira conferência.
+    let d = appDeveAtualizar(APP_PARADO, { agora: PRAZO_DA_TROCA_PEDIDA_MS - 1, ...cuida });
     expect(d.atualizar).toBe(false);
-    d = appDeveAtualizar(d.estado, { agora: 5 * CARENCIA_DO_APP_MS, ...sem });
-    expect(d.atualizar).toBe(true);
+    d = appDeveAtualizar(d.estado, { agora: PRAZO_DA_TROCA_PEDIDA_MS, ...cuida });
+    expect(d).toMatchObject({ atualizar: true, motivo: "troca_do_motor_nao_pegou" });
+    // O app recém-aberto (a rc.14 depois de se atualizar) com o pedido velho do rc.13: troca na primeira conferência.
+    expect(appDeveAtualizar(APP_PARADO, { agora: 11 * MIN + PRAZO_DA_TROCA_PEDIDA_MS, ...cuida })).toMatchObject({ atualizar: true, motivo: "troca_do_motor_nao_pegou" });
+    // Troca em curso (marca): espera ela acabar.
+    expect(appDeveAtualizar(APP_PARADO, { agora: 2 * PRAZO_DA_TROCA_PEDIDA_MS, ...cuida, atualizando: true }).atualizar).toBe(false);
+  });
+
+  it("aceite rc.14: sinal vivo e motor diferente além de PRAZO_COM_SINAL_MS, sem pedido de troca: o app passa por cima", () => {
+    const cuida = { diferente: true, atualizando: false, motorCuida: true, turnosDaPessoa: null, trocaPedidaEm: null };
+    let d = appDeveAtualizar(APP_PARADO, { agora: 0, ...cuida });
+    for (const agora of [30 * MIN, CARENCIA_DO_APP_MS, 2 * CARENCIA_DO_APP_MS, PRAZO_COM_SINAL_MS - 1]) {
+      d = appDeveAtualizar(d.estado, { agora, ...cuida });
+      expect(d.atualizar).toBe(false);
+    }
+    d = appDeveAtualizar(d.estado, { agora: PRAZO_COM_SINAL_MS, ...cuida });
+    expect(d).toMatchObject({ atualizar: true, motivo: "motor_preso_com_sinal" });
+    // A troca do app também falhou (o motor segue diferente e sinalizando): tenta de novo só depois da carência.
+    d = appDeveAtualizar(d.estado, { agora: PRAZO_COM_SINAL_MS + 30 * MIN, ...cuida });
+    expect(d.atualizar).toBe(false);
+    d = appDeveAtualizar(d.estado, { agora: PRAZO_COM_SINAL_MS + CARENCIA_DO_APP_MS, ...cuida });
+    expect(d).toMatchObject({ atualizar: true, motivo: "motor_preso_com_sinal" });
+    // O motor ficou igual ao manifesto: tudo zera.
+    expect(appDeveAtualizar(d.estado, { agora: PRAZO_COM_SINAL_MS + 2 * CARENCIA_DO_APP_MS, ...cuida, diferente: false }).estado.diferenteDesde).toBe(null);
+  });
+
+  it("#365: com turno da pessoa no sinal, o app nunca passa por cima — nem com a troca do motor que não pegou, nem além do prazo", () => {
+    const comTurno = { diferente: true, atualizando: false, motorCuida: true, turnosDaPessoa: 1, trocaPedidaEm: 0 };
+    let d = appDeveAtualizar(APP_PARADO, { agora: 0, ...comTurno });
+    for (const agora of [PRAZO_DA_TROCA_PEDIDA_MS, PRAZO_COM_SINAL_MS, 2 * PRAZO_COM_SINAL_MS]) {
+      d = appDeveAtualizar(d.estado, { agora, ...comTurno });
+      expect(d.atualizar).toBe(false);
+    }
+    // O turno acabou: o app troca na conferência seguinte.
+    d = appDeveAtualizar(d.estado, { agora: 2 * PRAZO_COM_SINAL_MS + 30 * MIN, ...comTurno, turnosDaPessoa: 0 });
+    expect(d).toMatchObject({ atualizar: true, motivo: "troca_do_motor_nao_pegou" });
+  });
+
+  it("aceite rc.14: o app lê o pedido de troca do motor só quando é do manifesto atual", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "nod-win-"));
+    expect(await trocaPedidaPeloMotor(pasta, "abc")).toBe(null);
+    await writeFile(join(pasta, "atualizacao-pedida.json"), `${JSON.stringify({ assinatura: "abc", em: 1234 })}\n`);
+    expect(await trocaPedidaPeloMotor(pasta, "abc")).toBe(1234);
+    expect(await trocaPedidaPeloMotor(pasta, "outro")).toBe(null);
+    await writeFile(join(pasta, "atualizacao-pedida.json"), "{quebrado");
+    expect(await trocaPedidaPeloMotor(pasta, "abc")).toBe(null);
+  });
+
+  it("aceite rc.14: a assinatura que o app calcula é a do manifesto sem os arquivos do computador, como o motor do Windows grava", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "nod-win-"));
+    const arquivos = { "nod-motor.mjs": sha("a"), "proxy.mjs": sha("b"), "hook-nativas.mjs": sha("c"), "computador-tela.mjs": sha("d") };
+    const r = await conferirMotorDoWindows({ servidor: "https://nod", env: { NOD_PASTA: pasta }, buscar: (async () => new Response(JSON.stringify({ arquivos }))) as typeof fetch });
+    const { "computador-tela.mjs": _fora, ...semComputador } = arquivos;
+    expect(r).toEqual({ diferente: true, assinatura: assinaturaDoManifesto(semComputador) });
+  });
+
+  it("aceite rc.14: o sinal novo leva os turnos da pessoa; o do motor até a rc.15 (só a hora) vale como vivo, sem turnos", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "nod-win-"));
+    const env = { NOD_PASTA: pasta };
+    expect(await lerSinalDoMotor(env)).toEqual({ vivo: false, turnosDaPessoa: null });
+    await sinalizarQueSeAtualiza(env, Date.now(), 2);
+    expect(await lerSinalDoMotor(env)).toEqual({ vivo: true, turnosDaPessoa: 2 });
+    await writeFile(arquivoDoSinal(env), `${new Date().toISOString()}\n`);
+    expect(await lerSinalDoMotor(env)).toEqual({ vivo: true, turnosDaPessoa: null });
+    // O motor até a rc.15 renova a cada 5 min: 6 min sem renovar ainda vale.
+    expect((await lerSinalDoMotor(env, Date.now() + 6 * MIN)).vivo).toBe(true);
+    expect((await lerSinalDoMotor(env, Date.now() + VALIDADE_DO_SINAL_MS + MIN)).vivo).toBe(false);
   });
 
   it("QA-234: o sinal do motor que se atualiza vale por VALIDADE_DO_SINAL_MS; sem arquivo, o motor é o antigo", async () => {

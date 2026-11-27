@@ -602,7 +602,7 @@ export function soltarFolha(altura: number, tela: number, velocidade = 0): Posic
 
 // ---- o cabeçalho do painel: lugares e ações (D1, 1 e 2; D1c) -------------------------------------------------------------
 
-export type LugarDaVista = "navegador" | "computador";
+export type LugarDaVista = "navegador" | "computador" | "seu_computador";
 
 /** O ponto do lugar ativo (D1, 1): verde ao vivo, azul precisa de você; parado, sem ponto. */
 export function pontoDoLugar(v: Pick<VistaNavegador, "estado" | "controle" | "pedido"> | null): "vivo" | "precisa" | null {
@@ -616,8 +616,9 @@ export function pontoDoLugar(v: Pick<VistaNavegador, "estado" | "controle" | "pe
  * O seletor segmentado (D1, 1; D8: a pílula branca desliza). Só os lugares que o bot tem. Com um lugar só (achado 11 do
  * crítico), não há o que escolher: vira o rótulo, sem fundo, sombra nem botão.
  */
-export function htmlLugares(lugares: readonly LugarDaVista[], ativo: LugarDaVista, ponto: "vivo" | "precisa" | null, o: { escuro?: boolean } = {}): string {
-  const nomes: Record<LugarDaVista, string> = { navegador: "Navegador", computador: "Computador" };
+export function htmlLugares(lugares: readonly LugarDaVista[], ativo: LugarDaVista, ponto: "vivo" | "precisa" | null, o: { escuro?: boolean; aparelho?: "Mac" | "PC" } = {}): string {
+  // ADR-197 (S4): o terceiro lugar é o computador da pessoa ("Seu Mac" / "Seu PC").
+  const nomes: Record<LugarDaVista, string> = { navegador: "Navegador", computador: "Computador", seu_computador: `Seu ${o.aparelho ?? "Mac"}` };
   if (lugares.length <= 1) {
     const marca = ponto ? `<i class="nv-lugar-ponto" data-ponto="${ponto}" aria-hidden="true"></i>` : "";
     return `<span class="nv-lugares nv-lugar-unico${o.escuro ? " nv-lugares-escuro" : ""}">${marca}<span>${nomes[lugares[0] ?? ativo]}</span></span>`;
