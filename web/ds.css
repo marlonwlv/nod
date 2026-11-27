@@ -231,3 +231,64 @@ nod-mascote.c-black svg > g > path, .mascote.c-black :is(.olho, .mascote-pausado
   .paleta-campo:focus-within, .cfg-busca:focus-within { outline: 2px solid CanvasText; outline-offset: -2px; }
   .paleta-item[aria-selected="true"] { outline: 2px solid Highlight; }
 }
+
+/* =====================================================================================
+   Confirmação (XUM-6, 26/11): o diálogo de confirmar no visual novo, no padrão do diálogo do Cofre (Paper C4) e da paleta:
+   superfície elevada, raio 14, sombra de modal e o véu; título 17/24 em 500 com o × à direita; corpo 13/18 em ink-2; pé
+   com "Cancelar" fantasma e o primário em pílula (vermelho quando destrói). `dialog.bot-dialogo.dlg-ds` vence o
+   .bot-dialogo antigo (interface.css) sem !important.
+   ===================================================================================== */
+dialog.bot-dialogo.dlg-ds { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); padding: 20px; border: 0; border-radius: var(--raio-14); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-modal); }
+dialog.bot-dialogo.dlg-ds::backdrop { background: var(--veu-modal); backdrop-filter: none; }
+dialog.bot-dialogo.dlg-ds[open] { animation: ds-sobe var(--dur-normal) var(--curva) both; }
+.dlg-ds-form { display: flex; flex-direction: column; margin: 0; }
+.dlg-ds-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+dialog.bot-dialogo.dlg-ds h2 { margin: 0; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); font-weight: var(--peso-medio); color: var(--ink); }
+.dlg-ds-fechar { display: grid; flex: none; place-items: center; width: 28px; height: 28px; margin: -2px -6px 0 0; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); cursor: pointer; }
+.dlg-ds-fechar:hover { background: var(--hover); color: var(--ink); }
+.dlg-ds-corpo { margin-top: 8px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
+dialog.bot-dialogo.dlg-ds .dlg-ds-corpo p { margin: 8px 0 0; line-height: var(--lh-corpo-2); color: var(--ink-2); }
+.dlg-ds-corpo .parar-lista { margin: 0; padding: 8px 12px; border-radius: var(--raio-10); background: var(--hover); list-style: none; color: var(--ink); }
+.dlg-ds-corpo .parar-lista li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 22px; }
+dialog.bot-dialogo.dlg-ds .dlg-ds-erro { margin: 8px 0 0; font-size: var(--fs-rotulo); }
+dialog.bot-dialogo.dlg-ds .dlg-ds-erro:empty { display: none; }
+.dlg-ds-pe { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.dlg-ds-pe .bt { height: 34px; padding: 0 16px; border: 0; border-radius: var(--raio-full); font: inherit; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); cursor: pointer; }
+.dlg-ds-pe .dlg-ds-cancelar { background: none; color: var(--ink-2); font-weight: var(--peso-regular); }
+.dlg-ds-pe .dlg-ds-cancelar:hover { background: var(--hover); color: var(--ink); }
+.dlg-ds-pe .dlg-ds-primario { background: var(--action); color: var(--on-action); }
+.dlg-ds-pe .dlg-ds-primario.perigo { background: var(--danger); color: var(--surface-elevated); }
+.dlg-ds-pe .dlg-ds-primario:hover { opacity: .88; }
+.dlg-ds-pe .bt:disabled { opacity: .5; cursor: default; }
+.dlg-ds :is(.dlg-ds-fechar, .bt):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { dialog.bot-dialogo.dlg-ds[open] { animation: none; } }
+/* ---- XUM-5: o cartão de decisão genérico no DS atual (renderItem em web/telas/sua-vez.ts) ----
+   O desenho do cartão de aprovação (ADR-166, tela 06): branco, borda fina, raio 12, sombra inline; o mascote e o nome no
+   cabeçalho com o tipo em cinza (no lugar do selo âmbar), a pergunta em 600, o prazo em legenda e as ações em pílula, a
+   primária preta à direita. Sai a borda lateral de 4 px de .decisao (estilos.css). Classe própria e não .aprov-card: a
+   pílula "pedidos na janela" (web/lib/rolagem-na-tela.ts) conta li.aprov-card, e este cartão não muda o que ela conta. */
+.lista > li.dec-cartao, li.dec-cartao { display: flex; flex-direction: column; max-width: 560px; padding: 0; border: 1px solid var(--borda-sutil) !important; border-left: 1px solid var(--borda-sutil) !important; border-radius: var(--raio-12); background: var(--surface-elevated) !important; box-shadow: var(--sombra-inline); margin-bottom: 12px; color: var(--ink); }
+.dec-cartao .aprov-cab { flex-wrap: wrap; }
+.dec-cartao .dec-quem { font-weight: var(--peso-medio); color: var(--ink-2); }
+.dec-cartao .dec-quem-linha { min-width: 0; overflow-wrap: anywhere; }
+.dec-cartao .dec-tipo { color: var(--ink-3); }
+.dec-cartao .dec-cab-fim { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.dec-cartao .dec-abrir { font-size: var(--fs-corpo-2); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+.dec-cartao .aprov-titulo { margin: 0; padding: 10px 16px 0; font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.dec-cartao .aprov-onde { margin: 4px 0 0; padding: 0 16px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); overflow-wrap: anywhere; }
+.dec-cartao .dec-prazo { margin: 4px 0 0; padding: 0 16px; font-size: var(--fs-legenda); line-height: var(--lh-legenda); color: var(--ink-3); }
+/* O que cada tipo põe no meio (a linha "não rodaram", o detalhe do acesso, os grupos, as prévias): o recuo do texto. */
+.dec-cartao > :not(.aprov-cab, .aprov-titulo, .aprov-onde, .dec-prazo, .aprov-acoes, .dec-campo) { margin-left: 16px; margin-right: 16px; }
+.dec-cartao .dec-campo { margin: 12px 16px 0; }
+.dec-cartao .dec-campo .resposta { box-sizing: border-box; width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--borda); border-radius: var(--raio-10); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo); }
+.dec-cartao .dec-campo .resposta::placeholder { color: var(--ink-3); }
+.dec-cartao .dec-campo .resposta:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; }
+.dec-cartao .aprov-acoes { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin: 0; padding: 14px; }
+/* As secundárias fantasmas (o Negar do cartão de aprovação); o verbo destrutivo em vermelho num fundo cinza. */
+.dec-cartao .aprov-acoes .bt:not(.pri, .danger, .link) { background: none; color: var(--ink-2); }
+.dec-cartao .aprov-acoes .bt:not(.pri, .danger, .link):hover { background: var(--hover); color: var(--ink); }
+.dec-cartao .aprov-acoes .bt.danger { background: var(--hover); }
+.dec-cartao .aprov-acoes .bt.danger:hover { background: var(--ativo); }
+/* Vencido: o mesmo cartão, apagado (sem a sombra e com a pergunta em cinza); o Reabrir segue à direita. */
+.lista > li.dec-cartao.dec-vencido { box-shadow: none; color: var(--ink-2); }
+.dec-cartao.dec-vencido .aprov-titulo { color: var(--ink-2); font-weight: var(--peso-medio); }

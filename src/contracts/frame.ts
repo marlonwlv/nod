@@ -91,6 +91,8 @@ export type TipoFrame =
    * mudaram; src/adapters/navegador/aviso-mudou.ts), no máximo ~4/s por bot. A web relê GET /agentes/:id/navegador.
    */
   | "navegador.mudou"
+  /** ADR-197 (2026-11-26): o bot agiu no computador da pessoa: {agenteId}. A web relê GET /agentes/:id/seu-computador. */
+  | "seu_computador.mudou"
   | "resumed";
 
 /**

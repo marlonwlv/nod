@@ -223,9 +223,9 @@ describe("a tela da tarefa (#195, K2/K7)", () => {
   it("o Parar do chat com tasks abertas lista antes", () => {
     // QA do épico (2026-10-08): os títulos vão numa lista no corpo; o título do diálogo fica curto.
     const duas = [{ titulo: "Migrar relatórios" }, { titulo: "Dashboard <churn>" }];
-    expect(textoPararTasks(duas, "Dev 1")).toBe("Parar as 2 tarefas do Dev 1?");
+    expect(textoPararTasks(duas)).toBe("Parar as 2 tarefas abertas?");
     expect(listaPararTasks(duas)).toBe('<ul class="parar-lista"><li>Migrar relatórios</li><li>Dashboard &lt;churn&gt;</li></ul>');
-    expect(textoPararTasks([{ titulo: "Migrar relatórios" }], "Dev 1")).toBe("Parar a tarefa Migrar relatórios?");
+    expect(textoPararTasks([{ titulo: "Migrar relatórios" }])).toBe("Parar a tarefa Migrar relatórios?");
     expect(listaPararTasks([{ titulo: "Migrar relatórios" }])).toBe("");
   });
 });

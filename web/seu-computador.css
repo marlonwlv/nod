@@ -1,0 +1,16 @@
+/* ADR-197 (Paper "Seu computador", S4): a aba "Seu Mac" do painel — o quadro da janela com a borda âmbar e os passos. */
+.sc-painel { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 16px; border-radius: var(--raio-14); box-shadow: 0 0 0 1px var(--line); background: var(--surface-raised); color: var(--ink); font-size: var(--fs-corpo-2); }
+.sc-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sc-app { font-weight: 500; }
+.sc-vivo { color: var(--warning); font-size: 13px; }
+.sc-quando { color: var(--ink-2); font-size: 13px; }
+.sc-quadro { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
+.sc-quadro-vivo { box-shadow: 0 0 0 2px var(--warning); }
+.sc-sem-quadro { padding: 24px; text-align: center; color: var(--ink-2); }
+.sc-rotulo { margin: 4px 0 0; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; }
+.sc-passos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sc-passos li { display: flex; gap: 16px; line-height: 20px; }
+.sc-hora { flex: none; width: 44px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.sc-agora, .sc-agora .sc-hora { color: var(--warning); }
+.sc-vazio { align-items: center; justify-content: center; text-align: center; gap: 8px; }
+.sc-vazio span { max-width: 320px; color: var(--ink-2); }

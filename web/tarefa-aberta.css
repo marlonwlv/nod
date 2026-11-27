@@ -71,6 +71,8 @@
 .ta-run-av { flex: none; align-self: flex-start; width: 24px; height: 24px; line-height: 0; position: relative; }
 .ta-run[data-estado="rodando"] .ta-run-av::after { content: ""; position: absolute; left: 50%; top: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid transparent; border-top-color: var(--ink-3); animation: ta-gira 1s linear infinite; pointer-events: none; }
 @keyframes ta-gira { to { transform: rotate(360deg); } }
+/* XUM-7: o run que só espera (situacaoDoRun "esperando": colega, comando, máquina) não gira: o anel fica tracejado e parado. */
+.ta-run[data-esperando="1"] .ta-run-av::after { animation: none; border-style: dashed; border-color: var(--line-strong); }
 .ta-run-corpo { flex: 1; min-width: 0; }
 .ta-run-cab { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; font-size: 12.5px; color: var(--ink-3); }
 .ta-run-cab b { font-weight: 600; color: var(--ink); }

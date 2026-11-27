@@ -1,4 +1,5 @@
 import { fonteDoLogin, htmlCartaoAjudaNavegador, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoCombinar, htmlCartaoLogin, htmlCartaoPedidoSemVista, htmlLinhaEntrandoEuMesmo, linhaDaRespostaDoNavegador, nomeDoSite, noOuNa, pedidoDoNavegadorNaFala, type PedidoNaFala } from "../lib/navegador-cartoes.ts";
+import { htmlCartaoSeuComputador } from "../lib/seu-computador-cartao.ts";
 import { listaDasColunasParaSuaVez } from "./card-colunas.ts";
 import { oA } from "./desvio.ts";
 import { agruparIguais, renderPedidosIguais } from "./pedidos-iguais.ts";
@@ -511,17 +512,26 @@ function renderAprovacao(item: Item, aberta: boolean, conectores: Estado["conect
   return `<ul class="ap-lista">${itens.map(linha).join("")}</ul>${acoes}`;
 }
 
+/**
+ * XUM-5 (DS atual, o mesmo do cartão de aprovação): a fila de ações do cartão — as secundárias primeiro, fantasmas, e a
+ * primária em pílula preta no fim, à direita. A ordem do DOM é a da tela (o Tab anda como se lê).
+ */
+function fila(primario: string, ...outros: string[]): string {
+  return `<div class="acoes aprov-acoes">${outros.join("")}${primario}</div>`;
+}
+
 function renderAcoes(item: Item, aberta: boolean, estado: Pick<Estado, "conectores" | "marketplace" | "frota" | "sessao">): string {
   const d = item.decisao;
   const conectores = estado.conectores;
-  if (!aberta) return d.estado === "vencida" ? `<div class="acoes">${botao("reabrir", "Reabrir", { id: d.id })}</div>` : "";
+  if (!aberta) return d.estado === "vencida" ? fila(botao("reabrir", "Reabrir", { id: d.id })) : "";
   switch (d.tipo) {
     case "aprovacao":
     case "gate_rotina":
       return renderAprovacao(item, true, conectores, estado.frota?.revisor === true);
     // definido em 2026-09-24 (ADR-045): quem não quer retomar dispensa — antes o card só saía vencendo.
+    // XUM-5 (DS atual): o campo numa linha só dele e embaixo "Dispensar · Retomar" em pílula, como os outros cartões.
     case "retomar_turno":
-      return `<div class="acoes"><input class="resposta" data-resposta="${esc(d.id)}" placeholder="o que mudou (opcional)" />${botao("retomar", "Retomar com turno novo", { classe: "pri", id: d.id })}${botao("dispensar", "Dispensar", { id: d.id, titulo: "Tirar da tela sem retomar" })}</div>`;
+      return `<div class="dec-campo"><input class="resposta" data-resposta="${esc(d.id)}" placeholder="O que mudou? (opcional)" aria-label="O que mudou (opcional)" autocomplete="off" /></div>${fila(botao("retomar", "Retomar", { classe: "pri", id: d.id, titulo: "Retomar com um turno novo" }), botao("dispensar", "Dispensar", { id: d.id, titulo: "Tirar da tela sem retomar" }))}`;
     case "acesso": {
       const r = rotulosAcesso(item.proposta);
       // revisto em 2026-09-25 (revisão do PR #68): os mesmos grupos do card do chat — sem eles, "Sua vez" (e o
@@ -529,73 +539,73 @@ function renderAcoes(item: Item, aberta: boolean, estado: Pick<Estado, "conector
       const p = item.proposta?.payload.kind === "acesso" ? item.proposta.payload : null;
       const catalogo = p ? conectores.find((c) => c.slug === p.conector && c.habilitado)?.catalogo ?? [] : [];
       const grupos = p ? checkboxesDosGrupos(catalogo, p.capacidades) : "";
-      return `${grupos}<div class="acoes">${botao("permitir-acesso", r.permitir, { classe: "pri", id: d.id })}${botao("recusar-decisao", r.recusar, { id: d.id })}</div>`;
+      return `${grupos}${fila(botao("permitir-acesso", r.permitir, { classe: "pri", id: d.id }), botao("recusar-decisao", r.recusar, { id: d.id }))}`;
     }
     // definido em 2026-09-24 (emenda da ADR-044, "rotina nasce com o acesso"): a rotina que declara acessos
     // diz no botão que confirmar também libera; app por conectar vem primeiro (web/telas/rotina-precisa.ts).
     case "rotina": {
       const comAcesso = acoesComAcesso(item.proposta, estado, { confirmar: "decidir-proposta", recusar: "recusar-decisao", rotuloRecusar: "Deixar de lado" });
-      if (comAcesso) return `<div class="acoes">${comAcesso.botoes}</div>${comAcesso.ajuda}`;
-      return `<div class="acoes">${botao("decidir-proposta", "Confirmar", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Recusar", { id: d.id })}</div>`;
+      if (comAcesso) return `<div class="acoes aprov-acoes">${comAcesso.botoes}</div>${comAcesso.ajuda}`;
+      return `${fila(botao("decidir-proposta", "Confirmar", { classe: "pri", id: d.id }), botao("recusar-decisao", "Recusar", { id: d.id }))}`;
     }
     case "perfil":
-      return `<div class="acoes">${botao("decidir-proposta", "Confirmar", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Recusar", { id: d.id })}</div>`;
+      return `${fila(botao("decidir-proposta", "Confirmar", { classe: "pri", id: d.id }), botao("recusar-decisao", "Recusar", { id: d.id }))}`;
     // definido em 2026-10-04 (ADR-077): o primeiro bot que a Nina propõe no onboarding nasce pela mesma decisão.
     case "bot":
-      return `<div class="acoes">${botao("decidir-proposta", "Criar bot", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Recusar", { id: d.id })}</div>`;
+      return `${fila(botao("decidir-proposta", "Criar bot", { classe: "pri", id: d.id }), botao("recusar-decisao", "Recusar", { id: d.id }))}`;
     case "rotina_atualizacao": {
       const comAcesso = acoesComAcesso(item.proposta, estado, { confirmar: "decidir-proposta", recusar: "recusar-decisao", rotuloRecusar: "Manter como está" });
-      if (comAcesso) return `<div class="acoes">${comAcesso.botoes}</div>${comAcesso.ajuda}`;
-      return `<div class="acoes">${botao("decidir-proposta", "Aplicar mudança", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Manter como está", { id: d.id })}</div>`;
+      if (comAcesso) return `<div class="acoes aprov-acoes">${comAcesso.botoes}</div>${comAcesso.ajuda}`;
+      return `${fila(botao("decidir-proposta", "Aplicar mudança", { classe: "pri", id: d.id }), botao("recusar-decisao", "Manter como está", { id: d.id }))}`;
     }
     // definido em 2026-10-07 (ADR-082): o lote do Nod. Aqui aprova tudo de uma vez; para desmarcar uma ação, o card da
     // conversa do Nod tem as caixas.
     case "lote_bots": {
       const p = item.proposta?.payload.kind === "lote_bots" ? item.proposta.payload : null;
       const n = p ? p.acoes.filter((a) => a.estado === "esperando").length : 0;
-      return `${p ? listaDoLoteParaSuaVez(p) : ""}<div class="acoes">${botao("decidir-proposta", n > 1 ? `Aprovar as ${n}` : "Aprovar", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Recusar", { id: d.id })}</div>`;
+      return `${p ? listaDoLoteParaSuaVez(p) : ""}${fila(botao("decidir-proposta", n > 1 ? `Aprovar as ${n}` : "Aprovar", { classe: "pri", id: d.id }), botao("recusar-decisao", "Recusar", { id: d.id }))}`;
     }
     // NOD-448 (ADR-140): a ordem nova à vista antes do clique.
     case "colunas_quadro": {
       const p = item.proposta?.payload.kind === "colunas_quadro" ? item.proposta.payload : null;
-      return `${p ? listaDasColunasParaSuaVez(p) : ""}<div class="acoes">${botao("decidir-proposta", "Trocar colunas", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Manter", { id: d.id })}</div>`;
+      return `${p ? listaDasColunasParaSuaVez(p) : ""}${fila(botao("decidir-proposta", "Trocar colunas", { classe: "pri", id: d.id }), botao("recusar-decisao", "Manter", { id: d.id }))}`;
     }
     // NOD-422: a mesma prévia do card da conversa (as linhas e o mapa das colunas) antes do Trazer.
     case "importacao_linear": {
       const p = item.proposta?.payload.kind === "importacao_linear" ? item.proposta.payload : null;
-      return `${p ? previaParaSuaVez(p) : ""}<div class="acoes">${botao("decidir-proposta", "Trazer", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+      return `${p ? previaParaSuaVez(p) : ""}${fila(botao("decidir-proposta", "Trazer", { classe: "pri", id: d.id }), botao("recusar-decisao", "Agora não", { id: d.id }))}`;
     }
     // NOD-422 (PR 2): a lista das rotinas que pausam antes do Assumir.
     case "assumir_quadro": {
       const p = item.proposta?.payload.kind === "assumir_quadro" ? item.proposta.payload : null;
-      return `${p ? previaAssumirParaSuaVez(p) : ""}<div class="acoes">${botao("decidir-proposta", "Assumir", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+      return `${p ? previaAssumirParaSuaVez(p) : ""}${fila(botao("decidir-proposta", "Assumir", { classe: "pri", id: d.id }), botao("recusar-decisao", "Agora não", { id: d.id }))}`;
     }
     // NOD-445: o card Criar app (o Ajustar é pela conversa): o nome, a forma e o bot que ganha a página.
     case "app": {
       const p = item.proposta?.payload.kind === "app" ? item.proposta.payload : null;
-      return `${p ? `<p class="mini">${esc(p.nome)} · ${esc(p.forma)} · em ${esc(p.alvoNome)}</p>` : ""}<div class="acoes">${botao("decidir-proposta", "Criar", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+      return `${p ? `<p class="mini">${esc(p.nome)} · ${esc(p.forma)} · em ${esc(p.alvoNome)}</p>` : ""}${fila(botao("decidir-proposta", "Criar", { classe: "pri", id: d.id }), botao("recusar-decisao", "Agora não", { id: d.id }))}`;
     }
     // NOD-430: o mesmo verbo do card da conversa; não tem Desfazer. Sutil como ele (pedido da Ada, revisão 1 do PR #627):
     // botão neutro com só o verbo em vermelho (`danger`), sem o botão cheio (`pri`).
     case "quadro_exclusao":
-      return `<p class="p50-para">Não dá para desfazer.</p><div class="acoes">${botao("decidir-proposta", "Excluir", { classe: "danger", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+      return `<p class="p50-para">Não dá para desfazer.</p>${fila(botao("decidir-proposta", "Excluir", { classe: "danger", id: d.id }), botao("recusar-decisao", "Agora não", { id: d.id }))}`;
     // Verbo próprio: "Confirmar" não diz que o que se confirma é uma exclusão.
     case "rotina_exclusao":
-      return `<div class="acoes">${botao("decidir-proposta", "Excluir rotina", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Manter rotina", { id: d.id })}</div>`;
+      return `${fila(botao("decidir-proposta", "Excluir rotina", { classe: "pri", id: d.id }), botao("recusar-decisao", "Manter rotina", { id: d.id }))}`;
     // NOD-413: o mesmo verbo do card da conversa; com execução na fila, o card diz antes do clique.
     case "rotina_execucao": {
       const p = item.proposta?.payload.kind === "rotina_execucao" ? item.proposta.payload : null;
-      return `${p?.naFila ? `<p class="mini">${esc(avisoNaFila(p.naFila))}</p>` : ""}<div class="acoes">${botao("decidir-proposta", "Rodar agora", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+      return `${p?.naFila ? `<p class="mini">${esc(avisoNaFila(p.naFila))}</p>` : ""}${fila(botao("decidir-proposta", "Rodar agora", { classe: "pri", id: d.id }), botao("recusar-decisao", "Agora não", { id: d.id }))}`;
     }
     case "decisoes_exportacao": {
       const p = item.proposta?.payload.kind === "decisoes_exportacao" ? item.proposta.payload : null;
-      return `${p ? `<p class="mini">${esc(p.de)} a ${esc(p.ate)} · ${p.periodos.length} ${p.periodos.length === 1 ? "arquivo" : "arquivos"}</p>` : ""}<div class="acoes">${botao("decidir-proposta", "Gerar CSV", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+      return `${p ? `<p class="mini">${esc(p.de)} a ${esc(p.ate)} · ${p.periodos.length} ${p.periodos.length === 1 ? "arquivo" : "arquivos"}</p>` : ""}${fila(botao("decidir-proposta", "Gerar CSV", { classe: "pri", id: d.id }), botao("recusar-decisao", "Agora não", { id: d.id }))}`;
     }
     // NOD-50: o mesmo cartão da conversa — guardar daqui vai pelo mesmo POST, direto ao cofre.
     case "credencial":
       // Só a dona do pedido guarda ou recusa (a rota devolve nao_encontrado às outras): a quem só vê, nada de campo de chave.
       if (d.ownerId !== estado.sessao?.pessoaId) return `<p class="p50-para">Só quem pediu pode colar esta chave.</p>`;
-      return ehCartaoCredencial(item.proposta) ? renderCardCredencial(item.proposta, item.agenteNome, "sv") : `<div class="acoes">${botao("recusar-credencial", "Deixar de lado", { id: d.id })}</div>`;
+      return ehCartaoCredencial(item.proposta) ? renderCardCredencial(item.proposta, item.agenteNome, "sv") : fila(botao("recusar-credencial", "Deixar de lado", { id: d.id }));
     // As três de pedir_a_pessoa viram o cartão da pergunta (renderItemPergunta, plano "pergunta com botões", Parte 4).
     case "pergunta":
     case "falta_de_dado":
@@ -930,6 +940,24 @@ function htmlDoPedidoAberto(p: PedidoNaFala, decisaoId: string, agente: { id: st
   return htmlCartaoPedidoSemVista(p, o);
 }
 
+/** ADR-197: o item é o pedido de usar um app do computador da pessoa (o cartão "A {bot} quer usar seu Mac"). */
+export function ehPedidoDoSeuComputador(item: Pick<Item, "decisao" | "itensAprovacao">): boolean {
+  const [i] = item.itensAprovacao;
+  return item.decisao.tipo === "aprovacao" && item.itensAprovacao.length === 1 && i?.destino.conector === "seu_computador";
+}
+
+export function renderCartaoSeuComputador(item: Item, naConversa = true): string {
+  const d = item.decisao;
+  const i = item.itensAprovacao[0];
+  if (!i) return "";
+  const args = i.destino.argumentos ?? {};
+  const app = typeof args.app === "string" ? args.app : "";
+  const aparelho = args.aparelho === "PC" ? "PC" as const : "Mac" as const;
+  const cartao = htmlCartaoSeuComputador({ decisaoId: d.id, agenteId: d.agenteId, titulo: i.textoFinal, texto: d.frase === i.textoFinal ? "" : d.frase, app, aparelho });
+  const de = naConversa ? "" : `<p class="nvc-de">Pedido de ${esc(item.agenteNome)}${aPedidoDe(item)}</p>`;
+  return `<li class="decisao nvc-item dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">${de}${cartao}</li>`;
+}
+
 /** O item é a aprovação de UMA ação no navegador do bot (A1, A2, A3). */
 export function ehAprovacaoDoNavegador(item: Pick<Item, "decisao" | "itensAprovacao">): boolean {
   const [i] = item.itensAprovacao;
@@ -978,23 +1006,43 @@ export function renderItem(item: Item, estado: Estado, naConversa = false): stri
   // ADR-175: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
   if (aberta && naConversa && ehDecisaoDeRascunhos(item)) return renderDecisaoDeRascunhos(item);
   if (aberta && ehAprovacaoDoNavegador(item)) return renderCartaoNavegador(item, estado, naConversa);
+  if (aberta && ehPedidoDoSeuComputador(item)) return renderCartaoSeuComputador(item, naConversa);
   if (aberta && ehAprovacaoDoComputador(item)) return renderCartaoComputador(item, estado);
   if (aberta && d.tipo === "aprovacao" && ehCartaoDoRevisor(item.itensAprovacao)) return renderCartaoDoRevisor(item, estado, naConversa);
   if (aberta && d.tipo === "aprovacao" && item.itensAprovacao.length > 0) return renderCardAprovacao(item, estado);
   const relogio = aberta ? `aguardando ${haQuanto(item.aguardandoHaMs)} · ${PRAZO_POR_TIPO[d.tipo](emQuanto(item.recusaAutomaticaEmMs), item)}` : rotuloVencido(d, estado.agora);
   const parada = d.tipo === "acesso" && aberta ? { marca: marcaRotinaParada(item.proposta, item.rotinaParada, estado.agora), linha: linhaNaoRodaram(item.rotinaParada, estado.agora) } : { marca: "", linha: "" };
   // O "Retomar" aberto já tem "Dispensar" nas ações: o × repetiria o mesmo gesto no mesmo card.
-  const fechar = dispensavel(item) && !(aberta && d.tipo === "retomar_turno") ? botao("dispensar", "×", { classe: "dec-fechar", id: d.id, titulo: "Tirar da tela", aria: "Dispensar este pedido" }) : "";
-  const conversa = estado.frota?.agentes.find((a) => a.id === d.agenteId);
-  return `<li class="decisao dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">
-    <div class="dec-cab"><span class="tag ${aberta ? "tag-ambar" : "tag-cinza"}">${esc(d.tipo === "aprovacao" && item.itensAprovacao.length === 1 ? "aprovação" : TIPO_HUMANO[d.tipo])}</span>${parada.marca}${marcaGemeas(item)}<b>${esc(item.agenteNome)}</b>${aPedidoDe(item)}<span class="mudo">${esc(relogio)}</span>${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}${fechar}</div>
-    <div class="dec-frase">${esc(d.frase)}</div>${parada.linha}
+  const fechar = dispensavel(item) && !(aberta && d.tipo === "retomar_turno") ? botao("dispensar", "×", { classe: "aprov-fechar dec-fechar", id: d.id, titulo: "Tirar da tela", aria: "Dispensar este pedido" }) : "";
+  const agente = estado.frota?.agentes.find((a) => a.id === d.agenteId);
+  const tipo = d.tipo === "aprovacao" && item.itensAprovacao.length === 1 ? "aprovação" : TIPO_HUMANO[d.tipo];
+  const { titulo, sub } = textosDoCartao(item, naConversa);
+  const abrir = !naConversa && agente ? botao("abrir-conversa", "Abrir conversa", { classe: "link sm dec-abrir", dados: { conversa: d.conversaId, agente: d.agenteId } }) : "";
+  // XUM-5: o cartão do DS atual (o mesmo desenho do cartão de aprovação, ADR-166): o mascote e o nome no cabeçalho, o tipo
+  // em cinza no lugar do selo âmbar, a pergunta em 600, o prazo em legenda e as ações em pílula. Sem a borda lateral.
+  return `<li class="decisao dec-cartao dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" data-nome="${esc(item.agenteNome)}">
+    <div class="aprov-cab">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", aberta ? "aguardando_aprovacao" : "disponivel")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="dec-quem-linha"><b class="dec-quem">${esc(item.agenteNome)}</b><span class="dec-tipo"> · ${esc(tipo)}</span></span>${parada.marca}${marcaGemeas(item)}${aPedidoDe(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}<span class="dec-cab-fim">${abrir}${fechar}</span></div>
+    <p class="aprov-titulo dec-frase">${esc(titulo)}</p>
+    ${sub ? `<p class="aprov-onde dec-sub">${esc(sub)}</p>` : ""}
+    <p class="dec-prazo">${esc(relogio)}</p>${parada.linha}
     ${d.tipo === "acesso" && aberta ? detalheAcesso(item.proposta) : ""}
     ${(d.tipo === "rotina" || d.tipo === "rotina_atualizacao") && aberta ? linhasPrecisa(item.proposta, estado) : ""}
     ${d.tipo === "aprovacao" && !aberta ? renderAprovacao(item, false, estado.conectores) : ""}
     ${renderAcoes(item, aberta, estado)}
-    ${!naConversa && conversa ? `<div class="dec-rodape">${botao("abrir-conversa", "abrir conversa", { classe: "sm", dados: { conversa: d.conversaId, agente: d.agenteId } })}</div>` : ""}
   </li>`;
+}
+
+/**
+ * XUM-5: o título e a linha de baixo do cartão. O "Retomar" é o único que muda: a frase dele ("Turno interrompido: seu Mac
+ * parou de responder…") é a MESMA da linha de sistema que a conversa mostra logo acima (interromper-por-maquina.ts grava as
+ * duas), e o cartão a repetia palavra por palavra. Na conversa ele pergunta só o que decide; em "Sua vez", sem a linha
+ * acima, a frase vai embaixo da pergunta. O vencido e os outros tipos seguem com a frase como título.
+ */
+export function textosDoCartao(item: Pick<Item, "decisao" | "estadoColuna">, naConversa: boolean): { titulo: string; sub: string } {
+  const d = item.decisao;
+  // O vencido é registro (recolhido em "N pedidos vencidos", longe da linha): a frase, como antes.
+  if (d.tipo !== "retomar_turno" || item.estadoColuna === "vencido") return { titulo: d.frase, sub: "" };
+  return { titulo: "Retomar de onde parou?", sub: naConversa ? "" : d.frase };
 }
 
 /**

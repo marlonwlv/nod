@@ -167,6 +167,8 @@ export function rotuloFerramenta(nomeCli: string): string {
   const nome = m[2]!;
   const nod = doNod(nomeCli);
   if (nod) return nod[0];
+  // ADR-197: antes de `computador_` (o prefixo dos dois não se cruza, mas a ordem deixa explícito).
+  if (nome.startsWith("seu_computador_")) return "Usou seu computador";
   if (nome.startsWith("computador_")) return "Usou o computador";
   // ADR-190: as do navegador do bot (`mcp__nod__navegador_*`), não o servidor MCP de fora chamado "navegador" (abaixo).
   if (nome.startsWith("navegador_")) return "Usou o navegador";
@@ -246,12 +248,26 @@ const FRENTES = new Set(["abrir_frentes", "mandar_para_frente"]);
  * ferramenta"; nunca o id cru nem o nome da IA. D · Computador do bot (item 1): as do computador dizem o que o bot faz na
  * tela ("Abrindo exemplo.com", "Clicando na tela"), pelo `resumo` do argumento (`rotuloDoComputador`).
  */
+/** ADR-197: o que o bot faz no computador da pessoa, na fala viva (sem o texto digitado nem o alvo). */
+const ROTULO_SEU_COMPUTADOR: Readonly<Record<string, string>> = {
+  seu_computador_apps: "Olhando os apps do seu computador",
+  seu_computador_ver: "Olhando seu computador",
+  seu_computador_abrir_app: "Abrindo um app no seu computador",
+  seu_computador_clicar: "Clicando no seu computador",
+  seu_computador_digitar: "Digitando no seu computador",
+  seu_computador_tecla: "Usando o teclado no seu computador",
+  seu_computador_rolar: "Rolando no seu computador",
+  seu_computador_arrastar: "Arrastando no seu computador",
+  seu_computador_menu: "Usando um menu no seu computador",
+};
+
 export function rotuloAgora(nomeCli: string, resumo?: string | null): string {
   const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(semIaNoNome(nomeCli));
   if (!m) return de(NATIVAS, nomeCli)?.[1] ?? "Usando uma ferramenta";
   const nome = m[2]!;
   const nod = doNod(nomeCli);
   if (nod) return nod[1];
+  if (nome.startsWith("seu_computador_")) return ROTULO_SEU_COMPUTADOR[nome] ?? "Usando seu computador";
   if (nome.startsWith("computador_")) return rotuloDoComputador(nome, resumo);
   if (nome.startsWith("navegador_")) return rotuloDoNavegador(nome, resumo);
   if (nome.startsWith("workspace_")) return "Usando a pasta de trabalho";

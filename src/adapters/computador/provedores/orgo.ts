@@ -129,7 +129,7 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   async function chamar<T>(escopo: Escopo, metodo: string, caminho: string, corpo?: unknown, extra: Record<string, string> = {}): Promise<T> {
     if (!habilitado) throw new FalhaComputador("nao_iniciou", { detalhe: "NOD_COMPUTADOR_ORGO desligado" });
     const chave = await o.chaveDe(escopo);
-    if (!chave) throw new FalhaComputador("nao_iniciou", { detalhe: "falta a chave do Orgo no cofre (conector orgo, ORGO_API_KEY): peça com pedir_credencial" });
+    if (!chave) throw new FalhaComputador("nao_iniciou", { detalhe: "falta a chave da Orgo no Cofre (ORGO_API_KEY): peça com pedir_credencial, alvo 'app' e app 'orgo'" });
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), PRAZO_HTTP_MS);
     let r: Awaited<ReturnType<Fetch>>;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import type { SuaVezDto } from "../../../src/contracts/api.ts";
 import type { Proposta } from "../../../src/contracts/conversa.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
@@ -417,7 +418,7 @@ describe("fila honesta: vencidos recolhidos, ×N, prazo por tipo e rótulos em p
     expect(dentroDosVencidos(html).match(/data-act="reabrir"/g)).toHaveLength(15);
     expect(html.match(/data-act="reabrir"/g)).toHaveLength(15);
     expect(html.indexOf("Preciso da sua decisão para continuar")).toBeLessThan(html.indexOf("<details"));
-    expect(html.match(/class="decisao dec-pendente/g)).toHaveLength(5);
+    expect(html.match(/class="decisao dec-cartao dec-pendente/g)).toHaveLength(5);
     // "Limpar vencidos" ao lado do resumo, fora do <summary> (senão o clique abriria e fecharia a lista).
     expect(html).toContain("Limpar vencidos (15)");
     expect(html.slice(html.indexOf("<summary>"), html.indexOf("</summary>"))).not.toContain("limpar-vencidos");
@@ -451,7 +452,7 @@ describe("fila honesta: vencidos recolhidos, ×N, prazo por tipo e rótulos em p
   it("prazo honesto por tipo: 'recusa automática' só em aprovação e acesso", () => {
     const relogio = (tipo: Item["decisao"]["tipo"]): string => {
       const html = renderSuaVez(comItens([aberto("x", tipo, { aguardandoHaMs: 2 * H, recusaAutomaticaEmMs: 18 * H })]));
-      return /<span class="mudo">([^<]*)<\/span>/.exec(html)?.[1] ?? "";
+      return /<p class="dec-prazo">([^<]*)<\/p>/.exec(html)?.[1] ?? "";
     };
     expect(relogio("aprovacao")).toBe("aguardando há 2h · recusa automática em 18h");
     expect(relogio("acesso")).toBe("aguardando há 2h · recusa automática em 18h");
@@ -510,7 +511,8 @@ describe("fila honesta: vencidos recolhidos, ×N, prazo por tipo e rótulos em p
     expect(html).toContain('data-act="retomar" data-id="r"');
     expect(html).toContain(">Dispensar</button>");
     expect(html.match(/data-act="dispensar"/g)).toHaveLength(1);
-    expect(html.indexOf('data-act="retomar"')).toBeLessThan(html.indexOf('data-act="dispensar"'));
+    // XUM-5 (DS atual): "Dispensar · Retomar", a secundária antes e a primária em pílula no fim, como no cartão de aprovação.
+    expect(html.indexOf('data-act="dispensar"')).toBeLessThan(html.indexOf('data-act="retomar"'));
     expect(renderDecisoesDaConversa(comItens([vencido("v")]), "c", new Set())).toContain('data-act="dispensar" data-id="v"');
   });
 
@@ -538,5 +540,89 @@ describe("fila honesta: vencidos recolhidos, ×N, prazo por tipo e rótulos em p
     for (const m of mensagens) expect(html).toContain(`data-mensagem="${m.id}"`);
     for (const id of ["oi", "meio", "s4", "s5", "pc", "s6"]) expect(recolhido, id).not.toContain(`data-mensagem="${id}"`);
     expect(html).toContain("Computador do bot fora do ar");
+  });
+});
+
+/**
+ * XUM-5: o cartão de decisão genérico (renderItem) saiu do design system antigo — a borda âmbar de 4 px de `.decisao`, o
+ * selo "turno interrompido" e os botões retangulares — para o desenho do cartão de aprovação (ADR-166). No "Retomar", o
+ * cartão repetia palavra por palavra a linha de sistema logo acima ("Turno interrompido: seu Mac parou…").
+ */
+describe("XUM-5: o cartão de decisão no DS atual", () => {
+  const FRASE = "Turno interrompido: seu Mac parou de responder no meio da resposta. Nada foi reenviado.";
+  const retomar: Item = { ...aberto("r", "retomar_turno", { aguardandoHaMs: 2 * H, recusaAutomaticaEmMs: 22 * H }), decisao: { ...aberto("r", "retomar_turno").decisao, frase: FRASE } };
+  const naConversa = renderDecisoesDaConversa(comItens([retomar]), "c", new Set());
+  const emSuaVez = renderSuaVez(comItens([retomar]));
+
+  it("na conversa o Retomar pergunta só o que decide: a frase da linha de sistema não se repete no cartão", () => {
+    expect(naConversa).toContain('<p class="aprov-titulo dec-frase">Retomar de onde parou?</p>');
+    expect(naConversa).not.toContain(FRASE);
+    expect(naConversa).toContain('<p class="dec-prazo">aguardando há 2h · vence em 22h</p>');
+  });
+
+  it("em Sua vez, sem a linha acima, a frase vai embaixo da pergunta; o vencido segue com a frase como título", () => {
+    expect(emSuaVez).toContain('<p class="aprov-titulo dec-frase">Retomar de onde parou?</p>');
+    expect(emSuaVez).toContain(`<p class="aprov-onde dec-sub">${FRASE}</p>`);
+    // "Abrir conversa" (antes um botão no rodapé) vai no cabeçalho, como o link do cartão da pergunta; na conversa, não.
+    const comBot: Estado = { ...comItens([retomar]), frota: { agentes: [{ id: "a", nome: "Milton", cor: "purple", forma: "hexagono" }], negacoes: [] } as never };
+    expect(renderSuaVez(comBot)).toMatch(/<span class="dec-cab-fim"><button type="button" class="bt link sm dec-abrir" data-act="abrir-conversa" data-conversa="c" data-agente="a">Abrir conversa<\/button><\/span>/);
+    expect(renderDecisoesDaConversa(comBot, "c", new Set())).not.toContain('data-act="abrir-conversa"');
+    const v = renderDecisoesDaConversa(comItens([vencido("v")]), "c", new Set());
+    expect(v).toContain('<p class="aprov-titulo dec-frase">Turno interrompido: seu Mac parou de responder</p>');
+    expect(v).not.toContain("Retomar de onde parou?");
+  });
+
+  it("sem o DS antigo: nada de selo âmbar, .dec-cab nem rodapé; cabeçalho com o nome e o tipo em cinza", () => {
+    for (const html of [naConversa, emSuaVez, renderSuaVez(comItens([aberto("a", "acesso"), aberto("p", "perfil"), vencido("v")]))]) {
+      expect(html).toContain('class="decisao dec-cartao');
+      expect(html).not.toContain('class="dec-cab"');
+      expect(html).not.toContain("tag-ambar");
+      expect(html).not.toContain("dec-rodape");
+      expect(html).not.toMatch(/<div class="acoes">/);
+    }
+    expect(naConversa).toContain('<span class="dec-quem-linha"><b class="dec-quem">Milton</b><span class="dec-tipo"> · turno interrompido</span></span>');
+    // Classe própria, não .aprov-card: a pílula "pedidos na janela" (rolagem-na-tela.ts) conta li.aprov-card.
+    expect(naConversa).not.toContain("aprov-card");
+  });
+
+  it("as ações do Retomar: campo numa linha própria, com rótulo, e 'Dispensar · Retomar' em pílula (com e sem texto, pelo mesmo data-resposta)", () => {
+    expect(naConversa).toContain('<div class="dec-campo"><input class="resposta" data-resposta="r" placeholder="O que mudou? (opcional)" aria-label="O que mudou (opcional)" autocomplete="off" /></div>');
+    const acoes = /<div class="acoes aprov-acoes">([\s\S]*?)<\/div>/.exec(naConversa)?.[1] ?? "";
+    expect(acoes).toContain('class="bt pri" data-act="retomar" data-id="r" title="Retomar com um turno novo">Retomar</button>');
+    expect(acoes).toContain('data-act="dispensar" data-id="r" title="Tirar da tela sem retomar">Dispensar</button>');
+    expect(acoes.indexOf("dispensar")).toBeLessThan(acoes.indexOf("retomar"));
+  });
+
+  it("todos os tipos que caem no cartão genérico põem a primária no fim da fila de ações", () => {
+    const tipos = ["acesso", "rotina", "perfil", "bot", "rotina_atualizacao", "lote_bots", "colunas_quadro", "importacao_linear", "assumir_quadro", "app", "quadro_exclusao", "rotina_exclusao", "rotina_execucao", "decisoes_exportacao"] as const;
+    for (const tipo of tipos) {
+      const html = renderSuaVez(comItens([aberto("x", tipo)]));
+      const acoes = /<div class="acoes aprov-acoes">([\s\S]*?)<\/div>/.exec(html)?.[1] ?? "";
+      const botoes = [...acoes.matchAll(/class="bt ([^"]*)" data-act="([^"]+)"/g)].map((m) => m[2]);
+      expect(botoes.at(-1), tipo).toMatch(/^(decidir-proposta|permitir-acesso)$/);
+      expect(botoes, tipo).toContain("recusar-decisao");
+    }
+  });
+});
+
+describe("XUM-5: o CSS do cartão de decisão", () => {
+  const ler = (f: string): string => readFileSync(new URL(`../../../web/${f}`, import.meta.url), "utf8");
+  const ds = ler("ds.css");
+  it("li.dec-cartao desfaz a borda lateral âmbar de .decisao (mesma força, !important, seletor mais específico) e o fundo do vencido", () => {
+    const regra = /\.lista > li\.dec-cartao, li\.dec-cartao \{([^}]*)\}/.exec(ds)?.[1] ?? "";
+    expect(regra).toContain("border-left: 1px solid var(--borda-sutil) !important");
+    expect(regra).toContain("border-radius: var(--raio-12)");
+    expect(regra).toContain("background: var(--surface-elevated) !important");
+    expect(regra).toContain("box-shadow: var(--sombra-inline)");
+    // A regra antiga continua para os outros .decisao; é ela que este cartão precisa vencer.
+    expect(ler("estilos.css")).toContain(".decisao { border-left: 4px solid var(--warning) !important; }");
+    // O cartão ancorado na conversa não leva o padding e o raio do card antigo (interface.css).
+    expect(ler("interface.css")).toContain(".decisoes-ancoradas > li.decisao:not(.aprov-card):not(.cartao-revisor):not(.dec-cartao)");
+  });
+  it("as secundárias fantasmas e a primária preta em pílula (as regras de .aprov-acoes), o campo com foco visível", () => {
+    expect(ds).toMatch(/\.dec-cartao \.aprov-acoes \{[^}]*justify-content: flex-end/);
+    expect(ds).toMatch(/\.dec-cartao \.aprov-acoes \.bt:not\(\.pri, \.danger, \.link\) \{ background: none; color: var\(--ink-2\); \}/);
+    expect(ds).toMatch(/\.dec-cartao \.dec-campo \.resposta:focus-visible \{ outline: 2px solid var\(--focus-ring\)/);
+    expect(ler("interface.css")).toMatch(/:is\(\.aprov-acoes, \.cr-acoes\) \.bt \{[^}]*border-radius: var\(--raio-full\)/);
   });
 });

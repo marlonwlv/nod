@@ -112,3 +112,12 @@ export function lerModoAbas(texto: string | null | undefined): Set<string> {
 export function gravarModoAbas(bots: ReadonlySet<string>): string {
   return JSON.stringify([...bots].sort());
 }
+
+/**
+ * XUM-10 (2026-11-26): o topo da tela da conversa. A fileira de abas só na página Conversa; nas outras páginas da pílula
+ * (Quadro, Canvas, um app), que são de tela cheia, o topo é a pílula do bot com o botão de abas ao lado, e o modo abas
+ * continua ligado: de volta à Conversa, as mesmas abas voltam. `fileira` é o modo abas ligado com alguma aba guardada.
+ */
+export function topoDaConversa(o: { fileira: boolean; pagina: "conversa" | "quadro" }): "fileira" | "pilula" {
+  return o.fileira && o.pagina === "conversa" ? "fileira" : "pilula";
+}

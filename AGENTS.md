@@ -275,6 +275,10 @@ vários bots rodam `npm run check` ao mesmo tempo sem um contaminar o tenant pad
   (`NOD_NAVEGADOR_NO_SERVIDOR=1`) e as rotas `navegador/*` da máquina dão 404 (o app e o motor tentam de novo em 10 min).
   Só no desenvolvimento, `NOD_NAVEGADOR_CHROME_DESTE_MAC=1` (login stub, fora do compartilhado, no macOS) faz o "Trazer do
   meu Chrome" ler o Chrome do próprio Mac do servidor, sem o app (`src/adapters/navegador/chrome-deste-mac.ts`).
+- **Computador da pessoa** (ADR-197): ligado sempre que a fila da máquina do navegador existe (`NOD_NAVEGADOR_NA_MAQUINA=1`
+  no compartilhado); `NOD_SEU_COMPUTADOR=0` desliga (o plano sai sem as `seu_computador_*`). Só oferece as ferramentas
+  quando um Mac (app) ou PC (motor) da pessoa anuncia `seu_computador` no long-poll `navegador/puxar`. A fumaça com o
+  cua-driver de verdade é `npx tsx scripts/seu-computador/fumaca.ts` (CI: `desktop-smoke` no macos-15 e `windows`).
 - **Backoffice interno** (ADR-194, nasceu como o painel do ADR-193): tela em `/backoffice/*` e API em
   `/api/backoffice/*` (família própria no roteador, fora de `/api/t/:id`; "admin" e `/api/t/:id/admin/*` ficam para o
   admin de workspace). A guarda é do servidor a cada pedido: sem sessão, a API dá 401 e a tela manda ao login com

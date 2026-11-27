@@ -2,6 +2,7 @@ import type { AlvoCredencial, PayloadPropostaCredencial, Proposta } from "../con
 import { TETO_PARA_CREDENCIAL, type ArgsPedirCredencial, type ErroPedirCredencial, type ResultadoPedirCredencial } from "../contracts/ferramentas-credencial.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { CasoNod, ContextoFerramenta } from "../contracts/servicos.ts";
+import { appDoCofre } from "../domain/apps-do-cofre.ts";
 import { chavePedivel, conectorGeridoPeloNod } from "../domain/credenciais-conector.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { decisaoEmAberto } from "../domain/revisor.ts";
@@ -19,7 +20,7 @@ import type { Deps } from "./tipos.ts";
 
 const PARA_PADRAO = "Para seguir com o que você pediu.";
 
-const NOMES: Record<Exclude<AlvoCredencial, "conector">, string> = { github_token: "GitHub", composio: "Composio" };
+const NOMES: Record<Exclude<AlvoCredencial, "conector" | "app">, string> = { github_token: "GitHub", composio: "Composio" };
 
 /** O "para" do cartão: uma frase, até 80 caracteres, com ponto final; vazio = o padrão (lacuna da spec, protótipo). */
 export function paraDoCartao(para: string | undefined): string {
@@ -39,6 +40,7 @@ function recusada(erro: ErroPedirCredencial): ResultadoPedirCredencial {
     conector_nativo: "nenhum cartão foi criado: esse conector é gerido pelo nod (nativo ou do Composio). Para o GitHub use alvo 'github_token'; para o Composio, alvo 'composio'.",
     chave_invalida: "nenhum cartão foi criado: informe em 'chave' o nome exato da variável de ambiente (stdio) ou do header (http) que falta; em stdio, só uma chave que o conector já declara (chave nova a pessoa acrescenta na tela de apps); em http, só Authorization ou um header de credencial que o conector já declara; variáveis de sistema (PATH, NODE_*, LD_*…) não se pedem.",
     composio_ja_configurado: "nenhum cartão foi criado: o time já tem uma chave do Composio. Se ela parou de funcionar, diga à pessoa para trocá-la na tela de apps (Composio configurado · alterar chave).",
+    app_desconhecido: "nenhum cartão foi criado: no alvo 'app', informe em 'app' um app que o Cofre conhece ('orgo'). Para outro app, peça pelo alvo 'conector' ou diga à pessoa para guardar a chave em Ajustes › Cofre › Novo item.",
   };
   return { estado: "recusada", erro, instrucao: instrucao[erro] };
 }
@@ -64,6 +66,12 @@ async function alvoDoPedido(deps: Deps, args: ArgsPedirCredencial): Promise<Omit
   // A chave do Composio vale para o time inteiro (ADR-041): o bot só a pede quando ainda não há nenhuma; trocar a que existe
   // é na tela do Composio, por quem sabe por quê (revisão do PR #553).
   if (args.alvo === "composio" && (await deps.repos.composio.chave())) return "composio_ja_configurado";
+  // ADR-195 (Entrega 3): a chave de um app conhecido vai para o Cofre com o nome da variável do catálogo, nunca um que o
+  // bot escolheu (o bot só diz qual app).
+  if (args.alvo === "app") {
+    const app = appDoCofre(args.app);
+    return app ? { alvo: "app", conectorId: null, app: app.nome, appId: app.id, appNaTela: { artigo: app.artigo, ondeAchar: app.ondeAchar, dica: app.dica }, chave: app.variavel } : "app_desconhecido";
+  }
   if (args.alvo !== "conector") return { alvo: args.alvo, conectorId: null, app: NOMES[args.alvo], chave: null };
   const slug = (args.conector ?? "").trim();
   const c = slug ? await deps.repos.conectores.buscarPorSlug(slug) : null;
@@ -79,7 +87,8 @@ async function alvoDoPedido(deps: Deps, args: ArgsPedirCredencial): Promise<Omit
 
 /** A frase da decisão em "Sua vez" — do domínio, nunca do modelo, e nunca com valor. */
 function fraseDoPedido(agente: string, p: PayloadPropostaCredencial): string {
-  const o_que = p.alvo === "github_token" ? "o token do GitHub" : p.alvo === "composio" ? "a chave do Composio do time" : `a chave ${p.chave ?? ""} do ${p.app}`;
+  const artigo = appDoCofre(p.appId)?.artigo ?? "o";
+  const o_que = p.alvo === "github_token" ? "o token do GitHub" : p.alvo === "composio" ? "a chave do Composio do time" : p.alvo === "app" ? `a chave d${artigo} ${p.app}` : `a chave ${p.chave ?? ""} do ${p.app}`;
   return `${agente} pede ${o_que}. ${p.para}`;
 }
 
@@ -87,7 +96,9 @@ export const pedirCredencial: CasoNod<Deps, "pedir_credencial"> = async (deps, i
   const ctx: ContextoFerramenta = { turnoId: input.turnoId, agenteId: input.agenteId, conversaId: input.conversaId };
   const alvo = await alvoDoPedido(deps, input);
   if (typeof alvo === "string") return { data: recusada(alvo) };
-  const payload: PayloadPropostaCredencial = { kind: "credencial", ...alvo, para: paraDoCartao(input.para), turnoId: ctx.turnoId };
+  // O "para" padrão do app conhecido é o do catálogo (Paper O1), não o genérico.
+  const para = input.alvo === "app" && !(input.para ?? "").trim() ? appDoCofre(input.app)?.para : input.para;
+  const payload: PayloadPropostaCredencial = { kind: "credencial", ...alvo, para: paraDoCartao(para), turnoId: ctx.turnoId };
   await deps.repos.propostas.travarPedidosDoTurno(ctx.turnoId);
   const repetido = await cartaoRepetido(deps, ctx, payload);
   if (repetido) return { data: pendente(repetido.id) };

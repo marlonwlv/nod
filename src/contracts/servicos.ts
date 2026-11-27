@@ -59,6 +59,15 @@ export interface ServicesNod<Trx> extends ServicosLinear {
     executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void>;
   };
   /**
+   * ADR-197 (2026-11-26): o computador da pessoa (adapters/fundo/seu-computador.ts). `disponivel(pessoa)` = um Mac ou PC
+   * dela atende agora (o plano oferece as seu_computador_*); `executarAprovado` grava a liberação do app que o cartão pediu.
+   */
+  seuComputador?: {
+    disponivel(escopo: { tenantId: string; pessoaId: string }): { plataforma: "darwin" | "win32"; nome: string } | null;
+    /** `lembrar` = "Sempre no {app}"; sem ele, "Permitir desta vez". */
+    executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void>;
+  };
+  /**
    * definido em 2026-10-07 (ADR-083): o que só o processo sabe dos trabalhos — a última ferramenta de cada turno vivo
    * (o "último passo" da faixa) e a pressão de memória dos Macs da pessoa (#194). Ausente = nada a mostrar.
    */

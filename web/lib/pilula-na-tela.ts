@@ -128,7 +128,7 @@ export function criarPilulaNaTela(lugar: HTMLElement, palco: HTMLElement, c: { r
       if (!c.reduzido()) e.painel.classList.add("entrando");
       fechamento = c.agendar(() => e.painel.classList.remove("entrando"), FIM_DA_TRANSICAO_MS + 300);
       // Foco no primeiro item (plano, 4c); sem item, no "fechar".
-      const primeiro = e.corpo.querySelector<HTMLElement>("button, [href], [tabindex]:not([tabindex='-1'])") ?? e.cab.querySelector<HTMLElement>(".pf-fechar");
+      const primeiro = e.corpo.querySelector<HTMLElement>("button, [href], [tabindex]:not([tabindex='-1'])") ?? e.cab.querySelector<HTMLElement>(".pf-fechar, .pf-fechar-x");
       primeiro?.focus({ preventScroll: true });
       return;
     }

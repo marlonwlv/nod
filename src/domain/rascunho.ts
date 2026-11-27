@@ -56,7 +56,7 @@ export type ItemParaRascunho = { textoOriginal: string; textoFinal: string; dest
 /** O rascunho do item, ou null quando ele não é uma mensagem que sai. `app`: o nome do conector como a pessoa o vê. */
 export function rascunhoDoItem(item: ItemParaRascunho, app: string): Rascunho | null {
   const { destino } = item;
-  if (destino.conector === "computador" || destino.conector === "navegador" || destino.conector === "terminal") return null;
+  if (destino.conector === "computador" || destino.conector === "navegador" || destino.conector === "seu_computador" || destino.conector === "terminal") return null;
   const ps = palavras(destino.ferramenta);
   if (!ps.some((p) => VERBO_ENVIO.test(p)) || ps.some((p) => PROIBE.test(p))) return null;
   const canal = canalDe(destino.conector, app, destino.ferramenta);
