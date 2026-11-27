@@ -1,7 +1,7 @@
 // XUM-11: servidor MCP falso do eval (avaliar.ts). Lista as ferramentas do plano como o proxy (ferramentasMcp) e responde
 // apps_buscar e apps_usar com o MESMO domínio do servidor (itensDaBusca, respostaDaBusca, decidirAppsUsar); o resto
 // devolve dados fictícios. Cada chamada vai para o log (nome, argumentos, a capacidade resolvida e se deu erro).
-// Uso: tsx mcp-falso.ts <plano.json> <log.jsonl>
+// Uso: tsx mcp-falso.ts <plano.json> <log.jsonl> [<entidades do pedido em JSON>]
 import { appendFileSync, readFileSync } from "node:fs";
 import type { PlanoTurno } from "../../src/contracts/plano-turno.ts";
 import { ferramentasMcp } from "../../src/adapters/mcp-proxy/catalogo.ts";
@@ -13,13 +13,16 @@ const [arquivoPlano, log] = process.argv.slice(2) as [string, string];
 const plano = JSON.parse(readFileSync(arquivoPlano, "utf8")) as PlanoTurno;
 const tools = ferramentasMcp(plano);
 
-/** Dados fictícios plausíveis: leitura devolve uma lista com ids; escrita, um id novo. */
+/**
+ * Dados fictícios plausíveis, num mundo em que as coisas que o pedido cita existem (o id do e-mail, a pasta, o calendário,
+ * a página): leitura de um item devolve esse item; listagem traz esses itens primeiro; escrita devolve um id novo.
+ */
+const entidades: string[] = JSON.parse(process.argv[4] ?? "[]") as string[];
 function dadosFicticios(cap: string): string {
-  if (/(^|_)(LIST|SEARCH|FETCH|QUERY|FIND|GET|READ)(_|$)/.test(cap)) {
-    return JSON.stringify({ successful: true, data: { value: [
-      { id: "AAMk-1", subject: "Fatura ACME novembro", from: "financeiro@acme.com", receivedDateTime: "2026-11-27T10:00:00Z", title: "Item 1", name: "Fornecedores" },
-      { id: "AAMk-2", subject: "Proposta comercial", from: "vendas@beta.com", receivedDateTime: "2026-11-27T09:00:00Z", title: "Item 2", name: "Promoções" },
-    ] }, nota: "dados fictícios do teste" });
+  const item = (id: string) => ({ id, name: id, title: id, summary: id, subject: "Reunião de terça", from: "ana@empresa.com", receivedDateTime: "2026-11-27T10:00:00Z", parent: { type: "page_id", page_id: "pai-123" } });
+  if (/(^|_)(GET|RETRIEVE)(_|$)/.test(cap) && !/(^|_)(LIST|SEARCH|QUERY|FIND)(_|$)/.test(cap)) return JSON.stringify({ successful: true, data: item(entidades[0] ?? "AAMk-1"), nota: "dados fictícios do teste" });
+  if (/(^|_)(LIST|SEARCH|FETCH|QUERY|FIND|READ|GET)(_|$)/.test(cap)) {
+    return JSON.stringify({ successful: true, data: { value: [...entidades.map(item), { id: "AAMk-1", subject: "Fatura ACME novembro", from: "financeiro@acme.com", name: "Fornecedores" }, { id: "AAMk-2", subject: "Proposta comercial", from: "vendas@beta.com", name: "Promoções" }] }, nota: "dados fictícios do teste" });
   }
   return JSON.stringify({ successful: true, data: { id: "novo-1", status: "ok" }, nota: "dados fictícios do teste" });
 }

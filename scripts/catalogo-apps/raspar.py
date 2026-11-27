@@ -16,10 +16,16 @@ def resolver(v,rows,d=0):
     if isinstance(v,list): return [resolver(x,rows,d+1) for x in v]
     return v
 def limpo(v):
-    """Tira os "$undefined" do RSC em qualquer nível (o esquema publicado vem achatado com esses marcadores)."""
-    if isinstance(v,dict): return {k:limpo(x) for k,x in v.items() if x not in("$undefined",None,"")}
+    """Tira os "$undefined" do RSC em qualquer nível e devolve o `required` aninhado como JSON Schema (lista no objeto
+    pai), não como booleano em cada campo, que é como a página publica."""
     if isinstance(v,list): return [limpo(x) for x in v if x not in("$undefined",None)]
-    return v
+    if not isinstance(v,dict): return v
+    d={k:limpo(x) for k,x in v.items() if x not in("$undefined",None,"") and k!="required"}
+    if isinstance(d.get("properties"),dict):
+        req=[k for k,x in v["properties"].items() if isinstance(x,dict) and x.get("required") is True]
+        if req: d["required"]=req
+    if isinstance(v.get("required"),list): d["required"]=v["required"]
+    return d
 def raspar(app):
     html=urllib.request.urlopen(f"https://docs.composio.dev/toolkits/{app}").read().decode()
     partes=re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)',html)

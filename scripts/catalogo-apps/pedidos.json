@@ -103,7 +103,8 @@
   "tipo": "raro",
   "texto": "Pelo Outlook, acha horários livres para uma reunião de 30 minutos com ana@empresa.com amanhã (horário de Brasília).",
   "espera": [
-   "OUTLOOK_FIND_MEETING_TIMES"
+   "OUTLOOK_FIND_MEETING_TIMES",
+   "OUTLOOK_GET_SCHEDULE"
   ],
   "argContem": "ana@empresa.com"
  },

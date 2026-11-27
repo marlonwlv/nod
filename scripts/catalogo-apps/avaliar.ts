@@ -62,9 +62,12 @@ function executar(bin: string, args: string[], opcoes: { cwd: string; entrada?: 
 }
 
 type Uso = { entrada: number; saida: number; ferramentaBusca: number };
+
+/** As coisas que o pedido cita (ids, pastas, canais), que o mundo fictício do MCP falso faz existir. */
+const entidadesDo = (p: Pedido): string => JSON.stringify([...new Set([...(p.texto.match(/\b(?:AAMk[\w-]+|C0\d+|evt-\d+|fld-\d+|cal-[\w-]+|proj-\d+|team-[\w-]+|[0-9a-f]{8})\b/g) ?? []), ...(p.argContem ? [p.argContem] : [])])]);
 async function rodarClaude(prep: ReturnType<typeof preparar>, pedido: Pedido, log: string, trabalho: string): Promise<{ ms: number; uso: Uso; resposta: string; falha: string | null }> {
   const mcp = join(trabalho, "mcp.json");
-  writeFileSync(mcp, JSON.stringify({ mcpServers: { nod: { command: TSX, args: [join(AQUI, "mcp-falso.ts"), join(prep.dir, "plano.json"), log] } } }));
+  writeFileSync(mcp, JSON.stringify({ mcpServers: { nod: { command: TSX, args: [join(AQUI, "mcp-falso.ts"), join(prep.dir, "plano.json"), log, entidadesDo(pedido)] } } }));
   // Entrada em stream-json, como o driver do nod (claude-cli.ts): a mensagem da pessoa vai pelo stdin.
   const mensagem = `${JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: pedido.texto }] } })}\n`;
   const r = await executar("claude", ["-p", "--input-format", "stream-json", "--model", modelo, "--system-prompt", prep.prompt, "--mcp-config", mcp, "--strict-mcp-config", "--tools", "ToolSearch", "--allowedTools", [...prep.nomes.map((n) => `mcp__nod__${n}`), "ToolSearch"].join(","), "--permission-mode", "default", "--max-turns", "10", "--output-format", "stream-json", "--verbose"], { cwd: trabalho, entrada: mensagem, timeoutMs: 300_000 });
@@ -89,7 +92,7 @@ async function rodarClaude(prep: ReturnType<typeof preparar>, pedido: Pedido, lo
 
 async function rodarCodex(prep: ReturnType<typeof preparar>, pedido: Pedido, log: string, trabalho: string): Promise<{ ms: number; uso: Uso; resposta: string; falha: string | null }> {
   const q = JSON.stringify;
-  const servidor = `{ command = ${q(TSX)}, args = [${[join(AQUI, "mcp-falso.ts"), join(prep.dir, "plano.json"), log].map((s) => q(s)).join(", ")}], required = true, ${CAMPO_APROVACAO} = "approve", enabled_tools = [${prep.nomes.map((n) => q(n)).join(", ")}], tool_timeout_sec = 120 }`;
+  const servidor = `{ command = ${q(TSX)}, args = [${[join(AQUI, "mcp-falso.ts"), join(prep.dir, "plano.json"), log, entidadesDo(pedido)].map((s) => q(s)).join(", ")}], required = true, ${CAMPO_APROVACAO} = "approve", enabled_tools = [${prep.nomes.map((n) => q(n)).join(", ")}], tool_timeout_sec = 120 }`;
   const args = ["exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "--model", modelo,
     "-c", `developer_instructions=${q(prep.prompt)}`, "-c", `mcp_servers={ nod = ${servidor} }`, "-c", 'approval_policy="never"', ...OVERRIDES_ISOLAMENTO_CODEX.flatMap((o) => ["-c", o]), "-"];
   const r = await executar("codex", args, { cwd: trabalho, entrada: pedido.texto, timeoutMs: 300_000 });
