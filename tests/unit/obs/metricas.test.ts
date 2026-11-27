@@ -4,10 +4,11 @@ import { AJUDA, TIPO_METRICA, criarMetricas, type NomeMetrica, type Rotulo } fro
 const T = "11111111-1111-4111-8111-111111111111";
 const P = "22222222-2222-4222-8222-222222222222";
 
-describe("métricas do ADR-017: sete rótulos, union fechado, texto Prometheus", () => {
-  it("são exatamente sete métricas, com tipo e ajuda declarados", () => {
+describe("métricas do ADR-017: sete rótulos (mais o da ADR-199), union fechado, texto Prometheus", () => {
+  // ADR-199: a oitava, `lugar_recusado_sem_tentar`, entrou por decisão registrada lá (promessa: o bot usa o lugar que tem).
+  it("são exatamente as sete do ADR-017 e a da ADR-199, com tipo e ajuda declarados", () => {
     const nomes = Object.keys(TIPO_METRICA).sort();
-    expect(nomes).toEqual(["custo_servidor_mes", "expiracao", "outbox_abandonados", "pendencia_mais_velha_s", "polls_abertos", "pos_restart", "turno_velho_na_fila"]);
+    expect(nomes).toEqual(["custo_servidor_mes", "expiracao", "lugar_recusado_sem_tentar", "outbox_abandonados", "pendencia_mais_velha_s", "polls_abertos", "pos_restart", "turno_velho_na_fila"]);
     for (const n of nomes as NomeMetrica[]) expect(AJUDA[n].length).toBeGreaterThan(10);
   });
 
@@ -25,6 +26,12 @@ describe("métricas do ADR-017: sete rótulos, union fechado, texto Prometheus",
     m.incrementar({ metrica: "polls_abertos", tenant_id: T });
     // @ts-expect-error rótulo livre não existe
     m.registrar({ metrica: "polls_abertos", tenant_id: T, email: "x@y" }, 1);
+    // @ts-expect-error a IA do alarme da ADR-199 é o id fechado do harness, nunca texto livre
+    m.incrementar({ metrica: "lugar_recusado_sem_tentar", lugar: "navegador", harness: "o modelo que a pessoa digitou", tenant_id: T });
+    // @ts-expect-error o lugar é navegador ou computador
+    m.incrementar({ metrica: "lugar_recusado_sem_tentar", lugar: "seuComputador", harness: "codex-cli", tenant_id: T });
+    m.incrementar({ metrica: "lugar_recusado_sem_tentar", lugar: "navegador", harness: "codex-cli", tenant_id: T });
+    m.incrementar({ metrica: "lugar_recusado_sem_tentar", lugar: "computador", harness: "desconhecida", tenant_id: T });
     expect(invalida).toBeDefined();
   });
 

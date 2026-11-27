@@ -1911,6 +1911,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async sessaoDoTurno() {
         return null;
       },
+      // ADR-199: sem sessão do CLI em memória, não há marca a comparar.
+      async registrarLugares() {},
+      async lugaresDoTurno() {
+        return null;
+      },
+      async lugaresDaSessao() {
+        return null;
+      },
       async largarSessao() {
         return false;
       },

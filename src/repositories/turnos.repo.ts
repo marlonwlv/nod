@@ -1075,6 +1075,31 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       return l?.n ?? 0;
     },
 
+    /** ADR-199 (0188): a marca dos lugares do bot neste turno (`marcaDosLugares`), gravada na emissão do plano. */
+    async registrarLugares(id: string, marca: string): Promise<void> {
+      await conn`update turnos set lugares = ${marca} where tenant_id = ${escopo.tenantId} and id = ${id} and lugares is distinct from ${marca}`;
+    },
+
+    /** ADR-199: a marca dos lugares deste turno (para o alarme do assentar). */
+    async lugaresDoTurno(id: string): Promise<string | null> {
+      const [l] = await conn<{ lugares: string | null }[]>`select lugares from turnos where tenant_id = ${escopo.tenantId} and id = ${id}`;
+      return l?.lugares ?? null;
+    },
+
+    /**
+     * ADR-199: a marca dos lugares do último turno que rodou nesta sessão do CLI, antes do turno `menosEste`. Null = a
+     * sessão não tem turno com marca (é de antes da 0188): não se sabe, e quem chama retoma como antes. Usa o índice
+     * turnos_por_sessao_cli (0035) para achar os turnos da sessão.
+     * Revisão do PR #415: "último" é o que rodou por último (despacho), não o criado por último. A volta adiada e a fala
+     * adiada nascem antes e rodam depois; pela criação, a sessão que viu o "fora do ar" dela seria retomada.
+     */
+    async lugaresDaSessao(sessaoCli: string, menosEste: string): Promise<string | null> {
+      const [l] = await conn<{ lugares: string | null }[]>`
+        select lugares from turnos where tenant_id = ${escopo.tenantId} and sessao_cli = ${sessaoCli} and id <> ${menosEste}
+        order by coalesce(despachado_em, criado_em) desc, criado_em desc, id desc limit 1`;
+      return l?.lugares ?? null;
+    },
+
     /** NOD-312 (revisão 4): a repetição da sessão recusada que acabou retomando uma sessão nova não recomeçou. */
     async limparMotivoRecomeco(id: string): Promise<void> {
       await conn`update turnos set motivo_recomeco = null where tenant_id = ${escopo.tenantId} and id = ${id}`;

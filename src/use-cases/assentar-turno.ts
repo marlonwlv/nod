@@ -33,6 +33,8 @@ import { avisarTrocaDeIa, contaForaDaFila, contaQueParou, lerIas, maquinaDasTask
 import { adiarFala } from "./adiar-fala.ts";
 import { alvoDoBot } from "./alvo-do-bot.ts";
 import { log } from "../obs/log.ts";
+import { lerMarcaDosLugares, lugaresRecusadosSemTentar } from "../domain/lugares-da-sessao.ts";
+import { emSavepoint } from "./savepoint.ts";
 import { decidirEsperaNoFundo } from "../domain/espera-no-fundo.ts";
 import { TENTATIVAS_TRANSITORIAS_MAX } from "../shared/constantes.ts";
 import { rotinaDoTurno } from "./apoio-l7.ts";
@@ -90,6 +92,8 @@ export type SaidaAssentarTurno = {
   duplicada: boolean;
   /** Turno já terminal (varredor/parar chegaram antes): a fala entra como anexo parcial, sem reabrir (ADR-010). */
   tardia: boolean;
+  /** ADR-199 (alarme): os lugares do plano que o bot disse não funcionar sem chamar a ferramenta deles. A borda conta. */
+  lugaresRecusados?: ("navegador" | "computador")[];
   /** 0068: a IA do turno entrou no limite ou saiu dele — a ponte esquece o que leu dos limites e avisa a tela. */
   limiteMudou?: boolean;
   /**
@@ -239,6 +243,16 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // definido em 2026-10-05: com `causaSemIa` não há fala — o que veio é a recusa do fornecedor, nunca texto do bot.
   // NOD-353: o resumo das ações vai na fala final do bot (texto ou só mídia); turno sem ferramenta fica sem payload.
   const listaDeAcoes = acoesDoTurno(resultado.ferramentasChamadas, resultado.ferramentasFalharam);
+  // ADR-199 (alarme): o bot disse que um lugar do plano não funciona sem ter chamado a ferramenta dele. Só mede: o log e
+  // o contador (na borda) dizem quantos turnos assim acontecem; a fala e o turno seguem iguais. Falha ao ler: sem alarme.
+  let lugaresRecusados: ("navegador" | "computador")[] = [];
+  if (resultado.desfecho === "sucesso" && resultado.texto) {
+    try {
+      const marca = await emSavepoint(deps, () => deps.repos.turnos.lugaresDoTurno(turno.id));
+      lugaresRecusados = lugaresRecusadosSemTentar({ texto: resultado.texto, chamadas: resultado.ferramentasChamadas, lugares: lerMarcaDosLugares(marca) });
+      if (lugaresRecusados.length) log("aviso", "lugar_recusado_sem_tentar", { turno_id: turno.id, agente_id: turno.agenteId, harness: entrega.harness ?? null, lugares: lugaresRecusados.join(",") });
+    } catch { /* o alarme nunca derruba o assentar */ }
+  }
   // `duracaoMs` (plano "o pensamento no chat", 2026-10-26): do despacho (ou da criação, no turno de antes da 0083) até agora.
   const duracaoMs = Math.max(0, agora - (turno.despachadoEm ?? turno.criadoEm));
   const acoes: Extract<PayloadMensagem, { kind: "acoes_do_turno" }> | null = listaDeAcoes.length > 0 ? { kind: "acoes_do_turno", acoes: listaDeAcoes, duracaoMs } : null;
@@ -394,7 +408,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     if (promovido) {
       events.push(...(await fecharRetomarDoTurno(deps, promovido, REGRA_ENTREGA_TARDIA, agora)));
       events.push(...(await fecharRetomarSuperados(deps, promovido, agora)));
-      events.push(evento(deps.escopo, { kind: "turno_encerrado", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { estado: "concluido", custo_usd: custoUsd, ferramentas: resultado.ferramentasChamadas.length, regra: REGRA_ENTREGA_TARDIA } }));
+      events.push(evento(deps.escopo, { kind: "turno_encerrado", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { estado: "concluido", custo_usd: custoUsd, ferramentas: resultado.ferramentasChamadas.length, ...(lugaresRecusados.length ? { lugares_recusados: lugaresRecusados.join(",") } : {}), regra: REGRA_ENTREGA_TARDIA } }));
       // QA-228 (2026-11-25): o turno promovido concluiu de verdade — o que ele deixou marcado (me_chame_as, esperar_comando,
       // a saída da tarefa) vale como no assentamento na hora. Antes a volta sumia junto com a retomada absorvida, e o bot
       // que disse "volto às 16h" não voltava (e o comando que terminou durante a queda não acordava ninguém).
@@ -567,7 +581,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     if (aviso) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: aviso.id, kind: "sistema" } }));
     events.push(evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: desfecho.motivoInterrupcao, motivo_falha: desfecho.motivoFalha, custo_usd: custoUsd, ...(causaDaEntrega(resultado.causa) ? { causa: causaDaEntrega(resultado.causa) } : {}) } }));
   } else {
-    events.push(evento(deps.escopo, { kind: "turno_encerrado", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { estado: "concluido", custo_usd: custoUsd, ferramentas: resultado.ferramentasChamadas.length } }));
+    events.push(evento(deps.escopo, { kind: "turno_encerrado", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { estado: "concluido", custo_usd: custoUsd, ferramentas: resultado.ferramentasChamadas.length, ...(lugaresRecusados.length ? { lugares_recusados: lugaresRecusados.join(",") } : {}) } }));
   }
 
   // definido em 2026-09-28 (0032): aprovação já decidida que este turno não chegou a receber (a espera acabou
@@ -585,7 +599,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // ADR-083: o trabalho do turno muda de estado pelos fatos (terminado, precisa de você, parado, falhou ou segue).
   events.push(...(await sincronizarDoTurno(deps, assentado)));
   const esperaDaCota = events.find((e) => e.kind === "turno_interrompido" && e.turnoId === turno.id && (e.dados.espera_da_cota === "espera" || e.dados.espera_da_cota === "nao_rodou"))?.dados.espera_da_cota as SaidaAssentarTurno["esperaDaCota"];
-  return { data: { turno: assentado, mensagem, duplicada: false, tardia: false, ...(limiteMudou ? { limiteMudou } : {}), ...(esperaDaCota ? { esperaDaCota } : {}) }, events };
+  return { data: { turno: assentado, mensagem, duplicada: false, tardia: false, ...(limiteMudou ? { limiteMudou } : {}), ...(esperaDaCota ? { esperaDaCota } : {}), ...(lugaresRecusados.length ? { lugaresRecusados } : {}) }, events };
 };
 
 /**

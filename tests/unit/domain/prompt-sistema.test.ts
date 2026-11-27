@@ -350,7 +350,7 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
       // Cada entrada volátil aparece na parte volátil (a linha mudou de lugar, não sumiu).
       const volatil = a.volatil.join("\n");
       if (modo === "delegacao") expect(volatil).toContain("Modo de pedido de colega:");
-      expect(volatil).toContain("Seu computador está fora do ar (sem rede)");
+      expect(volatil).toContain("Seu computador está fora do ar neste turno (sem rede)");
       expect(a.volatil.some((l) => l.startsWith("Terminal: este turno não tem terminal")), modo).toBe(true);
       expect(a.estavel.some((l) => l.startsWith("Terminal:") || l.startsWith("Seu computador está") || l.startsWith("Modo de pedido de colega:")), modo).toBe(false);
       expect(volatil).toContain("o time usa Linear");
@@ -385,13 +385,14 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     // 2026-10-19 (PR 6 dos modos de aprovação): as linhas "Aprovações:" e "Terminal:" do total não dizem mais que a
     // credencial para. Regenerado em 2026-10-31 (NOD-444): linha nova só na conversa (perguntar o horário e repropor sem duplicar); rotina e delegação seguem iguais.
     // 2026-11-18: integração da orientação semântica e do gateway com o aviso de acompanhar pelo Computador do preview.
+    // 2026-11-27 (ADR-199): o aviso do computador fora do ar vale para o computador e para o turno (saiu o "não tente contornar").
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     // 2026-11-18: atualização deliberada da política do computador (gateway único e confirmação explícita).
     // 2026-11-18: catálogo Microsoft/reuniões da main (#171) somado ao da preview; só a linha de apps/slugs mudou.
     const esperado = {
-      conversa: "97a9525d94f2c214caa775391f471d4966ed1e3d9014b2462e0d3910721566cd",
-      rotina: "3338d849dfbfcf1367a6a6f8a1404b11514c1032c8fd446f60410a2285809ca5",
-      delegacao: "40ad326acdd4804a3ae65fd1b9b9c796fb5f4688791a381ff1680d8aa51b4b59",
+      conversa: "c35541b1def715eec3ed2ac63081d1ceb5cf18e86451ab528b2d03c70a7638e3",
+      rotina: "cbe1d81d75841457541db8596e8dd6e4f6d26b35b04b691c7e6068b05ee57ac9",
+      delegacao: "4084e8e4e37125d9e77c63ee531a99664cb965274d068bda5e7a5708d3b1ee0f",
     };
     const obtido = { conversa: "", rotina: "", delegacao: "" };
     for (const modo of ["conversa", "rotina", "delegacao"] as const) obtido[modo] = digital(montarPromptSistema({ ...base, ...turnoA, profundidade: 1, modo }));

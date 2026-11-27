@@ -55,6 +55,7 @@ import { ehColega } from "./ver-colegas.ts";
 import { comandoDaConversa } from "../domain/comandos.ts";
 import { juntarPassagem, montarPassagemDeBastao } from "../domain/passagem-de-bastao.ts";
 import { dadosDaPassagem } from "./passagem-de-bastao.ts";
+import { avisoDosLugares, lerMarcaDosLugares, lugaresQueMelhoraram, marcaDosLugares, type LugaresDoTurno } from "../domain/lugares-da-sessao.ts";
 import { avisoDeRecomeco, montarResumoDoRecomeco, motivoDoRecomeco } from "../domain/recomeco.ts";
 import { emSavepoint } from "./savepoint.ts";
 import { dadosDoResumo, TURNOS_DO_RESUMO } from "./resumo-do-recomeco.ts";
@@ -281,6 +282,25 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   // IA, o Codex não retoma (motor de antes) e o Claude segue retomando.
   const retomaNaMaquina = !escolha || input.capacidadesDaMaquina === undefined || (input.capacidadesDaMaquina[escolha.harness]?.retomaSessao ?? escolha.harness !== "codex-cli");
   const retoma = (caps ? caps.retomaSessao : true) && retomaNaMaquina;
+  // definido em 2026-09-24 (emenda da ADR-037): o computador que ainda não existe nasce ligado (as
+  // ferramentas entram); o que existe só entra ligado e respondendo — desligado ou fora do ar, o plano
+  // sai sem computador_* e o prompt diz por quê. NOD-96: o vínculo que sobrou do outro modo é "ainda não existe".
+  // 2026-11-25: sem máquina Linux, o computador não existe para este turno (nem as ferramentas, nem o "fora do ar").
+  const temComputador = await computadorTemLugar(deps);
+  const computadorDoAgente = temComputador && deps.services.computadores ? await deps.repos.computadores.buscarVinculo(agente.id, modeloDoModo(deps.services.computadores.porPessoa)) : null;
+  const computadorFora: ComputadorFora | null = !computadorDoAgente ? null
+    : !computadorDoAgente.habilitado ? { estado: "desligado" }
+      : computadorDoAgente.indisponivelDesde !== null ? { estado: "fora_do_ar", motivo: MOTIVO_FALHA_EM_PORTUGUES[computadorDoAgente.falhaMotivo ?? "sem_resposta"] }
+        : null;
+  // ADR-199: os lugares deste turno, decididos ANTES da sessão (a sessão só é retomada se eles não melhoraram). No
+  // pedido de colega e no turno a pedido de outra pessoa o plano sai sem lugar nenhum por regra, não por estado: sem marca.
+  const navegadorNoPlano = deps.services.navegadores?.disponivel() === true;
+  const seuComputadorAgora = deps.services.seuComputador?.disponivel(deps.escopo) ?? null;
+  const lugaresAgora: LugaresDoTurno | null = modo === "peer" || modo === "ligacao" || aPedidoDeOutraPessoa(turno.sobProcuracaoDe ?? delegacao?.sobProcuracaoDe ?? null, turno.ownerId) ? null : {
+    computador: !temComputador ? "ausente" : computadorFora ? computadorFora.estado : "no_plano",
+    navegador: navegadorNoPlano ? "no_plano" : "ausente",
+    seuComputador: seuComputadorAgora ? "no_plano" : "ausente",
+  };
   // definido em 2026-10-07 (ADR-083): o turno de um trabalho roda na sessão DO TRABALHO, nunca na da conversa nem na da
   // cadeia (a retomada dele herda o trabalho). Sem `retomaSessao`, recebe o histórico recente, como o Codex hoje.
   const trabalho = turno.trabalhoId ? await deps.repos.trabalhos.buscar(turno.trabalhoId) : null;
@@ -298,19 +318,31 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const ondeOk = async (contaGravada: () => Promise<string | null>, maquinaGravada: () => Promise<string | null>) => mesmaConta(await contaGravada()) && mesmaMaquina(await maquinaGravada());
   const contaDoTrabalhoOk = trabalho?.sessaoCli ? await ondeOk(() => deps.repos.trabalhos.contaDaSessao(trabalho.id), () => deps.repos.trabalhos.maquinaDaSessao(trabalho.id)) : true;
   const contaDaConversaOk = conversa?.sessaoCli ? await ondeOk(() => deps.repos.conversas.contaDaSessao(turno.conversaId), () => deps.repos.conversas.maquinaDaSessao(turno.conversaId)) : true;
-  const sessaoDoTrabalho = trabalho && retoma && contaDoTrabalhoOk && input.permitirResume !== false && trabalho.sessaoCli && trabalho.sessaoExecutor === executor && (!escolha || trabalho.sessaoHarness === null || trabalho.sessaoHarness === escolha.harness) ? trabalho.sessaoCli : null;
+  const sessaoDoTrabalhoCandidata = trabalho && retoma && contaDoTrabalhoOk && input.permitirResume !== false && trabalho.sessaoCli && trabalho.sessaoExecutor === executor && (!escolha || trabalho.sessaoHarness === null || trabalho.sessaoHarness === escolha.harness) ? trabalho.sessaoCli : null;
   const sessaoDoHarness = (escolha ? retoma && conversa?.sessaoHarness === escolha.harness : true) && contaDaConversaOk;
-  const sessaoDaConversa = !trabalho && sessaoDoHarness && input.permitirResume !== false && turno.origem !== "rotina" && turno.origem !== "peer" && turno.origem !== "ligacao" && ligacao === null && !ehDelegacao && conversa?.tipo !== "sala" && conversa?.sessaoCli && conversa.sessaoExecutor === executor ? conversa.sessaoCli : null;
+  const sessaoDaConversaCandidata = !trabalho && sessaoDoHarness && input.permitirResume !== false && turno.origem !== "rotina" && turno.origem !== "peer" && turno.origem !== "ligacao" && ligacao === null && !ehDelegacao && conversa?.tipo !== "sala" && conversa?.sessaoCli && conversa.sessaoExecutor === executor ? conversa.sessaoCli : null;
   // definido em 2026-10-01 (ADR-066): a retomada de rotina ou de pedido de colega volta na sessão DO TURNO que ela
   // continua (nunca na da conversa, pelos motivos acima). Antes ela começava do zero: em 30/09 o Milton, retomado 13
   // min depois de uma aprovação cujo comentário falhou, leu a task, chamou sem_novidade e não refez nem avisou. Com o
   // terminal fora da conversa, a sessão é o que guarda os arquivos mexidos e o resultado dos testes.
-  const continuaCadeia = !trabalho && !sessaoDaConversa && turno.origem === "retomada" && turno.retomaTurnoId !== null && (ligacao !== null || ehDelegacao) && input.permitirResume !== false && retoma;
+  const continuaCadeia = !trabalho && !sessaoDaConversaCandidata && turno.origem === "retomada" && turno.retomaTurnoId !== null && (ligacao !== null || ehDelegacao) && input.permitirResume !== false && retoma;
   const daCadeia = continuaCadeia && turno.retomaTurnoId ? await deps.repos.turnos.sessaoDoTurno(turno.retomaTurnoId) : null;
   // ADR-107 (NOD-281): a cadeia só retoma na mesma IA (a do Codex não existe no Claude), na mesma conta e na mesma máquina.
   // Sem a IA gravada (turno de antes da 0079), como antes.
-  const sessaoDaCadeia = daCadeia && daCadeia.executor === executor && (daCadeia.harness === null || !escolha || daCadeia.harness === escolha.harness)
+  const sessaoDaCadeiaCandidata = daCadeia && daCadeia.executor === executor && (daCadeia.harness === null || !escolha || daCadeia.harness === escolha.harness)
     && mesmaConta(daCadeia.contaId) && mesmaMaquina(daCadeia.machineId) ? daCadeia.sessaoCli : null;
+  // ADR-199: a sessão guardou o que o bot viu e ouviu sobre os lugares dele (a tentativa que falhou, o "fora do ar", as
+  // próprias recusas). Se um lugar entrou ou um aviso saiu desde o último turno dela, o turno começa numa sessão nova, com
+  // o histórico, o resumo e o aviso do recomeço. Falha ao ler a marca: retoma como antes (nunca derruba a emissão).
+  const sessaoCandidata = sessaoDoTrabalhoCandidata ?? sessaoDaConversaCandidata ?? sessaoDaCadeiaCandidata;
+  const lugaresDaSessao = sessaoCandidata && lugaresAgora
+    ? lerMarcaDosLugares(await emSavepoint(deps, () => deps.repos.turnos.lugaresDaSessao(sessaoCandidata, turno.id)).catch(() => null)) : null;
+  const lugaresMelhores = lugaresAgora ? lugaresQueMelhoraram(lugaresDaSessao, lugaresAgora) : [];
+  const largaPelosLugares = lugaresMelhores.length > 0;
+  if (largaPelosLugares) log("info", "sessao_largada_pelos_lugares", { turno_id: turno.id, agente_id: agente.id, harness: escolha?.harness ?? null, antes: lugaresDaSessao ? marcaDosLugares(lugaresDaSessao) : null, agora: marcaDosLugares(lugaresAgora!), mudou: lugaresMelhores.map((m) => `${m.lugar}:${m.mudanca}`).join(",") });
+  const sessaoDoTrabalho = largaPelosLugares ? null : sessaoDoTrabalhoCandidata;
+  const sessaoDaConversa = largaPelosLugares ? null : sessaoDaConversaCandidata;
+  const sessaoDaCadeia = largaPelosLugares ? null : sessaoDaCadeiaCandidata;
   const sessaoCli = sessaoDoTrabalho ?? sessaoDaConversa ?? sessaoDaCadeia;
   // A rede de 2 min (ADR-083 §2, #193): a sessão da conversa ficou com o trabalho promovido, que segue nela. A próxima
   // mensagem continua numa CÓPIA (`--fork-session` no Claude) e o id novo vira a sessão da conversa. Só com harness que
@@ -324,9 +356,9 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   // turno de conversa do bot que deixou uma (depois do /nova-sessao). A repetição da sessão recusada já nasce com o motivo.
   const elegivelAoRecomeco = !trabalho && (modo === "conversa" || modo === "criacao") && (turno.origem === "conversa" || turno.origem === "retomada")
     && input.permitirResume !== false && ligacao === null && !ehDelegacao && conversa?.tipo !== "sala";
-  const anteriorDoRecomeco = elegivelAoRecomeco && !sessaoCli && !turno.motivoRecomeco
+  const anteriorDoRecomeco = elegivelAoRecomeco && !sessaoCli && !turno.motivoRecomeco && !largaPelosLugares
     ? await deps.repos.turnos.ultimaSessaoDaConversa(turno.conversaId, turno.agenteId, turno, recomeco) : null;
-  const motivoRecomeco = sessaoCli || !elegivelAoRecomeco ? null : turno.motivoRecomeco ?? motivoDoRecomeco({
+  const motivoRecomeco = sessaoCli || !elegivelAoRecomeco ? null : turno.motivoRecomeco ?? (largaPelosLugares ? "lugares_mudaram" as const : null) ?? motivoDoRecomeco({
     elegivel: elegivelAoRecomeco, retomou: sessaoCli !== null, iaRetoma: retoma, anterior: anteriorDoRecomeco,
     atual: { harness: escolha?.harness ?? null, executor, mesmaConta, mesmaMaquina },
   });
@@ -418,17 +450,6 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   // Resolvido ANTES de montar: o catálogo depende de haver projeto autorizado, não só do serviço.
   const workspaceId = input.maquinaRemota ? null : await deps.services.workspaces?.id({ ...deps.escopo, conversaId: turno.conversaId }) ?? null;
 
-  // definido em 2026-09-24 (emenda da ADR-037): o computador que ainda não existe nasce ligado (as
-  // ferramentas entram); o que existe só entra ligado e respondendo — desligado ou fora do ar, o plano
-  // sai sem computador_* e o prompt diz por quê. NOD-96: o vínculo que sobrou do outro modo é "ainda não existe".
-  // 2026-11-25: sem máquina Linux, o computador não existe para este turno (nem as ferramentas, nem o "fora do ar").
-  const temComputador = await computadorTemLugar(deps);
-  const computadorDoAgente = temComputador && deps.services.computadores ? await deps.repos.computadores.buscarVinculo(agente.id, modeloDoModo(deps.services.computadores.porPessoa)) : null;
-  const computadorFora: ComputadorFora | null = !computadorDoAgente ? null
-    : !computadorDoAgente.habilitado ? { estado: "desligado" }
-      : computadorDoAgente.indisponivelDesde !== null ? { estado: "fora_do_ar", motivo: MOTIVO_FALHA_EM_PORTUGUES[computadorDoAgente.falhaMotivo ?? "sem_resposta"] }
-        : null;
-
   // De quem é o trabalho e quem pediu (ADR-047/058): a pessoa vem de `sob_procuracao_de` da tarefa; o
   // remetente, do peer_pedido ligado a ela, lido direto pelo turno.
   const pedidoDelegado = delegacao ? await deps.repos.mensagens.pedidoDaTarefa(delegacao.id) : null;
@@ -489,8 +510,8 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     workspaceVinculado: workspaceId !== null,
     computador: temComputador,
     computadorFora,
-    navegador: deps.services.navegadores?.disponivel() === true,
-    seuComputador: deps.services.seuComputador?.disponivel(deps.escopo) ?? null,
+    navegador: navegadorNoPlano,
+    seuComputador: seuComputadorAgora,
     turno: { ...turno, sobProcuracaoDe, ...(modeloEscolhido ? { modelo: modeloEscolhido } : {}) },
     agente,
     ...(raciocinio ? { raciocinio } : {}),
@@ -600,6 +621,12 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     // QA (bug 2): a fala com "/" vai crua, mas o turno recomeçou do mesmo jeito — o Raio-X diz isso, como a marca da fala.
     partesDoRecomeco = { motivo: motivoRecomeco, avisoChars: 0, resumoChars: 0, historicoChars: JSON.stringify(historico).length };
   }
+  // ADR-199: a sessão largada pelos lugares (conversa, task ou cadeia) leva a frase que diz o que há NESTE turno e manda
+  // conferir pela ferramenta: o histórico e a passagem que acompanham a sessão nova ainda trazem as recusas antigas.
+  if (largaPelosLugares && lugaresAgora && modo !== "ligacao" && !comandoDaConversa(parcial.entrada.texto) && !parcial.entrada.texto.trimStart().startsWith("/")) {
+    const frase = avisoDosLugares(lugaresMelhores, lugaresAgora);
+    if (frase) parcial.entrada = { ...parcial.entrada, texto: juntarPassagem(parcial.entrada.texto, frase) };
+  }
   {
     // ADR-173: Mail, Notas, Calendário, Lembretes, Contatos e iMessage só existem no Mac da pessoa; fora dele, somem.
     const meuMac = guardados.find((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId === deps.escopo.pessoaId);
@@ -655,6 +682,8 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   // NOD-312: só grava sobre a coluna nula (a repetição da sessão recusada já veio com o motivo). A recomposição nem chega
   // aqui: volta antes, e com permitirResume false nem calcula o motivo.
   if (motivoRecomeco && !turno.motivoRecomeco) await deps.repos.turnos.registrarMotivoRecomeco(turno.id, motivoRecomeco);
+  // ADR-199: a marca dos lugares deste turno; o próximo turno da mesma sessão compara com ela.
+  if (lugaresAgora) await deps.repos.turnos.registrarLugares(turno.id, marcaDosLugares(lugaresAgora));
   // Revisão 4: a repetição nasceu com 'sessao_recusada', mas outro turno gravou sessão nova antes e esta a retomou.
   if (sessaoCli && turno.motivoRecomeco) await deps.repos.turnos.limparMotivoRecomeco(turno.id);
   guardarPlanoSeSuportado(deps.services.tokenTurno, plano);
