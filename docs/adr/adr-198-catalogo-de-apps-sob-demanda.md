@@ -41,6 +41,17 @@ Composio concede o app inteiro, e `ferramentasDeConectores` punha toda capacidad
    (o Codex copiava o nome de `apps_buscar` e o pedido caía em "fora do catálogo"); `errosDoSchema` ignora `enum` e
    `required` que não são lista (esquema torto de app derrubava a chamada com TypeError).
 6. **Interruptor:** `NOD_APPS_SOB_DEMANDA=0` volta ao catálogo inteiro sem deploy de código. Ligado por padrão.
+7. **Revisão do PR #413:** (a) pelo nome direto, o servidor acha também a sob demanda de conector, pelo mesmo portão: o
+   plano recomposto depois de um reinício relê o uso de 30 dias (que já inclui as chamadas do turno) e pode trocar uma
+   direta de lado, enquanto o proxy segue com a lista da emissão; negar por `fora_do_catalogo` encerraria o turno. O que
+   o modelo pode chamar pelo nome continua decidido pelo proxy (só o que ele listou). (b) `apps_usar` numa direta que
+   roda na máquina (`execucao: "maquina"`) não roda: volta `na_lista` com o nome para chamar direto, porque o proxy só
+   executa local pelo nome da própria ferramenta e negaria a chamada depois de o servidor gravá-la. (c) O prefixo pedido
+   em `apps_usar` vale: com `slug__`, a busca pela capacidade fica no mesmo app, e se o slug é um conector que existe,
+   nem a outra conta entra (a capacidade que a conta nomeada não tem volta `sem_acesso` nela, em vez de a mesma ação sair
+   de outra caixa ou de outro app com nome genérico). (d) `apps_buscar` e `apps_usar` fora do plano (recomposto com o
+   interruptor desligado, ou sem sob demanda) seguem atendidas: o proxy do turno em curso ainda as lista; elas não abrem
+   nada além do plano, e o pedido de outra pessoa continua negado pela origem.
 
 ## Os outros grupos de ferramentas
 
