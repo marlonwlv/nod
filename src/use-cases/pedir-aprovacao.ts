@@ -110,10 +110,18 @@ async function cardIgualAberto(deps: Deps, turnoId: string, propostas: readonly 
   return null;
 }
 
+/** XUM-11: `outlook__OUTLOOK_X` no destino do conector `outlook` é a capacidade `OUTLOOK_X` (o nome que apps_buscar mostra). */
+export function semPrefixoDoApp(conector: string, ferramenta: string): string {
+  return ferramenta.startsWith(`${conector}__`) ? ferramenta.slice(conector.length + 2) : ferramenta;
+}
+
 /** `comRevisor`: só o caminho da ferramenta (a rota interna sabe esperar a revisão e enfileirar o pedido); os outros, como hoje. */
-const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: Deps, input: EntradaPedido): Promise<SaidaFase1Pedido> => {
+const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: Deps, entrada: EntradaPedido): Promise<SaidaFase1Pedido> => {
   const agora = deps.agora();
-  if (!Array.isArray(input.itens) || input.itens.length === 0) throw new ErroDeDominio("entrada_invalida", { cause: "itens vazios" });
+  if (!Array.isArray(entrada.itens) || entrada.itens.length === 0) throw new ErroDeDominio("entrada_invalida", { cause: "itens vazios" });
+  // XUM-11: apps_buscar devolve o nome inteiro (`outlook__OUTLOOK_X`) e o modelo o repete no destino; aqui a ferramenta é a
+  // capacidade do app. Achado no eval com o Codex: sem isto o pedido caía em "fora do catálogo".
+  const input: EntradaPedido = { ...entrada, itens: entrada.itens.map((i) => ({ ...i, destino: { ...i.destino, ferramenta: semPrefixoDoApp(i.destino.conector, i.destino.ferramenta) } })) };
   if (await quemPediuSaiuDoQuadro(deps, input.turnoId)) {
     return { saida: { data: { estado: "recusada", erros: ["quem pediu esta tarefa não participa mais do quadro: o pedido deixou de valer"], instrucao: "não peça de novo; encerre o turno" }, events: [] } };
   }

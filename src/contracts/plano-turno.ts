@@ -36,8 +36,9 @@ export type FerramentaPlano = {
    * "proxy" (2026-09-28): atendida pelo próprio proxy do turno, sem ida ao servidor — hoje só `ler_mais`.
    * "navegador" (2026-11-20, ADR-190): o Chrome do bot, pelo portão `adapters/fundo/navegadores.ts`.
    * "seu_computador" (2026-11-26, ADR-197): os apps do Mac ou PC da pessoa, pelo portão `adapters/fundo/seu-computador.ts`.
+   * "apps" (2026-11-27, XUM-11): `apps_buscar`/`apps_usar`, atendidas pelo servidor sobre o plano (catalogo-de-apps.ts).
    */
-  origem: "nod" | "conector" | "computador" | "navegador" | "seu_computador" | "workspace" | "proxy";
+  origem: "nod" | "conector" | "computador" | "navegador" | "seu_computador" | "workspace" | "proxy" | "apps";
   conectorId: string | null;
   /** Capturado na DESCOBERTA (sonda), nunca em tempo de chamada (ADR-013). */
   readOnlyHint: boolean;
@@ -104,7 +105,13 @@ export type PlanoTurno = {
   autoria: Autoria;
   confiancaEntrada: Confianca;
   profundidade: Profundidade;
-  catalogo: { ferramentas: FerramentaPlano[]; servidores: ServidorPlano[] };
+  /**
+   * XUM-11 (catálogo de apps sob demanda): `sobDemanda` são as capacidades de app CONCEDIDAS que não vão ao modelo como
+   * ferramenta (fora de tools/list): ele as acha por `apps_buscar` e chama por `apps_usar`, que o servidor confere contra
+   * esta lista e passa pelo mesmo portão da direta. Ausente = tudo direto (interruptor desligado, plano antigo). O proxy
+   * e o driver não a leem.
+   */
+  catalogo: { ferramentas: FerramentaPlano[]; servidores: ServidorPlano[]; sobDemanda?: FerramentaPlano[] };
   promptSistema: string;
   /**
    * definido em 2026-10-06 (NOD-183, ADR-080): as duas partes do `promptSistema` do turno de texto, para o driver do

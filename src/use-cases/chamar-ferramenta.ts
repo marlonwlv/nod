@@ -30,6 +30,8 @@ import { buscarPreviaNoLinear, type BuscaDaPrevia } from "./importar-linear.ts";
 import { nomeParaTrilha, registrarNegacao, type EntradaRegistrarNegacao } from "./registrar-negacao.ts";
 import type { CasoDeUso, Deps, Services } from "./tipos.ts";
 import { sincronizarTrabalho } from "./trabalhos.ts";
+import { APPS_BUSCAR, APPS_USAR, FERRAMENTA_APPS_BUSCAR, FERRAMENTA_APPS_USAR } from "../contracts/catalogo-de-apps.ts";
+import { decidirAppsUsar, ferramentasDeAppDoPlano, itensDaBusca, respostaDaBusca } from "../domain/catalogo-de-apps.ts";
 
 /** Corpo devolvido por POST /api/interno/ferramentas/:nome (o proxy consome; src/adapters/executor/cliente-nod.ts espelha). */
 export type ResultadoChamada =
@@ -276,7 +278,15 @@ const leCanvas = (nome: NomeFerramentaNod, args: unknown): boolean => nome === "
  * aprovado), chama services.conectores e marca o conteúdo como não confiável (ADR-026). Toda
  * chamada e toda negação deixam linha na trilha com a regra (E8.4).
  */
-export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase1Chamada> = async (deps, input) => {
+export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase1Chamada> = (deps, input) => fase1(deps, input, false);
+
+/**
+ * `viaCatalogo` (XUM-11): a chamada veio de apps_usar, já resolvida para a capacidade de app (direta ou de
+ * `catalogo.sobDemanda`, só de conector); dali em diante o caminho é o MESMO da direta: concessão lida
+ * agora, nível da dona, decisão de aprovação, revisor, schema, trilha e marca de conteúdo de fora. Nunca vem do corpo
+ * da rota: só apps_usar, aqui dentro, passa `true`.
+ */
+async function fase1(deps: Deps, input: EntradaChamarFerramenta, viaCatalogo: boolean): Promise<SaidaCasoDeUso<SaidaFase1Chamada>> {
   const agora = deps.agora();
   const events: RuntimeEvent[] = [];
   const plano = input.plano;
@@ -308,7 +318,13 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
   // `pararSolicitadoEm` — entre o pedido e o SIGTERM ele não chama mais nada.
   if ((await deps.repos.turnos.buscar(input.turnoId))?.pararSolicitadoEm != null) return negar("parada_ativa", "ferramenta_negada");
 
-  const ferramenta: FerramentaPlano | undefined = plano.catalogo.ferramentas.find((f) => f.nome === input.nome);
+  // XUM-11: pela via do catálogo (apps_usar), só ferramenta de conector, direta ou sob demanda; nunca nod nem outra origem.
+  // Pelo nome direto, a sob demanda de conector também é achada (revisão do PR #413): o plano recomposto depois de um
+  // reinício relê o uso de 30 dias e pode trocar uma direta de lado, enquanto o proxy segue com a lista da emissão. O
+  // portão abaixo é o mesmo; o que o modelo vê continua decidido pelo proxy, que só deixa passar o que listou.
+  const ferramenta: FerramentaPlano | undefined = viaCatalogo
+    ? ferramentasDeAppDoPlano(plano).find((f) => f.nome === input.nome && f.origem === "conector")
+    : plano.catalogo.ferramentas.find((f) => f.nome === input.nome) ?? plano.catalogo.sobDemanda?.find((f) => f.nome === input.nome && f.origem === "conector") ?? catalogoForaDoPlano(input.nome);
   if (!ferramenta) return negar("fora_do_catalogo", "ferramenta_negada");
   // NOD-443 (revisão 6 do PR #628, achado 5), defesa em profundidade: no turno a pedido de outra pessoa só roda o que a
   // lista do pedido permite (permitidaAPedidoDeOutraPessoa: ferramenta do nod fora das que leem ou gravam o que é da dona).
@@ -322,6 +338,14 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
   // com a genérica, porque não passa por decisão de app.
   const registrarChamada = (conectorId: string | null, regra: { regra: string; versao: number } = { regra: REGRA_CHAMADA, versao: VERSAO_REGRA_CHAMADA }) =>
     deps.repos.trilha.registrar({ agenteId: input.agenteId, turnoId: input.turnoId, conectorId, ferramenta: nomeParaTrilha(input.nome), kind: "tool_call", regra: regra.regra, regraVersao: regra.versao, em: agora });
+
+  // XUM-11: o catálogo de apps sob demanda. apps_buscar só lê o plano e o registro de conectores; apps_usar resolve a
+  // capacidade e volta a esta função pela via do catálogo, com o portão inteiro.
+  if (ferramenta.origem === "apps") {
+    if (ferramenta.nome === APPS_BUSCAR) return buscarNosApps(deps, input, plano, ferramenta, negar, registrarChamada);
+    if (ferramenta.nome === APPS_USAR) return usarDoCatalogo(deps, input, plano, ferramenta, negar);
+    return negar("fora_do_catalogo", "ferramenta_negada");
+  }
 
   if (ferramenta.origem === "nod") {
     if (!ehNomeNod(ferramenta.nome)) return negar("fora_do_catalogo", "ferramenta_negada");
@@ -458,6 +482,60 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
     events,
   };
 };
+
+// --- XUM-11: catálogo de apps sob demanda ----------------------------------------------------------------------------
+
+type Negar = (motivo: MotivoNegacao, classe: Negacao["classe"], conectorId?: string | null) => Promise<{ data: SaidaFase1Chamada; events: RuntimeEvent[] }>;
+
+const REGRA_APPS_USAR = "regra:apps_usar" as const;
+
+/**
+ * Revisão do PR #413: apps_buscar e apps_usar fora do plano (recomposto depois do reinício com NOD_APPS_SOB_DEMANDA=0, ou
+ * sem sob demanda) seguem atendidas: o proxy do turno em curso ainda as lista, e a negação fora_do_catalogo é terminal.
+ * Não abrem nada: apps_buscar só lê e apps_usar só chega às ferramentas de conector do plano, pelo portão inteiro. O
+ * portão do pedido de outra pessoa (origem "apps" não passa) vale igual.
+ */
+function catalogoForaDoPlano(nome: string): FerramentaPlano | undefined {
+  return nome === APPS_BUSCAR ? FERRAMENTA_APPS_BUSCAR : nome === APPS_USAR ? FERRAMENTA_APPS_USAR : undefined;
+}
+
+/** Resposta do catálogo ao modelo: o nod escreveu o texto (os nomes e esquemas são os que a sonda já lista em tools/list). */
+const respostaDoCatalogo = (dados: unknown, erro = false): { data: SaidaFase1Chamada; events: RuntimeEvent[] } => ({ data: { ok: true, conteudo: JSON.stringify(dados), confianca: "confiavel", ...(erro ? { isError: true } : {}) }, events: [] });
+
+/**
+ * apps_buscar: procura nas capacidades de app do plano (diretas e sob demanda) e nas que o bot ainda não tem nos apps
+ * habilitados (para pedir_acesso pelo nome exato). Só lê: nada roda, nada é concedido.
+ */
+async function buscarNosApps(deps: Deps, input: EntradaChamarFerramenta, plano: PlanoTurno, ferramenta: FerramentaPlano, negar: Negar, registrarChamada: (conectorId: string | null) => Promise<unknown>): Promise<{ data: SaidaFase1Chamada; events: RuntimeEvent[] }> {
+  const args = (input.argumentos ?? {}) as { busca?: unknown; app?: unknown };
+  if (errosDoSchema(ferramenta.schema, args).length > 0) return negar("args_invalidos", "ferramenta_negada");
+  const itens = itensDaBusca(plano, await deps.repos.conectores.listar());
+  await registrarChamada(null);
+  return respostaDoCatalogo(respostaDaBusca({ busca: String(args.busca), app: typeof args.app === "string" ? args.app : null, itens }));
+}
+
+/**
+ * apps_usar: a capacidade pedida, resolvida no plano, volta a fase1 pela via do catálogo (o portão inteiro). Fora do
+ * plano não roda: a que existe mas não é do bot volta com a instrução de pedir_acesso (sem encerrar o turno, como a
+ * negação terminal encerraria); a que não existe, com a de apps_buscar; argumento inválido, com os erros e o esquema.
+ * A trilha guarda cada recusa.
+ */
+async function usarDoCatalogo(deps: Deps, input: EntradaChamarFerramenta, plano: PlanoTurno, ferramenta: FerramentaPlano, negar: Negar): Promise<SaidaCasoDeUso<SaidaFase1Chamada>> {
+  const args = (input.argumentos ?? {}) as { ferramenta?: unknown; argumentos?: unknown };
+  if (errosDoSchema(ferramenta.schema, args).length > 0) return negar("args_invalidos", "ferramenta_negada");
+  const d = decidirAppsUsar({ plano, conectores: await deps.repos.conectores.listar(), pedida: String(args.ferramenta), argumentos: args.argumentos });
+  if ("chamar" in d) return fase1(deps, { ...input, nome: d.chamar.nome, argumentos: d.argumentos }, true);
+  let events: RuntimeEvent[] = [];
+  if (d.recusa?.motivo === "args_invalidos") {
+    // Transitória (não encerra o turno): a negação de sempre, com o evento.
+    events = (await registrarNegacao(deps, { turnoId: input.turnoId, agenteId: input.agenteId, conversaId: plano.conversaId, nome: d.recusa.ferramenta, motivo: "args_invalidos", classe: "ferramenta_negada", conectorId: d.recusa.conectorId, autoria: plano.autoria })).events ?? [];
+  } else if (d.recusa) {
+    // Sem acesso ou inexistente: só a linha da trilha. registrarNegacao pediria a interrupção (terminal) e o caminho
+    // certo, pedir_acesso, é nesta mesma execução.
+    await deps.repos.trilha.registrar({ agenteId: input.agenteId, turnoId: input.turnoId, conectorId: d.recusa.conectorId, ferramenta: nomeParaTrilha(d.recusa.ferramenta), kind: "negacao", motivo: d.recusa.motivo, regra: REGRA_APPS_USAR, regraVersao: 1, em: deps.agora() });
+  }
+  return { ...respostaDoCatalogo(d.resposta, true), events };
+}
 
 /**
  * O EFEITO (NOD-263), sem banco e sem tx: chama o app ou executa os itens do lote. Erro do app vira desfecho (a fase 2 marca a

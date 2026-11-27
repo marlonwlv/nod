@@ -278,6 +278,7 @@ import { configurarLiberacaoQuadros, configurarLiberacaoQuadrosN } from "../../r
 import { lerRotinasFora } from "../../domain/quadro-assumir.ts";
 import { configurarRotinasFora } from "../../use-cases/assumir-quadro.ts";
 import { configurarTarefaCasa, lerTarefaCasa } from "../../shared/tarefa-casa.ts";
+import { lerAppsSobDemanda } from "../../domain/catalogo-de-apps.ts";
 import type { IncomingMessage, Server } from "node:http";
 
 /**
@@ -436,6 +437,9 @@ export function comporApp(o: OpcoesCompor): App {
   const semFerramentasDoNod = env.NOD_GERIR_BOTS?.trim() === "0";
   // definido em 2026-10-13 (ADR-104, revisão do PR #309): o mesmo interruptor para o criar_bots dos bots comuns.
   const semCriarBots = env.NOD_CRIAR_BOTS?.trim() === "0";
+  // XUM-11 (catálogo de apps sob demanda): ligado por padrão; NOD_APPS_SOB_DEMANDA=0 volta ao catálogo inteiro sem deploy de
+  // código, e NOD_APPS_DIRETAS_TETO muda o teto de diretas por app (padrão 12).
+  const appsSobDemanda = lerAppsSobDemanda(env);
   const compartilhado = env.NOD_MODO === "compartilhado";
   const relogio: Relogio = o.relogio ?? (() => Date.now());
   const fonteFlags = criarFonteDeFlags({ env, agora: relogio });
@@ -692,7 +696,7 @@ export function comporApp(o: OpcoesCompor): App {
         const daPonte = compartilhado || maquinaDaPonte(d.escopo, machineIdDoPlano);
         const r = await emitirPlanoTurno(d, { turnoId, machineId: machineIdDoPlano, executor: daPonte ? "local" : executorAtual, permitirResume: true, sessaoPorMaquina: daPonte, ghNaMaquina: await ghDaPessoa(d.escopo, machineIdDoPlano), macNaMaquina: await macDaPessoa(d.escopo, machineIdDoPlano),
           harnesses: daPonte ? ponteHttp.harnesses(d.escopo, machineIdDoPlano) : Object.fromEntries(HARNESSES.map((h) => [h.id, inventarioDe(h.id)])),
-          harnessPreferido: !daPonte && driverPreferido !== "catcher" ? driverPreferido : null, modelosLigacao, semFerramentasDoNod, semCriarBots, contas: contasLigadas, onboardingTexto,
+          harnessPreferido: !daPonte && driverPreferido !== "catcher" ? driverPreferido : null, modelosLigacao, semFerramentasDoNod, semCriarBots, contas: contasLigadas, onboardingTexto, appsSobDemanda,
           maquina: daPonte ? ponteHttp.maquina(d.escopo, machineIdDoPlano) : null, ...(daPonte && !compartilhado ? { maquinaRemota: true } : {}),
           ...(daPonte ? { capacidadesDaMaquina: ponteHttp.capacidadesDaMaquina(d.escopo, machineIdDoPlano) } : {}) });
         if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
@@ -783,7 +787,7 @@ export function comporApp(o: OpcoesCompor): App {
       const capacidades = daPonte ? ponteHttp.capacidadesDaMaquinaConectada(escopo, t.machineId) : undefined;
       const r = await emitirPlanoTurno(d, {
         turnoId: t.id, machineId: t.machineId, executor: c.executor, permitirResume: false, ghNaMaquina: await ghDaPessoa(escopo, t.machineId), macNaMaquina: await macDaPessoa(escopo, t.machineId),
-        harnesses: c.harness ? { [c.harness]: inventario } : undefined, harnessPreferido: c.harness, modelosLigacao, semFerramentasDoNod, semCriarBots, contas: contasLigadas, onboardingTexto,
+        harnesses: c.harness ? { [c.harness]: inventario } : undefined, harnessPreferido: c.harness, modelosLigacao, semFerramentasDoNod, semCriarBots, contas: contasLigadas, onboardingTexto, appsSobDemanda,
         maquina: daPonte ? ponteHttp.maquina(escopo, t.machineId) : null, ...(daPonte && !compartilhado ? { maquinaRemota: true } : {}),
         ...(capacidades ? { capacidadesDaMaquina: capacidades } : {}),
         recompor: { tokenDeTurno: token, harness: c.harness },

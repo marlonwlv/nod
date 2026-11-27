@@ -85,6 +85,9 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   // As do proxy (fora do catálogo do nod, mas com o mesmo prefixo).
   ler_mais: ["Leu o resto de um resultado", "Lendo o resto de um resultado"],
   anexar_midia: ["Anexou uma mídia", "Anexando uma mídia"],
+  // XUM-11 (ADR-198): o catálogo de apps sob demanda.
+  apps_buscar: ["Procurou no catálogo dos apps", "Procurando no catálogo dos apps"],
+  apps_usar: ["Usou uma ferramenta de app", "Usando uma ferramenta de app"],
 };
 
 /**

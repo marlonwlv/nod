@@ -46,7 +46,7 @@ import type { BastidorNoPrompt, ComputadorFora } from "../domain/prompt-sistema.
 import { quandoDaRotina } from "../domain/rotina-texto.ts";
 import type { TokenTurno } from "../services/token-turno.ts";
 import type { Services } from "./tipos.ts";
-import type { CasoDeUso } from "./tipos.ts";
+import type { CasoDeUso, Deps } from "./tipos.ts";
 import { delegacaoDoTurno, rotinaDoTurno } from "./apoio-l7.ts";
 import { contaDoPlano, escolherContaDoTurno, lerContasDaMaquina } from "./contas-do-turno.ts";
 import type { IaComConta } from "../contracts/contas-ia.ts";
@@ -57,6 +57,8 @@ import { juntarPassagem, montarPassagemDeBastao } from "../domain/passagem-de-ba
 import { dadosDaPassagem } from "./passagem-de-bastao.ts";
 import { avisoDeRecomeco, montarResumoDoRecomeco, motivoDoRecomeco } from "../domain/recomeco.ts";
 import { emSavepoint } from "./savepoint.ts";
+import { JANELA_USADAS_MS, type ConfigAppsSobDemanda } from "../contracts/catalogo-de-apps.ts";
+import type { AcessoPedido } from "../contracts/acesso.ts";
 import { dadosDoResumo, TURNOS_DO_RESUMO } from "./resumo-do-recomeco.ts";
 import { log } from "../obs/log.ts";
 import { ACHADAS_POR_BUSCA, consultaDoTurno, escolherMemoriasDoTurno, memoriaCabeInteira } from "../domain/recall-memoria.ts";
@@ -92,6 +94,11 @@ export type EntradaEmitirPlano = {
   contas?: boolean;
   /** ADA-245: NOD_ONBOARDING_TEXTO=1 põe remover_computador no catálogo (desligada, ele não aparece). */
   onboardingTexto?: boolean;
+  /**
+   * XUM-11 (catálogo de apps sob demanda): o teto de diretas por app (NOD_APPS_DIRETAS_TETO); null ou ausente = o catálogo
+   * inteiro (NOD_APPS_SOB_DEMANDA=0). O compositor liga por padrão.
+   */
+  appsSobDemanda?: { teto: number } | null;
   /** ADR-090: nome e plataforma da máquina do turno, do anúncio dela (só no modo compartilhado). Ausente = Mac. */
   maquina?: { nome: string; plataforma: PlataformaMaquina } | null;
   /**
@@ -482,7 +489,11 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const modeloEfetivo = modeloEscolhido ?? turno.modelo;
   const janelaObservada = (escolha?.harness ?? "claude-cli") === "claude-cli" && modo !== "ligacao"
     ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, modeloEfetivo)).catch(() => null) : null;
+  // XUM-11: as diretas de cada app saem do uso do bot nos últimos 30 dias (trilha) e da rotina deste turno. Falha ao ler
+  // a trilha não derruba a emissão: o plano sai com as essenciais e a rotina.
+  const appsSobDemanda = input.appsSobDemanda && !deOutraPessoa && conectores.length > 0 ? await configDosApps(deps, agente.id, agora, input.appsSobDemanda.teto, ligacao?.rotina.acessos ?? null) : null;
   const parcial = montarPlano({
+    ...(appsSobDemanda ? { appsSobDemanda } : {}),
     ...(janelaObservada ? { janelaObservada } : {}),
     ...(reconfiguracao ? { reconfiguracao: true } : {}),
     workspace: Boolean(deps.services.workspaces),
@@ -710,4 +721,16 @@ function escolherHarness(turno: Turno, harnesses: Partial<Record<IdHarness, Inve
     if (causa && inventario) throw new ErroDeDominio("executor_indisponivel", { cause: { ...causa, inventario } });
     throw e;
   }
+}
+
+/** XUM-11: o que montarPlano precisa para escolher as diretas de cada app (usadas em 30 dias e a rotina do turno). */
+async function configDosApps(deps: Deps, agenteId: string, agora: number, teto: number, acessosDaRotina: readonly AcessoPedido[] | null): Promise<ConfigAppsSobDemanda> {
+  const linhas = await emSavepoint(deps, () => deps.repos.trilha.capacidadesUsadas({ agenteId, desde: agora - JANELA_USADAS_MS })).catch(() => []);
+  const usadas: Record<string, string[]> = {};
+  for (const l of linhas) {
+    const i = l.ferramenta.indexOf("__");
+    if (i < 0) continue;
+    (usadas[l.conectorId] ??= []).push(l.ferramenta.slice(i + 2));
+  }
+  return { teto, usadas, rotina: (acessosDaRotina ?? []).map((a) => ({ conector: a.conector, capacidades: a.capacidades })) };
 }

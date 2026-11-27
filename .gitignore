@@ -17,3 +17,6 @@ qa-relatorio/
 
 # O deploy.sh grava nod-<cor>.env; o teste dele já roda na pasta temporária, mas um escape não entra no commit (NOD-421).
 nod-*.env
+
+# XUM-11: catálogos públicos do Composio baixados por scripts/catalogo-apps/raspar.py (não versionados)
+scripts/catalogo-apps/catalogos/

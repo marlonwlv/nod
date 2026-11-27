@@ -38,7 +38,8 @@ export function errosDoSchema(schema: JsonSchema, valor: unknown, caminho = "$")
     const n = schema.minLength !== undefined || schema.maxLength !== undefined ? pontosDeCodigo(s) : 0;
     if (schema.minLength !== undefined && n < schema.minLength) erros.push(`${caminho}: mínimo ${schema.minLength} caracteres`);
     if (schema.maxLength !== undefined && n > schema.maxLength) erros.push(`${caminho}: máximo ${schema.maxLength} caracteres`);
-    if (schema.enum && !schema.enum.includes(s)) erros.push(`${caminho}: valor fora de [${schema.enum.join(", ")}]`);
+    // XUM-11: o esquema vem da sonda do app (pode vir torto); enum que não é lista é ignorado em vez de derrubar a chamada.
+    if (Array.isArray(schema.enum) && !schema.enum.includes(s)) erros.push(`${caminho}: valor fora de [${schema.enum.join(", ")}]`);
   }
   if (schema.type === "array") {
     const a = valor as unknown[];
@@ -48,7 +49,8 @@ export function errosDoSchema(schema: JsonSchema, valor: unknown, caminho = "$")
   }
   if (schema.type === "object") {
     const o = valor as Record<string, unknown>;
-    for (const r of schema.required ?? []) if (!(r in o)) erros.push(`${caminho}.${r}: obrigatório`);
+    // XUM-11: `required` que não é lista (esquema torto vindo da sonda de um app) é ignorado em vez de derrubar a chamada.
+    for (const r of Array.isArray(schema.required) ? schema.required : []) if (!(r in o)) erros.push(`${caminho}.${r}: obrigatório`);
     for (const [k, v] of Object.entries(o)) {
       const sub = schema.properties?.[k];
       if (sub) erros.push(...errosDoSchema(sub, v, `${caminho}.${k}`));

@@ -1,5 +1,6 @@
 import type { PlanoTurno } from "../contracts/plano-turno.ts";
 import { semprePermitirNoCatalogo } from "../domain/plano-turno.ts";
+import { ferramentasDeAppDoPlano } from "../domain/catalogo-de-apps.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
@@ -16,5 +17,6 @@ export async function semprePermitirVivo(deps: Pick<Deps, "repos">, agenteId: st
     const slug = conectores.find((c) => c.id === p.conectorId)?.slug;
     return slug ? [`${slug}__${p.capacidade}`] : [];
   });
-  return semprePermitirNoCatalogo(nomes, plano.catalogo.ferramentas);
+  // XUM-11: a regra vale também para a capacidade sob demanda (apps_usar passa pela mesma decisão da direta).
+  return semprePermitirNoCatalogo(nomes, ferramentasDeAppDoPlano(plano));
 }

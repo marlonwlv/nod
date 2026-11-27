@@ -1,0 +1,278 @@
+[
+ {
+  "id": "outlook-listar",
+  "cenario": "assistente",
+  "tipo": "comum",
+  "texto": "Lista os 5 e-mails mais recentes da minha caixa de entrada do Outlook.",
+  "espera": [
+   "OUTLOOK_LIST_MESSAGES",
+   "OUTLOOK_QUERY_EMAILS",
+   "OUTLOOK_SEARCH_MESSAGES",
+   "OUTLOOK_LIST_MAIL_FOLDER_MESSAGES"
+  ]
+ },
+ {
+  "id": "outlook-responder",
+  "cenario": "assistente",
+  "tipo": "comum",
+  "texto": "Responde o e-mail de id AAMkAGI2 no Outlook dizendo que confirmo a reunião de terça.",
+  "espera": [
+   "OUTLOOK_REPLY_EMAIL",
+   "OUTLOOK_REPLY_ALL",
+   "OUTLOOK_CREATE_DRAFT_REPLY",
+   "OUTLOOK_CREATE_ME_REPLY_DRAFT"
+  ],
+  "argContem": "AAMkAGI2"
+ },
+ {
+  "id": "outlook-mover-lote",
+  "cenario": "assistente",
+  "tipo": "comum",
+  "texto": "No Outlook, move as mensagens AAMk-1 e AAMk-2 para a pasta Fornecedores (o id da pasta é fld-123).",
+  "espera": [
+   "OUTLOOK_BATCH_MOVE_MESSAGES",
+   "OUTLOOK_MOVE_MESSAGE"
+  ],
+  "argContem": "fld-123"
+ },
+ {
+  "id": "outlook-regra",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Cria uma regra no Outlook para mover automaticamente os e-mails de newsletter@loja.com para a pasta Promoções (id fld-999).",
+  "espera": [
+   "OUTLOOK_CREATE_EMAIL_RULE",
+   "OUTLOOK_CREATE_MAIL_FOLDER_MESSAGE_RULE"
+  ],
+  "argContem": "newsletter@loja.com"
+ },
+ {
+  "id": "outlook-ferias",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Liga a resposta automática do meu Outlook até 10/12/2026 com a mensagem 'Estou de férias, volto dia 11'.",
+  "espera": [
+   "OUTLOOK_UPDATE_MAILBOX_SETTINGS"
+  ],
+  "argContem": "férias"
+ },
+ {
+  "id": "outlook-cancelar",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Cancela a reunião evt-88 no calendário do Outlook avisando os participantes que foi adiada.",
+  "espera": [
+   "OUTLOOK_CANCEL_EVENT",
+   "OUTLOOK_CANCEL_CALENDAR_EVENT"
+  ],
+  "argContem": "evt-88"
+ },
+ {
+  "id": "outlook-criar-pasta",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Cria uma pasta chamada Contratos 2027 no meu e-mail do Outlook.",
+  "espera": [
+   "OUTLOOK_CREATE_MAIL_FOLDER",
+   "OUTLOOK_CREATE_USER_MAIL_FOLDERS_CHILD_FOLDERS"
+  ],
+  "argContem": "Contratos 2027"
+ },
+ {
+  "id": "outlook-todo",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Quais listas de tarefas eu tenho no Microsoft To Do da minha conta do Outlook?",
+  "espera": [
+   "OUTLOOK_LIST_TO_DO_LISTS"
+  ]
+ },
+ {
+  "id": "outlook-aceitar",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Aceita o convite de reunião evt-55 no calendário do Outlook.",
+  "espera": [
+   "OUTLOOK_ACCEPT_EVENT"
+  ],
+  "argContem": "evt-55"
+ },
+ {
+  "id": "outlook-horarios",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Pelo Outlook, acha horários livres para uma reunião de 30 minutos com ana@empresa.com amanhã (horário de Brasília).",
+  "espera": [
+   "OUTLOOK_FIND_MEETING_TIMES",
+   "OUTLOOK_GET_CALENDAR_SCHEDULE",
+   "OUTLOOK_GET_SCHEDULE"
+  ],
+  "argContem": "ana@empresa.com"
+ },
+ {
+  "id": "slack-enviar",
+  "cenario": "assistente",
+  "tipo": "comum",
+  "texto": "Manda no canal #geral do Slack: 'Deploy feito'.",
+  "espera": [
+   "SLACK_SEND_MESSAGE",
+   "SLACK_CHAT_POST_MESSAGE"
+  ],
+  "argContem": "Deploy feito"
+ },
+ {
+  "id": "slack-agendar",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Agenda uma mensagem no Slack para o canal C0123 amanhã às 9h: 'Bom dia, time'. Horário de Brasília.",
+  "espera": [
+   "SLACK_SCHEDULE_MESSAGE"
+  ],
+  "argContem": "C0123"
+ },
+ {
+  "id": "slack-lembrete",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Cria um lembrete no Slack para mim: revisar o contrato amanhã às 15h (horário de Brasília).",
+  "espera": [
+   "SLACK_CREATE_A_REMINDER"
+  ],
+  "argContem": "contrato"
+ },
+ {
+  "id": "slack-arquivar",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Arquiva o canal C0999 no Slack.",
+  "espera": [
+   "SLACK_ARCHIVE_CONVERSATION"
+  ],
+  "argContem": "C0999"
+ },
+ {
+  "id": "agenda-amanha",
+  "cenario": "assistente",
+  "tipo": "comum",
+  "texto": "O que tenho na minha agenda do Google amanhã (28/11/2026)?",
+  "espera": [
+   "GOOGLECALENDAR_EVENTS_LIST",
+   "GOOGLECALENDAR_FIND_EVENT",
+   "GOOGLECALENDAR_EVENTS_LIST_ALL_CALENDARS"
+  ]
+ },
+ {
+  "id": "agenda-duplicar",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Duplica meu calendário cal-pessoal no Google Calendar.",
+  "espera": [
+   "GOOGLECALENDAR_DUPLICATE_CALENDAR"
+  ],
+  "argContem": "cal-pessoal"
+ },
+ {
+  "id": "notion-buscar",
+  "cenario": "assistente",
+  "tipo": "comum",
+  "texto": "Procura no Notion a página Roadmap 2027.",
+  "espera": [
+   "NOTION_SEARCH_NOTION_PAGE"
+  ],
+  "argContem": "Roadmap"
+ },
+ {
+  "id": "notion-duplicar",
+  "cenario": "assistente",
+  "tipo": "raro",
+  "texto": "Duplica a página do Notion de id 1a2b3c4d.",
+  "espera": [
+   "NOTION_DUPLICATE_PAGE"
+  ],
+  "argContem": "1a2b3c4d"
+ },
+ {
+  "id": "sem-conta",
+  "cenario": "assistente",
+  "tipo": "sem_ferramenta",
+  "texto": "Quanto é 17% de 2.350? Responde só o número.",
+  "espera": []
+ },
+ {
+  "id": "sem-explicar",
+  "cenario": "assistente",
+  "tipo": "sem_ferramenta",
+  "texto": "Em uma frase: o que é uma regra de e-mail?",
+  "espera": []
+ },
+ {
+  "id": "lugar-whatsapp",
+  "cenario": "assistente",
+  "tipo": "lugar",
+  "texto": "Acessa o WhatsApp Web.",
+  "espera": [
+   "navegador_abrir"
+  ]
+ },
+ {
+  "id": "lugar-cnpj",
+  "cenario": "assistente",
+  "tipo": "lugar",
+  "texto": "Consulta o CNPJ 12.345.678/0001-90 no site da Receita Federal.",
+  "espera": [
+   "navegador_abrir"
+  ]
+ },
+ {
+  "id": "linear-criar",
+  "cenario": "eng",
+  "tipo": "comum",
+  "texto": "Cria uma issue no Linear no time de id team-nod com o título 'Erro no login'.",
+  "espera": [
+   "LINEAR_CREATE_LINEAR_ISSUE"
+  ],
+  "argContem": "Erro no login"
+ },
+ {
+  "id": "linear-marco",
+  "cenario": "eng",
+  "tipo": "raro",
+  "texto": "No Linear, cria o marco 'Beta' no projeto proj-1 com data 15/01/2027.",
+  "espera": [
+   "LINEAR_CREATE_PROJECT_MILESTONE"
+  ],
+  "argContem": "Beta"
+ },
+ {
+  "id": "github-prs",
+  "cenario": "eng",
+  "tipo": "comum",
+  "texto": "Lista os PRs abertos do repositório marlonwlv/nod no GitHub.",
+  "espera": [
+   "GITHUB_LIST_PULL_REQUESTS",
+   "GITHUB_FIND_PULL_REQUESTS",
+   "GITHUB_GET_PULL_REQUESTS"
+  ],
+  "argContem": "nod"
+ },
+ {
+  "id": "github-estrela",
+  "cenario": "eng",
+  "tipo": "raro",
+  "texto": "Dá uma estrela no repositório marlonwlv/nod no GitHub.",
+  "espera": [
+   "GITHUB_STAR_A_REPOSITORY_FOR_THE_AUTHENTICATED_USER"
+  ],
+  "argContem": "nod"
+ },
+ {
+  "id": "github-release",
+  "cenario": "eng",
+  "tipo": "raro",
+  "texto": "Cria a release v1.2.0 no repositório marlonwlv/nod do GitHub, a partir da main.",
+  "espera": [
+   "GITHUB_CREATE_A_RELEASE"
+  ],
+  "argContem": "v1.2.0"
+ }
+]

@@ -80,7 +80,8 @@ export type SecaoDoPrompt = (typeof SECOES_DO_PROMPT)[number];
 export type ParteDoPrompt = { secao: SecaoDoPrompt; chars: number; texto?: string };
 
 /** Definições de ferramenta que o proxy lista, agrupadas: `nod`, `computador`, `pastas` ou o slug do app. */
-export type GrupoDeFerramentas = { grupo: string; origem: "nod" | "computador" | "navegador" | "seu_computador" | "workspace" | "conector"; quantidade: number; chars: number };
+/** XUM-11: `sobDemanda` = as capacidades concedidas do app que ficaram fora da lista (achadas por apps_buscar); ausente = 0. */
+export type GrupoDeFerramentas = { grupo: string; origem: "nod" | "computador" | "navegador" | "seu_computador" | "workspace" | "conector" | "apps"; quantidade: number; chars: number; sobDemanda?: number };
 
 export type ComposicaoRaioX = {
   modo: ModoTurno;
