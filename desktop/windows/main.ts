@@ -5,7 +5,9 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { arquivoDaConexao, carregarConexao, carregarMaquinaDoMotor, guardarConexao, pastaDoMotor, type ConexaoMotor } from "../../motor/conexao.ts";
+import { arquivoDaConexao, carregarConexao, carregarMaquinaDoMotor, guardarConexao, pastaDoExecutor, pastaDoMotor, type ConexaoMotor } from "../../motor/conexao.ts";
+import { pedirParada, vigiarAtividade } from "../../src/adapters/seu-computador/sinal-entre-processos.ts";
+import { criarIlha } from "../ilha-seu-computador.ts";
 import { depsDeVerdade, desinstalar } from "../../motor/desinstalar.ts";
 import { criarArquivoDeLog, instalarOuvintesDeQueda, MAX_BYTES_LOG } from "../diagnostico.ts";
 import { LARGURA_MINIMA, lerEstadoJanela, medirEstadoJanela, resolverEstadoJanela, type EstadoJanela } from "../janela.ts";
@@ -28,7 +30,7 @@ import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio } from "
 import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../../src/contracts/desktop-atualizacao.ts";
 import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
-import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, dispararSolto, INTERVALO_DO_APP_MS, motorDoWindowsDiferente, motorSeAtualiza, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
+import { APP_PARADO, appDeveAtualizar, atualizandoAgora, comandoDeAtualizarSolto, conferirMotorDoWindows, dispararSolto, INTERVALO_DO_APP_MS, lerSinalDoMotor, trocaPedidaPeloMotor, type EstadoDoApp } from "../../motor/atualizacao-no-windows.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
 import { FalhaPareamentoWindows, linkDePareamento, parearPorDispositivo } from "./pareamento.ts";
 import { abrirSessao, cookieDaJanela, PARTITION_DA_JANELA } from "./sessao.ts";
@@ -177,7 +179,8 @@ async function instalar() {
 /**
  * 2026-11-25 (motor/atualizacao-no-windows.ts): o app confere o motor instalado com o manifesto do servidor. Na primeira
  * conferência depois de abrir atualiza na hora (o motor antigo não sabe se atualizar); depois, só se seguir diferente
- * além da carência, porque o motor novo se atualiza sozinho esperando os turnos da pessoa.
+ * além da carência, porque o motor novo se atualiza sozinho esperando os turnos da pessoa. Com o sinal do motor, espera
+ * até a troca que ele pediu não pegar (o motor rc.13, aceite da rc.14) ou até PRAZO_COM_SINAL_MS, sem turno da pessoa.
  */
 let estadoDoMotorNoApp: EstadoDoApp = APP_PARADO;
 let conferindoMotor = false;
@@ -186,10 +189,13 @@ async function conferirMotor(): Promise<void> {
   if (!c || removido || conferindoMotor || process.env.NOD_ATUALIZAR_SOZINHO === "0") return;
   conferindoMotor = true;
   try {
-    const diferente = await motorDoWindowsDiferente({ servidor: c.url, env: process.env });
-    const d = appDeveAtualizar(estadoDoMotorNoApp, { agora: Date.now(), diferente, atualizando: await atualizandoAgora(process.env), motorCuida: await motorSeAtualiza(process.env) });
+    const m = await conferirMotorDoWindows({ servidor: c.url, env: process.env });
+    const sinal = await lerSinalDoMotor(process.env);
+    const trocaPedidaEm = m?.diferente && sinal.vivo ? await trocaPedidaPeloMotor(pastaMotor(), m.assinatura) : null;
+    const d = appDeveAtualizar(estadoDoMotorNoApp, { agora: Date.now(), diferente: m?.diferente ?? null, atualizando: await atualizandoAgora(process.env), motorCuida: sinal.vivo, turnosDaPessoa: sinal.turnosDaPessoa, trocaPedidaEm });
     estadoDoMotorNoApp = d.estado;
     if (!d.atualizar) return;
+    if (d.motivo && d.motivo !== "motor_antigo" && d.motivo !== "carencia") registrar("motor_atualizacao_pelo_app_sobre_o_sinal", { motivo: d.motivo });
     const cmd = comandoDeAtualizarSolto(c.url, systemRoot);
     // #358: sem `detached` (OPCOES_DO_DISPARO): com ele o PowerShell interno nunca subia e o motor seguia velho.
     const r = await dispararSolto(cmd);
@@ -400,6 +406,13 @@ else {
     instalarOuvintesDeQueda({ app, processo: process, registrar: (campos) => registrar("app_processo_caiu", campos), encerrando: () => saindo, ehJanelaPrincipal: (conteudo) => !!janela && !janela.isDestroyed() && conteudo === janela.webContents });
     registrar("app_iniciado", { versao: app.getVersion(), empacotado: app.isPackaged, arquitetura: process.arch });
     Menu.setApplicationMenu(null);
+    // ADR-197 no PC: a ilha e a borda do computador da pessoa. O motor roda o driver e publica cada ação na pasta do
+    // executor; o app desenha e o Parar volta ao motor pelo mesmo caminho (src/adapters/seu-computador/sinal-entre-processos.ts).
+    {
+      const pastaSc = join(pastaDoExecutor(process.env), "seu-computador");
+      const ilha = criarIlha({ aparelho: "PC", aoParar: () => pedirParada(pastaSc) });
+      vigiarAtividade(pastaSc, (a) => ilha.mostrar({ bot: a.bot, app: a.app, acao: a.acao, janela: a.janela }));
+    }
     ipcMain.handle("nodwin:estado", (e) => (daTelaDeSetup(e) ? telaAtual : null));
     ipcMain.handle("nodwin:conectar", (e) => { if (daTelaDeSetup(e)) void conectar(); });
     ipcMain.handle("nodwin:tentar", (e) => { if (daTelaDeSetup(e)) void abrir(); });

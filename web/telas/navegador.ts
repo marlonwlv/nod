@@ -30,6 +30,8 @@ export type OpcoesNavegadorNaTela = {
   avatar?: (agenteId: string) => string;
   /** O bot tem o computador (o lugar "Computador" no seletor). */
   temComputador: (agenteId: string) => boolean;
+  /** ADR-197 (S4): a aba "Seu Mac" — aparece quando o bot usou o computador da pessoa; `html` desenha a vista guardada. */
+  seuComputador?: { tem(agenteId: string): boolean; aparelho(): "Mac" | "PC"; html(agenteId: string): string; ler(agenteId: string): void };
   /** Abre a tela do computador de hoje (o lugar "Computador"). */
   abrirComputador: (agenteId: string) => void;
   /** Lê a vista pelo REST (a primeira vez; depois o `navegador.mudou` relê). */
@@ -222,7 +224,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   const vistaAtual = (id: string): VistaNavegador | null => resp(id)?.vista ?? null;
 
   function lugaresDe(agenteId: string): LugarDaVista[] {
-    return o.temComputador(agenteId) ? ["navegador", "computador"] : ["navegador"];
+    const base: LugarDaVista[] = o.temComputador(agenteId) ? ["navegador", "computador"] : ["navegador"];
+    return o.seuComputador?.tem(agenteId) ? [...base, "seu_computador"] : base;
   }
 
   // ---- a largura (D5) -----------------------------------------------------------------------------------------------------
@@ -253,8 +256,9 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   function pintarTopo(): void {
     if (!aberto) return;
     const id = aberto.agenteId;
+    o.seuComputador?.ler(id);
     const v = vistaAtual(id);
-    const lugares = htmlLugares(lugaresDe(id), aberto.lugar, aberto.lugar === "navegador" ? pontoDoLugar(v) : null);
+    const lugares = htmlLugares(lugaresDe(id), aberto.lugar, aberto.lugar === "navegador" ? pontoDoLugar(v) : null, { aparelho: o.seuComputador?.aparelho() ?? "Mac" });
     if (aberto.modo === "aba") {
       const html = `<div class="nv-topo-aba"><button type="button" class="nv-bt-texto" data-nv-p="ao-lado">${ICONES_NAVEGADOR.aba}<span>Pôr ao lado da conversa</span></button><button type="button" class="nv-ic" data-nv-p="tela-cheia" aria-label="Tela cheia" title="Tela cheia · ${tecla("⌘⇧F")}">${ICONES_NAVEGADOR.expandir}</button><button type="button" class="nv-ic" data-nv-p="menu" aria-haspopup="menu" aria-label="Mais ações" title="Mais">${ICONES_NAVEGADOR.mais}</button></div>`;
       if (topo.innerHTML !== html) topo.innerHTML = html;
@@ -282,11 +286,23 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (aberto.lugar === "computador") {
       v.ligar(false);
       if (v.el.parentElement) v.el.remove();
+      alvo.querySelector(".sc-painel")?.remove();
       const html = htmlComputador(aberto.agenteId);
       if (!alvo.querySelector(".nv-computador")) alvo.innerHTML = html;
       return;
     }
+    if (aberto.lugar === "seu_computador" && o.seuComputador) {
+      v.ligar(false);
+      if (v.el.parentElement) v.el.remove();
+      alvo.querySelector(".nv-computador")?.remove();
+      const html = o.seuComputador.html(aberto.agenteId);
+      const atual = alvo.querySelector(".sc-painel");
+      if (!atual || atual.outerHTML !== html) { atual?.remove(); alvo.insertAdjacentHTML("beforeend", html); }
+      o.seuComputador.ler(aberto.agenteId);
+      return;
+    }
     alvo.querySelector(".nv-computador")?.remove();
+    alvo.querySelector(".sc-painel")?.remove();
     // 2026-11-22 (teste do dono): trocar de bot com o painel aberto deixava a vista do bot anterior no mesmo corpo — o
     // navegador do Chico ("em pausa") empilhado em cima do da Ada. Só a vista do bot aberto fica; a outra desliga o canal.
     for (const [id, outra] of vistas) if (id !== aberto.agenteId && outra.el.parentElement === alvo) { outra.ligar(false); outra.el.remove(); }
@@ -1114,6 +1130,12 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
      * 5c (2 e 3): o lugar ativo do bot (vivo, esperando a pessoa ou com ela no controle), para o botão de abas e a pílula do
      * campo. null = nenhum (parado, desligado, sem navegador).
      */
+    /** ADR-197: a vista do computador da pessoa mudou (SSE): o topo ganha a aba e, se ela está aberta, o quadro troca. */
+    atualizarSeuComputador(agenteId: string): void {
+      if (!aberto || aberto.agenteId !== agenteId) return;
+      pintarTopo();
+      if (aberto.lugar === "seu_computador") encaixarVista();
+    },
     lugarAtivo(agenteId: string): LugarAtivo | null {
       if (!this.tem(agenteId)) return null;
       const v = vistaAtual(agenteId);

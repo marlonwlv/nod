@@ -15,7 +15,15 @@ describe("plataforma da máquina", () => {
 
   it("o texto do terminal diz PC com Windows só no win32", () => {
     const t = "Você trabalha na máquina pc de Bia, um Linux sempre ligado, e não no Mac dela.";
-    expect(noSistemaDaMaquina(t, "win32")).toBe("Você trabalha na máquina pc de Bia, um PC com Windows, e não no Mac dela.");
+    expect(noSistemaDaMaquina(t, "win32")).toBe("Você trabalha na máquina pc de Bia, o PC com Windows dela.");
+    expect(noSistemaDaMaquina(t, "linux")).toBe(t);
+  });
+
+  it("no PC com Windows (o da própria pessoa) o texto não fala do Mac dela (QA rc.15, achado 7)", () => {
+    const t = "Você trabalha na máquina pc de Bia, um Linux sempre ligado, e não no Mac dela. O diretório atual é ~/nod/Lia. Os arquivos ficam aqui: Bia não os vê no Mac, então entregue o resultado na resposta.";
+    const pc = noSistemaDaMaquina(t, "win32");
+    expect(pc).not.toMatch(/Mac/);
+    expect(pc).toContain("Os arquivos ficam neste PC; mesmo assim, entregue o resultado na resposta.");
     expect(noSistemaDaMaquina(t, "linux")).toBe(t);
   });
 

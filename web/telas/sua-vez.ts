@@ -1,4 +1,5 @@
 import { fonteDoLogin, htmlCartaoAjudaNavegador, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoCombinar, htmlCartaoLogin, htmlCartaoPedidoSemVista, htmlLinhaEntrandoEuMesmo, linhaDaRespostaDoNavegador, nomeDoSite, noOuNa, pedidoDoNavegadorNaFala, type PedidoNaFala } from "../lib/navegador-cartoes.ts";
+import { htmlCartaoSeuComputador } from "../lib/seu-computador-cartao.ts";
 import { listaDasColunasParaSuaVez } from "./card-colunas.ts";
 import { oA } from "./desvio.ts";
 import { agruparIguais, renderPedidosIguais } from "./pedidos-iguais.ts";
@@ -930,6 +931,24 @@ function htmlDoPedidoAberto(p: PedidoNaFala, decisaoId: string, agente: { id: st
   return htmlCartaoPedidoSemVista(p, o);
 }
 
+/** ADR-197: o item é o pedido de usar um app do computador da pessoa (o cartão "A {bot} quer usar seu Mac"). */
+export function ehPedidoDoSeuComputador(item: Pick<Item, "decisao" | "itensAprovacao">): boolean {
+  const [i] = item.itensAprovacao;
+  return item.decisao.tipo === "aprovacao" && item.itensAprovacao.length === 1 && i?.destino.conector === "seu_computador";
+}
+
+export function renderCartaoSeuComputador(item: Item, naConversa = true): string {
+  const d = item.decisao;
+  const i = item.itensAprovacao[0];
+  if (!i) return "";
+  const args = i.destino.argumentos ?? {};
+  const app = typeof args.app === "string" ? args.app : "";
+  const aparelho = args.aparelho === "PC" ? "PC" as const : "Mac" as const;
+  const cartao = htmlCartaoSeuComputador({ decisaoId: d.id, agenteId: d.agenteId, titulo: i.textoFinal, texto: d.frase === i.textoFinal ? "" : d.frase, app, aparelho });
+  const de = naConversa ? "" : `<p class="nvc-de">Pedido de ${esc(item.agenteNome)}${aPedidoDe(item)}</p>`;
+  return `<li class="decisao nvc-item dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">${de}${cartao}</li>`;
+}
+
 /** O item é a aprovação de UMA ação no navegador do bot (A1, A2, A3). */
 export function ehAprovacaoDoNavegador(item: Pick<Item, "decisao" | "itensAprovacao">): boolean {
   const [i] = item.itensAprovacao;
@@ -978,6 +997,7 @@ export function renderItem(item: Item, estado: Estado, naConversa = false): stri
   // ADR-175: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
   if (aberta && naConversa && ehDecisaoDeRascunhos(item)) return renderDecisaoDeRascunhos(item);
   if (aberta && ehAprovacaoDoNavegador(item)) return renderCartaoNavegador(item, estado, naConversa);
+  if (aberta && ehPedidoDoSeuComputador(item)) return renderCartaoSeuComputador(item, naConversa);
   if (aberta && ehAprovacaoDoComputador(item)) return renderCartaoComputador(item, estado);
   if (aberta && d.tipo === "aprovacao" && ehCartaoDoRevisor(item.itensAprovacao)) return renderCartaoDoRevisor(item, estado, naConversa);
   if (aberta && d.tipo === "aprovacao" && item.itensAprovacao.length > 0) return renderCardAprovacao(item, estado);

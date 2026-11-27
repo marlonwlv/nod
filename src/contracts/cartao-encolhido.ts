@@ -30,7 +30,19 @@ export type PayloadRegraPermanente = { kind: "regra_permanente"; decisaoId: stri
  * A rotina criada pela proposta continua com a linha de rotina (`rotina_evento`). As de antes, sem payload, ficam na
  * Atividade (assunto `proposta.decidida`).
  */
-export type PayloadPropostaDecidida = { kind: "proposta_decidida"; propostaId: string; tipo: KindProposta; titulo: string; estado: Exclude<EstadoProposta, "pendente">; turnoId: string | null };
+export type PayloadPropostaDecidida = {
+  kind: "proposta_decidida";
+  propostaId: string;
+  tipo: KindProposta;
+  titulo: string;
+  estado: Exclude<EstadoProposta, "pendente">;
+  turnoId: string | null;
+  /**
+   * ADR-195 (Entrega 3, Paper O4): a chave do cartão foi para o Cofre (alvo "app"); `bot` é quem a usa. O recibo diz
+   * "Chico não vê a chave. Ela está em Ajustes › Cofre." e o Trocar abre o Cofre, não as Configurações avançadas.
+   */
+  noCofre?: { bot: string };
+};
 
 /**
  * O pedido que a pessoa deixou para trás ao mandar mensagem nova (definido em 2026-11-20, ADR-191, pedido do dono). É o

@@ -40,3 +40,5 @@ for (const arquivo of Object.keys(web.metafile.inputs)) {
 for (const nome of ["setup.html", "setup.css", "setup.js"]) await copyFile(`desktop/${nome}`, `dist/desktop/${nome}`);
 // ADR-190: o binário do agent-browser de cada arquitetura do Mac, para o extraResources (falta de rede não derruba o build).
 await import("./agent-browser-binario.mjs");
+// ADR-197: o cua-driver (o computador da pessoa), universal, com o sha256 fixado (falta de rede não derruba o build).
+if (process.platform === "darwin") await import("./cua-driver-binario.mjs");

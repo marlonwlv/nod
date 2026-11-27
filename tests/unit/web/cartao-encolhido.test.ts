@@ -266,3 +266,15 @@ describe("foco e anúncio só na aba que decidiu", () => {
     expect(aplicarEncolhidos(doc({}), [pedidoDe("d1", AGORA - 1)], AGORA, () => undefined)).toEqual([]);
   });
 });
+
+describe("ADR-195 (Entrega 3, Paper O4): o recibo da chave guardada no Cofre", () => {
+  it("diz quem não vê a chave e onde ela está; o Trocar abre o Cofre (os outros alvos seguem nas Configurações avançadas)", () => {
+    const estado: Estado = estadoInicial;
+    const recibo = (extra: Record<string, unknown>) => msg("pd", AGORA, { autoria: pessoa, kind: "sistema", texto: "Chave da Orgo guardada no cofre.", payload: { kind: "proposta_decidida", propostaId: "pr1", tipo: "credencial", titulo: "Chave da Orgo", estado: "confirmada", turnoId: "t1", ...extra } as Mensagem["payload"] });
+    const noCofre = dadosDoEncolhido(recibo({ noCofre: { bot: "Chico" } }), estado);
+    expect(noCofre?.resultado).toBe("Guardada no cofre");
+    expect(noCofre?.rodape).toContain("Chico não vê a chave. Ela está em Ajustes › Cofre.");
+    expect(noCofre?.rodape).toContain('data-act="abrir-cofre"');
+    expect(dadosDoEncolhido(recibo({}), estado)?.rodape).toContain('data-act="abrir-avancado"');
+  });
+});

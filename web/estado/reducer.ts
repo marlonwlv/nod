@@ -1,4 +1,5 @@
 import type { Agente, CorAgente, FormaAgente } from "../../src/contracts/agente.ts";
+import type { RespostaSeuComputadorTela } from "../../src/contracts/seu-computador.ts";
 import type { MotivoRecomeco } from "../../src/contracts/turno.ts";
 import { ehMotivoRecomeco } from "../lib/recomeco.ts";
 import { aposReleitura, reduzirCancelamento, type AcaoDoCancelamento, type Cancelamento } from "../lib/cancelar-na-fila.ts";
@@ -342,7 +343,7 @@ export type EscolhaComposer = { outroAssunto: boolean; alvoId: string | null };
  */
 export type CitacaoNoCampo = { mensagemId: string; trecho: string };
 
-export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}` | `navegador:${string}` | `lugar-navegador:${string}`;
+export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}` | `navegador:${string}` | `lugar-navegador:${string}` | "seu-computador" | `seu-computador:${string}`;
 
 export type Estado = {
   sessao: Escopo | null;
@@ -511,6 +512,8 @@ export type Estado = {
   statusMemoria: string;
   /** Minhas chaves de máquina (ADR-031); null = ainda não carregou. */
   chaves: ChaveMaquinaDto[] | null;
+  /** ADR-197: Ajustes › Seu Mac — o aparelho que atende e os apps de cada bot; null = ainda não leu. */
+  seuComputador: RespostaSeuComputadorTela | null;
   /** Servidor MCP do Nod (0173): os tokens e o endpoint, na seção Geral; null = ainda não carregou. */
   mcpTokens: TokensMcpDto | null;
   /** ADR-090: as máquinas da pessoa (chaves vivas + o que as conectadas anunciaram) e o padrão de onde os bots trabalham. */
@@ -714,6 +717,7 @@ export type Acao =
   | { tipo: "status-memoria"; texto: string }
   | { tipo: "hidratar-salas"; salas: { sala: Sala; membros: MembroSala[] }[] }
   | { tipo: "hidratar-chaves"; chaves: ChaveMaquinaDto[] }
+  | { tipo: "hidratar-seu-computador"; dados: RespostaSeuComputadorTela }
   | { tipo: "hidratar-mcp-tokens"; tokens: TokensMcpDto }
   | { tipo: "hidratar-maquinas"; maquinas: MaquinasDto }
   | { tipo: "esta-maquina"; maquina: EstaMaquina | null }
@@ -835,6 +839,7 @@ export const estadoInicial: Estado = {
   avisoDiario: null,
   statusMemoria: "",
   chaves: null,
+  seuComputador: null,
   mcpTokens: null,
   maquinas: null,
   estaMaquina: null,
@@ -1606,6 +1611,11 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     // O lugar (Mac desligado ↔ no nod) também muda com a vista: a linha do painel e os cartões releem.
     return Object.hasOwn(e.lugaresNavegador, agenteId) ? invalidar(e, `navegador:${agenteId}`, `lugar-navegador:${agenteId}`) : invalidar(e, `navegador:${agenteId}`);
   },
+  // ADR-197: o bot agiu no computador da pessoa; a aba "Seu Mac" daquele bot relê.
+  "seu_computador.mudou": (e, f) => {
+    const agenteId = texto(f.dados.agenteId);
+    return agenteId ? invalidar(e, `seu-computador:${agenteId}`, "seu-computador") : e;
+  },
   "contas.mudou": (e) => invalidar(e, "contas", "maquinas", usoPlano(e)),
   "agente.mudou": (e, f) => {
     const agenteId = texto(f.dados.agente_id) ?? texto(f.dados.agenteId);
@@ -2135,6 +2145,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, naoLidos: acao.naoLidos };
     case "novas-desde":
       return { ...estado, novasDesde: { ...estado.novasDesde, [acao.conversaId]: { mensagemId: acao.mensagemId, em: acao.em, total: acao.total } } };
+    case "hidratar-seu-computador":
+      return { ...estado, seuComputador: acao.dados };
     case "hidratar-chaves":
       return { ...estado, chaves: acao.chaves };
     case "hidratar-mcp-tokens":
@@ -2488,6 +2500,7 @@ export function invalidacoesDaTela(estado: Estado): Invalidacao[] {
   if (t.tipo === "trabalho" && !estado.trabalhoDetalhe[t.id]) faltas.push(`trabalho:${t.id}`);
   if (t.tipo === "linha" && !estado.conversas[t.conversaId]) faltas.push(`conversa:${t.conversaId}`);
   if (secao === "maquinas" && !estado.chaves) faltas.push("chaves");
+  if (estado.sessao && secao === "maquinas" && !estado.seuComputador) faltas.push("seu-computador");
   if (estado.sessao && secao === "geral" && !estado.mcpTokens) faltas.push("mcp-tokens");
   // ADR-090: a seção Máquinas e a conversa (a mensagem na fila diz quando a máquina do bot está fora do ar).
   // QA do NOD-314: a tela da task também lê a frota ("Rodar em <outra> desta vez" e a linha do turno preso).

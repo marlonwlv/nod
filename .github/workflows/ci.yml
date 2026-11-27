@@ -280,7 +280,7 @@ jobs:
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git fetch --no-tags --depth=1 origin "$BASE"; then
             echo "roda=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if git diff --name-only "$BASE" HEAD | grep -qE '^(desktop/|scripts/desktop/|src/contracts/|tsconfig\.desktop\.json$|electron-builder\.yml$|\.github/workflows/ci\.yml$|package(-lock)?\.json$)'; then
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(desktop/|scripts/desktop/|src/contracts/|src/adapters/seu-computador/|scripts/seu-computador/|tsconfig\.desktop\.json$|electron-builder\.yml$|\.github/workflows/ci\.yml$|package(-lock)?\.json$)'; then
             echo "roda=true" >> "$GITHUB_OUTPUT"
           else
             echo "roda=false" >> "$GITHUB_OUTPUT"
@@ -310,6 +310,18 @@ jobs:
       - name: Smoke da janela
         timeout-minutes: 5
         run: npx electron scripts/desktop/smoke-window.mjs
+      # ADR-197: o computador da pessoa com o cua-driver de verdade (pacote fixo, sha256 conferido, modo bounded): abrir o
+      # Editor de Texto com um arquivo, ler, digitar e ler de novo (o runner do macos-15 tem Acessibilidade: provado em 26/11).
+      - name: Computador da pessoa (cua-driver no Mac)
+        timeout-minutes: 5
+        run: npx tsx scripts/seu-computador/fumaca.ts --exigir --saida "$RUNNER_TEMP/fumaca-seu-computador"
+      - if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fumaca-seu-computador-mac
+          path: ${{ runner.temp }}/fumaca-seu-computador
+          if-no-files-found: ignore
 
   # ADA-11 (ADR-147): o smoke do motor no Windows de verdade. O windows-latest é hospedado (o runner próprio é Linux) e
   # cobra minutos, então só roda quando o diff toca o que roda no motor. O filtro fica aqui dentro (num job barato no
@@ -328,7 +340,7 @@ jobs:
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git fetch --no-tags --depth=1 origin "$BASE"; then
             echo "roda=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if git diff --name-only "$BASE" HEAD | grep -qE '^(motor/|src/adapters/executor/|src/adapters/mcp-proxy/|src/adapters/conectores-locais/|src/contracts/|src/shared/|src/domain/|scripts/motor/|scripts/windows/|src/adapters/http/motor-instalacao(-windows)?\.ts$|src/adapters/http/rotas/motor\.ts$|src/adapters/http/servidor\.ts$|tests/windows/|desktop/windows/|desktop/cofres-do-(mac|windows)\.ts$|desktop/cookies-do-chrome-windows\.ts$|src/adapters/navegador/|extensao-chrome/|desktop/atualizacao\.ts$|scripts/desktop/build\.mjs$|electron-builder-windows\.yml$|tsconfig(\.motor|\.desktop)?\.json$|\.github/workflows/ci\.yml$|package(-lock)?\.json$|vitest\.config\.ts$)'; then
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(motor/|src/adapters/executor/|src/adapters/seu-computador/|scripts/seu-computador/|src/adapters/mcp-proxy/|src/adapters/conectores-locais/|src/contracts/|src/shared/|src/domain/|scripts/motor/|scripts/windows/|src/adapters/http/motor-instalacao(-windows)?\.ts$|src/adapters/http/rotas/motor\.ts$|src/adapters/http/servidor\.ts$|tests/windows/|desktop/windows/|desktop/cofres-do-(mac|windows)\.ts$|desktop/cookies-do-chrome-windows\.ts$|src/adapters/navegador/|extensao-chrome/|desktop/atualizacao\.ts$|scripts/desktop/build\.mjs$|electron-builder-windows\.yml$|tsconfig(\.motor|\.desktop)?\.json$|\.github/workflows/ci\.yml$|package(-lock)?\.json$|vitest\.config\.ts$)'; then
             echo "roda=true" >> "$GITHUB_OUTPUT"
           else
             echo "roda=false" >> "$GITHUB_OUTPUT"
@@ -357,6 +369,19 @@ jobs:
       # Os unitários do caminho Windows que não supõem caminho POSIX também rodam no Windows de verdade (separador,
       # maiúsculas e PATHEXT reais). Os outros fingem a plataforma e ficam só no Linux.
       - run: npx vitest run --project unit tests/unit/motor/bundle-motor.test.ts tests/unit/executor/executor-windows.test.ts
+      # ADR-197: o computador da pessoa no PC com o cua-driver de verdade (UI Automation): o Bloco de Notas com um arquivo,
+      # ler, digitar e ler de novo; app fora do manifesto pede liberação; PowerShell fica de fora.
+      - name: Computador da pessoa (cua-driver no Windows)
+        shell: bash
+        timeout-minutes: 6
+        run: npx tsx scripts/seu-computador/fumaca.ts --exigir --saida "$RUNNER_TEMP/fumaca-seu-computador"
+      - if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fumaca-seu-computador-windows
+          path: ${{ runner.temp }}/fumaca-seu-computador
+          if-no-files-found: ignore
       # ADA-32 (ADR-151): o instalador `irm …/windows | iex`. Primeiro o PSScriptAnalyzer (zero avisos e erros; o Write-Host
       # é de propósito: o script fala com quem colou o comando), depois a instalação de verdade no Windows PowerShell 5.1
       # (o da pessoa) contra o servidor em loopback, até antes do pareamento, duas vezes: a segunda é a atualização, que

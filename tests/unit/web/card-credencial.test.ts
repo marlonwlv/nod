@@ -127,3 +127,31 @@ describe("QA do PR 553: a conversa lembra o histórico, e o erro do cartão prec
     expect(main).toMatch(/lembrar\("task-historico", estado, \[[^\]]*versaoDasFases\(\)[^\]]*\]/);
   });
 });
+
+describe("ADR-195 (Entrega 3, Paper O1–O3): o cartão da chave de um app do Cofre", () => {
+  const orgo = () => proposta({ alvo: "app", appId: "orgo", app: "Orgo", conectorId: null, chave: "ORGO_API_KEY", para: "Controlar o computador da Orgo: tirar print, clicar, digitar e rodar comandos.", appNaTela: { artigo: "a", ondeAchar: { rotulo: "orgo.ai › API keys", url: "https://www.orgo.ai/api-keys" }, dica: "sk_live_…" } });
+  afterEach(() => marcarFase(ID, null));
+
+  it("O1: Chave da Orgo, onde achar a chave, o começo dela, o × e o sigilo do Cofre", () => {
+    const html = renderCardCredencial(orgo(), "Chico");
+    expect(html).toContain(">Chave da Orgo</h3>");
+    expect(html).toContain('Onde achar: <a href="https://www.orgo.ai/api-keys" target="_blank" rel="noopener noreferrer">orgo.ai › API keys</a>');
+    expect(html).toContain('placeholder="sk_live_…"');
+    expect(html).toContain('class="p50-fechar" data-act="recusar-credencial"');
+    expect(html).toContain("Vai direto para o Cofre e só Chico usa, sem ver a chave.");
+    expect(html).not.toMatch(/name="valor"[^>]*value=/);
+  });
+
+  it("O2 e O3: testando na Orgo; recusada fala da Orgo com o artigo dela; sem resposta vira Tentar de novo", () => {
+    marcarFase(ID, { ocupado: true, erro: null });
+    const testando = renderCardCredencial(orgo(), "Chico");
+    expect(testando).toContain("Guardando e testando a chave na Orgo…");
+    expect(testando).not.toContain("p50-fechar");
+    marcarFase(ID, { ocupado: false, erro: "recusada" });
+    expect(renderCardCredencial(orgo(), "Chico")).toContain("A Orgo recusou essa chave. Confira se copiou inteira e cole de novo.");
+    marcarFase(ID, { ocupado: false, erro: "indisponivel" });
+    const fora = renderCardCredencial(orgo(), "Chico");
+    expect(fora).toContain("A Orgo não respondeu agora.");
+    expect(fora).toContain(">Tentar de novo</button>");
+  });
+});

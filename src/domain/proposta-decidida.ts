@@ -1,3 +1,4 @@
+import { tituloDoPedidoDeChave } from "./apps-do-cofre.ts";
 import type { Proposta } from "../contracts/conversa.ts";
 import { tituloDaExclusaoDoQuadro } from "./quadros-do-bot.ts";
 
@@ -45,6 +46,6 @@ export function tituloDaProposta(p: Pick<Proposta, "payload">): string {
       return `O quadro de ${c.anfitriaoNome} assume a esteira`;
     // NOD-50: o título do cartão aberto, sem o valor (o payload nunca o tem).
     case "credencial":
-      return c.alvo === "github_token" ? "Token do GitHub" : c.alvo === "composio" ? "Chave do Composio do time" : `Chave para ${c.app}`;
+      return tituloDoPedidoDeChave(c);
   }
 }

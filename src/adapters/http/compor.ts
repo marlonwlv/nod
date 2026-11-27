@@ -26,6 +26,8 @@ import { lugarPadrao } from "../../domain/computador-canal.ts";
 import type { EstadoComputadorRelatado } from "../../contracts/computador-motor.ts";
 import { type Computadores, criarComputadores, reconciliarTelas } from "../fundo/computadores.ts";
 import { criarNavegadores, type Navegadores } from "../fundo/navegadores.ts";
+import { criarSeuComputador } from "../fundo/seu-computador.ts";
+import { rotasSeuComputador } from "./rotas/seu-computador.ts";
 import { criarAvisoNavegadorMudou } from "../navegador/aviso-mudou.ts";
 import { criarVivoNavegador } from "../navegador/vivo.ts";
 import { criarCanalNavegador } from "../navegador/canal-maquina.ts";
@@ -197,7 +199,12 @@ import { rotasCanvas } from "./rotas/canvas.ts";
 import { criarCapturadorCdp, type Capturador } from "../tela/capturador-cdp.ts";
 import { rotasConectores } from "./rotas/conectores.ts";
 import { rotasCredencial } from "./rotas/credencial.ts";
-import { criarRotasCofre } from "./rotas/cofre.ts";
+import { criarRotasCofre, type OpcoesRotasCofre } from "./rotas/cofre.ts";
+import { escolherChaveMestra } from "../cofre/chave-mestra.ts";
+import { criarChavesDoTenant } from "../cofre/chaves-do-tenant.ts";
+import { criarTestarChave, type TestarChave } from "../cofre/testar-chave.ts";
+import { APPS_DO_COFRE } from "../../domain/apps-do-cofre.ts";
+import { lerValorParaEntrega } from "../../use-cases/cofre-envelope.ts";
 import { criarRotasBusca } from "./rotas/busca.ts";
 import { lerPoolMax } from "../../db/client.ts";
 import { criarRotasConversas } from "./rotas/conversas.ts";
@@ -292,6 +299,8 @@ export type EnvApp = Readonly<Record<string, string | undefined>>;
 export type AtivarDriver = (id: IdDriver) => Promise<Inventario>;
 
 export type OpcoesCompor = {
+  /** ADR-195 (Entrega 3): o teste da chave de um app conhecido antes de guardar. Ausente = a chamada real ao app. */
+  testarChaveDoCofre?: TestarChave;
   computador?: DriverComputador;
   db: Db;
   env: EnvApp;
@@ -453,6 +462,12 @@ export function comporApp(o: OpcoesCompor): App {
   // ADR-192 (etapa 5): a virada da leitura, desligada por padrão (sete dias de sombra antes de ligar).
   const leituraNovaDasTarefas = env.NOD_TAREFAS_LEITURA_NOVA === "1";
   const chave = chaveDe(env.NOD_CREDENTIAL_KEY ?? "chave-de-desenvolvimento-sem-valor");
+  // ADR-195 (Entrega 3): o cofre em envelope. Em produção a mestra é o KMS (o boot recusa subir sem NOD_COFRE_KMS); fora
+  // dela, a local derivada da mesma NOD_CREDENTIAL_KEY, com o mesmo padrão de desenvolvimento de `chave`.
+  const cofreEnvelope: OpcoesRotasCofre = {
+    chaves: criarChavesDoTenant({ mestra: escolherChaveMestra({ ...env, NOD_CREDENTIAL_KEY: env.NOD_CREDENTIAL_KEY ?? "chave-de-desenvolvimento-sem-valor" }) }),
+    testar: o.testarChaveDoCofre ?? criarTestarChave(),
+  };
   let registryLigado: Registry | null = null;
   let inventarioInicial: Inventario | null = null;
   // medido em 2026-09-16 (e2e:haiku): GET inventario entre o listen e a sonda do boot cacheava 'ausente: servidor ainda
@@ -864,6 +879,10 @@ export function comporApp(o: OpcoesCompor): App {
     if (emUso.includes("docker")) provedores.docker = criarProvedorDocker(env);
     if (orgoHabilitado && emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env,
       chaveDe: (escopo) => dentro(escopo, async (d) => {
+        // ADR-195 (Entrega 3): a chave guardada pelo cartão da Orgo (alvo "app") ou pela tela mora no Cofre; o conector
+        // `orgo` antigo continua valendo enquanto a Entrega 4 não migra os quatro lugares.
+        const noCofre = await d.repos.cofre.itemVivo({ tipo: "chave", nome: APPS_DO_COFRE.orgo.variavel, dono: "pessoa" });
+        if (noCofre) return (await lerValorParaEntrega(d, cofreEnvelope.chaves, { itemId: noCofre.id, onde: "no computador da Orgo", espacarUso: true })).valor;
         const c = await d.repos.conectores.buscarPorSlug("orgo");
         if (!c?.envCifrado) return null;
         const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
@@ -951,6 +970,13 @@ export function comporApp(o: OpcoesCompor): App {
   vivoDoNavegador = vivoNavegador;
   aoFimDoTurno = (pessoaId, turnoId) => navegadores.turnoAcabou(pessoaId, turnoId);
   services.navegadores = navegadores;
+  // ADR-197 (2026-11-26): o computador da pessoa, pela mesma fila da máquina do navegador (só existe com ela, no modo
+  // compartilhado). NOD_SEU_COMPUTADOR=0 desliga (o plano sai sem as seu_computador_*). A vista muda → SSE para o painel.
+  const seuComputador = canalNavegador && env.NOD_SEU_COMPUTADOR !== "0"
+    ? criarSeuComputador({ dentro, canal: canalNavegador, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), agora: relogio,
+      aoMudar: (escopo, vista) => barramento.publicar(escopo.pessoaId, "seu_computador.mudou", { agenteId: vista.agenteId }) })
+    : null;
+  if (seuComputador) services.seuComputador = seuComputador;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") {
       // ADR-190: o bot excluído também perde o Chrome; desde 2026-11-22 (ponto 09 dos cenários), o perfil sai do disco.
@@ -1730,7 +1756,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...criarRotasUsoDoPlano(depsRotas),
     ...criarRotasCustoDoDia({ ...depsRotas, fusoPadrao: env.NOD_FUSO_PADRAO ?? "America/Sao_Paulo" }),
     ...criarRotasNaoLidos(depsRotas),
-    ...criarRotasCofre(depsRotas),
+    ...criarRotasCofre(depsRotas, cofreEnvelope),
     ...criarRotasLigacoes({
       ...depsRotas,
       contexto: contextoLigacao,
@@ -1776,7 +1802,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasTela({ capturador: capturaDeTelaLigada(env, compartilhado) ? (o.capturador ?? criarCapturadorCdp()) : null }),
     ...rotasMarketplace({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave), admins: (env.NOD_ADMINS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean), aoTrocarApp: (t) => cofreDoApp.esquecer(t) }),
     ...rotasConectores({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave) }),
-    ...rotasCredencial({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave) }),
+    ...rotasCredencial({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave) }, cofreEnvelope),
     ...rotasTrilha({ dentro }),
     // ADR-090: o motor sem janela da versão deste servidor (dist/motor) e o script que o instala numa máquina Linux.
     // NOD-132 (ADR-149): o feed da atualização do app do Mac, fora da trava 426. Versão vazia = 204 para todos.
@@ -1798,7 +1824,8 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasCofreLogins({ dentro, cifrar: (s) => cifrar(s, chave) }),
     ...rotasTarefasEnsinadas({ dentro, espaco: (escopo, agenteId) => navegadores.espaco(escopo, agenteId) }),
     ...rotasWorkspaces(workspaces, dentro),
-    ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
+    ...rotasSeuComputador({ dentro, portao: seuComputador }),
+    ...rotasInternas({ dentro, computadores, navegadores, ...(seuComputador ? { seuComputador } : {}), workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),
     // NOD-84 (ADR-139): a rota pública do webhook só no compartilhado — o nod local, no Mac, não é alcançável de fora.
     ...(compartilhado ? criarRotasWebhook({ ...depsL7, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave) }) : []),
