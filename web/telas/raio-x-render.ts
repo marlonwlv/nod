@@ -27,6 +27,7 @@ const GRUPOS_FIXOS: Record<Exclude<GrupoDeFerramentas["origem"], "conector">, st
   nod: "nod",
   computador: "Computador do bot",
   navegador: "Navegador do bot",
+  seu_computador: "Computador da pessoa",
   workspace: "Pastas do Mac",
 };
 

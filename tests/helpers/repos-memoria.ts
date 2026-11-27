@@ -1,4 +1,5 @@
 import { contasIaMemoria, estadoContasIaMemoria, type EstadoContasIaMemoria } from "./contas-ia-memoria.ts";
+import type { AppLiberadoDoBot } from "../../src/repositories/seu-computador.repo.ts";
 import type { CondicaoDaVolta } from "../../src/contracts/quadro-execucoes.ts";
 import type { NivelDeFerramenta, RegraRevisor, TetoModo } from "../../src/contracts/ajustes-aprovacao.ts";
 import { tetoMaisFechado } from "../../src/domain/ajustes-aprovacao.ts";
@@ -4557,9 +4558,35 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       resumo: async (raizes: readonly string[]) => new Map(raizes.map((r) => [r, { n: 0, ultimo: null }])),
       podar: async () => 0,
     },
+    // ADR-197 (0187): os apps do computador da pessoa por bot, num Map por banco de mentira.
+    seuComputadorApps: seuComputadorEmMemoria(b, escopo),
   } satisfies Repos;
 
   return repos;
+}
+
+/** ADR-197: os apps liberados por bot (chave tenant:dono:bot:plataforma:app). */
+const APPS_SEU_COMPUTADOR = new WeakMap<object, Map<string, AppLiberadoDoBot & { tenantId: string; ownerId: string }>>();
+function seuComputadorEmMemoria(b: object, escopo: Escopo): Repos["seuComputadorApps"] {
+  const mapa = APPS_SEU_COMPUTADOR.get(b) ?? new Map<string, AppLiberadoDoBot & { tenantId: string; ownerId: string }>();
+  APPS_SEU_COMPUTADOR.set(b, mapa);
+  const meus = () => [...mapa.values()].filter((a) => a.tenantId === escopo.tenantId && a.ownerId === escopo.pessoaId);
+  const limpar = ({ tenantId: _t, ownerId: _o, ...a }: AppLiberadoDoBot & { tenantId: string; ownerId: string }): AppLiberadoDoBot => a;
+  return {
+    doBot: async (agenteId, plataforma) => meus().filter((a) => a.agenteId === agenteId && a.plataforma === plataforma).map(limpar).sort((x, y) => x.nome.localeCompare(y.nome)),
+    daPessoa: async () => meus().map(limpar),
+    liberar: async (p, agora) => {
+      const k = `${escopo.tenantId}:${escopo.pessoaId}:${p.agenteId}:${p.plataforma}:${p.appId}`;
+      const atual = mapa.get(k);
+      mapa.set(k, { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, agenteId: p.agenteId, plataforma: p.plataforma, id: p.appId, nome: p.appNome, ate: atual && atual.ate === null ? null : p.ate, criadoEm: atual?.criadoEm ?? agora });
+      return true;
+    },
+    tirar: async (p) => {
+      let n = 0;
+      for (const [k, a] of [...mapa]) if (a.tenantId === escopo.tenantId && a.ownerId === escopo.pessoaId && (!p.agenteId || a.agenteId === p.agenteId) && (!p.appId || a.id === p.appId)) { mapa.delete(k); n++; }
+      return n;
+    },
+  };
 }
 
 /** ADR-166: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */

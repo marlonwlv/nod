@@ -100,6 +100,13 @@ const ACOES_SEMEADAS_NOD409 = new Set([
  * que vai semeá-la (o teste exige o id NOD-n). SO_404_403_ACEITAS só pode ter ações da foto: não serve de saída para nova.
  */
 const ISENCOES_DE_ACOES_NOVAS: Readonly<Record<string, string>> = {
+  // A main vermelha em c7d6bfdd e 43ef0804 (sementes 3466588689 e 1139738628): a chave do cofre é semeada (`itens`), mas
+  // nessas sementes o plano não sorteia o id dela para `cofre.remover_chave` e a rota só leva o id. Semear a chave de um
+  // jeito que toda semente alcance é da NOD-409 (as entidades do fuzz), como as do quadro abaixo.
+  "cofre.remover_chave": "NOD-409",
+  // A semente 3152922348 (release rc.16, 2026-11-26): comentar no canvas só leva ids de um canvas e de um trecho que o
+  // fuzz não semeia; a busca nunca passa. Semear as entidades do canvas no fuzz é da NOD-409, como as acima.
+  "canvas.comentar": "NOD-409",
   // A main vermelha em 849a2d14 (semente 2224696596): o fuzz não semeia versão de perfil, e só a semente que sorteia um número
   // existente passa da busca. Semear a versão do perfil no fuzz é da NOD-20.
   "bots.restaurar_versao": "NOD-20",
@@ -405,6 +412,9 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, tarefas, memorias, diarios, contas, chaves, nuvem, logins: [login.id], habilidades: [habilidade.id] };
       });
       const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
+      // ADR-195 (Entrega 3): uma chave do cofre (de "outro app", sem teste) para `cofre.trocar_chave`, `cofre.mudar_acesso`
+      // e `cofre.remover_chave` passarem da busca (as rotas de um item já guardado só levam ids).
+      const chaveDoCofre = (await srv.json<{ chave: { id: string } }>("POST", "cofre/chaves", { app: "Fuzz", nome: `FUZZ_TOKEN_${ordem}`, valor: "fuzz-valor-de-teste" })).chave.id;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
       await srv.json("PUT", "canvas/app", {});
       const plano = planoDoServidor({
@@ -457,6 +467,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             maquinas: { daPessoa: [...sementes.chaves, ...sementes.nuvem], deOutraPessoa: [] },
             logins: { daPessoa: sementes.logins, deOutraPessoa: [] },
             habilidades: { daPessoa: sementes.habilidades, deOutraPessoa: [] },
+            itens: { daPessoa: [chaveDoCofre], deOutraPessoa: [] },
           },
         },
       });

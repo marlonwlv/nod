@@ -1,7 +1,8 @@
 import type { TarefaDto } from "../../src/contracts/tarefa.ts";
+import type { RespostaSeuComputadorTela, RespostaVistaSeuComputador } from "../../src/contracts/seu-computador.ts";
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
-import type { CofreDto } from "../../src/contracts/cofre.ts";
+import type { ChaveDoCofreNaTela, CofreDto, DetalheDaChaveDto, ModoDeUsoDaChave, NovaChaveDoCofre } from "../../src/contracts/cofre.ts";
 import type { AjustesAprovacao, ListaRegra, NivelDeFerramenta, NivelFerramenta, RegraRevisor, TetoModo, TipoNivel } from "../../src/contracts/ajustes-aprovacao.ts";
 import type { Time, TimeNaLista } from "../../src/contracts/time.ts";
 import type { ModoAcionar, PassosDoRunDto, PreviaComentarioDto, RunDaTarefa } from "../../src/contracts/quadro-comentarios.ts";
@@ -572,6 +573,15 @@ export function criarApi(escopo: Escopo) {
     // ADR-166: Ajustes > Aprovações (regras do revisor, níveis por app, só leitura, teto do admin).
     // Paper 07 (rodada 2): Configurações › Cofre — nome, app e data das chaves guardadas; nunca o valor.
     cofre: () => get<CofreDto>("cofre"),
+    // ADR-195 (Entrega 3, Paper C2 e C3): as chaves do cofre. O valor vai no corpo direto ao cofre e nunca volta.
+    chaveDoCofre: (id: string) => get<DetalheDaChaveDto>(`cofre/itens/${encodeURIComponent(id)}`),
+    criarChaveNoCofre: (nova: NovaChaveDoCofre) => post<{ chave: ChaveDoCofreNaTela }>("cofre/chaves", nova),
+    trocarChaveDoCofre: (id: string, valor: string) => post<{ chave: ChaveDoCofreNaTela }>(`cofre/itens/${encodeURIComponent(id)}/trocar`, { valor }),
+    acessoDaChave: (id: string, agenteId: string, modo: ModoDeUsoDaChave | null) => {
+      const caminho = `cofre/itens/${encodeURIComponent(id)}/acessos/${encodeURIComponent(agenteId)}`;
+      return modo ? patch<{ chave: ChaveDoCofreNaTela }>(caminho, { modo }) : del<{ chave: ChaveDoCofreNaTela }>(caminho);
+    },
+    removerChaveDoCofre: (id: string) => del<{ ok: true }>(`cofre/itens/${encodeURIComponent(id)}`),
     ajustesAprovacao: (agenteId: string | null) => get<AjustesAprovacao>(`aprovacoes/ajustes${agenteId ? `?agente=${encodeURIComponent(agenteId)}` : ""}`),
     criarRegraRevisor: (corpo: { agenteId: string | null; lista: ListaRegra; texto: string; origem?: "pessoa" | "sugestao" }) => post<{ regra: RegraRevisor }>("aprovacoes/regras", corpo),
     editarRegraRevisor: (id: string, texto: string) => patch<{ regra: RegraRevisor }>(`aprovacoes/regras/${encodeURIComponent(id)}`, { texto }),
@@ -713,6 +723,10 @@ export function criarApi(escopo: Escopo) {
     trilha: (q: string) => get<{ linhas: unknown[] }>(`trilha${q ? `?${q}` : ""}`),
     devCatcher: () => get<{ executor: string; registros: RegistroCatcher[] }>("dev/catcher"),
     chaves: () => get<{ chaves: ChaveMaquinaDto[] }>("maquinas/chaves"),
+    /** ADR-197: Ajustes › Seu Mac e o "Tirar" (de um app, de um bot ou de tudo). */
+    seuComputador: () => get<RespostaSeuComputadorTela>("seu-computador"),
+    vistaSeuComputador: (agenteId: string) => get<RespostaVistaSeuComputador>(`agentes/${encodeURIComponent(agenteId)}/seu-computador`),
+    tirarDoSeuComputador: (p: { agenteId?: string; appId?: string }) => post<RespostaSeuComputadorTela & { ok: true; saiu: number }>("seu-computador/tirar", p),
     emitirChave: (nome: string) => post<ChaveEmitidaDto>("maquinas/chaves", { nome }),
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
     // Servidor MCP do Nod (0173): os tokens que um cliente MCP de fora usa no /api/mcp.

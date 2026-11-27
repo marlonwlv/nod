@@ -1,6 +1,6 @@
 import { criarCodexCliDriver } from "../src/adapters/executor/drivers/codex-cli.ts";
 import { app, autoUpdater, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, type IpcMainInvokeEvent } from "electron";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
 import { readFile, writeFile, mkdir, rename, rm, stat } from "node:fs/promises";
@@ -21,6 +21,10 @@ import { iniciarDesfazeres, type Desfazeres } from "../src/adapters/executor/des
 import { chromeDoMac, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
 import { binarioAgentBrowser, type MotorNavegador } from "../src/adapters/navegador/motor-agent-browser.ts";
 import { criarCofresDoMac } from "./cofres-do-mac.ts";
+import { criarSeuComputadorLocal, type SeuComputadorLocal } from "../src/adapters/seu-computador/driver.ts";
+import { listarAppsLocais } from "../src/adapters/seu-computador/apps-locais.ts";
+import { baixadorDoDriver, binarioNoApp } from "../src/adapters/seu-computador/binario.ts";
+import { criarIlha, type Ilha } from "./ilha-seu-computador.ts";
 import { iniciarEsperas, type Esperas } from "../src/adapters/executor/esperas.ts";
 import type { PlanoTurno } from "../src/contracts/plano-turno.ts";
 import { configDosDrivers, criarRegistryDetalhado } from "../src/adapters/executor/registry.ts";
@@ -177,6 +181,38 @@ let desfazeresDoMac: Desfazeres | null = null;
  * Chrome) nasce no primeiro comando e sobrevive às reconexões (a preparação do Chrome não recomeça).
  */
 let navegadorDoMac: NavegadorDaMaquina | null = null;
+/**
+ * ADR-197: o computador da pessoa neste Mac (o cua-driver do .app, filho deste processo: o macOS atribui a
+ * Acessibilidade e a Gravação de Tela ao nod). Criado uma vez; a fila do navegador leva os comandos até ele.
+ */
+let seuComputadorDoMac: SeuComputadorLocal | null = null;
+let ilhaDoMac: Ilha | null = null;
+/** O bundle id do app da frente (sem pedir permissão: NSWorkspace). null = não deu para ler. */
+function appDaFrente(): Promise<string | null> {
+  return new Promise((resolver) => {
+    execFile("/usr/bin/osascript", ["-l", "JavaScript", "-e", "ObjC.import('AppKit'); ObjC.unwrap($.NSWorkspace.sharedWorkspace.frontmostApplication.bundleIdentifier) || ''"], { timeout: 3000 }, (e, saida) => resolver(e ? null : String(saida).trim() || null));
+  });
+}
+function seuComputador(): SeuComputadorLocal | null {
+  if (process.platform !== "darwin") return null;
+  if (seuComputadorDoMac) return seuComputadorDoMac;
+  const pasta = join(app.getPath("userData"), "seu-computador");
+  const baixar = baixadorDoDriver({ plataforma: "darwin", pasta });
+  ilhaDoMac = criarIlha({ aparelho: "Mac", aoParar: () => { void seuComputadorDoMac?.parar(); } });
+  seuComputadorDoMac = criarSeuComputadorLocal({
+    plataforma: "darwin",
+    binario: async () => binarioNoApp(process.resourcesPath) ?? (await baixar()),
+    pasta,
+    bundleDoHost: "app.nod.desktop",
+    listarApps: () => listarAppsLocais("darwin"),
+    aoAtividade: (a) => ilhaDoMac?.mostrar({ bot: a.bot, app: a.app, acao: a.acao, janela: a.janela }),
+    // S2: o app da frente (NSWorkspace pelo JXA, ~100 ms) e o tempo sem teclado e mouse da pessoa.
+    pessoa: { naFrente: async (appId) => (await appDaFrente()) === appId, ociosoS: () => powerMonitor.getSystemIdleTime() },
+  });
+  // Bloquear a tela para o bot na hora (ADR-197, item 6).
+  powerMonitor.on("lock-screen", () => { ilhaDoMac?.esconder(); void seuComputadorDoMac?.parar(); });
+  return seuComputadorDoMac;
+}
 let motorDoNavegador: (() => Promise<MotorNavegador>) | null = null;
 /**
  * O agent-browser do app: no pacote, fora do asar em Contents/Resources/agent-browser (extraResources do
@@ -851,7 +887,8 @@ async function conectar(c: Config) {
     motorDoNavegador ??= motorDaMaquina({ dados: join(app.getPath("userData"), "navegadores"), binario: binarioDoNavegador(), chrome: () => chromeDoMac(homedir()) });
     navegadorDoMac?.parar();
     // ADR-177/190 (L, A1): o 1Password, o Bitwarden, os cookies do Chrome da pessoa e o Touch ID, para os comandos da fila.
-    navegadorDoMac = iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDoNavegador, ...(process.platform === "darwin" ? { mac: criarCofresDoMac({ home: homedir(), touchId: confirmarNoMac }) } : {}) });
+    const sc = seuComputador();
+    navegadorDoMac = iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDoNavegador, ...(process.platform === "darwin" ? { mac: criarCofresDoMac({ home: homedir(), touchId: confirmarNoMac }) } : {}), ...(sc ? { seuComputador: sc } : {}) });
   }
   // ADR-102 (2026-10-13): as contas deste Mac, lidas pelo CLI na pasta de cada uma (impressão = e-mail + organização +
   // pessoa, nunca em claro ao servidor). A lista segue a do app (contas.json); a primeira leitura é inteira (a pessoa
@@ -1756,6 +1793,23 @@ else {
       quickChat?.abrirNoBot(agenteId);
     });
     ipcMain.handle(CANAIS_MAC.ferramentasMac, (e) => { validarRemetenteWeb(e); return carregarFamiliasMac(homedir()); });
+    // ADR-197: as duas permissões do macOS para o bot usar os apps (S1: o painel diz qual falta e abre o Ajuste certo).
+    ipcMain.handle(CANAIS_MAC.seuComputadorPermissoes, (e) => {
+      validarRemetenteWeb(e);
+      return { acessibilidade: systemPreferences.isTrustedAccessibilityClient(false), gravacaoDeTela: systemPreferences.getMediaAccessStatus("screen") === "granted" };
+    });
+    ipcMain.handle(CANAIS_MAC.seuComputadorPedirPermissao, async (e, qual: unknown) => {
+      validarRemetenteWeb(e);
+      if (qual === "acessibilidade") {
+        // Mostra o pedido do sistema (só na primeira vez) e abre o Ajuste, onde a pessoa liga o nod.
+        systemPreferences.isTrustedAccessibilityClient(true);
+        await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+      } else if (qual === "gravacao_de_tela") {
+        await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
+      } else throw new Error("entrada_invalida");
+      return true;
+    });
+    ipcMain.handle(CANAIS_MAC.seuComputadorParar, async (e) => { validarRemetenteWeb(e); ilhaDoMac?.esconder(); await seuComputadorDoMac?.parar(); return true; });
     ipcMain.handle(CANAIS_MAC.definirFerramentaMac, async (e, familia: unknown, ligada: unknown) => {
       validarRemetenteWeb(e);
       if (!ehFamiliaMac(familia) || typeof ligada !== "boolean") throw new Error("entrada_invalida");

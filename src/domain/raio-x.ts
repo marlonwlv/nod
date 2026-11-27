@@ -120,6 +120,7 @@ function grupoDe(f: PlanoTurno["catalogo"]["ferramentas"][number]): Pick<GrupoDe
   if (f.origem === "conector") return { grupo: f.nome.split("__")[0] || "app", origem: "conector" };
   if (f.origem === "computador") return { grupo: "computador", origem: "computador" };
   if (f.origem === "navegador") return { grupo: "navegador", origem: "navegador" };
+  if (f.origem === "seu_computador") return { grupo: "seu computador", origem: "seu_computador" };
   if (f.origem === "workspace") return { grupo: "pastas", origem: "workspace" };
   return { grupo: "nod", origem: "nod" };
 }

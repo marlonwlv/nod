@@ -168,14 +168,34 @@
 .pilula-frentes .pf-texto { font-weight: 500; }
 .pilula-frentes .pf-resto, .pilula-frentes .pf-seta { color: var(--chat-tinta-2); }
 .pilula-frentes .pf-aba-ic { flex: none; }
+/* XUM-7 (2026-11-26): os ícones do estado da tarefa (web/telas/icones-da-tarefa.ts) têm uma regra só, global, para valer
+   em todo lugar onde aparecem — a aba presa ao campo, as abas, o menu "N outras" (que ficava sem giro por não ter a regra
+   do escopo dele), o cartão vivo, a lista aberta e a tela Tarefas. O anel de quem roda gira em torno do próprio centro; com
+   `prefers-reduced-motion` ele não gira e vira uma marca estática clara (o círculo inteiro e o miolo), não um arco parado
+   que parece travado. Quem espera tem o anel tracejado, que não gira. */
+.pf-anel { transform-origin: 50% 50%; animation: pf-anel-gira 1s linear infinite; }
+.pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.pf-anel-arco { stroke: var(--chat-tinta); }
+.pf-anel-miolo { display: none; fill: var(--chat-tinta); stroke: none; }
+.pf-espera { color: var(--chat-tinta-4); }
+.pf-precisa { color: var(--chat-aba-precisa); }
+/* O ✓ solto de quem terminou, o quadrado da parada e o disco do "!" da que não terminou (o menu "N outras" ficava sem eles:
+   a que falhou saía cinza, igual à parada). */
+.at-feita { display: inline-flex; width: 12px; justify-content: center; color: var(--chat-tinta-2); }
+.at-feita svg { width: 12px; height: 12px; }
+.at-parada { color: var(--chat-tinta-3); }
+.at-falhou { display: inline-flex; color: var(--danger); }
+.at-falhou svg { width: 12px; height: 12px; }
 .pilula-frentes .pf-precisa { color: var(--warning); }
 /* XUM-6 (9f): na aba, o trecho "1 precisa de você" em âmbar, como o "!" ao lado. */
 .pilula-frentes .pf-resto-precisa { color: var(--warning); }
-.pilula-frentes .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
-.pilula-frentes .pf-anel-arco { stroke: var(--chat-tinta); }
-.pilula-frentes .pf-anel { animation: pf-anel-gira 1s linear infinite; }
 @keyframes pf-anel-gira { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .pilula-frentes .pf-anel { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .pf-anel { animation: none; }
+  .pf-anel-arco { display: none; }
+  .pf-anel-trilho { stroke: var(--chat-tinta); }
+  .pf-anel-miolo { display: inline; }
+}
 /* ADR-187 (protótipo 4t, opção A, 2026-11-18): o selo ao lado da aba quando a máquina das tarefas deste bot está apertada
    (memória, processador ou disco). Outra aba presa ao campo, âmbar (vermelha no crítico), com o triângulo e o texto. */
 .pilula-frentes .pf-memoria-lugar { display: flex; }
@@ -237,14 +257,11 @@
 .tv-linha:focus-visible, .tv-chip:focus-visible, .tv-mais:focus-visible, .pf-nova-linha:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 6px; }
 .tv-ic { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--chat-tinta); }
 .tv-ic svg { display: block; }
-.tv-ic .pf-anel { width: 14px; height: 14px; animation: pf-anel-gira 1s linear infinite; }
-.tv-ic .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
-.tv-ic .pf-anel-arco { stroke: var(--chat-tinta); }
+.tv-ic :is(.pf-anel, .pf-espera) { width: 14px; height: 14px; }
 [data-estado="precisa"] > .tv-ic { color: var(--chat-aba-precisa); }
 :is([data-estado="esperando"], [data-estado="sem_noticia"]) > .tv-ic { color: var(--chat-tinta-4); }
 [data-estado="parada"] > .tv-ic { color: var(--chat-tinta-3); }
 [data-estado="falhou"] > .tv-ic { color: var(--danger); }
-@media (prefers-reduced-motion: reduce) { .tv-ic .pf-anel { animation: none; } }
 .tv-texto { display: flex; flex: 1 1 0; align-items: baseline; gap: 10px; min-width: 0; }
 .tv-titulo { flex: none; width: 150px; overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
 .tv-estado { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
@@ -292,6 +309,9 @@
 .pf-lista .tv-ic, .pf-lista .tv-ic svg, .pf-lista .tv-ic .pf-anel { width: 12px; height: 12px; }
 .pf-lista .tv-ic .pf-anel-trilho { stroke: var(--borda); }
 .pf-lista .tv-ic .pf-anel { stroke-width: 1.75; }
+/* XUM-7 com XUM-6: com movimento reduzido, o anel parado da lista também vira o círculo inteiro na tinta (a regra de cima o
+   deixaria no cinza da borda). */
+@media (prefers-reduced-motion: reduce) { .pf-lista .tv-ic .pf-anel-trilho { stroke: var(--chat-tinta); } }
 .pf-lista .tv-linha:hover .tv-titulo { text-decoration: none; }
 .pf-nova-linha { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; border: 0;
   border-radius: var(--raio-8); background: none; color: var(--ink-2); font: inherit; font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
@@ -369,15 +389,7 @@
 .abas-tarefa .at-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* Os ícones do estado são os da aba presa ao campo (P1) e o ✓ do cartão de progresso. */
 .abas-tarefa .pf-aba-ic { flex: none; }
-.abas-tarefa .pf-precisa { color: var(--chat-aba-precisa); }
-.abas-tarefa .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
-.abas-tarefa .pf-anel-arco { stroke: var(--chat-tinta); }
-.abas-tarefa .pf-anel:not(.at-quieto) { animation: pf-anel-gira 1s linear infinite; }
-.abas-tarefa .at-feita { display: inline-flex; width: 12px; justify-content: center; color: var(--chat-tinta-2); }
-.abas-tarefa .at-feita svg { width: 12px; height: 12px; }
-.abas-tarefa .at-parada { color: var(--chat-tinta-3); }
-.abas-tarefa .at-falhou { color: var(--danger); }
-@media (prefers-reduced-motion: reduce) { .abas-tarefa .pf-anel { animation: none; } .abas-tarefa .at-seta { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .abas-tarefa .at-seta { transition: none; } }
 /* Paper 4p ("Renomeando"): o nome vira campo ali mesmo (24 de altura, raio 5, anel azul de 1,5 px, 13/18 em 600). */
 .abas-tarefa .at-nome { width: 220px; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; outline: 1.5px solid var(--chat-aba-precisa); outline-offset: 0; background: var(--chat-superficie);
   color: var(--chat-tinta); font: inherit; font-weight: 600; field-sizing: content; min-width: 120px; max-width: 280px; }
@@ -391,10 +403,6 @@
 .bot-menu > .menu-aba-corpo hr { margin: 4px 0; border-top-width: 0.5px; }
 .bot-menu .at-menu-dica { margin-left: 4px; color: var(--chat-tinta-3); }
 .bot-menu .at-item-titulo { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.bot-menu .at-item .pf-precisa { color: var(--chat-aba-precisa); }
-.bot-menu .at-item .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
-.bot-menu .at-item .pf-anel-arco { stroke: var(--chat-tinta); }
-.bot-menu .at-item .at-parada { color: var(--chat-tinta-3); }
 /* No celular a seta fica à vista na aba ativa (não há hover) e a fileira rola de lado. */
 @media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { opacity: 1; pointer-events: auto; } }
 @media (max-width: 760px) {
@@ -518,8 +526,7 @@
 .tk-timeline .tk-agora .tk-passo-ic { color: var(--chat-tinta); }
 .tk-timeline .tk-agora-txt { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--chat-tinta); }
 .tk-timeline .tk-agora-detalhe { margin-left: 24px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; line-height: 18px; color: var(--chat-tinta-3); }
-.tk-timeline .tk-gira { animation: tk-gira 1s linear infinite; }
-@keyframes tk-gira { to { transform: rotate(360deg); } }
+.tk-timeline .tk-passo-ic .pf-anel { display: block; width: 14px; height: 14px; }
 .tk-timeline .tk-precisa { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--chat-precisa-fundo); box-shadow: inset 0 0 0 1px var(--chat-precisa-contorno); }
 .tk-timeline .tk-precisa-rot { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--chat-aba-precisa); }
 .tk-timeline .tk-precisa-ic { display: inline-flex; width: 14px; height: 14px; }
@@ -559,7 +566,6 @@
 @media (max-width: 760px) { .composer .nota.tk-nota-linha .tk-nota-dica { display: none; } }
 /* No celular o enviar e o parar viram o círculo de 44 (celular-base.css); o Parar da tarefa segue em pílula, com 44 de alto. */
 @media (hover: none) and (pointer: coarse) { .composer .box:not(.gravando) > .parar-envio.parar-tarefa { width: auto; padding: 0 14px 0 12px; border-radius: var(--raio-full); } }
-@media (prefers-reduced-motion: reduce) { .tk-timeline .tk-gira { animation: none; } }
 
 /* ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a "Por bot", 5b "Por estado"): a tela Tarefas. Medidas do Paper: topo
    28/56/12 com 16 entre as linhas, título 26/32 em 600, segmentado 13/18 (2 de moldura, 4/12 por opção), "+ Nova tarefa"
@@ -591,15 +597,6 @@
 .tela-tarefas .tf-rotulo { margin: 0; padding: 22px 12px 10px; font-size: 11px; line-height: 14px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-2); }
 .tela-tarefas .tf-grupo:first-child .tf-rotulo { padding-top: 8px; }
 .tela-tarefas .tf-ic { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; }
-.tela-tarefas .pf-precisa { color: var(--chat-aba-precisa); }
-.tela-tarefas .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
-.tela-tarefas .pf-anel-arco { stroke: var(--chat-tinta); }
-.tela-tarefas .pf-anel:not(.at-quieto) { animation: pf-anel-gira 1s linear infinite; }
-.tela-tarefas .tf-espera { color: var(--chat-tinta-4); }
-.tela-tarefas .at-feita { display: inline-flex; color: var(--chat-tinta-2); }
-.tela-tarefas .at-feita svg { width: 12px; height: 12px; }
-.tela-tarefas .at-parada { color: var(--chat-tinta-3); }
-.tela-tarefas .at-falhou { color: var(--danger); }
 /* min-width, não width (2026-11-18): "há menos de 1 min" não cabia em 60 px e vazava da borda do cartão e da linha. */
 .tela-tarefas .tf-tempo { flex: none; min-width: 60px; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Por bot: o cartão do grupo e a linha de cada bot. */
@@ -656,7 +653,6 @@
 .bot-menu .tf-menu-item { display: flex; align-items: center; width: 100%; }
 .bot-menu .tf-menu-item nod-mascote { flex: none; width: 18px; height: 18px; margin: 0; }
 .bot-menu .tf-menu-ok { display: inline-flex; margin-left: auto; color: var(--chat-tinta-2); }
-@media (prefers-reduced-motion: reduce) { .tela-tarefas .pf-anel { animation: none; } }
 @media (max-width: 760px) {
   .tela-tarefas { padding: 20px 16px 24px; }
   .tela-tarefas .tf-cab { gap: 12px; }

@@ -2,8 +2,8 @@ import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { Estado } from "../estado/reducer.ts";
 import { dividirAbas, tarefaAcabou, type AbaDeTarefa } from "../lib/abas-de-tarefa.ts";
 import { esc } from "../lib/render.ts";
-import { aberto, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "../lib/trabalhos.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
+import { aberto, emEspera, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { ANEL_FILA, ANEL_RODANDO, DISCO_FALHOU, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
 
@@ -64,17 +64,25 @@ export function precisaDaPessoa(estado: Pick<Estado, "trabalhos" | "conversas" |
   return e === "precisa_de_voce" || e === "fechado_ocioso";
 }
 
-/** O ícone do estado: o anel de quem roda, o ponto azul de quem precisa da pessoa, o ✓ de quem terminou e o quadrado da parada. */
-export function iconeDaAba(t: Pick<TrabalhoDto, "estado"> | undefined): { html: string; texto: string } {
+/**
+ * O ícone do estado: o anel de quem roda, o anel tracejado de quem espera (na fila ou ainda carregando; XUM-7: antes era o
+ * anel de quem roda parado, que parecia travado), o ponto azul de quem precisa da pessoa, o ✓ de quem terminou e o
+ * quadrado da parada. Rodando mas só esperando (um colega, um comando, a hora marcada, a máquina sem contato: `emEspera`)
+ * também é o tracejado — "quem espera não gira", como no cartão vivo e na tela Tarefas (XUM-7: a aba girava sem fim com a
+ * máquina sem contato). A que não terminou é o disco vermelho com "!" do cartão vivo, não um quadrado que se confunde
+ * com o da parada.
+ */
+export type TrabalhoDoIcone = Pick<TrabalhoDto, "estado"> & Partial<Pick<TrabalhoDto, "turnoVivoId" | "esperandoColega" | "acordaEm" | "esperandoComando" | "maquina">>;
+export function iconeDaAba(t: TrabalhoDoIcone | undefined): { html: string; texto: string } {
   switch (t?.estado) {
-    case undefined: return { html: ANEL_RODANDO.replace("pf-anel\"", "pf-anel at-quieto\""), texto: "carregando" };
-    case "rodando": return { html: ANEL_RODANDO, texto: "trabalhando" };
-    case "na_fila": return { html: ANEL_RODANDO.replace("pf-anel\"", "pf-anel at-quieto\""), texto: "na fila" };
+    case undefined: return { html: ANEL_FILA, texto: "carregando" };
+    case "rodando": return emEspera({ turnoVivoId: null, esperandoColega: null, acordaEm: null, ...t }) ? { html: ANEL_FILA, texto: "esperando" } : { html: ANEL_RODANDO, texto: "trabalhando" };
+    case "na_fila": return { html: ANEL_FILA, texto: "na fila" };
     case "precisa_de_voce":
     case "fechado_ocioso": return { html: PONTO_PRECISA, texto: "precisa de você" };
     case "terminado": return { html: `<span class="pf-aba-ic at-feita">${IC_OK}</span>`, texto: "terminou" };
     case "parado": return { html: QUADRADO, texto: "parada" };
-    case "falhou": return { html: QUADRADO.replace("at-parada", "at-parada at-falhou"), texto: "falhou" };
+    case "falhou": return { html: `<span class="pf-aba-ic at-falhou">${DISCO_FALHOU}</span>`, texto: "falhou" };
   }
 }
 
@@ -175,7 +183,8 @@ export function botaoDeAbas(estado: Pick<Estado, "trabalhos" | "conversas" | "tr
  * N feitas das abas" (Paper 10b, 3c), e o último leva à tela Tarefas.
  */
 export function htmlDoMenuDasOutras(outras: readonly TrabalhoDto[], feitasNaFileira = 0, lugares = ""): string {
-  const itens = outras.map((t) => `<button type="button" role="menuitem" class="at-item" data-id="${esc(t.id)}">${iconeDaAba(t).html}<span class="at-item-titulo">${esc(tituloCurto(t.titulo))}</span></button>`).join("");
+  // XUM-7: o estado também em texto (o ícone é aria-hidden), como nas abas.
+  const itens = outras.map((t) => { const ic = iconeDaAba(t); return `<button type="button" role="menuitem" class="at-item" data-id="${esc(t.id)}" data-estado="${esc(t.estado)}">${ic.html}<span class="at-item-titulo">${esc(tituloCurto(t.titulo))}</span><span class="sr-only">, ${esc(ic.texto)}</span></button>`; }).join("");
   const tirar = feitasNaFileira > 0 ? `<button type="button" role="menuitem" data-tirar-feitas>Tirar ${feitasNaFileira === 1 ? "a feita" : `as ${feitasNaFileira} feitas`} das abas</button>` : "";
   // 5e: os lugares fechados vêm primeiro, com a dica do ⌘⇧T; sem outras tarefas, o menu é só deles.
   const tarefas = outras.length || !lugares ? `<p class="menu-nome">Outras tarefas</p>${itens}<hr>${tirar}<button type="button" role="menuitem" data-tela-tarefas>Ver todas na tela Tarefas</button>` : "";

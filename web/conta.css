@@ -170,34 +170,42 @@ img.conta-avatar, img.foto-avatar { object-fit: cover; }
 }
 
 /* NOD-50 · o cartão de pedido de chave (protótipo nod-prototipos/nod-50): só tokens do nod, irmão do cartão da pergunta. */
-.p50-cartao { width: 100%; max-width: 460px; box-sizing: border-box; margin: 6px 0 0; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 14px; border-radius: var(--raio-20); background: var(--surface-raised); color: var(--ink); }
+/* ADR-195 (Entrega 3): o cartão segue o Paper "Orgo · chave pelo cartão" (O1–O3) para todos os alvos. */
+.p50-cartao { width: 100%; max-width: 560px; box-sizing: border-box; margin: 6px 0 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; border-radius: var(--raio-22); background: var(--surface-raised); color: var(--ink); }
 .p50-cab { display: flex; align-items: center; gap: 8px; }
 .p50-ic { display: grid; place-items: center; flex: none; width: 22px; height: 22px; color: var(--ink-2); }
 .p50-ic svg { width: 16px; height: 16px; }
-.p50-titulo { margin: 0; font-size: var(--fs-corpo); font-weight: 600; line-height: 1.35; color: var(--ink); }
-.p50-para { margin: -4px 0 0 30px; font-size: var(--fs-corpo); line-height: 1.45; color: var(--ink-2); }
+.p50-titulo { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 500; line-height: 22px; color: var(--ink); }
+.p50-fechar { display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-2); cursor: pointer; }
+.p50-fechar:hover { background: var(--hover); color: var(--ink); }
+.p50-para { margin: 0; font-size: var(--fs-corpo); line-height: 20px; color: var(--ink-2); }
 .p50-campo { gap: 6px; margin: 2px 0 0; }
-.p50-rotulo { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.p50-rotulo { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; flex-wrap: wrap; font-size: var(--fs-corpo-2); font-weight: 500; color: var(--ink); }
+.p50-onde { font-weight: 400; color: var(--ink-2); }
+.p50-onde a { color: var(--ink); text-decoration: underline 1px; text-underline-position: from-font; }
 .p50-rotulo code { font-family: var(--font-mono); font-size: var(--fs-rotulo); color: var(--ink-3); }
 .p50-senha { position: relative; }
-.p50-senha input { min-height: 40px; box-sizing: border-box; padding-right: 78px; font-size: var(--fs-corpo); letter-spacing: .02em; background: var(--surface); }
+.p50-senha input { min-height: 40px; box-sizing: border-box; padding-right: 78px; border-radius: var(--raio-12); font-family: var(--font-mono); font-size: var(--fs-corpo); letter-spacing: .02em; background: var(--surface); }
 .p50-senha input[type="text"] { font-family: var(--font-mono); font-size: var(--fs-corpo); }
 .p50-senha input[readonly] { color: var(--ink-3); }
 .p50-senha input[aria-invalid="true"] { border-color: var(--danger); }
 .p50-mostrar { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); min-height: 32px; padding: 0 10px; }
 .p50-mostrar[aria-pressed="true"] { color: var(--ink); }
-.p50-sigilo { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.p50-sigilo { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
 .p50-sigilo svg { flex: none; }
 .p50-erro { margin: -2px 0 0; font-size: var(--fs-corpo-2); line-height: 1.45; color: var(--danger); }
-.p50-status { margin: 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.p50-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-corpo-2); color: var(--ink); }
+.p50-gira { flex: none; width: 12px; height: 12px; box-sizing: border-box; border: 1.5px solid var(--borda-forte); border-top-color: var(--ink-2); border-radius: 50%; animation: p50-gira .8s linear infinite; }
+@keyframes p50-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .p50-gira { animation: none; } }
 .p50-acoes { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
-.p50-guardar, .p50-deixar { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 14px; border-radius: var(--raio-full); font: inherit; font-size: var(--fs-corpo); cursor: pointer; }
-.p50-guardar { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 560; }
-.p50-guardar:hover { border-color: var(--ink-3); }
-.p50-guardar[aria-busy="true"] { color: var(--ink-3); cursor: progress; }
-.p50-deixar { border: 0; background: none; color: var(--ink-3); }
+.p50-guardar, .p50-deixar { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 14px; border-radius: var(--raio-full); font: inherit; font-size: var(--fs-corpo); cursor: pointer; }
+.p50-guardar { border: 1px solid var(--action); background: var(--action); color: var(--on-action); font-weight: 500; }
+.p50-guardar:hover { opacity: .88; }
+.p50-guardar[aria-busy="true"] { opacity: .55; cursor: progress; }
+.p50-deixar { border: 0; background: none; color: var(--ink-2); }
 .p50-deixar:hover { color: var(--ink); background: var(--surface-selected); }
-.p50-guardar:focus-visible, .p50-deixar:focus-visible, .p50-mostrar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.p50-guardar:focus-visible, .p50-deixar:focus-visible, .p50-mostrar:focus-visible, .p50-fechar:focus-visible, .p50-onde a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* Em Sua vez, o cartão ocupa a largura do item, como o da pergunta. */
 .lista > li.item-pergunta .p50-cartao { max-width: none; margin: 0; }
 /* Celular: 16px no campo (o iOS não dá zoom) e 44px de alvo. */

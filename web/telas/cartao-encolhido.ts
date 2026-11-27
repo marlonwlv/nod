@@ -189,6 +189,10 @@ function daProposta(m: Mensagem, p: Payload<"proposta_decidida">, estado: Estado
   const quem = porQuem(m, estado);
   // NOD-50: o cartão de credencial encolhe sem nada do valor; guardada leva o "Trocar" para Configurações avançadas.
   if (p.tipo === "credencial") {
+    // ADR-195 (Entrega 3, Paper O4): a chave do alvo "app" mora no Cofre; o Trocar abre a chave lá.
+    if (p.estado === "confirmada" && p.noCofre) {
+      return { decisaoId: p.propostaId, titulo: p.titulo, resultado: "Guardada no cofre", marca: "ok", anuncio: `${p.titulo}: guardada no cofre`, rodape: `<p class="ce-rodape"><span>${esc(p.noCofre.bot)} não vê a chave. Ela está em Ajustes › Cofre.</span>${botao("abrir-cofre", "Trocar", { classe: "link", aria: "Trocar a chave no Cofre" })}</p>` };
+    }
     return p.estado === "confirmada"
       ? { decisaoId: p.propostaId, titulo: p.titulo, resultado: "Guardada no cofre", marca: "ok", anuncio: `${p.titulo}: guardada no cofre`, rodape: `<p class="ce-rodape"><span>O bot não vê a chave.</span>${botao("abrir-avancado", "Trocar", { classe: "link", aria: "Trocar a chave em Configurações avançadas" })}</p>` }
       : { decisaoId: p.propostaId, titulo: p.titulo, resultado: `Deixada de lado${quem}`, marca: null, anuncio: `${p.titulo}: deixada de lado` };
