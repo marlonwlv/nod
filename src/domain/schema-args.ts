@@ -49,7 +49,8 @@ export function errosDoSchema(schema: JsonSchema, valor: unknown, caminho = "$")
   }
   if (schema.type === "object") {
     const o = valor as Record<string, unknown>;
-    for (const r of schema.required ?? []) if (!(r in o)) erros.push(`${caminho}.${r}: obrigatório`);
+    // XUM-11: `required` que não é lista (esquema torto vindo da sonda de um app) é ignorado em vez de derrubar a chamada.
+    for (const r of Array.isArray(schema.required) ? schema.required : []) if (!(r in o)) erros.push(`${caminho}.${r}: obrigatório`);
     for (const [k, v] of Object.entries(o)) {
       const sub = schema.properties?.[k];
       if (sub) erros.push(...errosDoSchema(sub, v, `${caminho}.${k}`));
