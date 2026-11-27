@@ -155,7 +155,7 @@ describe("Tarefas com uma linha por bot (quadro 05, Paper 5a)", () => {
     expect(html).toMatch(/data-agente="ze1" aria-expanded="false" data-grupo="precisa"><span class="tf-ic"><svg class="pf-aba-ic pf-precisa"[^]*?<b class="tf-nome">Ze 1<\/b><span class="tf-titulo" title="Como seguir com o #845\?">Como seguir com o #845\?<\/span><span class="tf-contas">1 precisa de você · 2 na fila<\/span><span class="tf-tempo">há 33 min<\/span>/);
     // A tarefa principal (a aberta mais antiga) é o título; as contas trazem as prontas de hoje.
     expect(html).toMatch(/data-grupo="trabalhando"><span class="tf-ic"><svg class="pf-aba-ic pf-anel"[^]*?<span class="tf-titulo"[^>]*>GFK-1866 · publicar versão completa<\/span><span class="tf-contas">2 rodando · 1 na fila · 1 pronta<\/span><span class="tf-tempo">há 28 min<\/span>/);
-    expect(html).toMatch(/data-grupo="esperando"><span class="tf-ic"><svg class="pf-aba-ic tf-espera"[^]*?<span class="tf-titulo"[^>]*>Esperando Ze 1<\/span><span class="tf-contas">1 esperando<\/span><span class="tf-tempo">17:58<\/span>/);
+    expect(html).toMatch(/data-grupo="esperando"><span class="tf-ic"><svg class="pf-aba-ic pf-espera"[^]*?<span class="tf-titulo"[^>]*>Esperando Ze 1<\/span><span class="tf-contas">1 esperando<\/span><span class="tf-tempo">17:58<\/span>/);
   });
 
   it("clicar no bot abre as tarefas dele embaixo da linha (abertas e a fila) e o 'Abrir a conversa'", () => {

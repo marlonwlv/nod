@@ -43,6 +43,15 @@ const pulsos = (html: string) => html.split("pulso-trab").length - 1;
 const ao = (e: Estado) => blocosAoVivoDaTask(e, "k1").map((b) => b.html).join("");
 
 describe("NOD-350: os subagentes na tela da task", () => {
+  it("XUM-7: com a máquina sem contato, a atividade guardada não deixa o anel do \"agora\" girando (quem espera não gira)", () => {
+    const e = f(inicio(), "turno.atividade", { rotulo: "Rodou um comando" });
+    expect(ao(e)).toContain('<div class="tk-agora" role="status">');
+    const semContato = { ...task, maquina: { nome: "Mac do Marlon", semContatoDesde: AGORA - 5 * MIN } } as TrabalhoDto;
+    const parado = reduzir(e, { tipo: "hidratar-trabalho", detalhe: { trabalho: semContato, mensagens: [] }, agora: AGORA });
+    expect(ao(parado)).not.toContain("tk-agora");
+    expect(ao(parado)).not.toContain("pf-anel");
+  });
+
   it("antes da fala o pulso é do bot; depois dela, a última ferramenta vira ✓ e só o cabeçalho dos subagentes pulsa (critérios 1 e 2)", () => {
     let e = f(inicio(), "turno.atividade", { rotulo: "Rodou um comando" });
     e = f(e, "turno.subagentes", { subagentes: [sub("a1", "Comparar os preços das três propostas", { passo: "Leu um arquivo", chamadas: 2 }), sub("a2", "Conferir prazos e multas nos contratos")], resumo: "2 subagentes trabalhando" });
@@ -52,7 +61,7 @@ describe("NOD-350: os subagentes na tela da task", () => {
     expect(html).toMatch(/<div class="passo p350-cab"><span class="ponto-trabalho c-purple" aria-hidden="true">/);
     // ADR-187 §6 (lote B, passo 4, Paper 4k): o passo de agora do bot é o anel girando, no lugar do mascote; o ponto do
     // cabeçalho dos subagentes fica parado. Uma coisa só se mexe na tela.
-    expect(html).toMatch(/<div class="tk-agora" role="status"><div class="tk-agora-linha"><span class="tk-passo-ic"><svg class="tk-gira"/);
+    expect(html).toMatch(/<div class="tk-agora" role="status"><div class="tk-agora-linha"><span class="tk-passo-ic"><svg class="pf-aba-ic pf-anel"/);
     expect(pulsos(html)).toBe(0);
     // Os subagentes que trabalham também levam o mascote no lugar do ponto.
     expect(html).toContain('<li class="progresso-item rodando" data-p350-sub="a1"><span class="progresso-ic rodando com-mascote" aria-hidden="true"><nod-mascote');

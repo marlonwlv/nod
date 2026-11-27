@@ -446,7 +446,8 @@ export function blocosAoVivoDaTask(estado: Estado, id: string): BlocoDaTimeline[
   const rodando = a?.acoes.filter((x) => x.estado === "rodando" && !x.frentes).at(-1);
   // O texto do "agora" no presente ("Rodando um comando"), do frame; sem ele (app antigo), a narração ou a última ferramenta.
   const presente = rodando?.emUso && rodando.emUso !== "Usando uma ferramenta" ? rodando.emUso : null;
-  const agora = soEles ? "" : t.estado === "rodando" && a
+  // XUM-7: quem espera não gira nem com atividade guardada (a máquina sem contato deixa o último frame na tela).
+  const agora = soEles ? "" : t.estado === "rodando" && a && !emEspera(t)
     ? a.atual.trim() && a.ferramentas === 0
       ? `<article class="message bot streaming ao-vivo">${bot ? iconeAgente(bot, "md", "trabalhando") : ""}<div class="bubble-wrap"><div class="bubble">${textoFormatado(a.atual, { chave: `task:${t.id}`, aoVivo: true })}<span class="cursor">▍</span></div></div></article>`
       : linhaDoAgora(presente ?? linhaAtual(a), rodando?.resumo ?? null)

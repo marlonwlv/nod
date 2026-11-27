@@ -4842,6 +4842,7 @@ const trocaDePasso = criarTrocaDePasso({ agora: () => Date.now(), agendar: (fn, 
 
 function render(): void {
   lojaDoEstado.avisar();
+  atualizarMenuDasOutras();
   // O modal do Marketplace também lê o que mora fora do reducer (o padrão do app, o nível otimista): a foto dele só
   // muda de objeto quando algo que ele mostra mudou (web/react/marketplace/real.ts).
   apiDoMarketplace?.avisar();
@@ -6106,18 +6107,46 @@ function abrirMenuDeBotsDasTarefas(ancora: HTMLElement): void {
   });
 }
 
-/** "N outras ⌄": as abas que não couberam e as tarefas abertas do bot que a pessoa ainda não abriu. */
-function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
+/** Trocar o miolo de um menu da barra aberto (e o que recebe o foco depois) e fechá-lo por código. */
+type ControleDoMenu = { current: { trocar: (html: string, focar: string) => void; fechar: () => void } | null };
+
+/**
+ * XUM-7: o menu "N outras" aberto. Ele era uma foto do HTML da hora em que abriu: a tarefa que terminava com o menu
+ * aberto seguia com o anel girando (e a que começava, parada). Agora `render()` refaz o HTML e troca o miolo quando muda.
+ */
+let menuDasOutras: { agenteId: string; html: string; controle: ControleDoMenu; feitas: string[] } | null = null;
+
+function htmlDasOutras(agenteId: string): { html: string; feitas: string[] } {
   const t = estado.tela;
   const outras = outrasDaFileira(estado, abasDeTarefa, agenteId, t.tipo === "trabalho" ? t.id : null);
   const feitas = feitasDaFileira(estado, abasDeTarefa, agenteId);
+  return { html: htmlDoMenuDasOutras(outras, feitas.length, navegadorNaTela.lugaresFechados(agenteId)?.html ?? ""), feitas };
+}
+
+function atualizarMenuDasOutras(): void {
+  const m = menuDasOutras;
+  if (!m?.controle.current) return;
+  const { html, feitas } = htmlDasOutras(m.agenteId);
+  if (html === m.html) return;
+  m.html = html;
+  m.feitas = feitas;
+  const foco = document.activeElement instanceof HTMLElement && document.activeElement.closest(".menu-aba-corpo") ? document.activeElement.dataset.id : undefined;
+  m.controle.current.trocar(html, foco ? `.at-item[data-id="${CSS.escape(foco)}"]` : "");
+}
+
+/** "N outras ⌄": as abas que não couberam e as tarefas abertas do bot que a pessoa ainda não abriu. */
+function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
+  const { html, feitas } = htmlDasOutras(agenteId);
   const r = ancora.getBoundingClientRect();
-  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length, navegadorNaTela.lugaresFechados(agenteId)?.html ?? ""), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+  const controle: ControleDoMenu = { current: null };
+  const aberto = { agenteId, html, controle, feitas };
+  menuDasOutras = aberto;
+  abrirMenuDaBarra(html, ancora, { x: r.left - 4, y: r.bottom }, (b) => {
     if (b.dataset.lugarAgente) navegadorNaTela.reabrirFechada(b.dataset.lugarAgente);
     else if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
-    else if (b.hasAttribute("data-tirar-feitas")) tirarAsFeitas(agenteId, feitas);
+    else if (b.hasAttribute("data-tirar-feitas")) tirarAsFeitas(agenteId, aberto.feitas);
     else if (b.dataset.id) abrirTrabalho(b.dataset.id);
-  });
+  }, false, () => { if (menuDasOutras === aberto) menuDasOutras = null; }, controle);
 }
 
 /** Paper 10b (3c): "Tirar as feitas das abas" limpa a fileira de uma vez; as tarefas seguem na tela Tarefas e na conversa. */
@@ -12092,9 +12121,11 @@ async function excluirTimeDaBarra(t: TimeDaBarra<BotDaFrota>): Promise<void> {
  * Os menus da barra (aba de tarefa, bots, outras abas, nova tarefa, times): o do Base UI quando o módulo dos diálogos
  * chegou (ADR-179), a partir do mesmo HTML; a folha do celular segue no `<dialog>`. `aoFechar`: o menu saiu.
  */
-function abrirMenuDaBarra(html: string, ancora: HTMLElement | null, ponto: { x: number; y: number } | undefined, aoEscolher: (b: HTMLButtonElement) => void, folha = false, aoFechar?: () => void): void {
-  if (moduloDosDialogos && !folha) { moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { html, ancora, ponto, aoEscolher, aoFechar }); return; }
+function abrirMenuDaBarra(html: string, ancora: HTMLElement | null, ponto: { x: number; y: number } | undefined, aoEscolher: (b: HTMLButtonElement) => void, folha = false, aoFechar?: () => void, controle?: ControleDoMenu): void {
+  if (moduloDosDialogos && !folha) { moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { html, ancora, ponto, aoEscolher, aoFechar, controle }); return; }
   const d = dialogo(html, true);
+  // XUM-7: trocar o miolo sem fechar (o menu "N outras" acompanha o estado das tarefas); os ouvintes ficam no <dialog>.
+  if (controle) controle.current = { trocar: (h) => { d.innerHTML = h; }, fechar: () => d.close() };
   if (aoFechar) d.addEventListener("close", aoFechar, { once: true });
   if (folha) d.classList.add("pfc-folha");
   else {
