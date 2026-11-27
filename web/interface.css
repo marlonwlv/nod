@@ -1472,7 +1472,7 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .lista > li.aprov-card, .aprov-card { --aprov-codigo: color-mix(in srgb, var(--base) 4%, transparent); max-width: 560px; padding: 0; border: 1px solid var(--borda-sutil) !important; border-left: 1px solid var(--borda-sutil) !important; border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); overflow: hidden; margin-bottom: 12px; }
 /* 52px = o mascote md (38px, .icon.md acima) + o gap de 14px da .message: o card começa onde o balão começa. */
 .decisoes-ancoradas { list-style: none; padding: 0; margin: -10px 0 25px 52px; width: min(600px, calc(100% - 52px)); }
-.decisoes-ancoradas > li.decisao:not(.aprov-card):not(.cartao-revisor) { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.decisoes-ancoradas > li.decisao:not(.aprov-card):not(.cartao-revisor):not(.dec-cartao) { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .aprov-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px 18px 0; font-size: var(--fs-corpo-2); color: var(--ink-3); }
 .aprov-cab b { font-weight: 600; color: var(--ink-2); }
 .aprov-ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); flex: none; }
