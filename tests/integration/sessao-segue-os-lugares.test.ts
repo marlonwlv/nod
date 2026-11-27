@@ -180,6 +180,21 @@ describeIntegracao("ADR-199: a sessão segue os lugares do bot", () => {
     });
   });
 
+  it("compara com o turno que RODOU por último na sessão, não com o criado por último (o turno adiado que roda depois)", async () => {
+    await withRollback(ESCOPO, async (trx) => {
+      const m = await montar(trx);
+      m.ligado.navegador = true;
+      const adiado = await m.rodar("claude-cli", "s1");
+      await m.rodar("claude-cli", "s1");
+      // O primeiro (criado antes, como a volta adiada ou a fala adiada) só rodou depois do segundo, quando o navegador
+      // tinha saído: o último estado que a sessão viu é o dele.
+      await trx`update turnos set lugares = 'computador=ausente;navegador=ausente;seuComputador=ausente', despachado_em = ${new Date(Date.now() + 60_000)} where id = ${adiado.id}`;
+      const agora = await m.rodar("claude-cli", "s2");
+      expect(agora.plano.entrada.sessaoCli).toBeNull();
+      expect(agora.motivo).toBe("lugares_mudaram");
+    });
+  });
+
   it("a sessão de antes da coluna (sem marca) é retomada como antes, mesmo com um lugar novo", async () => {
     await withRollback(ESCOPO, async (trx) => {
       const m = await montar(trx);

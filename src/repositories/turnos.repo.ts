@@ -1089,12 +1089,14 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     /**
      * ADR-199: a marca dos lugares do último turno que rodou nesta sessão do CLI, antes do turno `menosEste`. Null = a
      * sessão não tem turno com marca (é de antes da 0188): não se sabe, e quem chama retoma como antes. Usa o índice
-     * turnos_por_sessao_cli (0035).
+     * turnos_por_sessao_cli (0035) para achar os turnos da sessão.
+     * Revisão do PR #415: "último" é o que rodou por último (despacho), não o criado por último. A volta adiada e a fala
+     * adiada nascem antes e rodam depois; pela criação, a sessão que viu o "fora do ar" dela seria retomada.
      */
     async lugaresDaSessao(sessaoCli: string, menosEste: string): Promise<string | null> {
       const [l] = await conn<{ lugares: string | null }[]>`
         select lugares from turnos where tenant_id = ${escopo.tenantId} and sessao_cli = ${sessaoCli} and id <> ${menosEste}
-        order by criado_em desc, id desc limit 1`;
+        order by coalesce(despachado_em, criado_em) desc, criado_em desc, id desc limit 1`;
       return l?.lugares ?? null;
     },
 
