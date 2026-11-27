@@ -2,14 +2,16 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CAPACIDADES_HARNESS, type IdHarness } from "../../src/contracts/harness.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
-import type { ResultadoTurno } from "../../src/contracts/turno.ts";
+import type { ResultadoTurno, Turno } from "../../src/contracts/turno.ts";
 import { LIMITE_FALHAS_SEGUIDAS } from "../../src/domain/computador.ts";
 import { TITULO_DA_PASSAGEM } from "../../src/domain/passagem-de-bastao.ts";
 import { definirDestinoDoLog } from "../../src/obs/log.ts";
 import { criarTokenTurno } from "../../src/services/token-turno.ts";
 import { assentarTurno } from "../../src/use-cases/assentar-turno.ts";
+import { dispararRotina } from "../../src/use-cases/disparar-rotina.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
 import type { Services } from "../../src/use-cases/tipos.ts";
+import { depsSobre as depsL7 } from "../helpers/deps-l7.ts";
 import { agenteComConversa } from "../helpers/fabricas.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "../helpers/ids.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
@@ -58,8 +60,13 @@ async function montar(trx: Trx) {
   const repos = new Proxy(base.repos, { get: (alvo, chave, rec) => (chave === "turnos" ? turnos : Reflect.get(alvo, chave, rec)) });
   const deps = depsSobre(repos, ESCOPO, { services, agora, trx });
   const maquina = randomUUID();
-  const rodar = async (harness: Harness, sessao: string, o: { texto?: string; chamadas?: string[]; trabalhoId?: string } = {}) => {
-    const t = (await base.repos.turnos.enfileirar({ executor: "local", conversaId: base.conversaId, agenteId: base.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "abre o site", entradaConfianca: "confiavel", modelo: MODELO[harness], harness, trabalhoId: o.trabalhoId ?? null }))!;
+  type Opcoes = { texto?: string; chamadas?: string[]; trabalhoId?: string; origem?: "conversa" | "retomada" | "peer"; retomaTurnoId?: string };
+  const rodar = async (harness: Harness, sessao: string, o: Opcoes = {}) => {
+    const t = (await base.repos.turnos.enfileirar({ executor: "local", conversaId: base.conversaId, agenteId: base.agenteId, origem: o.origem ?? "conversa", ...(o.retomaTurnoId ? { retomaTurnoId: o.retomaTurnoId } : {}), prazoEm: Date.now() + 600_000, profundidade: o.origem === "peer" ? 1 : 0, entradaTexto: "abre o site", entradaConfianca: "confiavel", modelo: MODELO[harness], harness, trabalhoId: o.trabalhoId ?? null }))!;
+    return executar(t, harness, sessao, o);
+  };
+  /** Reivindica, emite e assenta um turno que já está na fila (o da rotina nasce pelo disparo). */
+  const executar = async (t: Turno, harness: Harness, sessao: string, o: Opcoes = {}) => {
     expect((await base.repos.turnos.reivindicar({ machineId: maquina, agora: Date.now() }))?.id).toBe(t.id);
     const ias: readonly IdHarness[] = [harness];
     const r = await emitirPlanoTurno(deps, { turnoId: t.id, machineId: maquina, executor: "local", harnesses: Object.fromEntries(ias.map((ia) => [ia, pronto])), capacidadesDaMaquina: capacidades, sessaoPorMaquina: true });
@@ -71,7 +78,7 @@ async function montar(trx: Trx) {
   /** O computador do bot (modelo docker por bot), criado como na primeira ação dele. */
   const computador = async () => (await base.repos.computadores.obter(base.agenteId, true))!;
   const derrubar = async (id: string) => { for (let i = 0; i < LIMITE_FALHAS_SEGUIDAS; i++) await base.repos.computadores.registrarFalha(id, { motivo: "sem_resposta", em: Date.now(), limite: LIMITE_FALHAS_SEGUIDAS }); };
-  return { ...base, ligado, falhar, rodar, computador, derrubar, trx };
+  return { ...base, ligado, falhar, rodar, executar, computador, derrubar, trx };
 }
 
 describeIntegracao("ADR-199: a sessão segue os lugares do bot", () => {
@@ -236,6 +243,46 @@ describeIntegracao("ADR-199: a sessão segue os lugares do bot", () => {
       // A task não tem a marca "recomeçou" da conversa (NOD-312 é do turno de conversa).
       expect(entrou.motivo).toBeNull();
       expect((await m.rodar("claude-cli", "s-task-2", { trabalhoId: w.id })).plano.entrada.sessaoCli).toBe("s-task-2");
+    });
+  });
+
+  // Regression: QA do PR #415 — a cadeia (retomada de rotina ou de pedido, ADR-066) não tinha teste: largar a sessão
+  // só na conversa e na task passava.
+  // Found by /qa on 2026-11-27
+  it("a cadeia (a retomada da rotina, na sessão do turno que ela continua) também larga a sessão quando um lugar entra", async () => {
+    await withRollback(ESCOPO, async (trx) => {
+      const m = await montar(trx);
+      const { deps: d7, repos: r7 } = depsL7(trx, ESCOPO);
+      const rotina = await r7.rotinas.criar({ agenteId: m.agenteId, conversaId: m.conversaId, cron: "0 8 * * *", fusoIana: "America/Sao_Paulo", instrucao: "abre o site", fonte: "web", entregavel: "resumo", limitesAprovacao: "nada sai sem aprovação", politicaSemDado: "silêncio", proximaExecucao: Date.now() });
+      const disparo = await dispararRotina(d7, { rotina: rotina!, instanteAgendado: Date.now(), machineId: randomUUID(), executor: "local" });
+      if (!("turno" in disparo.data)) throw new Error("rotina não disparou");
+      const t1 = await m.executar(disparo.data.turno, "claude-cli", "s-rotina");
+      expect(t1.lugares).toBe("computador=ausente;navegador=ausente;seuComputador=ausente");
+
+      // Sem mudança, a retomada volta na sessão do turno que ela continua.
+      const r1 = await m.rodar("claude-cli", "s-rotina", { origem: "retomada", retomaTurnoId: t1.id });
+      expect(r1.plano.entrada.sessaoCli).toBe("s-rotina");
+
+      m.ligado.navegador = true;
+      const r2 = await m.rodar("claude-cli", "s-rotina-2", { origem: "retomada", retomaTurnoId: r1.id });
+      expect(r2.nomes).toContain("navegador_abrir");
+      expect(r2.plano.entrada.sessaoCli).toBeNull();
+      expect(r2.plano.entrada.texto).toContain("Agora você tem o seu navegador (navegador_*) neste turno.");
+      expect(r2.lugares).toBe("computador=ausente;navegador=no_plano;seuComputador=ausente");
+    });
+  });
+
+  // Regression: QA do PR #415 — o pedido de colega sai sem lugar nenhum por regra (plano-turno.ts): sem marca, sem
+  // comparação e sem alarme. Gravar a marca no peer passava em todos os testes.
+  // Found by /qa on 2026-11-27
+  it("o pedido de colega (peer) não grava marca nem conta o alarme, mesmo com o navegador ligado no servidor", async () => {
+    await withRollback(ESCOPO, async (trx) => {
+      const m = await montar(trx);
+      m.ligado.navegador = true;
+      const peer = await m.rodar("claude-cli", "s-peer", { origem: "peer", texto: "O navegador está indisponível, não consegui abrir o site." });
+      expect(peer.nomes).not.toContain("navegador_abrir");
+      expect(peer.lugares).toBeNull();
+      expect(peer.assentado.data.lugaresRecusados).toBeUndefined();
     });
   });
 
