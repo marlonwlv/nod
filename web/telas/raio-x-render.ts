@@ -29,6 +29,7 @@ const GRUPOS_FIXOS: Record<Exclude<GrupoDeFerramentas["origem"], "conector">, st
   navegador: "Navegador do bot",
   seu_computador: "Computador da pessoa",
   workspace: "Pastas do Mac",
+  apps: "Catálogo de apps (buscar e usar)",
 };
 
 /** Estimativa de tokens a partir de caracteres, marcada como estimada onde aparece. */
@@ -185,7 +186,7 @@ function abaEnviado(r: RaioXTurno): string {
   const semTexto = c.comTexto ? "" : `<p class="rx-aviso">O modo dev estava desligado quando este turno saiu: ficaram os tamanhos, não os textos.</p>`;
   const prompt = c.prompt.map((p) => itemDaLista(esc(SECOES[p.secao]), `${mil(p.chars)} caract.`, p.texto, `rx-${p.secao}`, c.promptChars > 0 && p.chars >= c.promptChars * SECAO_PESADA)).join("");
   const totalFerramentas = c.ferramentas.reduce((s, g) => s + g.chars, 0);
-  const grupos = c.ferramentas.map((g) => itemDaLista(`${esc(g.origem === "conector" ? g.grupo : GRUPOS_FIXOS[g.origem])} · ${g.quantidade} ${g.quantidade === 1 ? "ferramenta" : "ferramentas"}`, `${mil(g.chars)} caract.`, undefined, "")).join("");
+  const grupos = c.ferramentas.map((g) => itemDaLista(`${esc(g.origem === "conector" ? g.grupo : GRUPOS_FIXOS[g.origem])} · ${g.quantidade} ${g.quantidade === 1 ? "ferramenta" : "ferramentas"}${g.sobDemanda ? ` + ${g.sobDemanda} sob demanda` : ""}`, `${mil(g.chars)} caract.`, undefined, "")).join("");
   const nativas = c.nativas.length ? `<div class="rx-item rx-item-bloco"><span class="rx-seta rx-seta-vazia" aria-hidden="true"></span><span class="rx-item-nome">Nativas do Claude Code<span class="rx-nota">${esc(c.nativas.join(", "))}</span></span><span class="rx-num">${c.nativas.length}</span></div>` : "";
   const busca = r.execucao
     ? `<p class="rx-quadro">Busca de ferramentas do Claude Code: <b>${r.execucao.buscaDeFerramentas ? "ligada" : "desligada"}</b> ${r.execucao.buscaDeFerramentas ? "— as definições dos apps só entram quando o modelo as busca." : "neste turno — todas as definições foram carregadas de uma vez."}</p>`

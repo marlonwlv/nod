@@ -42,6 +42,8 @@ import { FERRAMENTAS_SEU_COMPUTADOR, SEU_COMPUTADOR_SO_LEITURA } from "../contra
 import { FERRAMENTA_ANEXAR_MIDIA, FERRAMENTA_LER_MAIS } from "../contracts/ferramentas-proxy.ts";
 import type { ComputadorFora } from "./prompt-sistema.ts";
 import { FERRAMENTAS_WORKSPACE } from "../contracts/ferramentas-workspace.ts";
+import { FERRAMENTA_APPS_BUSCAR, FERRAMENTA_APPS_USAR, MINIMO_SOB_DEMANDA, type ConfigAppsSobDemanda } from "../contracts/catalogo-de-apps.ts";
+import { separarDiretas } from "./catalogo-de-apps.ts";
 
 /**
  * Ferramentas nod por modo (definido em 2026-09-16): conversa e sala têm o kit completo; rotina
@@ -375,6 +377,12 @@ export type EntradaPlano = {
    * Ausente = pela tabela de `janelaDoModelo`.
    */
   janelaObservada?: number | null;
+  /**
+   * XUM-11 (catálogo de apps sob demanda, emenda da E6 e da NOD-480): por app, só as diretas (rotina do turno, usadas
+   * nos últimos 30 dias, essenciais) vão ao modelo; o resto fica em `catalogo.sobDemanda`, atrás de apps_buscar e
+   * apps_usar. Ausente ou null = o catálogo inteiro, como antes (NOD_APPS_SOB_DEMANDA=0).
+   */
+  appsSobDemanda?: ConfigAppsSobDemanda | null;
   agora: number;
 };
 
@@ -486,8 +494,20 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // definido em 2026-09-28: quem pode receber resposta grande (conector, computador, pasta) recebe também
   // `ler_mais`, atendida pelo proxy. Leitura pura, em todo turno. NOD-61 (revisão do /codex no PR #594, P2): ler_conversa
   // também — 20 falas de 2.000 caracteres podem passar do orçamento do proxy, que manda chamar ler_mais.
+  // XUM-11: as capacidades de app já montadas (concedidas, com os filtros acima) se separam em diretas e sob demanda. As
+  // sob demanda saem da lista do modelo mas ficam no plano: apps_usar as chama pelo mesmo portão (chamar-ferramenta.ts).
+  let sobDemanda: FerramentaPlano[] = [];
+  if (entrada.appsSobDemanda) {
+    const s = separarDiretas(ferramentas, conectoresDoTurno, entrada.appsSobDemanda);
+    ferramentas = s.diretas;
+    sobDemanda = s.sobDemanda;
+    // apps_buscar também acha o que ainda não é do bot (para pedir_acesso pelo nome exato), então entra quando há o que
+    // achar: sob demanda, ou capacidades sem acesso nos apps habilitados. apps_usar, só com sob demanda.
+    const semAcesso = conectoresDoTurno.filter((c) => c.habilitado).reduce((n, c) => n + c.catalogo.filter((cap) => !entrada.concessoes.some((g) => g.agenteId === entrada.agente.id && g.conectorId === c.id && g.capacidade === cap.nome)).length, 0);
+    if (sobDemanda.length > 0 || (semAcesso >= MINIMO_SOB_DEMANDA && ferramentas.some((f) => f.nome === "pedir_acesso"))) ferramentas = [...ferramentas, FERRAMENTA_APPS_BUSCAR, ...(sobDemanda.length ? [FERRAMENTA_APPS_USAR] : [])];
+  }
   if (ferramentas.some((f) => f.origem !== "nod" || f.nome === "ler_conversa")) ferramentas = [...ferramentas, FERRAMENTA_LER_MAIS];
-  const conectoresUsados = new Set(ferramentas.map((f) => f.conectorId));
+  const conectoresUsados = new Set([...ferramentas, ...sobDemanda].map((f) => f.conectorId));
   const servidoresUsados = servidores.filter((s) => conectoresUsados.has(s.conectorId));
 
   const autoria: Autoria = {
@@ -508,7 +528,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // NOD-323 (ADR-126): quem tem pasta e terminal gera arquivos; `anexar_midia` os mostra no chat (atendida pelo proxy).
   // A sala fica fora nesta PR (a fala da sala vai por postarNaSala, que não prende a mídia).
   if (pasta && modo !== "sala" && entrada.semAnexarMidia !== true) ferramentas = [...ferramentas, FERRAMENTA_ANEXAR_MIDIA];
-  const entradaDoPrompt: EntradaPromptSistema = { agente: deOutraPessoa ? { ...entrada.agente, modoAprovacao: "manual" } : entrada.agente, memorias: deOutraPessoa ? [] : entrada.memorias, ferramentas, nativas, pastaDoBot: pasta, pessoaNome: entrada.pessoaNome, modo, colegas: deOutraPessoa ? [] : entrada.colegas, contextoConversa: entrada.contextoConversa, conectores: conectoresDoTurno, rotinas: deOutraPessoa ? [] : entrada.rotinasDoAgente, computadorFora: temComputador ? entrada.computadorFora ?? null : null, delegacao: modo === "delegacao" ? entrada.delegacao ?? null : null, profundidade: entrada.profundidade, semTerminal: motivoSemTerminal({ modo, confianca: entrada.confianca, terminal: entrada.terminal === true, deOutraPessoa }), harness: entrada.harness ?? null, trabalho: entrada.trabalho ?? null, trabalhosAbertos: podeAbrirTask(entrada.trabalho ?? null) && !deOutraPessoa ? entrada.trabalhosAbertos ?? [] : [], ...(comPedidos ? { pedidosPendentes: entrada.pedidosPendentes } : {}), ...(modo === "conversa" && entrada.bastidores?.length ? { bastidores: entrada.bastidores } : {}), ...(ehNod(entrada.agente) ? { manualDoNod: manualDoNod(entrada.revisor === true) } : {}), ...(entrada.maquina ? { maquina: entrada.maquina } : {}), ...(seuComputador.length && entrada.seuComputador ? { aparelhoDaPessoa: entrada.seuComputador.plataforma === "win32" ? "PC" as const : "Mac" as const } : {}), ...(entrada.calibracao ? { calibracao: true } : {}), ...(entrada.whatsapp ? { whatsapp: true } : {}), ...(entrada.revisor ? { revisor: true } : {}), ...(entrada.sobreMim && !deOutraPessoa ? { sobreMim: entrada.sobreMim } : {}), ...(reconfigura ? { reconfiguracao: true } : {}), ...(geraQuadro.length ? { kitQuadro } : {}) };
+  const entradaDoPrompt: EntradaPromptSistema = { agente: deOutraPessoa ? { ...entrada.agente, modoAprovacao: "manual" } : entrada.agente, memorias: deOutraPessoa ? [] : entrada.memorias, ferramentas, nativas, pastaDoBot: pasta, pessoaNome: entrada.pessoaNome, modo, colegas: deOutraPessoa ? [] : entrada.colegas, contextoConversa: entrada.contextoConversa, conectores: conectoresDoTurno, rotinas: deOutraPessoa ? [] : entrada.rotinasDoAgente, computadorFora: temComputador ? entrada.computadorFora ?? null : null, delegacao: modo === "delegacao" ? entrada.delegacao ?? null : null, profundidade: entrada.profundidade, semTerminal: motivoSemTerminal({ modo, confianca: entrada.confianca, terminal: entrada.terminal === true, deOutraPessoa }), harness: entrada.harness ?? null, trabalho: entrada.trabalho ?? null, trabalhosAbertos: podeAbrirTask(entrada.trabalho ?? null) && !deOutraPessoa ? entrada.trabalhosAbertos ?? [] : [], ...(comPedidos ? { pedidosPendentes: entrada.pedidosPendentes } : {}), ...(modo === "conversa" && entrada.bastidores?.length ? { bastidores: entrada.bastidores } : {}), ...(ehNod(entrada.agente) ? { manualDoNod: manualDoNod(entrada.revisor === true) } : {}), ...(entrada.maquina ? { maquina: entrada.maquina } : {}), ...(seuComputador.length && entrada.seuComputador ? { aparelhoDaPessoa: entrada.seuComputador.plataforma === "win32" ? "PC" as const : "Mac" as const } : {}), ...(entrada.calibracao ? { calibracao: true } : {}), ...(entrada.whatsapp ? { whatsapp: true } : {}), ...(entrada.revisor ? { revisor: true } : {}), ...(entrada.sobreMim && !deOutraPessoa ? { sobreMim: entrada.sobreMim } : {}), ...(reconfigura ? { reconfiguracao: true } : {}), ...(geraQuadro.length ? { kitQuadro } : {}), ...(entrada.appsSobDemanda ? { appsSobDemanda: { sobDemanda: contarPorConector(sobDemanda) } } : {}) };
   // NOD-480 (emenda da ADR-040): o orçamento pela janela do modelo. A decisão de enxugar mede só a parte estável (a do
   // bot), para o prompt não mudar de um turno para outro e o cache não se perder. A ligação tem o prompt de voz.
   const { prompt, orcamento } = comOrcamento(entrada, modo, entradaDoPrompt, ferramentas.length);
@@ -526,7 +546,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
     autoria,
     confiancaEntrada: entrada.confianca,
     profundidade: entrada.profundidade,
-    catalogo: { ferramentas, servidores: servidoresUsados },
+    catalogo: { ferramentas, servidores: servidoresUsados, ...(sobDemanda.length ? { sobDemanda } : {}) },
     nativas,
     ...(pasta ? { pastaDoBot: pasta } : {}),
     ...prompt,
@@ -547,7 +567,8 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
      * estado, a recusa é a explicação que a pessoa lê). Ação que nunca é permanente (ADR-047: aprovar
      * PR, merge) sai mesmo com linha ativa — uma regra gravada antes da lista não vale.
      */
-    semprePermitir: entrada.confianca === "nao_confiavel" ? [] : semprePermitirNoCatalogo(entrada.semprePermitir ?? [], ferramentas),
+    // XUM-11: a regra vale também para a capacidade sob demanda (apps_usar passa pela mesma decisão da direta).
+    semprePermitir: entrada.confianca === "nao_confiavel" ? [] : semprePermitirNoCatalogo(entrada.semprePermitir ?? [], [...ferramentas, ...sobDemanda]),
     expiraEm: PLANO_SEM_VALIDADE,
   };
 }
@@ -564,6 +585,13 @@ export function comOrcamento(entrada: Pick<EntradaPlano, "harness" | "turno" | "
   const enxuto = precisaEnxugar(janela, medida(cheio));
   const prompt = enxuto ? promptEmPartes({ ...doPrompt, catalogoEnxuto: true }) : cheio;
   return { prompt, orcamento: orcamentoDoTurno({ janela, enxuto, medida: medida(prompt) }) };
+}
+
+/** XUM-11: quantas capacidades de cada conector ficaram sob demanda (a linha do app no prompt). */
+function contarPorConector(sobDemanda: readonly FerramentaPlano[]): Record<string, number> {
+  const r: Record<string, number> = {};
+  for (const f of sobDemanda) if (f.conectorId) r[f.conectorId] = (r[f.conectorId] ?? 0) + 1;
+  return r;
 }
 
 /** O que o clone da máquina precisa do turno, menos a credencial: Linux, frente na pasta dela e um repo válido. */

@@ -122,6 +122,7 @@ function grupoDe(f: PlanoTurno["catalogo"]["ferramentas"][number]): Pick<GrupoDe
   if (f.origem === "navegador") return { grupo: "navegador", origem: "navegador" };
   if (f.origem === "seu_computador") return { grupo: "seu computador", origem: "seu_computador" };
   if (f.origem === "workspace") return { grupo: "pastas", origem: "workspace" };
+  if (f.origem === "apps") return { grupo: "catálogo de apps", origem: "apps" };
   return { grupo: "nod", origem: "nod" };
 }
 
@@ -136,6 +137,12 @@ export function composicaoDoPlano(plano: PlanoTurno, opcoes: { modo: ModoTurno; 
     const g = grupoDe(f);
     const atual = grupos.get(g.grupo) ?? { ...g, quantidade: 0, chars: 0 };
     grupos.set(g.grupo, { ...atual, quantidade: atual.quantidade + 1, chars: atual.chars + charsDaDefinicao(f) });
+  }
+  // XUM-11: diretas × sob demanda por app, para medir o ganho (as sob demanda não contam chars: não vão ao modelo).
+  for (const f of plano.catalogo.sobDemanda ?? []) {
+    const g = grupoDe(f);
+    const atual = grupos.get(g.grupo) ?? { ...g, quantidade: 0, chars: 0 };
+    grupos.set(g.grupo, { ...atual, sobDemanda: (atual.sobDemanda ?? 0) + 1 });
   }
   return {
     modo: opcoes.modo,

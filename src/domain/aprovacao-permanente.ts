@@ -1,4 +1,5 @@
 import type { ModoAprovacao } from "../contracts/agente.ts";
+import { ferramentasDeAppDoPlano } from "./catalogo-de-apps.ts";
 import type { CapacidadeConector } from "../contracts/conector.ts";
 import type { DestinoItem } from "../contracts/item-aprovacao.ts";
 import type { MotivoAprovacaoManual } from "../contracts/motivos.ts";
@@ -188,7 +189,8 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   if (entrada.destino.conector === "terminal") return { automatico: false, motivo: "destino_terminal" };
 
   const nome = `${entrada.destino.conector}__${entrada.destino.ferramenta}`;
-  const ferramenta: FerramentaPlano | undefined = plano.catalogo.ferramentas.find((f) => f.nome === nome);
+  // XUM-11: a capacidade sob demanda (achada por apps_buscar) está no plano como a direta e se decide igual.
+  const ferramenta: FerramentaPlano | undefined = ferramentasDeAppDoPlano(plano).find((f) => f.nome === nome);
   if (!ferramenta || ferramenta.origem !== "conector") return { automatico: false, motivo: "fora_do_catalogo" };
   // ADR-166: "Bloqueado" nunca roda (quem chama já negou; aqui é a rede) e "Sempre pedir" pede a pessoa em todo modo, até
   // na leitura. Sem motivo novo no enum (0019): é a ausência de regra que deixe, dita pela própria pessoa.

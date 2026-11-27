@@ -3410,6 +3410,15 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         }
         return n;
       },
+      async capacidadesUsadas(f) {
+        const conta = new Map<string, { conectorId: string; ferramenta: string; vezes: number }>();
+        for (const l of doTenant(b.trilha)) {
+          if (l.ownerId !== escopo.pessoaId || l.agenteId !== f.agenteId || l.kind !== "tool_call" || !l.conectorId || !ehDecisao(l) || Date.parse(l.em) < f.desde) continue;
+          const k = `${l.conectorId}|${l.ferramenta}`;
+          conta.set(k, { conectorId: l.conectorId, ferramenta: l.ferramenta, vezes: (conta.get(k)?.vezes ?? 0) + 1 });
+        }
+        return [...conta.values()].sort((x, y) => y.vezes - x.vezes || x.ferramenta.localeCompare(y.ferramenta)).slice(0, f.limite ?? 500);
+      },
       async temDecisaoAntes(f) {
         return doTenant(b.trilha).some((l) => l.ownerId === escopo.pessoaId && l.agenteId === f.agenteId && ehDecisao(l) && Date.parse(l.em) < f.antes);
       },

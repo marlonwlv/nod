@@ -129,6 +129,22 @@ export function trilhaRepo(conn: Conn, escopo: Escopo) {
       return Object.fromEntries(linhas.map((l) => [l.kind, l.n]));
     },
 
+    /**
+     * XUM-11 (catálogo de apps sob demanda): as capacidades de app que o bot chamou desde `desde`, por conector, das
+     * mais usadas para as menos (as diretas do plano). Uma consulta por turno, pelo índice parcial 0128: o predicado é
+     * o FILTRO_DECISAO mais `kind = 'tool_call'` e conector, que ele implica. `ferramenta` vem como `${slug}__${cap}`.
+     */
+    async capacidadesUsadas(f: { agenteId: string; desde: number; limite?: number }): Promise<{ conectorId: string; ferramenta: string; vezes: number }[]> {
+      const linhas = await conn<{ conector_id: string; ferramenta: string; vezes: number }[]>`
+        select conector_id, ferramenta, count(*)::int as vezes from trilha
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and agente_id = ${f.agenteId}
+          and em >= ${data(f.desde)} and ${conn.unsafe(FILTRO_DECISAO)} and kind = 'tool_call' and conector_id is not null
+        group by conector_id, ferramenta
+        order by vezes desc, ferramenta
+        limit ${f.limite ?? 500}`;
+      return linhas.map((l) => ({ conectorId: l.conector_id, ferramenta: l.ferramenta, vezes: l.vezes }));
+    },
+
     /** Há alguma decisão do bot antes de `antes`? ("Dia anterior" e a primeira vez da aba Decisões; índice 0128.) */
     async temDecisaoAntes(f: { agenteId: string; antes: number }): Promise<boolean> {
       const [l] = await conn<{ um: number }[]>`
