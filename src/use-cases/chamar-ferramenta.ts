@@ -30,7 +30,7 @@ import { buscarPreviaNoLinear, type BuscaDaPrevia } from "./importar-linear.ts";
 import { nomeParaTrilha, registrarNegacao, type EntradaRegistrarNegacao } from "./registrar-negacao.ts";
 import type { CasoDeUso, Deps, Services } from "./tipos.ts";
 import { sincronizarTrabalho } from "./trabalhos.ts";
-import { APPS_BUSCAR, APPS_USAR } from "../contracts/catalogo-de-apps.ts";
+import { APPS_BUSCAR, APPS_USAR, FERRAMENTA_APPS_BUSCAR, FERRAMENTA_APPS_USAR } from "../contracts/catalogo-de-apps.ts";
 import { decidirAppsUsar, ferramentasDeAppDoPlano, itensDaBusca, respostaDaBusca } from "../domain/catalogo-de-apps.ts";
 
 /** Corpo devolvido por POST /api/interno/ferramentas/:nome (o proxy consome; src/adapters/executor/cliente-nod.ts espelha). */
@@ -281,8 +281,8 @@ const leCanvas = (nome: NomeFerramentaNod, args: unknown): boolean => nome === "
 export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase1Chamada> = (deps, input) => fase1(deps, input, false);
 
 /**
- * `viaCatalogo` (XUM-11): a chamada veio de apps_usar, já resolvida para a capacidade de app. Só então a ferramenta pode
- * estar em `catalogo.sobDemanda` (fora da lista do modelo); dali em diante o caminho é o MESMO da direta: concessão lida
+ * `viaCatalogo` (XUM-11): a chamada veio de apps_usar, já resolvida para a capacidade de app (direta ou de
+ * `catalogo.sobDemanda`, só de conector); dali em diante o caminho é o MESMO da direta: concessão lida
  * agora, nível da dona, decisão de aprovação, revisor, schema, trilha e marca de conteúdo de fora. Nunca vem do corpo
  * da rota: só apps_usar, aqui dentro, passa `true`.
  */
@@ -319,9 +319,12 @@ async function fase1(deps: Deps, input: EntradaChamarFerramenta, viaCatalogo: bo
   if ((await deps.repos.turnos.buscar(input.turnoId))?.pararSolicitadoEm != null) return negar("parada_ativa", "ferramenta_negada");
 
   // XUM-11: pela via do catálogo (apps_usar), só ferramenta de conector, direta ou sob demanda; nunca nod nem outra origem.
+  // Pelo nome direto, a sob demanda de conector também é achada (revisão do PR #413): o plano recomposto depois de um
+  // reinício relê o uso de 30 dias e pode trocar uma direta de lado, enquanto o proxy segue com a lista da emissão. O
+  // portão abaixo é o mesmo; o que o modelo vê continua decidido pelo proxy, que só deixa passar o que listou.
   const ferramenta: FerramentaPlano | undefined = viaCatalogo
     ? ferramentasDeAppDoPlano(plano).find((f) => f.nome === input.nome && f.origem === "conector")
-    : plano.catalogo.ferramentas.find((f) => f.nome === input.nome);
+    : plano.catalogo.ferramentas.find((f) => f.nome === input.nome) ?? plano.catalogo.sobDemanda?.find((f) => f.nome === input.nome && f.origem === "conector") ?? catalogoForaDoPlano(input.nome);
   if (!ferramenta) return negar("fora_do_catalogo", "ferramenta_negada");
   // NOD-443 (revisão 6 do PR #628, achado 5), defesa em profundidade: no turno a pedido de outra pessoa só roda o que a
   // lista do pedido permite (permitidaAPedidoDeOutraPessoa: ferramenta do nod fora das que leem ou gravam o que é da dona).
@@ -485,6 +488,16 @@ async function fase1(deps: Deps, input: EntradaChamarFerramenta, viaCatalogo: bo
 type Negar = (motivo: MotivoNegacao, classe: Negacao["classe"], conectorId?: string | null) => Promise<{ data: SaidaFase1Chamada; events: RuntimeEvent[] }>;
 
 const REGRA_APPS_USAR = "regra:apps_usar" as const;
+
+/**
+ * Revisão do PR #413: apps_buscar e apps_usar fora do plano (recomposto depois do reinício com NOD_APPS_SOB_DEMANDA=0, ou
+ * sem sob demanda) seguem atendidas: o proxy do turno em curso ainda as lista, e a negação fora_do_catalogo é terminal.
+ * Não abrem nada: apps_buscar só lê e apps_usar só chega às ferramentas de conector do plano, pelo portão inteiro. O
+ * portão do pedido de outra pessoa (origem "apps" não passa) vale igual.
+ */
+function catalogoForaDoPlano(nome: string): FerramentaPlano | undefined {
+  return nome === APPS_BUSCAR ? FERRAMENTA_APPS_BUSCAR : nome === APPS_USAR ? FERRAMENTA_APPS_USAR : undefined;
+}
 
 /** Resposta do catálogo ao modelo: o nod escreveu o texto (os nomes e esquemas são os que a sonda já lista em tools/list). */
 const respostaDoCatalogo = (dados: unknown, erro = false): { data: SaidaFase1Chamada; events: RuntimeEvent[] } => ({ data: { ok: true, conteudo: JSON.stringify(dados), confianca: "confiavel", ...(erro ? { isError: true } : {}) }, events: [] });

@@ -188,13 +188,22 @@ export function esquemaDosArgumentos(schema: JsonSchema): JsonSchema {
 /**
  * apps_usar: a ferramenta pedida, no plano. Aceita o nome inteiro (`outlook__OUTLOOK_X`) ou só a capacidade, quando um
  * único app a tem. Só devolve ferramenta de conector: apps_usar nunca chama ferramenta do nod, do computador ou outra.
+ *
+ * Revisão do PR #413: o prefixo pedido vale. Com `slug__`, a busca pela capacidade fica no MESMO app; e se `slug` é um
+ * conector que existe (`slugsExistentes`), nem a outra conta do app entra: a capacidade que a conta nomeada não tem é
+ * sem acesso nela, não a mesma ação em outra conta (a resposta sairia de outra caixa) ou em outro app com o mesmo nome
+ * genérico (`send_message`, `search`).
  */
-export function resolverAlvo(plano: Pick<PlanoTurno, "catalogo">, pedido: string): { alvo: FerramentaPlano } | { ambigua: string[] } | null {
+export function resolverAlvo(plano: Pick<PlanoTurno, "catalogo">, pedido: string, slugsExistentes: ReadonlySet<string> = new Set()): { alvo: FerramentaPlano } | { ambigua: string[] } | null {
   const conector = ferramentasDeAppDoPlano(plano).filter((f) => f.origem === "conector");
   const exata = conector.find((f) => f.nome === pedido);
   if (exata) return { alvo: exata };
-  const semPrefixo = pedido.includes("__") ? pedido.slice(pedido.indexOf("__") + 2) : pedido;
-  const pelaCapacidade = conector.filter((f) => capacidadeDe(f) === semPrefixo);
+  const i = pedido.indexOf("__");
+  const slug = i >= 0 ? pedido.slice(0, i) : null;
+  if (slug !== null && (slugsExistentes.has(slug) || conector.some((f) => f.nome.startsWith(`${slug}__`)))) return null;
+  const semPrefixo = i >= 0 ? pedido.slice(i + 2) : pedido;
+  const doApp = (f: FerramentaPlano) => slug === null || appDoConector(f.nome.slice(0, f.nome.indexOf("__"))) === appDoConector(slug);
+  const pelaCapacidade = conector.filter((f) => capacidadeDe(f) === semPrefixo && doApp(f));
   if (pelaCapacidade.length === 1) return { alvo: pelaCapacidade[0]! };
   if (pelaCapacidade.length > 1) return { ambigua: pelaCapacidade.map((f) => f.nome) };
   return null;
@@ -269,7 +278,7 @@ export type DecisaoAppsUsar =
   | { resposta: Record<string, unknown>; recusa: { conectorId: string | null; ferramenta: string; motivo: "capacidade_desligada" | "fora_do_catalogo" | "args_invalidos" } | null };
 
 export function decidirAppsUsar(p: { plano: Pick<PlanoTurno, "catalogo">; conectores: readonly Pick<Conector, "id" | "slug" | "habilitado" | "catalogo">[]; pedida: string; argumentos: unknown }): DecisaoAppsUsar {
-  const r = resolverAlvo(p.plano, p.pedida);
+  const r = resolverAlvo(p.plano, p.pedida, new Set(p.conectores.map((c) => c.slug)));
   if (r && "ambigua" in r) return { resposta: { erro: "ambigua", instrucao: `Mais de uma conta tem ${p.pedida}: chame de novo com o nome inteiro, um destes.`, opcoes: r.ambigua }, recusa: null };
   if (!r) {
     const cap = p.pedida.includes("__") ? p.pedida.slice(p.pedida.indexOf("__") + 2) : p.pedida;
@@ -279,6 +288,10 @@ export function decidirAppsUsar(p: { plano: Pick<PlanoTurno, "catalogo">; conect
       ? { resposta: { erro: "sem_acesso", ferramenta: `${c.slug}__${cap}`, instrucao: `${cap} não está concedida a você. Para usá-la, chame pedir_acesso com conector=${c.slug}, capacidades=["${cap}"], o nivel que a tarefa exige, para e nao_pedido.` }, recusa: { conectorId: c.id, ferramenta: `${c.slug}__${cap}`, motivo: "capacidade_desligada" } }
       : { resposta: { erro: "nao_encontrada", instrucao: `${p.pedida} não está no catálogo dos seus apps. Ache o nome exato com apps_buscar.` }, recusa: { conectorId: null, ferramenta: p.pedida, motivo: "fora_do_catalogo" } };
   }
+  // Revisão do PR #413: a direta que roda NA MÁQUINA (gh do Mac, Mac) só executa pelo nome dela: o proxy confere a
+  // ferramenta chamada contra `execucao: "maquina"` e negaria apps_usar (terminal) depois de o servidor já ter gravado a
+  // chamada. Nada roda: o modelo chama a direta, que já está na lista dele.
+  if (r.alvo.execucao === "maquina") return { resposta: { erro: "na_lista", ferramenta: r.alvo.nome, instrucao: `${r.alvo.nome} já está na sua lista de ferramentas: chame ${r.alvo.nomeMcp} direto, com os mesmos argumentos.` }, recusa: null };
   const argumentos = p.argumentos ?? {};
   const erros = errosDoSchema(r.alvo.schema, argumentos);
   if (erros.length > 0) return { resposta: { erro: "argumentos_invalidos", ferramenta: r.alvo.nome, erros: erros.slice(0, 10), argumentos: esquemaDosArgumentos(r.alvo.schema) }, recusa: { conectorId: r.alvo.conectorId, ferramenta: r.alvo.nome, motivo: "args_invalidos" } };

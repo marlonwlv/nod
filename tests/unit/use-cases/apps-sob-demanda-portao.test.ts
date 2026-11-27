@@ -128,10 +128,57 @@ describe("XUM-11: apps_usar passa pelo mesmo portão da ferramenta direta", () =
     expect(c.turnoAtual()?.pararSolicitadoEm).toBeNull();
   });
 
-  it("a sob demanda NÃO é chamável pelo nome direto (fora da lista do modelo): fora_do_catalogo", async () => {
+  it("plano recomposto (reinício do servidor no meio do turno): a direta que o proxy listou e virou sob demanda roda pelo mesmo portão, sem negação terminal", async () => {
+    // Revisão do PR #413: a recomposição relê o uso de 30 dias (que já inclui as chamadas deste turno) e pode trocar uma
+    // direta de lado. O proxy segue com a lista da emissão (listChanged: false); negar por fora_do_catalogo encerraria o turno.
     const c = await cenario();
-    expect((await c.chamar("exemplo__somar", { a: 1, b: 2 })).data).toMatchObject({ ok: false, negacao: { motivo: "fora_do_catalogo" } });
+    expect((await c.chamar("exemplo__somar", { a: 1, b: 2 })).data).toEqual({ ok: true, conteudo: "ok:somar", confianca: "nao_confiavel" });
+    expect(c.trilha()).toEqual([["tool_call", "exemplo__somar", null]]);
+    // O portão é o mesmo: a sob demanda sem concessão continua capacidade_desligada.
+    expect((await c.chamar("exemplo__enviar", { para: "x" })).data).toMatchObject({ ok: false, negacao: { motivo: "capacidade_desligada" } });
+    expect(c.chamadas.map((x) => x.tool)).toEqual(["somar"]);
+  });
+
+  it("plano recomposto SEM apps_buscar/apps_usar (interruptor desligado no reinício): as duas seguem atendidas pelo mesmo portão, sem negação terminal", async () => {
+    // Revisão do PR #413: NOD_APPS_SOB_DEMANDA=0 só vale depois do reinício, e o proxy dos turnos em curso ainda lista as
+    // duas. Negar por fora_do_catalogo mataria justamente os turnos de quem desligou porque algo ia mal.
+    const c = await cenario();
+    const direta: FerramentaPlano = { nome: "exemplo__somar", nomeMcp: "mcp__nod__exemplo__somar", origem: "conector", conectorId: c.conectorId, readOnlyHint: true, tocaDadoPessoal: false, schema: SOMAR };
+    const semCatalogo: PlanoTurno = { ...c.plano, catalogo: { ferramentas: [nod("lembrar"), direta], servidores: c.plano.catalogo.servidores } };
+    expect((await c.chamar("apps_usar", { ferramenta: "exemplo__somar", argumentos: { a: 2, b: 2 } }, semCatalogo)).data).toEqual({ ok: true, conteudo: "ok:somar", confianca: "nao_confiavel" });
+    const busca = await c.chamar("apps_buscar", { busca: "somar" }, semCatalogo);
+    expect(JSON.parse((busca.data as { conteudo: string }).conteudo).resultados[0]).toMatchObject({ ferramenta: "exemplo__somar", na_lista: true });
+    // A concessão continua lida agora: sem ela, a sob demanda que não está no plano não roda.
+    expect(JSON.parse(((await c.chamar("apps_usar", { ferramenta: "exemplo__enviar", argumentos: { para: "x" } }, semCatalogo)).data as { conteudo: string }).conteudo)).toMatchObject({ erro: "sem_acesso" });
+    expect(c.chamadas.map((x) => x.tool)).toEqual(["somar"]);
+  });
+
+  it("a pedido de outra pessoa, apps_usar fora do plano também é negado (a origem apps não passa no portão do pedido)", async () => {
+    const c = await cenario({ sobProcuracaoDe: "outra-pessoa" });
+    const semCatalogo: PlanoTurno = { ...c.plano, catalogo: { ferramentas: [nod("lembrar")], servidores: [] } };
+    expect((await c.chamar("apps_usar", { ferramenta: "exemplo__somar", argumentos: { a: 1, b: 2 } }, semCatalogo)).data).toMatchObject({ ok: false, negacao: { motivo: "fora_do_catalogo" } });
     expect(c.chamadas).toHaveLength(0);
+  });
+
+  it("pelo nome direto, a sob demanda é só de conector: nenhuma outra origem entra pela lista sob demanda", async () => {
+    const c = await cenario();
+    const plano: PlanoTurno = { ...c.plano, catalogo: { ...c.plano.catalogo, ferramentas: [FERRAMENTA_APPS_USAR], sobDemanda: [nod("lembrar")] } };
+    expect((await c.chamar("lembrar", { tipo: "fato", texto: "x" }, plano)).data).toMatchObject({ ok: false, negacao: { motivo: "fora_do_catalogo" } });
+  });
+
+  it("apps_usar numa direta que roda NA MÁQUINA (gh do Mac, Mac) não devolve executarLocal: manda chamar direto, sem trilha nem marca", async () => {
+    // Revisão do PR #413: o proxy só executa local pelo nome da própria ferramenta marcada "maquina"; pelo apps_usar ele
+    // negaria terminal (fora_do_catalogo) depois de o servidor já ter gravado a chamada e marcado o turno.
+    const c = await cenario();
+    const direta: FerramentaPlano = { nome: "exemplo__somar", nomeMcp: "mcp__nod__exemplo__somar", origem: "conector", conectorId: c.conectorId, readOnlyHint: true, tocaDadoPessoal: false, schema: SOMAR, execucao: "maquina" };
+    const plano: PlanoTurno = { ...c.plano, catalogo: { ...c.plano.catalogo, ferramentas: [...c.plano.catalogo.ferramentas, direta], sobDemanda: c.plano.catalogo.sobDemanda?.filter((f) => f.nome !== "exemplo__somar") } };
+    const r = await c.chamar("apps_usar", { ferramenta: "exemplo__somar", argumentos: { a: 1, b: 2 } }, plano);
+    expect(r.data).toMatchObject({ ok: true, isError: true });
+    const corpo = JSON.parse((r.data as { conteudo: string }).conteudo) as { erro: string; instrucao: string };
+    expect(corpo.erro).toBe("na_lista");
+    expect(corpo.instrucao).toContain("mcp__nod__exemplo__somar");
+    expect(c.trilha()).toEqual([]);
+    expect(c.banco.contaminados.size).toBe(0);
   });
 
   it("a pedido de outra pessoa nem apps_buscar nem apps_usar rodam (o caso de uso confere de novo)", async () => {

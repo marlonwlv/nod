@@ -176,6 +176,19 @@ describe("XUM-11: apps_usar decide antes do portão", () => {
     const duas = montarPlano(entrada([outlook("k1"), outlook("k2", 251, "outlook--pessoal")], { appsSobDemanda: LIGADO }));
     expect(decidirAppsUsar({ plano: duas, conectores: [], pedida: "OUTLOOK_EXTRA_010", argumentos: {} })).toMatchObject({ resposta: { erro: "ambigua" }, recusa: null });
   });
+
+  it("o prefixo pedido vale: a conta nomeada sem a capacidade não cai na outra conta, nem em outro app (revisão do PR #413)", () => {
+    const trabalho = outlook("k1");
+    const pessoal = outlook("k2", 251, "outlook--pessoal");
+    // A conta "outlook" só tem as reais; a pessoal, tudo. Pedir pela "outlook" a que só a pessoal tem é sem_acesso na "outlook".
+    const duas = montarPlano(entrada([trabalho, pessoal], { appsSobDemanda: LIGADO }, (k) => (k.id === "k1" ? REAIS : k.catalogo.map((c) => c.nome))));
+    expect(decidirAppsUsar({ plano: duas, conectores: [trabalho, pessoal], pedida: "outlook__OUTLOOK_EXTRA_010", argumentos: {} })).toMatchObject({ resposta: { erro: "sem_acesso", ferramenta: "outlook__OUTLOOK_EXTRA_010" }, recusa: { conectorId: "k1" } });
+    // Outro app com a mesma capacidade nunca é o alvo (MCP próprio com nomes genéricos como send_message).
+    expect(decidirAppsUsar({ plano: duas, conectores: [trabalho, pessoal], pedida: "slack__OUTLOOK_EXTRA_010", argumentos: {} })).toMatchObject({ resposta: { erro: "nao_encontrada" } });
+    // O nome do app sem a conta, quando não há conector com esse slug, ainda acha a única conta do app que a tem.
+    const soPessoal = montarPlano(entrada([pessoal], { appsSobDemanda: LIGADO }));
+    expect(decidirAppsUsar({ plano: soPessoal, conectores: [pessoal], pedida: "outlook__OUTLOOK_EXTRA_010", argumentos: {} })).toMatchObject({ chamar: { nome: "outlook--pessoal__OUTLOOK_EXTRA_010" } });
+  });
 });
 
 describe("XUM-11: interruptor e nome no pedir_aprovacao", () => {
