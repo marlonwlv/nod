@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { CAPACIDADES_HARNESS, type IdHarness } from "../../src/contracts/harness.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { ResultadoTurno } from "../../src/contracts/turno.ts";
 import { LIMITE_FALHAS_SEGUIDAS } from "../../src/domain/computador.ts";
+import { TITULO_DA_PASSAGEM } from "../../src/domain/passagem-de-bastao.ts";
+import { definirDestinoDoLog } from "../../src/obs/log.ts";
 import { criarTokenTurno } from "../../src/services/token-turno.ts";
 import { assentarTurno } from "../../src/use-cases/assentar-turno.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
@@ -45,21 +47,31 @@ async function montar(trx: Trx) {
       return Reflect.get(alvo, chave);
     },
   });
-  const deps = depsSobre(base.repos, ESCOPO, { services, agora, trx });
+  /** Faz a leitura da marca falhar NO POSTGRES (divisão por zero): sem savepoint, a transação inteira abortaria. */
+  const falhar = { lugaresDoTurno: false, lugaresDaSessao: false };
+  const turnos = new Proxy(base.repos.turnos, {
+    get(alvo, chave, rec) {
+      if ((chave === "lugaresDoTurno" || chave === "lugaresDaSessao") && falhar[chave]) return async () => { await trx`select 1/0`; return null; };
+      return Reflect.get(alvo, chave, rec);
+    },
+  });
+  const repos = new Proxy(base.repos, { get: (alvo, chave, rec) => (chave === "turnos" ? turnos : Reflect.get(alvo, chave, rec)) });
+  const deps = depsSobre(repos, ESCOPO, { services, agora, trx });
   const maquina = randomUUID();
-  const rodar = async (harness: Harness, sessao: string) => {
-    const t = (await base.repos.turnos.enfileirar({ executor: "local", conversaId: base.conversaId, agenteId: base.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "abre o site", entradaConfianca: "confiavel", modelo: MODELO[harness], harness }))!;
+  const rodar = async (harness: Harness, sessao: string, o: { texto?: string; chamadas?: string[]; trabalhoId?: string } = {}) => {
+    const t = (await base.repos.turnos.enfileirar({ executor: "local", conversaId: base.conversaId, agenteId: base.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "abre o site", entradaConfianca: "confiavel", modelo: MODELO[harness], harness, trabalhoId: o.trabalhoId ?? null }))!;
     expect((await base.repos.turnos.reivindicar({ machineId: maquina, agora: Date.now() }))?.id).toBe(t.id);
     const ias: readonly IdHarness[] = [harness];
     const r = await emitirPlanoTurno(deps, { turnoId: t.id, machineId: maquina, executor: "local", harnesses: Object.fromEntries(ias.map((ia) => [ia, pronto])), capacidadesDaMaquina: capacidades, sessaoPorMaquina: true });
-    await assentarTurno(deps, { turnoId: t.id, machineId: maquina, seqLocal: 1, fala: { tipo: "texto", texto: "feito" }, resultado: sucesso(sessao), executor: "local", harness });
-    const [linha] = await trx<{ motivo_recomeco: string | null; lugares: string | null }[]>`select motivo_recomeco, lugares from turnos where id = ${t.id}`;
-    return { id: t.id, plano: r.data, motivo: linha!.motivo_recomeco, lugares: linha!.lugares, nomes: r.data.catalogo.ferramentas.map((f) => f.nome) };
+    const texto = o.texto ?? "feito";
+    const assentado = await assentarTurno(deps, { turnoId: t.id, machineId: maquina, seqLocal: 1, fala: { tipo: "texto", texto }, resultado: { ...sucesso(sessao), texto, ferramentasChamadas: o.chamadas ?? [] }, executor: "local", harness });
+    const [linha] = await trx<{ motivo_recomeco: string | null; lugares: string | null; estado: string }[]>`select motivo_recomeco, lugares, estado from turnos where id = ${t.id}`;
+    return { id: t.id, plano: r.data, assentado, estado: linha!.estado, motivo: linha!.motivo_recomeco, lugares: linha!.lugares, nomes: r.data.catalogo.ferramentas.map((f) => f.nome) };
   };
   /** O computador do bot (modelo docker por bot), criado como na primeira ação dele. */
   const computador = async () => (await base.repos.computadores.obter(base.agenteId, true))!;
   const derrubar = async (id: string) => { for (let i = 0; i < LIMITE_FALHAS_SEGUIDAS; i++) await base.repos.computadores.registrarFalha(id, { motivo: "sem_resposta", em: Date.now(), limite: LIMITE_FALHAS_SEGUIDAS }); };
-  return { ...base, ligado, rodar, computador, derrubar, trx };
+  return { ...base, ligado, falhar, rodar, computador, derrubar, trx };
 }
 
 describeIntegracao("ADR-199: a sessão segue os lugares do bot", () => {
@@ -205,6 +217,90 @@ describeIntegracao("ADR-199: a sessão segue os lugares do bot", () => {
       expect(t2.plano.entrada.sessaoCli).toBe("s1");
       expect(t2.motivo).toBeNull();
       expect(t2.lugares).toBe("computador=ausente;navegador=no_plano;seuComputador=ausente");
+    });
+  });
+
+  it("a task (sessão do trabalho) também larga a sessão quando um lugar entra, com a passagem de bastão e a frase dos lugares", async () => {
+    await withRollback(ESCOPO, async (trx) => {
+      const m = await montar(trx);
+      const w = (await m.repos.trabalhos.criar({ agenteId: m.agenteId, conversaId: m.conversaId, titulo: "pesquisa", origem: "pessoa", estado: "rodando" }))!;
+      const t1 = await m.rodar("claude-cli", "s-task", { trabalhoId: w.id });
+      expect(t1.lugares).toBe("computador=ausente;navegador=ausente;seuComputador=ausente");
+      expect((await m.rodar("claude-cli", "s-task", { trabalhoId: w.id })).plano.entrada.sessaoCli).toBe("s-task");
+
+      m.ligado.navegador = true;
+      const entrou = await m.rodar("claude-cli", "s-task-2", { trabalhoId: w.id });
+      expect(entrou.plano.entrada.sessaoCli).toBeNull();
+      expect(entrou.plano.entrada.texto).toContain(TITULO_DA_PASSAGEM);
+      expect(entrou.plano.entrada.texto).toContain("Agora você tem o seu navegador (navegador_*) neste turno.");
+      // A task não tem a marca "recomeçou" da conversa (NOD-312 é do turno de conversa).
+      expect(entrou.motivo).toBeNull();
+      expect((await m.rodar("claude-cli", "s-task-2", { trabalhoId: w.id })).plano.entrada.sessaoCli).toBe("s-task-2");
+    });
+  });
+
+  it("falha ao ler a marca da sessão no Postgres: a emissão retoma como antes e a transação segue viva", async () => {
+    await withRollback(ESCOPO, async (trx) => {
+      const m = await montar(trx);
+      await m.rodar("claude-cli", "s1");
+      m.ligado.navegador = true;
+      m.falhar.lugaresDaSessao = true;
+      const t = await m.rodar("claude-cli", "s1");
+      expect(t.plano.entrada.sessaoCli).toBe("s1");
+      expect(t.motivo).toBeNull();
+      expect(t.estado).toBe("concluido");
+      expect(t.lugares).toBe("computador=ausente;navegador=no_plano;seuComputador=ausente");
+    });
+  });
+
+  describe("o alarme lugar_recusado_sem_tentar (ADR-199, item 4): log, evento e o que a borda conta, sem mudar o turno", () => {
+    const RECUSA = "Recebi o link, mas o navegador continua indisponível nesta sessão. Por isso, não consegui abrir a página.";
+
+    it("o bot recusa o navegador que está no plano sem chamar nada: a saída, o evento e o log dizem, e a fala e o turno ficam iguais", async () => {
+      const linhas: string[] = [];
+      definirDestinoDoLog((l) => linhas.push(l));
+      try {
+        await withRollback(ESCOPO, async (trx) => {
+          const m = await montar(trx);
+          m.ligado.navegador = true;
+          const t = await m.rodar("codex-cli", "s1", { texto: RECUSA });
+          expect(t.assentado.data.lugaresRecusados).toEqual(["navegador"]);
+          const encerrado = (t.assentado.events ?? []).find((e) => e.kind === "turno_encerrado" && e.turnoId === t.id);
+          expect(encerrado?.dados).toMatchObject({ estado: "concluido", lugares_recusados: "navegador" });
+          expect(t.estado).toBe("concluido");
+          const falas = await trx<{ texto: string }[]>`select texto from mensagens where turno_id = ${t.id} and autor_tipo = 'agente' and kind = 'texto'`;
+          expect(falas.map((f) => f.texto)).toEqual([RECUSA]);
+          const alarme = linhas.map((l) => JSON.parse(l) as Record<string, unknown>).find((l) => l.evento === "lugar_recusado_sem_tentar");
+          expect(alarme).toMatchObject({ turno_id: t.id, harness: "codex-cli", lugares: "navegador" });
+        });
+      } finally {
+        definirDestinoDoLog(null);
+      }
+    });
+
+    it("com a chamada ao navegador, ou sem o navegador no plano, não há alarme", async () => {
+      await withRollback(ESCOPO, async (trx) => {
+        const m = await montar(trx);
+        const semNavegador = await m.rodar("claude-cli", "s1", { texto: RECUSA });
+        expect(semNavegador.assentado.data.lugaresRecusados).toBeUndefined();
+        m.ligado.navegador = true;
+        const chamou = await m.rodar("claude-cli", "s2", { texto: RECUSA, chamadas: ["mcp__nod__navegador_abrir"] });
+        expect(chamou.assentado.data.lugaresRecusados).toBeUndefined();
+        const encerrado = (chamou.assentado.events ?? []).find((e) => e.kind === "turno_encerrado" && e.turnoId === chamou.id);
+        expect(encerrado?.dados).not.toHaveProperty("lugares_recusados");
+      });
+    });
+
+    it("falha ao ler a marca do turno no Postgres: sem alarme, e o assentar conclui o turno (nunca derruba)", async () => {
+      await withRollback(ESCOPO, async (trx) => {
+        const m = await montar(trx);
+        m.ligado.navegador = true;
+        m.falhar.lugaresDoTurno = true;
+        const t = await m.rodar("claude-cli", "s1", { texto: RECUSA });
+        expect(t.assentado.data.lugaresRecusados).toBeUndefined();
+        expect(t.estado).toBe("concluido");
+        expect((t.assentado.events ?? []).some((e) => e.kind === "turno_encerrado" && e.turnoId === t.id)).toBe(true);
+      });
     });
   });
 });
