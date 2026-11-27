@@ -5,6 +5,7 @@ import type { FerramentaPlano, PlanoTurno } from "../contracts/plano-turno.ts";
 import { COMANDO_GITHUB_NATIVO, SLUG_GITHUB } from "../contracts/github.ts";
 import { SLUG_MAC } from "../contracts/mac.ts";
 import { separarChave } from "./contas-do-app.ts";
+import { errosDoSchema } from "./schema-args.ts";
 
 /**
  * XUM-11 (catálogo de apps sob demanda): o domínio puro de quais capacidades de app vão DIRETAS ao modelo e de como
@@ -205,7 +206,7 @@ export function resolverAlvo(plano: Pick<PlanoTurno, "catalogo">, pedido: string
 export function linhaDoCatalogoDeApps(p: { comUsar: boolean; comPedirAcesso: boolean }): string {
   const usar = p.comUsar ? " e chame com apps_usar {ferramenta, argumentos}, com as mesmas regras de acesso e aprovação da ferramenta direta" : "";
   const pedir = p.comPedirAcesso ? " O que ainda não é seu volta com concedida: false: peça com pedir_acesso (os nomes exatos, ou [] e o nivel que a tarefa exige), para e nao_pedido; a pessoa aprova num card e a tarefa retoma sozinha." : "";
-  return `Apps conectados: cada app traz na sua lista de ferramentas só as capacidades mais usadas (mcp__nod__<slug>__<capacidade>); as outras que são suas ficam no catálogo do app. Ache com apps_buscar {busca, app}, em português ou inglês,${usar}. Antes de dizer que um app não faz algo ou de pedir acesso, procure com apps_buscar.${pedir} Conector habilitado não é acesso seu, e histórico ou memória não provam concessão: vale o que a ferramenta devolve agora.`;
+  return `Apps conectados: cada app traz na sua lista de ferramentas as capacidades mais usadas (mcp__nod__<slug>__<capacidade>): quando uma delas serve, chame direto. As outras que são suas ficam no catálogo do app: ache com apps_buscar {busca, app}, em português ou inglês,${usar}. Antes de dizer que um app não faz algo ou de pedir acesso, procure com apps_buscar.${pedir} Conector habilitado não é acesso seu, e histórico ou memória não provam concessão: vale o que a ferramenta devolve agora.`;
 }
 
 /** Ligado e sem apps_buscar no plano (todo app inteiro na lista, nada a achar): o pedido por nível, como no NOD-480. */
@@ -225,4 +226,61 @@ export function lerAppsSobDemanda(env: Readonly<Record<string, string | undefine
   if (env.NOD_APPS_SOB_DEMANDA?.trim() === "0") return null;
   const t = Number(env.NOD_APPS_DIRETAS_TETO?.trim());
   return { teto: Number.isInteger(t) && t >= 1 && t <= 100 ? t : TETO_DIRETAS_POR_APP };
+}
+
+// --- as respostas de apps_buscar e apps_usar (o servidor e o eval usam as mesmas) -------------------------------------
+
+/**
+ * Os itens que apps_buscar procura: as capacidades de app do plano (diretas só pelo nome; sob demanda com esquema) e,
+ * dos apps habilitados, as que ainda não são do bot (nome e descrição, sem esquema).
+ */
+export function itensDaBusca(plano: Pick<PlanoTurno, "catalogo">, conectores: readonly Pick<Conector, "slug" | "habilitado" | "catalogo">[]): ItemDaBusca[] {
+  const doPlano = ferramentasDeAppDoPlano(plano).filter((f) => f.origem === "conector");
+  const diretas = new Set(plano.catalogo.ferramentas.map((f) => f.nome));
+  const noPlano = new Set(doPlano.map((f) => f.nome));
+  const itens: ItemDaBusca[] = doPlano.map((f) => ({ ferramenta: f.nome, descricao: f.schema.description ?? "", schema: diretas.has(f.nome) ? null : f.schema, concedida: true, direta: diretas.has(f.nome) }));
+  for (const c of conectores) if (c.habilitado) for (const cap of c.catalogo) if (!noPlano.has(`${c.slug}__${cap.nome}`)) itens.push({ ferramenta: `${c.slug}__${cap.nome}`, descricao: cap.descricao, schema: null, concedida: false, direta: false });
+  return itens;
+}
+
+/** O conteúdo que apps_buscar devolve ao modelo. */
+export function respostaDaBusca(p: { busca: string; app: string | null; itens: readonly ItemDaBusca[] }): { resultados: Record<string, unknown>[]; instrucao: string } {
+  const { resultados, total } = buscarCapacidades({ busca: p.busca, app: p.app, itens: p.itens });
+  const r = resultados.map((i) => ({
+    ferramenta: i.ferramenta,
+    descricao: descricaoCurta(i.descricao),
+    ...(i.direta ? { na_lista: true } : {}),
+    ...(i.concedida ? {} : { concedida: false }),
+    ...(i.schema ? { argumentos: esquemaDosArgumentos(i.schema) } : {}),
+  }));
+  const instrucao = r.length === 0
+    ? `Nada casou com "${p.busca}"${p.app ? ` no app ${p.app}` : ""} (${total} capacidades procuradas). Tente outras palavras, em inglês (como no nome: list, send, move, folder, rule), ou sem o app.`
+    : "Chame a escolhida com apps_usar {ferramenta, argumentos}. na_lista: true já está na sua lista (chame direto). concedida: false ainda não é sua: peça com pedir_acesso.";
+  return { resultados: r, instrucao };
+}
+
+/**
+ * O que apps_usar faz com o pedido: chamar a capacidade do plano (pelo portão inteiro, quem chama decide) ou responder
+ * sem rodar nada — ambígua, sem acesso (com a instrução de pedir_acesso), inexistente ou com argumentos inválidos
+ * (com os erros e o esquema). `recusa` diz o que a trilha guarda.
+ */
+export type DecisaoAppsUsar =
+  | { chamar: FerramentaPlano; argumentos: unknown }
+  | { resposta: Record<string, unknown>; recusa: { conectorId: string | null; ferramenta: string; motivo: "capacidade_desligada" | "fora_do_catalogo" | "args_invalidos" } | null };
+
+export function decidirAppsUsar(p: { plano: Pick<PlanoTurno, "catalogo">; conectores: readonly Pick<Conector, "id" | "slug" | "habilitado" | "catalogo">[]; pedida: string; argumentos: unknown }): DecisaoAppsUsar {
+  const r = resolverAlvo(p.plano, p.pedida);
+  if (r && "ambigua" in r) return { resposta: { erro: "ambigua", instrucao: `Mais de uma conta tem ${p.pedida}: chame de novo com o nome inteiro, um destes.`, opcoes: r.ambigua }, recusa: null };
+  if (!r) {
+    const cap = p.pedida.includes("__") ? p.pedida.slice(p.pedida.indexOf("__") + 2) : p.pedida;
+    const slug = p.pedida.includes("__") ? p.pedida.slice(0, p.pedida.indexOf("__")) : null;
+    const c = p.conectores.find((k) => k.habilitado && (slug === null || k.slug === slug) && k.catalogo.some((x) => x.nome === cap));
+    return c
+      ? { resposta: { erro: "sem_acesso", ferramenta: `${c.slug}__${cap}`, instrucao: `${cap} não está concedida a você. Para usá-la, chame pedir_acesso com conector=${c.slug}, capacidades=["${cap}"], o nivel que a tarefa exige, para e nao_pedido.` }, recusa: { conectorId: c.id, ferramenta: `${c.slug}__${cap}`, motivo: "capacidade_desligada" } }
+      : { resposta: { erro: "nao_encontrada", instrucao: `${p.pedida} não está no catálogo dos seus apps. Ache o nome exato com apps_buscar.` }, recusa: { conectorId: null, ferramenta: p.pedida, motivo: "fora_do_catalogo" } };
+  }
+  const argumentos = p.argumentos ?? {};
+  const erros = errosDoSchema(r.alvo.schema, argumentos);
+  if (erros.length > 0) return { resposta: { erro: "argumentos_invalidos", ferramenta: r.alvo.nome, erros: erros.slice(0, 10), argumentos: esquemaDosArgumentos(r.alvo.schema) }, recusa: { conectorId: r.alvo.conectorId, ferramenta: r.alvo.nome, motivo: "args_invalidos" } };
+  return { chamar: r.alvo, argumentos };
 }
