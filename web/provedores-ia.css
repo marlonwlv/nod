@@ -178,17 +178,18 @@
 /* XUM-4 (print do Marlon, 2026-11-26): os 196 px fixos não cabiam "No limite até 27/11 às 13:00" nem "Em uso na
    nod-motor-teste" mais a chave, e o selo vazava para a esquerda por cima da barra de uso; com só "Disponível" sobrava
    espaço ali e o nome cortava cedo. Agora as linhas dividem as colunas da lista (subgrid): a do estado tem a largura do
-   maior selo presente (até 184 px, o "No limite até 27/11 às 13:00" inteiro;
+   maior selo presente (até 18em, 216 px a 12 px: o "No limite até 27/11 às 13:00" inteiro
+   até nas sans mais largas, porque a fonte é a do sistema — SF Pro, Segoe, DejaVu na CI;
    passou disso, "…" e o texto inteiro no title) e o uso continua alinhado entre as linhas. O nome guarda 120 px só na
-   lista larga (a coluna da lista encolhe até 0, senão a grade transbordava no celular). O uso foi de 112 para 88 px
-   ("semana 100%" cabe inteiro): com o selo do limite a coluna do estado ocupa 219 px, e assim o nome fica com a mesma
+   lista larga (a coluna da lista encolhe até 0, senão a grade transbordava no celular). O uso foi de 112 para 80 px
+   ("semana 100%" cabe inteiro): o selo do limite e a chave ocupam mais que os 196 de antes, e assim o nome fica com a mesma
    largura de antes no pior caso. O respiro lateral virou coluna (4 px + o gap = os 14 px de antes) porque o padding de um subgrid empurra os
    itens das pontas para fora das colunas fixas. Lista estreita (modal apertado): o uso e o estado descem para a linha de
    baixo do nome, o uso com o que sobra e o estado com o que precisa. Celular (lista abaixo de 420 px): o uso numa linha
    (a partir do logo) e o estado na outra, com a largura toda, os dois inteiros. */
 .cl-lista:has(> .cl-linha-g1) {
   container: cl-lista / inline-size; display: grid; column-gap: 10px;
-  grid-template-columns: 4px 16px 12px 28px minmax(0, 1fr) 88px minmax(0, max-content) 16px 4px;
+  grid-template-columns: 4px 16px 12px 28px minmax(0, 1fr) 80px minmax(0, max-content) 16px 4px;
 }
 @container cl-lista (min-width: 600px) { .cl-linha-g1 > .cl-corpo { min-width: 120px; } }
 .cl-lista > li:not(.cl-linha-g1) { grid-column: 1 / -1; }
@@ -200,7 +201,7 @@
 .cl-linha-g1 > .cl-uso-col { grid-column: 6; grid-row: 1; }
 .cl-linha-g1 > .cl-dir { grid-column: 7; grid-row: 1; min-width: 0; }
 .cl-linha-g1 > .cl-mais { grid-column: 8; grid-row: 1; }
-.cl-linha-g1 .cl-dir > .contas-estado { display: block; flex: 0 1 auto; min-width: 0; max-width: 184px; overflow: hidden; text-overflow: ellipsis; }
+.cl-linha-g1 .cl-dir > .contas-estado { display: block; flex: 0 1 auto; min-width: 0; max-width: 18em; overflow: hidden; text-overflow: ellipsis; }
 .cl-linha-g1 .cl-dir > .contas-estado::before { display: inline-block; vertical-align: 1px; margin-right: 6px; }
 /* Em bloco (para a reticência), o selo de 22 px do Paper centra o texto pela altura da linha e a bolinha fica a 5 px,
    como no gap do inline-flex de antes. */

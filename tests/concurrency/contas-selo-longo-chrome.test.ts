@@ -53,7 +53,7 @@ function cenario(nomeDaVm: string): { contas: ContasIaDto; maquinas: MaquinaDto[
 }
 
 type Linha = {
-  estado: string; title: string | null; truncado: boolean; dentro: boolean; nomeLargura: number;
+  estado: string; title: string | null; truncado: boolean; dentro: boolean; nomeLargura: number; corpo: number;
   selo: [number, number, number, number]; uso: [number, number, number, number][]; usoCortado: boolean; fio: number;
   nomeCortado: boolean; sobraNoNome: number; transborda: boolean;
 };
@@ -74,10 +74,20 @@ const MEDIR = `[...document.querySelectorAll(".cl-linha-g1")].map((li) => {
     usoCortado: rot ? rot.scrollWidth > rot.clientWidth + 0.5 || rot.getBoundingClientRect().right > li.querySelector(".cl-uso-col").getBoundingClientRect().right + 0.5 : false,
     fio: fios ? fios.getBoundingClientRect().width : 0,
     nomeCortado: nome.scrollWidth > nome.clientWidth + 0.5,
+    corpo: col.getBoundingClientRect().width,
     sobraNoNome: col.getBoundingClientRect().right - Math.max(...[...li.querySelectorAll(".cl-nome > *")].map((e) => e.getBoundingClientRect().right)),
     transborda: li.scrollWidth > li.clientWidth + 0.5,
   };
 })`;
+/**
+ * A fonte do app é a do sistema (SF Pro no Mac, Segoe no Windows, a sans que houver no Linux da CI), e as larguras dos
+ * selos e nomes mudam com ela. O teste mede com a Geist do repositório (web/public/fontes), de largura parecida com a
+ * SF Pro, para a medida ser a mesma aqui e na CI. FONTE_TESTE troca por uma fonte instalada (estresse: "URW Gothic").
+ */
+const GEIST = readFileSync("web/public/fontes/geist-latin-wght-normal.woff2").toString("base64");
+const FONTE_FIXA = process.env.FONTE_TESTE
+  ? `:root{--font-sans:"${process.env.FONTE_TESTE}"}`
+  : `@font-face{font-family:GeistTeste;src:url(data:font/woff2;base64,${GEIST}) format("woff2");font-weight:100 900}:root{--font-sans:GeistTeste}`;
 const cruza = (a: number[], b: number[]) => a[0]! < b[2]! - 0.5 && b[0]! < a[2]! - 0.5 && a[1]! < b[3]! - 0.5 && b[1]! < a[3]! - 0.5;
 
 descrever("Lista de contas de IA com selo longo (Chrome real)", () => {
@@ -92,7 +102,8 @@ descrever("Lista de contas de IA com selo longo (Chrome real)", () => {
     await cdp.enviar("Page.enable");
     const estilos = [...readFileSync("web/index.html", "utf8").matchAll(/href="\/([^"]+\.css)"/g)].map((m) => `web/${m[1]}`).filter(existsSync);
     const css = estilos.map((p) => readFileSync(p, "utf8")).join("\n");
-    await avaliar(cdp, `document.open();document.write(${JSON.stringify(`<!doctype html><meta name="viewport" content="width=device-width"><style>${css}</style><main id="app" class="espaco-corpo"></main>`)});document.close()`);
+    await avaliar(cdp, `document.open();document.write(${JSON.stringify(`<!doctype html><meta name="viewport" content="width=device-width"><style>${css}${FONTE_FIXA}</style><main id="app" class="espaco-corpo"></main>`)});document.close()`);
+    await avaliar(cdp, "document.fonts.ready.then(() => document.fonts.check('12px GeistTeste'))");
   }, 30_000);
 
   afterAll(async () => {
@@ -159,9 +170,11 @@ descrever("Lista de contas de IA com selo longo (Chrome real)", () => {
     expect(linhas[0]!.nomeCortado).toBe(false);
     expect(linhas[1]!.nomeCortado).toBe(false);
     expect(linhas[2]!.nomeLargura).toBeGreaterThanOrEqual(longas[2]!.nomeLargura);
-    // Critério 4: com os selos longos do print, a linha "Disponível" segue como na main ("Claude · Leapy" inteiro).
+    // Critério 4: com os selos longos do print, a linha "Disponível" não perde espaço para o nome em relação à main, cuja
+    // coluna do nome a 639 px era 611 − (16+12+28+112+196+16) − 6 gaps de 10 = 171 px. A fonte é a do sistema (CI e
+    // máquina têm sans diferentes), então a prova é a largura da coluna, não se "Claude · Leapy" cabe inteiro.
     expect(longas[2]!.estado).toBe("Disponível");
-    expect(longas[2]!.nomeCortado).toBe(false);
+    expect(longas[2]!.corpo).toBeGreaterThanOrEqual(171);
     // E nunca corta o nome com sobra na coluna.
     for (const l of [...longas, ...linhas]) if (l.nomeCortado) expect(l.sobraNoNome).toBeLessThan(4);
   });
