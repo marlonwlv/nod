@@ -232,6 +232,36 @@ nod-mascote.c-black svg > g > path, .mascote.c-black :is(.olho, .mascote-pausado
   .paleta-item[aria-selected="true"] { outline: 2px solid Highlight; }
 }
 
+/* =====================================================================================
+   Confirmação (XUM-6, 26/11): o diálogo de confirmar no visual novo, no padrão do diálogo do Cofre (Paper C4) e da paleta:
+   superfície elevada, raio 14, sombra de modal e o véu; título 17/24 em 500 com o × à direita; corpo 13/18 em ink-2; pé
+   com "Cancelar" fantasma e o primário em pílula (vermelho quando destrói). `dialog.bot-dialogo.dlg-ds` vence o
+   .bot-dialogo antigo (interface.css) sem !important.
+   ===================================================================================== */
+dialog.bot-dialogo.dlg-ds { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); padding: 20px; border: 0; border-radius: var(--raio-14); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-modal); }
+dialog.bot-dialogo.dlg-ds::backdrop { background: var(--veu-modal); backdrop-filter: none; }
+dialog.bot-dialogo.dlg-ds[open] { animation: ds-sobe var(--dur-normal) var(--curva) both; }
+.dlg-ds-form { display: flex; flex-direction: column; margin: 0; }
+.dlg-ds-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+dialog.bot-dialogo.dlg-ds h2 { margin: 0; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); font-weight: var(--peso-medio); color: var(--ink); }
+.dlg-ds-fechar { display: grid; flex: none; place-items: center; width: 28px; height: 28px; margin: -2px -6px 0 0; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); cursor: pointer; }
+.dlg-ds-fechar:hover { background: var(--hover); color: var(--ink); }
+.dlg-ds-corpo { margin-top: 8px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
+dialog.bot-dialogo.dlg-ds .dlg-ds-corpo p { margin: 8px 0 0; line-height: var(--lh-corpo-2); color: var(--ink-2); }
+.dlg-ds-corpo .parar-lista { margin: 0; padding: 8px 12px; border-radius: var(--raio-10); background: var(--hover); list-style: none; color: var(--ink); }
+.dlg-ds-corpo .parar-lista li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 22px; }
+dialog.bot-dialogo.dlg-ds .dlg-ds-erro { margin: 8px 0 0; font-size: var(--fs-rotulo); }
+dialog.bot-dialogo.dlg-ds .dlg-ds-erro:empty { display: none; }
+.dlg-ds-pe { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.dlg-ds-pe .bt { height: 34px; padding: 0 16px; border: 0; border-radius: var(--raio-full); font: inherit; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); cursor: pointer; }
+.dlg-ds-pe .dlg-ds-cancelar { background: none; color: var(--ink-2); font-weight: var(--peso-regular); }
+.dlg-ds-pe .dlg-ds-cancelar:hover { background: var(--hover); color: var(--ink); }
+.dlg-ds-pe .dlg-ds-primario { background: var(--action); color: var(--on-action); }
+.dlg-ds-pe .dlg-ds-primario.perigo { background: var(--danger); color: var(--surface-elevated); }
+.dlg-ds-pe .dlg-ds-primario:hover { opacity: .88; }
+.dlg-ds-pe .bt:disabled { opacity: .5; cursor: default; }
+.dlg-ds :is(.dlg-ds-fechar, .bt):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { dialog.bot-dialogo.dlg-ds[open] { animation: none; } }
 /* ---- XUM-5: o cartão de decisão genérico no DS atual (renderItem em web/telas/sua-vez.ts) ----
    O desenho do cartão de aprovação (ADR-166, tela 06): branco, borda fina, raio 12, sombra inline; o mascote e o nome no
    cabeçalho com o tipo em cinza (no lugar do selo âmbar), a pergunta em 600, o prazo em legenda e as ações em pílula, a

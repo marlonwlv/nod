@@ -9,7 +9,7 @@ import { aberto, emEspera, esperandoMaquina, maquinasDe, tituloCurto, trabalhosC
 import { avisoDaMaquina } from "../lib/aviso-da-maquina.ts";
 import { memoriaDoMac } from "./linha-do-dono.ts";
 import { conversaLimpa } from "./linhas-do-chat.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
+import { ANEL_RODANDO, EXCLAMACAO_PRECISA } from "./icones-da-tarefa.ts";
 import { frentesNaFala, linhaDaTarefa, type FrenteNaFala, type MemoriaNoProgresso } from "./progresso-na-fala.ts";
 import { agente, renderFaixaTrabalhos } from "./trabalhos.ts";
 
@@ -225,7 +225,9 @@ const TRIANGULO = '<svg class="pf-selo-ic" width="13" height="13" viewBox="0 0 1
 const SETA_BAIXO = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
 
-const PARAR = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/></svg>';
+const PARAR = '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.5"/></svg>';
+/** XUM-6: o × do topo do cartão (10 px, traço 1,4). */
+const FECHAR_X = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6"/></svg>';
 
 /**
  * ADR-190 (Paper 5c, 3): um lugar onde o bot está agora (o navegador dele), como a pílula o lista: "● Navegador da Ada ·
@@ -285,12 +287,15 @@ function itemDaEspera(v: EsperaNaTela, agenteId: string): string {
   return `<li class="pf-item${acoes ? " p377-item" : ""}">${ponto("espera")}<span class="pf-item-corpo">${titulo}${linhas}${acoes}</span>${fim}</li>`;
 }
 
-/** Paper 15c: "As frentes do Dante usam 1,2 GB do seu Mac", quando a memória não está apertada (apertada, vale o aviso). */
+/**
+ * Paper 15c: "As frentes do Dante usam 1,2 GB do seu Mac", quando a memória não está apertada (apertada, vale o aviso).
+ * XUM-6: sem o nome do bot ("As tarefas do Ada" errava o gênero; o cartão já é do bot) — "Estas tarefas usam 416 MB do seu Mac".
+ */
 function linhaDaMemoria(p: Pilula): string {
   const mb = p.abertas.reduce((s, t) => s + (t.memoriaMb ?? 0), 0);
   if (p.memoria || mb <= 0) return "";
   const qto = mb >= 1024 ? `${(mb / 1024).toFixed(1).replace(".", ",")} GB` : `${Math.round(mb)} MB`;
-  return `<p class="pf-memoria-info">${CHIP}As tarefas do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
+  return `<p class="pf-memoria-info">${CHIP}Estas tarefas usam ${qto} do seu Mac</p>`;
 }
 const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
 
@@ -311,15 +316,17 @@ function corpoDaPilula(p: Pilula, novaTarefa: NovaTarefaNaAba | null): string {
   const paradas = de("parada", "falhou");
   const prontas = de("pronta");
   const feitas = prontas.length
-    ? `<details class="pf-prontas"><summary>${IC_OK_PRONTAS}<span>${prontas.length === 1 ? "1 pronta" : `${prontas.length} prontas`}</span>${SETA_DIREITA}</summary><ul class="pf-lista">${prontas.map((f) => linhaDaTarefa(f, "lista")).join("")}</ul></details>`
+    ? `<details class="pf-prontas"><summary>${IC_OK_PRONTAS}<span>${prontas.length === 1 ? "1 feita" : `${prontas.length} feitas`}</span>${SETA_DIREITA}</summary><ul class="pf-lista">${prontas.map((f) => linhaDaTarefa(f, "lista")).join("")}</ul></details>`
     : "";
   const tarefas = `${secao("Precisa de você", precisam, " pf-secao-precisa")}${secao(rodando.length > 1 ? `Rodando · ${rodando.length}` : "Rodando", rodando)}${secao(paradas.length > 1 ? `Paradas · ${paradas.length}` : "Parada", paradas)}${feitas}`;
   const esperas = p.esperas.length ? `<h3 class="pf-secao">Esperando</h3><ul class="pf-lista">${p.esperas.map((v) => itemDaEspera(v, p.agenteId)).join("")}</ul>` : "";
   const fila = p.fila.length ? `<h3 class="pf-secao">Na fila</h3><ul class="pf-lista">${p.fila.map((x, i) => `<li class="pf-item"><span class="pf-ordem" aria-hidden="true">${i + 1}</span><span class="pf-item-corpo"><span class="pf-item-titulo">${esc(x.quem.charAt(0).toUpperCase() + x.quem.slice(1))}</span></span><span class="pf-item-fim">${esc(hora(x.desde))}</span></li>`).join("")}</ul>` : "";
   // A frase da memória só aqui dentro (decisão tomada 5); o ponto leva a Trabalhos, Este Mac ou Máquinas.
   const memoria = p.memoria ? `<button type="button" class="pf-memoria-linha ${p.memoria.nivel}" ${p.memoria.alvo}><span class="pf-memoria-ponto" aria-hidden="true"></span>${esc(p.memoria.texto)}</button>` : "";
-  const nova = novaTarefa ? `<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="${esc(novaTarefa.aria)}">+ Nova tarefa <kbd class="pf-nova-atalho">${esc(novaTarefa.atalho)}</kbd></button>` : "";
-  return `${tarefas}${esperas}${fila}${memoria}${linhaDaMemoria(p)}${nova}`;
+  const nova = novaTarefa ? `<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="${esc(novaTarefa.aria)}"><span class="pf-nova-mais" aria-hidden="true">${MAIS_DA_ABA}</span><span class="pf-nova-texto">Nova tarefa</span><kbd class="pf-nova-atalho">${esc(novaTarefa.atalho)}</kbd></button>` : "";
+  // XUM-6 (revisão de design): a 9f termina em feitas e "+ Nova tarefa"; o aviso da máquina, que não é uma tarefa, vem
+  // depois, como nota.
+  return `${tarefas}${esperas}${fila}${nova}${memoria}${linhaDaMemoria(p)}`;
 }
 const IC_OK_PRONTAS = '<svg class="pf-prontas-ic" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="currentColor"/><path d="M3.5 6.2l1.6 1.6 3.4-3.4" fill="none" stroke="var(--chat-superficie)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SETA_DIREITA = '<svg class="pf-prontas-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
@@ -333,9 +340,11 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   // o ponto azul quando alguma precisa da pessoa, o anel quando alguma roda; sem tarefas (espera, fila), o ponto de antes.
   // Paper 5c (3): o lugar ativo entra no fim ("2 tarefas · rodando · Navegador da Ada ao vivo") e no topo da lista aberta.
   const comLugares = [...p.resto, ...lugares.map((l) => `${l.rotulo} ${l.estado}`)];
-  const resto = comLugares.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(comLugares.join(" · "))}</span>` : "";
+  // XUM-6 (9f): o trecho "1 precisa de você" em âmbar, como o "!" da aba.
+  const trechos = comLugares.map((x) => (/precisa(m)? de você$/.test(x) ? `<span class="pf-resto-precisa">${esc(x)}</span>` : esc(x))).join(" · ");
+  const resto = comLugares.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${trechos}</span>` : "";
   const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
-  const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
+  const icone = p.grupos.length && precisa ? EXCLAMACAO_PRECISA.replace('class="tv-svg"', 'class="pf-aba-ic pf-precisa"') : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
   const botao = `${icone}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
   // ADR-187 (4t, opção A): o selo ao lado da aba diz o problema e a máquina; o ponto sem texto saiu. Sem `curto` (servidor
   // anterior), o texto do aviso do Mac.
@@ -344,15 +353,18 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;
   // O ponto na cor do bot (Paper: "ponto na cor do bot = bot trabalhando"); a classe só aceita o formato c-<nome>.
   const cor = p.cor && /^c-[a-z]+$/.test(p.cor) ? ` ${p.cor}` : "";
-  // Paper 9f (validação de 2026-11-18): com tarefas, o topo da lista é "Tarefas abertas" e "Ver todas ›" (a tela Tarefas
-  // deste bot); fechar é clicar fora, Esc ou a própria pílula. Sem tarefas (espera, fila), o topo de antes.
+  // XUM-6 (Paper 9f, RV3-0; pedido do Marlon em 26/11): com tarefas, o topo é "Tarefas abertas" e o × que fecha o cartão sem
+  // parar nada (no lugar do "Ver todas ›", que desceu para o pé). Sem tarefas (espera, fila), o topo de antes.
   const cab = p.grupos.length
-    ? `<span class="pf-cab-titulo"><b>Tarefas abertas</b></span><button type="button" class="pf-ver-todas" data-act="abrir-tarefas" data-agente="${esc(p.agenteId)}">Ver todas${SETA_DIREITA}</button>`
+    ? `<span class="pf-cab-titulo"><b>Tarefas abertas</b></span><button type="button" class="pf-fechar-x" data-act="pilula" data-recolher="1" aria-label="Fechar" title="Fechar" aria-expanded="true" aria-controls="${ID_PAINEL}">${FECHAR_X}</button>`
     : `${ponto(p.sinal).replace('class="pf-ponto ', `class="pf-ponto pf-cab-ponto${cor} `)}<span class="pf-cab-titulo"><b>${esc(p.texto)}</b>${doCab.length ? `<span class="pf-cab-resto">${esc(doCab.join(" · "))}</span>` : ""}</span><button type="button" class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">${SETA_BAIXO}fechar</button>`;
   const naConversa = p.grupos.some((g) => g.ids.some((id) => progresso.naTimeline.has(id)));
+  // O pé na anatomia das linhas da 9f (28 px): "Parar" à esquerda; "Ver na conversa ↑" (com a fala na janela) e "Ver todas ›"
+  // (a tela Tarefas deste bot) à direita.
   const pe = [
-    naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
     p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">${PARAR}Parar</button>` : "",
+    naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
+    p.grupos.length ? `<button type="button" class="pf-ver-todas" data-act="abrir-tarefas" data-agente="${esc(p.agenteId)}">Ver todas${SETA_DIREITA}</button>` : "",
   ].join("");
   const rotulo = p.grupos.length ? `Tarefas de ${p.nome}` : `O que ${p.nome} está esperando`;
   const mais = novaTarefa ? htmlDoMais(novaTarefa) : "";

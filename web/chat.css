@@ -186,6 +186,9 @@
 .at-parada { color: var(--chat-tinta-3); }
 .at-falhou { display: inline-flex; color: var(--danger); }
 .at-falhou svg { width: 12px; height: 12px; }
+.pilula-frentes .pf-precisa { color: var(--warning); }
+/* XUM-6 (9f): na aba, o trecho "1 precisa de você" em âmbar, como o "!" ao lado. */
+.pilula-frentes .pf-resto-precisa { color: var(--warning); }
 @keyframes pf-anel-gira { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .pf-anel { animation: none; }
@@ -288,17 +291,35 @@
 .tv-mais { display: inline-flex; align-items: center; gap: 3px; margin: 0; padding: 3px 4px; border: 0; background: none; color: var(--chat-tinta); font: inherit; font-size: 12px;
   line-height: 16px; font-weight: 500; cursor: pointer; }
 .tv-mais:hover { text-decoration: underline; text-underline-offset: 2px; }
-/* A lista aberta da aba (Paper 4d e "Aba das tarefas"). */
-.pf-lista .tv-linha { min-height: 36px; padding: 0 10px; border-radius: 8px; }
-.pf-lista .tv-linha:hover { background: var(--chat-chip-fundo); }
-.pf-lista .tv-linha[data-estado="precisa"] { background: var(--chat-precisa-fundo); }
-.pf-lista .tv-titulo { flex: 1 1 0; width: auto; }
-.pf-lista .tv-estado { flex: 0 1 auto; max-width: 55%; font-size: 12px; line-height: 16px; text-align: right; }
-.pf-nova-linha { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 32px; box-sizing: border-box; margin: 4px 0 0; padding: 0 10px; border: 0;
-  border-top: 0.5px solid var(--chat-spinner-trilho); border-radius: 0; background: none; color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px;
-  text-align: left; cursor: pointer; }
-.pf-nova-linha:hover { background: var(--chat-chip-fundo); }
-.pf-nova-linha .pf-nova-atalho { padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+/* A lista aberta da aba (XUM-6: só a Paper 9f, RV3-0, pilha S35-0): linhas de 28 com o ícone de 12 e gap 8, padding 0 8,
+   raio 8; o título 12/16 (500 em quem precisa de você) e, à direita, a pergunta, o tempo ou "você parou" em 11/14 ink-3;
+   quem precisa de você em âmbar (--warning), com a linha num cinza de 5 %; "+ Nova tarefa" com o atalho em ink-4. */
+.pf-lista .tv-linha { gap: 8px; min-height: 28px; padding: 0 8px; border-radius: var(--raio-8); font-size: 12px; line-height: 16px; }
+.pf-lista .tv-linha:hover { background: var(--hover); }
+.pf-lista .tv-linha[data-estado="precisa"] { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.pf-lista .tv-linha[data-estado="precisa"]:hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+/* O miolo rola (overflow): o anel de foco fica dentro da linha para não ser cortado nos lados. */
+.pf-lista .tv-linha:focus-visible, .pf-prontas summary:focus-visible, .pf-nova-linha:focus-visible { outline-offset: -2px; border-radius: var(--raio-8); }
+.pf-lista .tv-texto { gap: 8px; }
+.pf-lista .tv-titulo { flex: 0 1 auto; min-width: 40%; width: auto; font-weight: 400; color: var(--ink); }
+.pf-lista .tv-linha[data-estado="precisa"] .tv-titulo { font-weight: 500; }
+.pf-lista .tv-estado { flex: 1 1 0; min-width: 0; max-width: none; font-size: 11px; line-height: 16px; text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pf-lista .tv-linha[data-estado="precisa"] .tv-estado, .pf-lista [data-estado="precisa"] > .tv-ic { color: var(--warning); }
+.pf-lista [data-estado="parada"] > .tv-ic { color: var(--ink-3); }
+.pf-lista .tv-ic, .pf-lista .tv-ic svg, .pf-lista .tv-ic .pf-anel { width: 12px; height: 12px; }
+.pf-lista .tv-ic .pf-anel-trilho { stroke: var(--borda); }
+.pf-lista .tv-ic .pf-anel { stroke-width: 1.75; }
+/* XUM-7 com XUM-6: com movimento reduzido, o anel parado da lista também vira o círculo inteiro na tinta (a regra de cima o
+   deixaria no cinza da borda). */
+@media (prefers-reduced-motion: reduce) { .pf-lista .tv-ic .pf-anel-trilho { stroke: var(--chat-tinta); } }
+.pf-lista .tv-linha:hover .tv-titulo { text-decoration: none; }
+.pf-nova-linha { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; box-sizing: border-box; margin: 0; padding: 0 8px; border: 0;
+  border-radius: var(--raio-8); background: none; color: var(--ink-2); font: inherit; font-size: 12px; line-height: 16px; text-align: left; cursor: pointer; }
+.pf-nova-linha:hover { background: var(--hover); color: var(--ink); }
+.pf-nova-linha .pf-nova-mais { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 12px; height: 12px; }
+.pf-nova-linha .pf-nova-mais svg { width: 10px; height: 10px; }
+.pf-nova-linha .pf-nova-texto { flex: 1 1 0; min-width: 0; }
+.pf-nova-linha .pf-nova-atalho { flex: none; padding: 0; border: 0; background: none; color: var(--ink-4); font: inherit; font-size: 11px; line-height: 14px; }
 
 /* Paper 3b ("O chat limpo da tarefa nova"): a pergunta no meio (22/28 em 500), o texto 14/20 em cinza e o chip "Levar o
    contexto da conversa" (13/18, fundo de 4 %, raio cheio, padding 6/12); ligado (Paper 3e), o fundo da aba, o anel e o ✓. */
@@ -668,17 +689,40 @@
 /* ---- A lista da pílula do campo agrupada por urgência (validação de 2026-11-18, Paper 9e/9f, jeito D) -----------------
    Seções em 11/14 maiúsculas a 0,06em (a de quem precisa da pessoa em azul), as prontas recolhidas numa linha que abre ali
    mesmo (details), e "Ver todas ›" no topo, no lugar do "fechar" (fechar é clicar fora, Esc ou a pílula). */
-.pf-painel .pf-secao { padding: 10px 12px 2px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-3); }
-.pf-painel .pf-secao.pf-secao-precisa { color: var(--chat-aba-precisa); }
-.pf-ver-todas { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 0; border-radius: var(--raio-8); background: transparent;
-  color: var(--chat-tinta-2); font: inherit; font-size: 12px; line-height: 16px; cursor: pointer; }
-.pf-ver-todas:hover { background: var(--hover); color: var(--chat-tinta); }
-.pf-ver-todas:focus-visible, .pf-prontas summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.pf-prontas { margin-top: 4px; border-top: 0.5px solid var(--chat-aba-contorno); }
-.pf-prontas summary { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; list-style: none; cursor: pointer; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }
+/* XUM-6 (9f): o topo, o pé, o aviso de memória e as esperas na anatomia das linhas, no computador e no celular (no
+   celular, mobile.css só sobe os alvos para 44 px). */
+.pf-cab-titulo { display: flex; align-items: baseline; gap: 8px; font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); color: var(--ink-3); }
+.pf-cab-titulo b { font-weight: 600; color: var(--ink); }
+.pf-item { min-height: 28px; box-sizing: border-box; padding: 4px 8px; gap: 8px; font-size: 12px; line-height: 16px; }
+.pf-item > .pf-ponto { width: 8px; height: 8px; margin: 0 2px; border: 1.5px solid var(--ink-3); animation: none; }
+.pf-comando { font-size: 11px; }
+.pf-sub, .pf-item-fim { font-size: 11px; line-height: 16px; color: var(--ink-3); }
+.pf-memoria-info { display: flex; align-items: center; gap: 8px; min-height: 24px; box-sizing: border-box; margin: 0; padding: 0 8px; font-size: 11px; line-height: 16px; color: var(--ink-3); }
+.pf-memoria-info svg { width: 12px; height: 12px; color: var(--ink-3); flex: none; }
+.pf-memoria-linha { gap: 8px; min-height: 28px; margin: 0; padding: 0 8px; border: 0; font-size: 11px; line-height: 16px; }
+.pf-pe { display: flex; height: 28px; box-sizing: border-box; align-items: center; margin: 0; padding: 0 2px 0 8px; border-top: 1px solid var(--borda-sutil); gap: 4px; font-size: 12px; line-height: 16px; }
+.pf-ver { height: 22px; padding: 0 6px; border-radius: var(--raio-6); color: var(--ink-3); font-size: 11px; line-height: 16px; font-weight: var(--peso-regular); text-decoration: none; }
+.pf-ver:hover { background: var(--hover); color: var(--ink); }
+.pf-pe > :is(.pf-ver, .pf-ver-todas):first-child, .pf-parar + :is(.pf-ver, .pf-ver-todas) { margin-left: auto; }
+.pf-parar { gap: 8px; height: 22px; margin: 0 0 0 -6px; padding: 0 6px; border-radius: var(--raio-6); background: none; color: var(--ink-2); font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); }
+.pf-parar:hover { background: var(--danger-soft); color: var(--danger); }
+/* Só o quadrado é vermelho parado (cor com semântica: destrutivo); o texto vira vermelho no hover. */
+.pf-parar svg { width: 12px; height: 12px; margin: 0; color: var(--danger); }
+.pf-painel .pf-secao { margin: 0; padding: 6px 8px 2px; font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.pf-painel .pf-secao.pf-secao-precisa { color: var(--warning); }
+.pf-ver-todas { display: inline-flex; flex: none; align-items: center; gap: 2px; height: 22px; padding: 0 6px; border: 0; border-radius: var(--raio-6); background: transparent;
+  color: var(--ink-3); font: inherit; font-size: 11px; line-height: 14px; cursor: pointer; }
+.pf-ver-todas:hover { background: var(--hover); color: var(--ink); }
+.pf-ver-todas:focus-visible, .pf-fechar-x:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pf-prontas summary:focus-visible { outline: 2px solid var(--focus-ring); }
+.pf-fechar-x { display: grid; flex: none; place-items: center; width: 20px; height: 20px; margin-right: -7px; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-3); cursor: pointer; }
+.pf-fechar-x:hover { background: var(--hover); color: var(--ink); }
+.pf-prontas { margin: 0; padding: 0; border-top: 1px solid var(--borda-sutil); }
+.pf-prontas summary { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: var(--raio-8); list-style: none; cursor: pointer; font-size: 12px; line-height: 16px; color: var(--ink-2); }
 .pf-prontas summary::-webkit-details-marker { display: none; }
-.pf-prontas summary:hover { color: var(--chat-tinta); }
-.pf-prontas .pf-prontas-ic { flex: none; color: var(--chat-tinta-2); }
+.pf-prontas summary:hover { background: var(--hover); color: var(--ink); }
+.pf-prontas .pf-prontas-ic { flex: none; color: var(--ink); }
+.pf-prontas summary > .pf-prontas-seta { margin-left: -4px; }
 .pf-prontas .pf-prontas-seta { transition: transform var(--dur-rapido) ease; }
 .pf-prontas[open] .pf-prontas-seta { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .pf-prontas .pf-prontas-seta { transition: none; } }
