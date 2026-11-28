@@ -250,6 +250,33 @@ experiência; nessas máquinas o bot trabalha só com o navegador desta ADR.
 - **Reverter.** `COMPUTADOR_NO_MAC = true` religa o Mac (ADR-127 §5) para quem tem a VM local; o Windows continua
   `sem_suporte` até existir o computador no Windows.
 
+## Revisão de 2026-11-28: o painel como um navegador normal (a vista local)
+
+Pedido do dono, depois do login de uma usuária de PC que não passou pela vista: os apps de referência abrem a página na
+hora e respondem como um navegador; no nod cada quadro e cada tecla davam a volta pela nuvem, a tecla ia sem confirmação
+(o `input_*` do stream do agent-browser não espera o Chrome) e o Chrome pausava em 10 min.
+
+- **A vista local.** Quando o Chrome do bot roda no aparelho onde a pessoa está com o app (o lugar "mac": o Mac pelo app,
+  o PC pelo motor), a máquina abre um servidor só de 127.0.0.1 com token aleatório (`src/adapters/navegador/vista-local.ts`).
+  O app chega a ele pelo processo principal (`desktop/navegador-local.ts`; no PC o endereço vem de `vista-local.json` na
+  pasta do executor) e entrega à web pela ponte (`window.nodDesktop.navegadorLocal`). Os quadros vêm do stream do
+  agent-browser desta máquina a 30/s, filtrados como antes; o canal do servidor (`?quadros=local`) fica só com a vista, o
+  espelho da entrada (gravação e "Guardar no cofre") e as abas e o tamanho.
+- **A entrada confirmada.** Cada clique e tecla vão pelo CDP do Chrome do bot (`get cdp-url`, `entrada-cdp.ts`), uma sessão
+  por aba ativa, e só contam quando o Chrome responde. A web põe a entrada numa fila: não confirmada, tenta de novo; se
+  ainda não vai, a vista local cai e o que faltava segue pelo servidor, sem perder o que a pessoa digitou.
+- **Medido em 2026-11-28 (Mac, Electron 43 de verdade, preload + IPC + vista local + Chrome 143 sem janela):** a primeira
+  imagem em 111 ms; 16 teclas confirmadas sem falha (1,9 ms na mediana); do clique ao quadro novo 19 ms na mediana (36 ms
+  no pior de 10). O mesmo caminho sem o Electron, com o login completo (CPF com máscara, senha com acento e colada, código
+  do SMS) e a rotina depois da pausa: `tests/windows/painel-local.test.ts`, que roda também no job `windows` da CI.
+- **O Chrome pronto.** No aparelho da pessoa a pausa é de 30 min (`PAUSA_NO_APARELHO_MS`); com uma vista aberta não pausa;
+  o daemon do agent-browser ali vive 35 min e a vista aberta o mantém acordado (a entrada pelo CDP não conta como comando
+  para ele); abrir o painel com o Chrome em pausa o retoma sozinho.
+- **A janela do Chrome (2026-11-27) virou saída.** "Entrar eu mesmo" passa o controle no painel; "Abrir numa janela do
+  PC/Mac" no ⋯ (operação `janela` de `navegador.operar`) é para o que o painel não alcança (escolher arquivo, a digital).
+- **Reverter.** Sem a ponte do app (o navegador comum, um app antigo), a vista segue pelo servidor como antes. Gatilho: a
+  fila local caindo para o servidor mais de uma vez por dia de uso, ou queixa de memória com o Chrome do bot parado 30 min.
+
 ## Gatilhos de reversão
 
 - O agent-browser não aguenta (quadro ao vivo pior que 5 por segundo no Mac, ou queda de sessão mais de uma vez por
