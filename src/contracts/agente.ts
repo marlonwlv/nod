@@ -74,6 +74,11 @@ export type Agente = {
   tetoModo?: "so_leitura" | "manual" | "automatico" | null;
   /** ADR-090 (0066): a máquina onde o bot trabalha — o id da chave da máquina. Ausente ou null = qualquer uma (o padrão da pessoa). */
   maquinaId?: string | null;
+  /**
+   * ADR-198 (0198): minutos somados à retomada depois de uma pausa por limite de cota, para bots da mesma dona cujas
+   * janelas de 5 h resetam juntas não acordarem no mesmo minuto. Ausente ou null = sem atraso (o padrão).
+   */
+  atrasoRetomadaMin?: number | null;
   /** Duplicate copia perfil, nunca memória nem histórico. */
   duplicadoDe: string | null;
   secao?: string;

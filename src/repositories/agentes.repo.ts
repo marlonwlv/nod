@@ -35,6 +35,7 @@ interface Linha {
   voz_velocidade: number | null;
   papel: PapelAgente | null;
   maquina_id: string | null;
+  atraso_retomada_min: number | null;
   inteligencia_modo: ModoInteligencia | null;
   ordem_ias: IdHarness[] | null;
   escolhas_ia: EscolhasIa | null;
@@ -45,7 +46,7 @@ interface Linha {
   tetos: string[] | null;
 }
 
-const COLUNAS = "tenant_id, id, owner_id, visibility, nome, titulo, descricao, dono, forma, cor, fixado, oculto, confirmado, modelo, harness, esforco, modo_aprovacao, duplicado_de, criado_em, secao, posicao, nao_lido, excluido_em, voz, voz_velocidade, papel, maquina_id, inteligencia_modo, ordem_ias, escolhas_ia, configurando_desde, configurando_turno_id, so_leitura, array(select t.teto from tetos_modo t where t.tenant_id = agentes.tenant_id and t.visibility = 'equipe') as tetos";
+const COLUNAS = "tenant_id, id, owner_id, visibility, nome, titulo, descricao, dono, forma, cor, fixado, oculto, confirmado, modelo, harness, esforco, modo_aprovacao, duplicado_de, criado_em, secao, posicao, nao_lido, excluido_em, voz, voz_velocidade, papel, maquina_id, atraso_retomada_min, inteligencia_modo, ordem_ias, escolhas_ia, configurando_desde, configurando_turno_id, so_leitura, array(select t.teto from tetos_modo t where t.tenant_id = agentes.tenant_id and t.visibility = 'equipe') as tetos";
 
 /** 0068: as colunas novas lidas como gravadas e conferidas contra harness/modelo (inteligenciaDoAgente). */
 function inteligenciaDaLinha(l: Linha): InteligenciaBot {
@@ -85,6 +86,7 @@ function paraAgente(l: Linha): Agente {
     soLeituraPedido: l.so_leitura === true,
     tetoModo: tetoDaLinha(l),
     maquinaId: l.maquina_id ?? null,
+    atrasoRetomadaMin: l.atraso_retomada_min ?? null,
     duplicadoDe: l.duplicado_de,
     secao: l.secao,
     posicao: l.posicao,
@@ -330,6 +332,16 @@ export function agentesRepo(conn: Conn, escopo: Escopo) {
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = any(${[...ids]}::uuid[]) and excluido_em is null
         returning ${conn.unsafe(COLUNAS)}`;
       return ls.map(paraAgente);
+    },
+
+    /**
+     * ADR-198: o atraso de retomada (minutos) depois de uma pausa por limite de cota. Só a dona muda; null = sem atraso.
+     */
+    async definirAtrasoRetomada(id: string, atrasoMin: number | null): Promise<Agente | null> {
+      const [l] = await conn<Linha[]>`update agentes set atraso_retomada_min = ${atrasoMin}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and excluido_em is null
+        returning ${conn.unsafe(COLUNAS)}`;
+      return l ? paraAgente(l) : null;
     },
 
     /** ADR-059: só a dona muda (filtro por owner_id, como o perfil); null = não é dela, não existe ou foi excluído. */

@@ -672,6 +672,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         a.modoAprovacao = modo;
         return a;
       },
+      async definirAtrasoRetomada(id, atrasoMin) {
+        const a = doTenant(b.agentes).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.excluidoEm);
+        if (!a) return null;
+        a.atrasoRetomadaMin = atrasoMin;
+        return a;
+      },
       async fixar(id, fixado) {
         const a = doTenant(b.agentes).find((x) => x.id === id);
         if (!a) return null;

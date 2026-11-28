@@ -19,6 +19,7 @@ import { ehMotivoDaQueda, ultimoSinalDoTurno, type MotivoDaQueda } from "../doma
 import { NATIVA_MCP_DA_PESSOA, NATIVAS_DO_TERMINAL, NATIVAS_DO_TERMINAL_CODEX, pastaDoBot } from "../domain/nativas.ts";
 import { motivoDependeDaMaquina, motivoNaMaquina, redigir } from "../domain/redacao.ts";
 import { iasNoLimite, inteligenciaDoAgente, ordemEfetiva, podeReenviar, prazoDoLimite, prazoDoLimiteDaConta, proximaIaNoLimite } from "../domain/inteligencia.ts";
+import { comAtrasoDeRetomada } from "../domain/retomada-escalonada.ts";
 import { usoDoPlanoValido, voltaPelaLeituraDaCota } from "../domain/uso-do-plano.ts";
 import { trabalhoAberto } from "../domain/trabalho.ts";
 import { cadeiaJaEsperou, contasPelaCota, cotaDasContas, ehVoltaDoFundo, ENTRADA_DA_VOLTA_DA_COTA, entradaDaNovaTentativa, entradaDoRecomecoPorAutocompactacao, entradaDaTrocaDeConta, entradaDaTrocaDeIa, entradaDaVoltaDaCota } from "../domain/cota-da-ia.ts";
@@ -1275,16 +1276,19 @@ async function aposLimiteNoFundo(
   const trabalho = turno.trabalhoId ? await deps.repos.trabalhos.buscar(turno.trabalhoId) : null;
   if (turno.trabalhoId && (!trabalho || !trabalhoAberto(trabalho.estado))) return null;
   const retomaTurnoId = turno.retomaTurnoId ?? turno.id;
+  // ADR-198: escalona a retomada por bot — antes de qualquer uso da hora de acordar (atrasoRetomadaMin, agentes).
+  const agente = await deps.repos.agentes.buscar(turno.agenteId);
+  const renovaEm = comAtrasoDeRetomada(p.renovaEm, agente?.atrasoRetomadaMin);
   // NOD-274: a rotina cuja cota só volta depois da próxima janela não espera — esta janela fica 'nao_rodou' (com a hora
   // da volta, no histórico) e a rotina segue a agenda. Esperar empilharia a janela atrasada em cima da seguinte.
   const daRotina = turno.trabalhoId ? null : await rotinaDoTurno(deps.repos, turno.id);
-  if (daRotina && !trocouDeConta && p.renovaEm >= daRotina.rotina.proximaExecucao) {
+  if (daRotina && !trocouDeConta && renovaEm >= daRotina.rotina.proximaExecucao) {
     await deps.repos.turnos.travarRetomadas(retomaTurnoId);
     await deps.repos.mensagens.marcarParciaisDoTurno(turno.id);
-    const r = await registrarDesfechoRotina(deps, { turnoId: turno.id, desfecho: "nao_rodou", motivo: "cota_da_ia", voltaEm: p.renovaEm });
-    log("info", "cota_limite_rotina_nao_rodou", { turno_id: turno.id, rotina_id: daRotina.rotina.id, harness: p.ia, renova_em: p.renovaEm });
+    const r = await registrarDesfechoRotina(deps, { turnoId: turno.id, desfecho: "nao_rodou", motivo: "cota_da_ia", voltaEm: renovaEm });
+    log("info", "cota_limite_rotina_nao_rodou", { turno_id: turno.id, rotina_id: daRotina.rotina.id, harness: p.ia, renova_em: renovaEm });
     return [
-      evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, ia_no_limite: p.ia, renova_em: p.renovaEm, espera_da_cota: "nao_rodou", custo_usd: p.custoUsd } }),
+      evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, ia_no_limite: p.ia, renova_em: renovaEm, espera_da_cota: "nao_rodou", custo_usd: p.custoUsd } }),
       ...(r.events ?? []),
     ];
   }
@@ -1302,12 +1306,12 @@ async function aposLimiteNoFundo(
   // Automático, inclusive quando segue na outra IA sem sessão (ADR-108 R4, NOD-279 D7): fixar o turno na IA de destino
   // é só do "Levar" do cartão (C6). A guarda do despacho e o plano já não a mandam de volta à IA/conta no limite.
   const harnessDaCadeia = turno.trabalhoId ? null : p.ia;
-  const volta = await enfileirarVoltaDoFundo(deps, { turno, retomaTurnoId, entradaTexto: entradaDaVoltaDoFundo({ turno, raiz, base, sessaoRetomavel, falas: await falasSemResposta(deps, turno) }), acordarEm: p.renovaEm, ...(harnessDaCadeia ? { harness: harnessDaCadeia } : {}), agora });
+  const volta = await enfileirarVoltaDoFundo(deps, { turno, retomaTurnoId, entradaTexto: entradaDaVoltaDoFundo({ turno, raiz, base, sessaoRetomavel, falas: await falasSemResposta(deps, turno) }), acordarEm: renovaEm, ...(harnessDaCadeia ? { harness: harnessDaCadeia } : {}), agora });
   const events: RuntimeEvent[] = [
-    evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, ia_no_limite: p.ia, renova_em: p.renovaEm, volta_turno_id: volta.id, espera_da_cota: "espera", custo_usd: p.custoUsd } }),
-    evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: turno.conversaId, turnoId: volta.id, dados: { origem: volta.origem, agente_id: turno.agenteId, retoma_turno_id: retomaTurnoId, trabalho_id: turno.trabalhoId ?? null, acordar_em: p.renovaEm } }),
+    evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, ia_no_limite: p.ia, renova_em: renovaEm, volta_turno_id: volta.id, espera_da_cota: "espera", custo_usd: p.custoUsd } }),
+    evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: turno.conversaId, turnoId: volta.id, dados: { origem: volta.origem, agente_id: turno.agenteId, retoma_turno_id: retomaTurnoId, trabalho_id: turno.trabalhoId ?? null, acordar_em: renovaEm } }),
   ];
-  const quando = quandoDaFrase(p.renovaEm, agora);
+  const quando = quandoDaFrase(renovaEm, agora);
   // A frase diz o que espera: a frente (a de sempre), a execução da rotina ou o pedido (de colega, ou o retorno do lote).
   const chave = turno.trabalhoId ? "" : daRotina ? "-rotina" : "-pedido";
   // NOD-274 (critério 11) e NOD-258 (critério 6): sem task, a cadeia que já esperou a cota não ganha uma segunda linha
@@ -1331,10 +1335,9 @@ async function aposLimiteNoFundo(
   // Só códigos e ids: para medir o "pronto quando" da parte 7 (nenhuma frente falha por limite).
   // NOD-274: quem pediu ao colega lê a espera na conversa de onde pediu (uma vez por cadeia).
   if (!jaEsperou && !trocouDeConta) {
-    const agente = await deps.repos.agentes.buscar(turno.agenteId);
     events.push(...(await avisarEsperaAoRemetente(deps, { turno, texto: redigir("pedido-a-colega-espera-cota", agora, { agente: agente?.nome ?? "O colega", ia: nomeDaIa(p.ia), quando }) })));
   }
-  log("info", "cota_limite_task_espera", { turno_id: turno.id, volta_turno_id: volta.id, trabalho_id: turno.trabalhoId ?? null, fundo: chave || "frente", harness: p.ia, renova_em: p.renovaEm, ...(conta ? { conta_tipo: conta.tipo, conta_de: conta.de } : {}) });
+  log("info", "cota_limite_task_espera", { turno_id: turno.id, volta_turno_id: volta.id, trabalho_id: turno.trabalhoId ?? null, fundo: chave || "frente", harness: p.ia, renova_em: renovaEm, ...(conta ? { conta_tipo: conta.tipo, conta_de: conta.de } : {}) });
   return events;
 }
 
