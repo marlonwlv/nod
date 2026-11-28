@@ -33,7 +33,15 @@ export const NATIVAS_DE_SKILL = ["Skill", "Agent"] as const;
  * comando que o próprio bot pôs em segundo plano) — o que deixa o trabalho seguir por horas, como no Claude Code.
  */
 export const NATIVAS_DE_SEGUNDO_PLANO = ["Monitor", "TaskStop"] as const;
-export const NATIVAS_DO_TERMINAL = [...NATIVAS_DE_ARQUIVO, "Bash", ...NATIVAS_DE_SEGUNDO_PLANO, "WebFetch", "WebSearch", ...NATIVAS_DE_SKILL, ...FERRAMENTAS_DE_TAREFA] as const;
+
+/**
+ * definido em 2026-11-26 (emenda da ADR-055, issue #403): os artefatos do claude.ai da própria pessoa. Sem a
+ * ferramenta, o bot dizia não ter acesso a um artefato que ela queria compartilhar, apesar da conta conectada —
+ * faltava a ferramenta no `--tools` do turno, e mesmo que viesse, o hook a negaria por "fora do kit" (o `default`
+ * de `decidirNativa`). O computador do bot não substitui: roda num sandbox isolado, sem a sessão do claude.ai dela.
+ */
+export const NATIVAS_DE_ARTEFATO = ["Artifact", "ArtifactComments", "ArtifactData", "ArtifactCheck"] as const;
+export const NATIVAS_DO_TERMINAL = [...NATIVAS_DE_ARQUIVO, "Bash", ...NATIVAS_DE_SEGUNDO_PLANO, "WebFetch", "WebSearch", ...NATIVAS_DE_SKILL, ...NATIVAS_DE_ARTEFATO, ...FERRAMENTAS_DE_TAREFA] as const;
 
 /**
  * definido em 2026-10-14 (ADR-103, paridade do Codex): o kit do terminal no Codex, pelo nome que o PreToolUse do Codex
@@ -58,7 +66,7 @@ export const NATIVA_MCP_DA_PESSOA = "mcp_da_pessoa";
 const MODOS_DA_DONA: readonly ModoTurno[] = ["conversa", "criacao", "rotina"];
 
 /** As nativas que trazem conteúdo de FORA para o turno: a chamada marca o turno como contaminado (0033). */
-export const NATIVAS_QUE_CONTAMINAM: readonly string[] = ["WebFetch", "WebSearch", "web_search", NATIVA_MCP_DA_PESSOA];
+export const NATIVAS_QUE_CONTAMINAM: readonly string[] = ["WebFetch", "WebSearch", "web_search", NATIVA_MCP_DA_PESSOA, ...NATIVAS_DE_ARTEFATO];
 
 /**
  * Quais nativas o turno recebe. definido em 2026-09-28: só turno de CONVERSA e CONFIÁVEL. Até aqui qualquer
@@ -260,6 +268,13 @@ export function decidirNativa(p: { ferramenta: string; entrada: Record<string, u
     case "WebFetch":
     case "WebSearch":
       return { permitir: true, motivo: "conteúdo da web: o turno passa a tratar escrita externa como não confiável", contamina: true };
+    // Emenda da ADR-055 (2026-11-26, issue #403): o artefato é da pessoa no claude.ai, não do nod (que tem o
+    // próprio `publicar_artefato` via mcp__nod__) — conta como conteúdo de fora, igual ao WebFetch/WebSearch.
+    case "Artifact":
+    case "ArtifactComments":
+    case "ArtifactData":
+    case "ArtifactCheck":
+      return { permitir: true, motivo: "artefato do claude.ai da pessoa: o turno passa a tratar escrita externa como não confiável", contamina: true };
     // Emenda da ADR-055: a skill é instrução dos arquivos da própria pessoa, e o subagente é o mesmo modelo com as
     // mesmas ferramentas; o que cada um USA passa por aqui de novo, chamada por chamada.
     case "Skill":

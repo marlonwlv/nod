@@ -226,7 +226,9 @@ describe("args do turno com o kit do terminal (ADR-052, revisto pela ADR-055)", 
   it("--settings leva o hook do nod para cada nativa, SEM sandbox, com tempo para esperar a aprovação", () => {
     const s = JSON.parse(args[args.indexOf("--settings") + 1]!) as { hooks: { PreToolUse: { matcher: string; hooks: { command: string; timeout: number }[] }[] }; sandbox?: unknown };
     // Só as nativas: MCP passa pelo proxy (com "*", o hook negava publicar_artefato — medido ao vivo).
-    expect(s.hooks.PreToolUse[0]?.matcher).toBe("Read|Edit|Write|Glob|Grep|NotebookEdit|Bash|Monitor|TaskStop|WebFetch|WebSearch|Skill|Agent|TaskCreate|TaskGet|TaskList|TaskUpdate");
+    expect(s.hooks.PreToolUse[0]?.matcher).toBe(
+      "Read|Edit|Write|Glob|Grep|NotebookEdit|Bash|Monitor|TaskStop|WebFetch|WebSearch|Skill|Agent|Artifact|ArtifactComments|ArtifactData|ArtifactCheck|TaskCreate|TaskGet|TaskList|TaskUpdate",
+    );
     expect(s.hooks.PreToolUse[0]?.hooks[0]?.command).toBe("'/usr/bin/node' '/app/Application Support/hook.mjs' '/tmp/t/hook.json'");
     expect(s.sandbox).toBeUndefined();
     expect(s.hooks.PreToolUse[0]?.hooks[0]?.timeout).toBe(TETO_HOOK_S);

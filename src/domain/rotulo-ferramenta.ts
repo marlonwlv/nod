@@ -123,6 +123,11 @@ const NATIVAS: Record<string, readonly [passado: string, presente: string]> = {
   view_image: ["Viu uma imagem", "Vendo uma imagem"],
   spawn_agent: ["Chamou um subagente", "Chamando um subagente"],
   web_search: ["Pesquisou na web", "Pesquisando na web"],
+  // Emenda da ADR-055 (2026-11-26, issue #403): os artefatos do claude.ai da própria pessoa.
+  Artifact: ["Abriu um artefato", "Abrindo um artefato"],
+  ArtifactComments: ["Leu os comentários de um artefato", "Lendo os comentários de um artefato"],
+  ArtifactData: ["Leu os dados de um artefato", "Lendo os dados de um artefato"],
+  ArtifactCheck: ["Verificou um artefato", "Verificando um artefato"],
 };
 
 /** O rótulo do nod só para o servidor `nod` de verdade, olhando o nome cru (um `claude_ai_nod` não se passa por ele). */
@@ -212,6 +217,10 @@ const NATIVAS_NOME: Record<string, string> = {
   view_image: "Imagem",
   spawn_agent: "Subagente",
   web_search: "Pesquisa na web",
+  Artifact: "Artefato",
+  ArtifactComments: "Artefato",
+  ArtifactData: "Artefato",
+  ArtifactCheck: "Artefato",
 };
 
 /**

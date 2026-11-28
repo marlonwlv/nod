@@ -139,3 +139,38 @@ decisão do Marlon de 18/10. Produção, 30 dias até 17/10: 44 comandos pararam
 **Gatilho de reversão** (o do item "uma credencial lida por um bot sem pedido da pessoa" passa a valer só fora do total):
 uma credencial lida no total e mandada para fora sem a pessoa ter pedido, vista na Atividade → a credencial volta a ser
 cerca no total (é voltar a linha da credencial em `decidirPeloModo`).
+
+## Emenda de 2026-11-26: os artefatos do claude.ai no kit (issue #403)
+
+O Bruno pediu: os bots conseguirem abrir, ler, criar e editar os artefatos do claude.ai, para compartilhar com o Nod
+sem baixar e reanexar. O bot respondia não ter acesso, apesar da conta do claude.ai conectada e de o bot ter PC e
+navegador próprios.
+
+Investigado pelo Dev Nod: o gap é no próprio kit do terminal (ADR-052), em duas camadas —
+
+- **O CLI nem oferece a ferramenta.** `NATIVAS_DO_TERMINAL` nunca incluía `Artifact`, `ArtifactComments`,
+  `ArtifactData` nem `ArtifactCheck`, e só `--tools` restringe o que existe no turno (ponto já medido na ADR-052:
+  "`--allowedTools` apenas aprova").
+- **Mesmo se oferecesse, o hook negaria.** `decidirNativa` nega por padrão ("ferramenta fora do kit do nod") qualquer
+  nativa sem `case` próprio — fail-closed, como a ADR-052 decidiu.
+- **O computador do bot não é atalho.** Roda num sandbox isolado da pessoa (`src/contracts/navegador.ts`,
+  `ferramentas-computador.ts`), com sessão própria — não a do claude.ai dela.
+
+Não confundir com `publicar_artefato` (`mcp__nod__`, medido na ADR-052, Decisão 6): esse é o artefato do PRÓPRIO nod,
+para entregar algo visual à pessoa na conversa. O que faltava é o oposto — o bot LER/ESCREVER um artefato que já é
+dela, no claude.ai.
+
+**Decisão.**
+- **Kit:** `Artifact`, `ArtifactComments`, `ArtifactData` e `ArtifactCheck` entram no kit do terminal
+  (`NATIVAS_DE_ARTEFATO`), só onde o kit já existe: conversa ou criação confiável, harness Claude Code.
+- **Hook:** as quatro passam (`permitir: true`), com o mesmo tratamento do WebFetch/WebSearch — é conteúdo de FORA
+  (da pessoa no claude.ai, não do repositório nem do nod), então `contamina: true` (0033, ADR-052 Decisão 5) e as
+  quatro entram em `NATIVAS_QUE_CONTAMINAM`.
+
+**Fora da emenda:**
+- o Codex, que não tem um equivalente de artefato do claude.ai no seu kit (`NATIVAS_DO_TERMINAL_CODEX`);
+- o prompt de sistema: a linha das ferramentas (ADR-052, Decisão 6) já lista as nativas do turno genericamente, sem
+  precisar nomear o artefato à parte.
+
+**Gatilho de reversão:** uma versão do CLI em que o hook deixe de ser consultado para alguma das quatro ferramentas,
+ou uma chamada de `Artifact*` que vaze conteúdo sem contaminar o turno — aí as quatro saem do kit até a próxima sonda.
