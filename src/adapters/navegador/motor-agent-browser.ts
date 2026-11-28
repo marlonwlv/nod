@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, hkdfSync, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -234,6 +234,32 @@ export const ARGS_CHROME_DO_BOT = [
   "--lang=pt-BR",
   "--accept-lang=pt-BR",
 ] as const;
+
+/**
+ * 2026-11-28 (prova no SauceDemo, site real com login): depois de um login, o Google Chrome sem janela abre o "Salvar
+ * senha?" (ou o aviso de senha vazada) do gerenciador de senhas. Ninguém vê a bolha, mas ela congela a página: o stream
+ * parou de mandar quadros e os cliques da pessoa e do bot deixaram de pegar até um comando de fora. Com isto no perfil do
+ * bot antes de o Chrome nascer, o clique depois do login vira quadro novo em 39 ms. Os logins do bot moram no cofre do nod,
+ * no 1Password ou no Bitwarden, nunca no gerenciador do Chrome do bot.
+ */
+export const PREFERENCIAS_DO_PERFIL = { credentials_enable_service: false, credentials_enable_autosignin: false, profile: { password_manager_enabled: false, password_manager_leak_detection: false } } as const;
+
+/** Funde as preferências do nod no `Default/Preferences` do perfil (o resto fica como o Chrome deixou). */
+export async function prepararPerfil(perfil: string): Promise<void> {
+  const dir = join(perfil, "Default");
+  const arquivo = join(dir, "Preferences");
+  let atual: Record<string, unknown> = {};
+  try {
+    const v: unknown = JSON.parse(await readFile(arquivo, "utf8"));
+    if (v && typeof v === "object" && !Array.isArray(v)) atual = v as Record<string, unknown>;
+  } catch { /* perfil novo, ou o arquivo torto: começa do zero */ }
+  const perfilAtual = atual.profile && typeof atual.profile === "object" && !Array.isArray(atual.profile) ? atual.profile as Record<string, unknown> : {};
+  const novo = { ...atual, ...PREFERENCIAS_DO_PERFIL, profile: { ...perfilAtual, ...PREFERENCIAS_DO_PERFIL.profile } };
+  await mkdir(dir, { recursive: true });
+  const temp = `${arquivo}.nod-${randomUUID()}.tmp`;
+  await writeFile(temp, JSON.stringify(novo), { mode: 0o600 });
+  await rename(temp, arquivo);
+}
 
 /**
  * A identificação que o mesmo Chrome dá com janela: a dele sem janela com "HeadlessChrome/" trocado por "Chrome/" (o
@@ -542,6 +568,8 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const ocioso = o.ociosoMs ?? OCIOSO_PADRAO_MS;
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, pastaDoBot(s.agenteId));
+  /** Os bots cujo perfil já levou PREFERENCIAS_DO_PERFIL para o Chrome de agora (fechar o Chrome tira daqui). */
+  const perfisProntos = new Set<string>();
   const pedidoDirSocket = o.dirSocket === undefined ? dirSocketPadrao() : o.dirSocket;
   /** Os bots cujo Chrome está com janela na tela da pessoa agora (o daemon nasce com AGENT_BROWSER_HEADED). */
   const comJanela = new Set<string>();
@@ -607,6 +635,8 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   async function rodar(s: SessaoNavegador, args: readonly string[], prazoMs = PRAZO_COMANDO_MS): Promise<Record<string, unknown>> {
     if (!bin) throw new FalhaNavegador("indisponivel", "o agent-browser não está instalado nesta máquina");
     await mkdir(join(pasta(s), "arquivos"), { recursive: true });
+    // O perfil sem o gerenciador de senhas do Chrome antes de ele nascer (PREFERENCIAS_DO_PERFIL): uma vez por Chrome.
+    if (!perfisProntos.has(s.agenteId)) { await prepararPerfil(join(pasta(s), "perfil")).catch(() => undefined); perfisProntos.add(s.agenteId); }
     const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome(), await socketPronto()), prazoMs, limiteSaida: LIMITE_SAIDA });
     if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
     const d = lerResposta(r.saida, r.codigo);
@@ -901,6 +931,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
         if (comJanela.has(s.agenteId) === mostrar) return;
         const url = str((await rodar(s, ["get", "url"]).catch(() => ({} as Record<string, unknown>))).url);
         await rodar(s, ["close"]).catch(() => undefined);
+        perfisProntos.delete(s.agenteId);
         if (mostrar) comJanela.add(s.agenteId); else comJanela.delete(s.agenteId);
         await rodar(s, ["open", /^https?:/iu.test(url) ? url : "about:blank"], PRAZO_ABRIR_MS);
       },
@@ -909,6 +940,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       // Fechado (pausa, encerrar), o Chrome volta a nascer sem janela.
       comJanela.delete(s.agenteId);
       await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; });
+      perfisProntos.delete(s.agenteId);
     },
     async limparCache(s) {
       const perfil = join(pasta(s), "perfil");

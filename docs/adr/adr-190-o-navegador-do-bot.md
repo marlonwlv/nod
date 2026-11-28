@@ -274,6 +274,11 @@ hora e respondem como um navegador; no nod cada quadro e cada tecla davam a volt
   para ele); abrir o painel com o Chrome em pausa o retoma sozinho.
 - **A janela do Chrome (2026-11-27) virou saída.** "Entrar eu mesmo" passa o controle no painel; "Abrir numa janela do
   PC/Mac" no ⋯ (operação `janela` de `navegador.operar`) é para o que o painel não alcança (escolher arquivo, a digital).
+- **O gerenciador de senhas do Chrome do bot desligado** (`PREFERENCIAS_DO_PERFIL`, gravado no perfil antes de o Chrome
+  nascer). Na prova num site real com login (o SauceDemo, feito para testes de automação), depois do login o Google Chrome
+  sem janela abria a bolha "Salvar senha?"/senha vazada: ninguém a vê, mas ela congelava a página (o stream parava e os
+  cliques não pegavam). Sem ela, o clique depois do login vira imagem nova em 36 ms. Os logins do bot moram no cofre do nod,
+  no 1Password ou no Bitwarden. A prova: `NOD_PROVA_SITE=real node scripts/navegador/prova-painel-electron/rodar.mjs`.
 - **Reverter.** Sem a ponte do app (o navegador comum, um app antigo), a vista segue pelo servidor como antes. Gatilho: a
   fila local caindo para o servidor mais de uma vez por dia de uso, ou queixa de memória com o Chrome do bot parado 30 min.
 

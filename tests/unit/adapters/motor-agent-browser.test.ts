@@ -471,3 +471,25 @@ describe("abas: o stream acompanha a aba nova (QA do navegador no Windows, 2026-
     expect(recebidos.map((r) => r.args[1])).toEqual(["close", "--session"]);
   });
 });
+
+describe("2026-11-28: o perfil do bot sem o gerenciador de senhas do Chrome (a bolha invisível congelava a página)", () => {
+  it("funde as preferências no Default/Preferences, guardando o resto; perfil novo ou arquivo torto começam do zero", async () => {
+    const { prepararPerfil, PREFERENCIAS_DO_PERFIL } = await import("../../../src/adapters/navegador/motor-agent-browser.ts");
+    const { mkdtemp, readFile: ler, rm: apagar, writeFile: gravar } = await import("node:fs/promises");
+    const { tmpdir: tmp } = await import("node:os");
+    const { join: j } = await import("node:path");
+    const perfil = await mkdtemp(j(tmp(), "nod-perfil-"));
+    try {
+      await prepararPerfil(perfil);
+      expect(JSON.parse(await ler(j(perfil, "Default", "Preferences"), "utf8"))).toEqual(PREFERENCIAS_DO_PERFIL);
+      await gravar(j(perfil, "Default", "Preferences"), JSON.stringify({ intl: { accept_languages: "pt-BR" }, profile: { name: "Ada", password_manager_enabled: true } }));
+      await prepararPerfil(perfil);
+      expect(JSON.parse(await ler(j(perfil, "Default", "Preferences"), "utf8"))).toEqual({ intl: { accept_languages: "pt-BR" }, credentials_enable_service: false, credentials_enable_autosignin: false, profile: { name: "Ada", password_manager_enabled: false, password_manager_leak_detection: false } });
+      await gravar(j(perfil, "Default", "Preferences"), "{torto");
+      await prepararPerfil(perfil);
+      expect(JSON.parse(await ler(j(perfil, "Default", "Preferences"), "utf8"))).toEqual(PREFERENCIAS_DO_PERFIL);
+    } finally {
+      await apagar(perfil, { recursive: true, force: true });
+    }
+  });
+});

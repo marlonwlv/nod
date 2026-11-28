@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8"><img id="q" width="640"><script>
+// A pessoa no painel do SauceDemo: clica no usuário, digita letra a letra, cola a senha, Enter. Cada tecla confirmada.
+const BOT = "44444444-4444-4444-8444-444444444444";
+const nl = window.nodDesktop.navegadorLocal;
+let quadros = 0; const t0 = performance.now();
+nl.aoMensagem((id, texto) => { if (texto.includes('"type":"frame"')) { quadros++; document.getElementById("q").src = "data:image/jpeg;base64," + JSON.parse(texto).data; } });
+const esperarQuadro = async (desde) => { const t = performance.now(); while (quadros === desde && performance.now() - t < 3000) await new Promise((r) => setTimeout(r, 1)); };
+(async () => {
+  const id = await nl.abrir(BOT);
+  await esperarQuadro(0);
+  const abrirMs = performance.now() - t0;
+  const enviar = (e) => nl.enviar(id, e);
+  const clicar = async (sel) => { const p = await window.prova.centro(sel); return (await enviar({ t: "mouse", evento: "mousePressed", x: p.x, y: p.y, botao: "left", cliques: 1 })) && (await enviar({ t: "mouse", evento: "mouseReleased", x: p.x, y: p.y, botao: "left", cliques: 1 })); };
+  let teclas = 0, falhas = 0;
+  const codigo = (c) => (/\d/.test(c) ? "Digit" + c : /[a-z]/i.test(c) ? "Key" + c.toUpperCase() : c === "_" ? "Minus" : "Unidentified");
+  const tecla = async (k, mods = 0) => { teclas++; const a = await enviar({ t: "tecla", evento: "keyDown", tecla: k, codigo: k.length === 1 ? codigo(k) : k, ...(k.length === 1 ? { texto: k } : {}), modificadores: mods }); const b = await enviar({ t: "tecla", evento: "keyUp", tecla: k, codigo: k.length === 1 ? codigo(k) : k, modificadores: mods }); if (!a || !b) falhas++; };
+  await clicar("#user-name");
+  for (const c of "standard_user") await tecla(c, c === "_" ? 8 : 0);
+  const usuario = await window.prova.valor("#user-name");
+  await clicar("#password");
+  if (!(await enviar({ t: "tecla", evento: "char", texto: "secret_sauce" }))) falhas++;
+  await tecla("Enter");
+  for (let i = 0; i < 50 && !String(await window.prova.url()).includes("/inventory"); i++) await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 500));
+  // Do clique à imagem nova, na área logada: pôr e tirar a mochila do carrinho (o botão troca de texto e o selo muda).
+  // Espera a lista de produtos montar (o React do site depois do login).
+  for (let i = 0; i < 50 && !(await window.prova.avaliar("!!document.querySelector('.inventory_item button')")); i++) await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 1500));
+  const lat = [];
+  for (let i = 0; i < 6; i++) {
+    await new Promise((r) => setTimeout(r, 600));
+    const sel = (await window.prova.avaliar("!!document.querySelector('#remove-sauce-labs-backpack')")) ? "#remove-sauce-labs-backpack" : "#add-to-cart-sauce-labs-backpack";
+    const p = await window.prova.centro(sel);
+    const antes = quadros; const t = performance.now();
+    await enviar({ t: "mouse", evento: "mousePressed", x: p.x, y: p.y, botao: "left", cliques: 1 });
+    await enviar({ t: "mouse", evento: "mouseReleased", x: p.x, y: p.y, botao: "left", cliques: 1 });
+    await esperarQuadro(antes); lat.push(performance.now() - t);
+  }
+  lat.sort((a, b) => a - b);
+  await window.prova.fim({ abrirMs: Math.round(abrirMs), teclas, falhas, usuario, cliqueQuadroMediana: Math.round(lat[3]) });
+})().catch((e) => window.prova.fim({ erro: String(e) }));
+</script>

@@ -13,4 +13,4 @@ const navegadorLocal: PonteNavegadorLocal = {
   },
 };
 contextBridge.exposeInMainWorld("nodDesktop", { navegadorLocal });
-contextBridge.exposeInMainWorld("prova", { centro: (sel: string) => ipcRenderer.invoke("prova:centro", sel), fim: (r: unknown) => ipcRenderer.invoke("prova:fim", r), url: () => ipcRenderer.invoke("prova:url") });
+contextBridge.exposeInMainWorld("prova", { centro: (sel: string) => ipcRenderer.invoke("prova:centro", sel), fim: (r: unknown) => ipcRenderer.invoke("prova:fim", r), url: () => ipcRenderer.invoke("prova:url"), valor: (sel: string) => ipcRenderer.invoke("prova:valor", sel), avaliar: (js: string) => ipcRenderer.invoke("prova:avaliar", js) });
