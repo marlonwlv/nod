@@ -31,6 +31,7 @@ const ROTINA: Rotina = {
   gatilho: "horario",
   provedor: null,
   eventos: null,
+  critica: false,
 };
 const rev = (r: Rotina) => revisaoDaRotina(r, sha256);
 

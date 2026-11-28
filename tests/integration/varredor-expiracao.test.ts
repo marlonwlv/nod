@@ -79,4 +79,30 @@ describeIntegracao("varredor de expiração (E7.4, ADR-007/011): vencido escrito
       expect(textos[0]).toContain("Este pedido venceu em");
     });
   });
+
+  it("emenda da ADR-044 (2026-11-24): 2 rotinas de agentes diferentes pausadas na mesma passada por acesso vencido ganham a linha de apoio, uma pro outro", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { deps, repos } = depsSobre(trx, MARLON, { agora: () => AGORA });
+      async function rotinaComAcessoVencido(nome: string) {
+        const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome });
+        const rotina = await repos.rotinas.criar({ agenteId, conversaId, cron: "0 8 * * *", fusoIana: "America/Sao_Paulo", instrucao: "E-mails", fonte: "gmail", entregavel: "resumo", limitesAprovacao: "l", politicaSemDado: "p", proximaExecucao: AGORA });
+        if (!rotina) throw new Error("rotina");
+        const proposta = await repos.propostas.criarAcessoDeRotina({ conversaId, agenteId, payload: { kind: "acesso", conector: "gmail", capacidades: ["GMAIL_FETCH_EMAILS"], nivel: "leitura", naoPedido: [], rotinaId: rotina.id } });
+        await repos.decisoes.criar({ id: proposta?.proposta.id, tipo: "acesso", agenteId, conversaId, prazoDecisaoEm: AGORA - 1_000, frase: `${nome} precisa ler seu Gmail` });
+        return { rotina, conversaId };
+      }
+      const nina = await rotinaComAcessoVencido("Nina");
+      const theo = await rotinaComAcessoVencido("Theo");
+
+      const r = await varrerPessoa(MARLON, (fn) => fn(trx), { services: deps.services, useCases: deps.useCases, agora: () => AGORA });
+      expect(r.pausadas.sort()).toEqual([nina.rotina.id, theo.rotina.id].sort());
+
+      const apoioNina = (await repos.mensagens.listarDaConversa(nina.conversaId)).find((m) => m.texto.includes("Outras rotinas pausaram"));
+      const apoioTheo = (await repos.mensagens.listarDaConversa(theo.conversaId)).find((m) => m.texto.includes("Outras rotinas pausaram"));
+      expect(apoioNina?.texto).toContain("Theo");
+      expect(apoioNina?.texto).not.toContain("Nina");
+      expect(apoioTheo?.texto).toContain("Nina");
+      expect(apoioTheo?.texto).not.toContain("Theo");
+    });
+  });
 });

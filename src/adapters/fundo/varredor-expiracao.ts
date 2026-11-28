@@ -3,6 +3,7 @@ import { varrerAvisosDosQuadros } from "../../use-cases/avisos-quadro.ts";
 import type { Executor } from "../../contracts/evento.ts";
 import { cuidarDasExecucoesDoQuadro } from "../../use-cases/quadro-execucoes.ts";
 import type { Decisao } from "../../contracts/decisao.ts";
+import type { Rotina } from "../../contracts/rotina.ts";
 import { ehErroDeDominio } from "../../domain/erro.ts";
 import { redigir } from "../../domain/redacao.ts";
 import { log } from "../../obs/log.ts";
@@ -84,6 +85,12 @@ const DESFECHO_HUMANO: Readonly<Record<string, string>> = {
   expirou_sem_ninguem_ver: "ninguém chegou a ver",
   expirou_com_alguem_ciente: "alguém viu, mas ninguém respondeu",
 };
+
+/** "A e B" / "A, B e C" — convenção de português; não há helper equivalente no resto do repo (checado em 2026-11-24). */
+function juntarComE(nomes: readonly string[]): string {
+  if (nomes.length === 1) return nomes[0]!;
+  return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
+}
 
 /**
  * Varredura de UMA pessoa (E7.4, ADR-007/011): vencerPendentes escreve 'vencida' com o desfecho
@@ -270,6 +277,9 @@ async function varrerDecisoes(escopo: Escopo, tx: Transacao, opcoes: OpcoesVarre
     const repos = criarRepos(trx, escopo);
     const deps: Deps = { repos, services: opcoes.services, useCases: opcoes.useCases, tx, escopo, agora: opcoes.agora };
     const resultado: ResultadoVarredura = { vencidas: [], mensagens: 0, passaramEmBranco: [], pausadas: [] };
+    // definido em 2026-11-24 (emenda da ADR-044): as rotinas inteiras pausadas por acesso vencido nesta passada,
+    // para o aviso agregado de depois do laço — resultado.pausadas guarda só os ids (contrato de fora inalterado).
+    const rotinasPausadas: Rotina[] = [];
     const vencidas: Decisao[] = await repos.decisoes.vencerPendentes(agora);
     for (const d of vencidas) {
       resultado.vencidas.push(d.id);
@@ -287,6 +297,7 @@ async function varrerDecisoes(escopo: Escopo, tx: Transacao, opcoes: OpcoesVarre
       const pedidoDaRotina = await vencerPedidoDaRotina(deps, d);
       if (pedidoDaRotina.pausada) {
         resultado.pausadas.push(pedidoDaRotina.pausada.id);
+        rotinasPausadas.push(pedidoDaRotina.pausada);
       } else if (!pedidoDaRotina.atendido) {
         // NOD-270 (I4): atendido = o acesso já tinha sido dado e o card fechou por regra; não há vencimento a contar.
         await repos.mensagens.criar({
@@ -325,6 +336,28 @@ async function varrerDecisoes(escopo: Escopo, tx: Transacao, opcoes: OpcoesVarre
       events.push(...(await sincronizarDasDecisoes(deps, [d])));
       await repos.events.gravarComOutbox(events);
       log("info", "decisao_vencida_varrida", { decisao_id: d.id, tipo: d.tipo, desfecho: tipoDesfecho, atraso_ms: agora - Date.parse(d.prazoDecisaoEm) });
+    }
+    // definido em 2026-11-24 (emenda da ADR-044): 2+ rotinas da mesma pessoa pausadas na mesma passada por acesso
+    // vencido (pico de expiração simultânea, visto em produção) ganham uma linha de apoio cada, com o nome dos
+    // agentes donos das OUTRAS rotinas — a rotina não tem nome próprio (CLAUDE.md), só o agente que a possui.
+    if (rotinasPausadas.length >= 2) {
+      const nomePorAgente = new Map<string, string>();
+      for (const r of rotinasPausadas) {
+        if (!nomePorAgente.has(r.agenteId)) nomePorAgente.set(r.agenteId, (await repos.agentes.buscar(r.agenteId))?.nome ?? "um agente");
+      }
+      const autoriaAgregado = autoriaPessoa(escopo.pessoaId, "regra:varredor-expiracao");
+      for (const r of rotinasPausadas) {
+        const outras = [...new Set(rotinasPausadas.filter((o) => o.agenteId !== r.agenteId).map((o) => nomePorAgente.get(o.agenteId)!))];
+        if (outras.length === 0) continue;
+        await repos.mensagens.criar({
+          conversaId: r.conversaId,
+          autoria: autoriaAgregado,
+          kind: "sistema",
+          assunto: "rotina.evento",
+          texto: redigir("rotina-pausada-junto-de-outras", agora, { outras: juntarComE(outras) }),
+          confianca: "confiavel",
+        });
+      }
     }
     // Revisão da ADR-047: o card de CONEXÃO não tem decisão e nunca vence sozinho. Passado o prazo dele,
     // a tarefa delegada que esperava por ele avisa o remetente. Janela de um prazo depois do vencimento:

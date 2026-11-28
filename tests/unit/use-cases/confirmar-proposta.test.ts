@@ -79,6 +79,7 @@ describe("propostas (E1.1): nada é aplicado antes da confirmação", () => {
       gatilho: "horario",
       provedor: null,
       eventos: null,
+      critica: false,
       ...(propostaId ? {} : {}),
     }));
     const { deps } = depsEmMemoria(undefined, { ativarRotina: ativar });

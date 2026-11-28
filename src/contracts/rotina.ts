@@ -55,6 +55,12 @@ export type Rotina = {
    * ela aconteceu. Reativar o lote volta só as rotinas dele. null (ou ausente nas fixtures antigas) = pausada sozinha.
    */
   pausaLote?: { id: string; em: EpochMs } | null;
+  /**
+   * definido em 2026-11-24 (emenda da ADR-044, migração 0183): marca EXPLÍCITA que a pessoa dá à rotina — nunca
+   * inferida do texto do agente ou da instrução (a ADR rejeita classificar a fonte com o modelo). Dá destaque
+   * extra ao aviso de pausa por acesso vencido. DEFAULT false na coluna.
+   */
+  critica: boolean;
 };
 
 /**

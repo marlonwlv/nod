@@ -8,7 +8,7 @@ import { renderRotinas } from "../../../web/telas/rotinas.ts";
 const TZ = "America/Sao_Paulo";
 const AGORA = Date.parse("2026-09-24T09:30:00-03:00");
 const ONTEM_13 = Date.parse("2026-09-23T13:00:00-03:00");
-const rotina = { id: "r1", tenantId: "t", ownerId: "p", agenteId: "a1", conversaId: "c1", instrucao: "Resumo dos PRs", cron: "0 8 * * *", fusoIana: TZ, estado: "ativa", exigeAprovacao: true, fonte: "GitHub", entregavel: "resumo", limitesAprovacao: "", politicaSemDado: "", proximaExecucao: AGORA + 3_600_000, criadoEm: 0, excluidoEm: null, acessos: null, gatilho: "horario", provedor: null, eventos: null } as const;
+const rotina = { id: "r1", tenantId: "t", ownerId: "p", agenteId: "a1", conversaId: "c1", instrucao: "Resumo dos PRs", cron: "0 8 * * *", fusoIana: TZ, estado: "ativa", exigeAprovacao: true, fonte: "GitHub", entregavel: "resumo", limitesAprovacao: "", politicaSemDado: "", proximaExecucao: AGORA + 3_600_000, criadoEm: 0, excluidoEm: null, acessos: null, gatilho: "horario", provedor: null, eventos: null, critica: false } as const;
 const dto = (extra: Partial<RotinaDto> = {}): RotinaDto => ({ rotina: { ...rotina }, proximaExecucao: AGORA + 3_600_000, bloqueio: null, resumo: "todo dia às 08:00", espera: null, ...extra });
 
 describe("lista de rotinas: parada por pergunta sem resposta", () => {

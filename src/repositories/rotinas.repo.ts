@@ -29,10 +29,11 @@ interface Linha {
   retomar_em: Date | null;
   pausa_lote_id: string | null;
   pausa_lote_em: Date | null;
+  critica: boolean;
 }
 
 const COLUNAS =
-  "tenant_id, id, owner_id, agente_id, conversa_id, cron, fuso_iana, instrucao, fonte, entregavel, limites_aprovacao, politica_sem_dado, exige_aprovacao, case when exists (select 1 from agentes a where a.tenant_id = rotinas.tenant_id and a.id = rotinas.agente_id and a.geracao_execucao = rotinas.geracao_execucao and a.excluido_em is null) then estado else 'pausada'::estado_rotina end as estado, proxima_execucao, criado_em, excluido_em, acessos, gatilho, provedor, eventos, retomar_em, pausa_lote_id, pausa_lote_em";
+  "tenant_id, id, owner_id, agente_id, conversa_id, cron, fuso_iana, instrucao, fonte, entregavel, limites_aprovacao, politica_sem_dado, exige_aprovacao, case when exists (select 1 from agentes a where a.tenant_id = rotinas.tenant_id and a.id = rotinas.agente_id and a.geracao_execucao = rotinas.geracao_execucao and a.excluido_em is null) then estado else 'pausada'::estado_rotina end as estado, proxima_execucao, criado_em, excluido_em, acessos, gatilho, provedor, eventos, retomar_em, pausa_lote_id, pausa_lote_em, critica";
 
 const paraRotina = (l: Linha): Rotina => ({
   tenantId: l.tenant_id,
@@ -58,6 +59,7 @@ const paraRotina = (l: Linha): Rotina => ({
   eventos: l.eventos,
   retomarEm: l.retomar_em ? ms(l.retomar_em) : null,
   pausaLote: l.pausa_lote_id && l.pausa_lote_em ? { id: l.pausa_lote_id, em: ms(l.pausa_lote_em) } : null,
+  critica: l.critica,
 });
 
 export type NovaRotina = {
@@ -81,6 +83,8 @@ export type NovaRotina = {
   gatilho?: GatilhoRotina;
   provedor?: string | null;
   eventos?: string[] | null;
+  /** definido em 2026-11-24 (0183): omitido = DEFAULT false da coluna. */
+  critica?: boolean;
 };
 
 /** Rotinas (ADR-011): quem avalia cron é o servidor; o repositório só guarda proxima_execucao. */
@@ -89,11 +93,11 @@ export function rotinasRepo(conn: Conn, escopo: Escopo) {
     async criar(r: NovaRotina): Promise<Rotina | null> {
       const [l] = await conn<Linha[]>`
         insert into rotinas (tenant_id, id, owner_id, agente_id, conversa_id, cron, fuso_iana, instrucao, fonte, entregavel, limites_aprovacao,
-          politica_sem_dado, exige_aprovacao, estado, proxima_execucao, acessos, gatilho, provedor, eventos)
+          politica_sem_dado, exige_aprovacao, estado, proxima_execucao, acessos, gatilho, provedor, eventos, critica)
         values (${escopo.tenantId}, ${r.id ?? conn`gen_random_uuid()`}, ${escopo.pessoaId}, ${r.agenteId}, ${r.conversaId}, ${r.cron}, ${r.fusoIana},
           ${r.instrucao}, ${r.fonte}, ${r.entregavel}, ${r.limitesAprovacao}, ${r.politicaSemDado},
           ${r.exigeAprovacao === undefined ? conn`default` : r.exigeAprovacao}, ${r.estado ?? "ativa"}, ${data(r.proximaExecucao)}, ${r.acessos ? conn.json(r.acessos) : null},
-          ${r.gatilho ?? "horario"}, ${r.provedor ?? null}, ${r.eventos ?? null})
+          ${r.gatilho ?? "horario"}, ${r.provedor ?? null}, ${r.eventos ?? null}, ${r.critica === undefined ? conn`default` : r.critica})
         returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraRotina(l) : null;
     },

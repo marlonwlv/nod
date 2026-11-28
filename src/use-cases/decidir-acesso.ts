@@ -83,7 +83,8 @@ export async function vencerPedidoDaRotina(deps: Deps, decisao: Decisao): Promis
   // prazo, do servidor — a diferença entre os dois não é o que a pessoa teve para decidir.
   const prazo = `${Math.round(PRAZO_DECISAO_PADRAO_MS / 3_600_000)}h`;
   const autoria = { ...autoriaPessoa(deps.escopo), decidido_por: REGRA_VARREDOR };
-  const texto = redigir("rotina-pausada-sem-acesso", agora, { app: nomeDoApp(proposta.payload.conector, conector?.nome), prazo });
+  // emenda da ADR-044 (2026-11-24): a marca `critica` é EXPLÍCITA da pessoa, nunca inferida do texto — só troca o molde.
+  const texto = redigir(rotina.critica ? "rotina-pausada-sem-acesso-critica" : "rotina-pausada-sem-acesso", agora, { app: nomeDoApp(proposta.payload.conector, conector?.nome), prazo });
   const pausada = (await pausarRotina(deps, { rotinaId: rotina.id, estado: "pausada", autoria, texto })).data.rotina;
   const events = [evento(deps.escopo, { kind: "rotina_atualizada", autoria, agora, conversaId: pausada.conversaId, dados: { rotina_id: pausada.id, estado: "pausada", motivo: "acesso_nao_liberado", decisao_id: decisao.id } })];
   return { pausada, events };

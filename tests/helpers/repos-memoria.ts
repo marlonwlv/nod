@@ -2694,6 +2694,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           gatilho: r.gatilho ?? "horario",
           provedor: r.provedor ?? null,
           eventos: r.eventos ?? null,
+          critica: r.critica ?? false,
         };
         b.rotinas.push(rotina);
         return rotina;

@@ -231,4 +231,27 @@ describe("NOD-270 (I4): o card de acesso já atendido", () => {
     expect(r.pausada?.estado).toBe("pausada");
     expect(r.atendido).toBeUndefined();
   });
+
+  it("emenda da ADR-044 (2026-11-24): rotina marcada `critica` vence sem o acesso → molde de pausa pede atenção extra", async () => {
+    const d = depsMemoria({ agora: () => AGORA });
+    await gmail(d);
+    const agente = await d.deps.repos.agentes.criar({ nome: "Faixa de uso do Claude", dono: "pessoa", forma: "shape-hex", cor: "c-purple", modelo: "claude-haiku-4-5-20251001" });
+    await d.deps.repos.agentes.definirModoAprovacao(agente?.id ?? "", "manual");
+    const conversa = await d.deps.repos.conversas.criar({ tipo: "propria", agenteId: agente?.id ?? "" });
+    const rotina = await d.deps.repos.rotinas.criar({
+      agenteId: agente?.id ?? "", conversaId: conversa?.id ?? "", cron: "0 8 * * 1-5", fusoIana: TZ, instrucao: "poste o resumo", fonte: "E-mails do Gmail", entregavel: "resumo",
+      limitesAprovacao: "nada sai sem aprovação", politicaSemDado: "diga que não houve", proximaExecucao: JANELA, critica: true,
+    });
+    if (!rotina) throw new Error("rotina não criada");
+    const r1 = await dispararRotina(d.deps, { rotina, instanteAgendado: JANELA, machineId: "m1", executor: "catcher" });
+    if (!("bloqueada" in r1.data) || !r1.data.propostaId) throw new Error("deveria ter bloqueado com card");
+    const propostaId = r1.data.propostaId;
+    const decisao = d.banco.decisoes.find((x) => x.id === propostaId);
+    if (!decisao) throw new Error("decisão");
+    const r = await vencerPedidoDaRotina(d.deps, { ...decisao });
+    expect(r.pausada?.estado).toBe("pausada");
+    const mensagem = d.banco.mensagens.find((m) => m.conversaId === rotina.conversaId && m.kind === "sistema");
+    expect(mensagem?.texto).toContain("Rotina crítica pausada");
+    expect(mensagem?.texto).toContain("Confira antes de reativar");
+  });
 });

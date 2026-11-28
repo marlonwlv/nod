@@ -106,7 +106,7 @@ describeIntegracao("o recibo grava a âncora do cartão encolhido (chat limpo, P
 
   it("proposta: confirmada e recusada viram proposta_decidida (assunto do chat) com o turno — o da proposta ou o da decisão de mesmo id", async () => {
     const ativar = vi.fn(async (_trx: unknown, propostaId: string): Promise<Rotina> => ({
-      tenantId: MARLON.tenantId, id: propostaId, agenteId: "a", conversaId: "c", ownerId: MARLON.pessoaId, cron: "0 8 * * 1-5", fusoIana: "America/Sao_Paulo", instrucao: "x", fonte: "y", entregavel: "z", limitesAprovacao: "w", politicaSemDado: "v", exigeAprovacao: true, estado: "ativa", proximaExecucao: 1, criadoEm: 0, excluidoEm: null, acessos: null, gatilho: "horario", provedor: null, eventos: null,
+      tenantId: MARLON.tenantId, id: propostaId, agenteId: "a", conversaId: "c", ownerId: MARLON.pessoaId, cron: "0 8 * * 1-5", fusoIana: "America/Sao_Paulo", instrucao: "x", fonte: "y", entregavel: "z", limitesAprovacao: "w", politicaSemDado: "v", exigeAprovacao: true, estado: "ativa", proximaExecucao: 1, criadoEm: 0, excluidoEm: null, acessos: null, gatilho: "horario", provedor: null, eventos: null, critica: false,
     }));
     await withRollback(MARLON, async (trx) => {
       const deps = depsSobreTrx(trx, MARLON, { ativarRotina: ativar });

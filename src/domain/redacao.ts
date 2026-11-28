@@ -66,7 +66,9 @@ export type ChaveRedacao =
   | "computador-em-operacao"
   | "computador-tela-fechada"
   | "computador-senha-preenchida"
-  | "rotina-pausada-sem-acesso";
+  | "rotina-pausada-sem-acesso"
+  | "rotina-pausada-sem-acesso-critica"
+  | "rotina-pausada-junto-de-outras";
 
 /** Textos de sistema FIXOS em português; nunca vêm do modelo. `{chave}` é preenchido com params. */
 const CATALOGO: Record<ChaveRedacao, string> = {
@@ -177,6 +179,13 @@ const CATALOGO: Record<ChaveRedacao, string> = {
   // definido em 2026-09-24 (emenda da ADR-044): a linha ÚNICA quando o pedido de acesso da rotina vence —
   // no lugar do "este pedido venceu"; {prazo} é o da decisão ("24h"), {app} o nome que a pessoa lê.
   "rotina-pausada-sem-acesso": "Rotina pausada: ninguém liberou o acesso ao {app} em {prazo}. Reative quando quiser.",
+  // definido em 2026-11-24 (emenda da ADR-044): a mesma pausa, numa rotina marcada como crítica (marca EXPLÍCITA da
+  // pessoa, nunca inferida do texto) — o aviso pede atenção extra em vez de só avisar que pode reativar quando quiser.
+  "rotina-pausada-sem-acesso-critica": "Rotina crítica pausada: ninguém liberou o acesso ao {app} em {prazo}. Confira antes de reativar.",
+  // definido em 2026-11-24: linha de apoio quando o varredor pausa 2+ rotinas da mesma pessoa no mesmo ciclo, por acesso
+  // vencido — {outras} já vem pronta da use-case, com o nome dos agentes donos das outras rotinas ("Nina e Theo"), já
+  // que a rotina não tem nome próprio; redacao.ts só preenche o molde.
+  "rotina-pausada-junto-de-outras": "Outras rotinas pausaram no mesmo instante, por acesso vencido: {outras}. Vale conferir se foi um acesso só que venceu para várias de uma vez.",
 };
 
 /**

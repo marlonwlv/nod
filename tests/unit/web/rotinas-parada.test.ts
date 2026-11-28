@@ -23,7 +23,7 @@ const HOJE_8 = Date.parse("2026-09-24T08:00:00-03:00");
 const H = 3_600_000;
 
 const bloqueio: BloqueioRotina = { motivo: "sem_acesso", app: "Gmail", slug: "gmail", decisaoId: "d1", rodaNaHora: true, desde: ONTEM_13, naoRodaram: [HOJE_8, ONTEM_18, ONTEM_13], fusoIana: TZ };
-const rotina = { id: "r1", tenantId: "t", ownerId: "p", agenteId: "a1", conversaId: "c1", instrucao: "E-mails às 8h, 13h e 18h", cron: "0 8,13,18 * * *", fusoIana: TZ, estado: "ativa", exigeAprovacao: true, fonte: "Gmail", entregavel: "resumo", limitesAprovacao: "", politicaSemDado: "", proximaExecucao: AGORA + H, criadoEm: 0, excluidoEm: null, acessos: null, gatilho: "horario", provedor: null, eventos: null } as const;
+const rotina = { id: "r1", tenantId: "t", ownerId: "p", agenteId: "a1", conversaId: "c1", instrucao: "E-mails às 8h, 13h e 18h", cron: "0 8,13,18 * * *", fusoIana: TZ, estado: "ativa", exigeAprovacao: true, fonte: "Gmail", entregavel: "resumo", limitesAprovacao: "", politicaSemDado: "", proximaExecucao: AGORA + H, criadoEm: 0, excluidoEm: null, acessos: null, gatilho: "horario", provedor: null, eventos: null, critica: false } as const;
 const dto = (b: BloqueioRotina | null): RotinaDto => ({ rotina: { ...rotina }, proximaExecucao: AGORA + H, bloqueio: b, resumo: `todo dia às 08:00, 13:00, 18:00 (${TZ})`, espera: null });
 const agente = { id: "a1", tenantId: "t", ownerId: "p", nome: "Nina", titulo: "E-mails", descricao: "", descricaoEstado: "", cor: "c-black", forma: "quadrado", conversaId: "c1", confirmado: true, fixado: false, oculto: false, naoLido: false, secao: null } as never;
 
