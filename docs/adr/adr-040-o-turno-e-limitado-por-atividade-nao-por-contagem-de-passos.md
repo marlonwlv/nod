@@ -127,3 +127,18 @@ Em 1M nada muda: o prompt e os tetos são os de antes. O Codex e a ligação fic
 **Limitação conhecida.** Até ~230k de janela, a base do Claude Code e o resumo que ele mesmo reanexa (~84k) já passam de metade do limiar: nesses modelos o prompt sempre vai enxuto. Abaixo de ~165k (limiar < ~115k, como o `--autocompact 100000` do repro), a parte fixa encosta no limiar e nenhum corte do nod resolve sozinho; os tetos caem ao piso, a recuperação recomeça uma vez e, se encher de novo, a pessoa lê o aviso.
 
 **Gatilho de reversão.** Um Claude Code que mude a fórmula do limiar, a regra do disjuntor ou o padrão da busca de ferramentas (relido no binário), ou um Raio-X que mostre o prompt enxuto num modelo de 1M: refazer as constantes, não desligar as defesas.
+
+## Emenda 2026-11-18 (issue #168): aviso de contexto cheio
+
+**Contexto.** Num modelo de 1M, a compactação automática só chega perto de ~784k, e cada chamada relê o histórico inteiro: a conversa longa fica mais cara e mais lenta muito antes de o Claude Code resumir. A pessoa só via o tamanho com `/contexto`, e quem usa o nod no dia a dia não pede `/contexto` sem motivo. Quem rodava o nod pelo Claude Code media as sessões com um script à parte e se avisava a partir de 300 mil tokens.
+
+**Decisão** (`src/domain/aviso-contexto.ts`):
+1. **O limite** é `min(300k, 80% do limiar de compactação da janela)`: 300k em 1M, ~115k em 200k (antes de o CLI resumir por conta própria, ~144k). A janela é a do Raio-X do turno, senão a do nome do modelo (a mesma regra do orçamento acima).
+2. **A medida** é o contexto no fim do turno: a última chamada da conversa principal (subagente não conta) ou, se o CLI compactou depois dela, o que sobrou da compactação.
+3. **Avisa só no cruzamento:** o turno acabou acima e o turno anterior do bot na mesma conversa acabou abaixo (ou não existe). Um turno que compactou no meio compara com zero. Depois de `/compactar` ou `/nova-sessao` o histórico volta para baixo e a próxima subida avisa de novo. Sem a leitura do turno anterior (erro), não avisa: comparar com zero repetiria a linha a cada turno.
+4. **Só na fala da pessoa** (`origem = conversa`, sem trabalho nem procuração): é o turno que roda na sessão da conversa (`sessao-do-turno.ts`). Sala, frente, rotina, colega e delegação têm sessão própria e não entram nem como turno anterior.
+5. **Uma linha de sistema no chat** com assunto `contexto.cheio` (destino `chat`), dizendo quanto o histórico ocupa e sugerindo `/compactar` ou `/nova-sessao`. Assunto novo não pede migração: o CHECK só confere a forma.
+
+**Fora do escopo.** Uma ferramenta para o próprio bot compactar ou recomeçar a sessão: decidir isso pelo bot tira da pessoa a escolha entre resumir (perde detalhe) e recomeçar (perde o fio). Fica para quando houver uso medido do aviso. O Codex não manda Raio-X e não avisa.
+
+**Gatilho de reversão.** Um Claude Code que mude a fórmula do limiar (as constantes acompanham `limiarDeCompactacao`), ou o aviso aparecendo em toda conversa longa sem que a pessoa compacte: subir o limite ou trocar a linha por um indicador no cabeçalho do chat, não desligar a medida.

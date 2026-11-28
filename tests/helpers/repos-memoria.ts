@@ -3838,6 +3838,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           .find((x) => typeof b.raioX.get(x.id)?.execucao?.janela === "number");
         return t ? b.raioX.get(t.id)?.execucao?.janela ?? null : null;
       },
+      async execucaoAnterior(conversaId, agenteId, turnoId) {
+        const atual = doTenant(b.turnos).find((x) => x.id === turnoId);
+        if (!atual) return null;
+        const t = doTenant(b.turnos).filter((x) => x.conversaId === conversaId && x.agenteId === agenteId && x.origem === "conversa" && !x.trabalhoId && !x.sobProcuracaoDe && x.id !== turnoId && x.criadoEm < atual.criadoEm && b.raioX.get(x.id)?.execucao)
+          .sort((x, y) => y.criadoEm - x.criadoEm)[0];
+        return t ? b.raioX.get(t.id)?.execucao ?? null : null;
+      },
       async daConversa(conversaId, limite) {
         return doTenant(b.turnos).filter((t) => t.conversaId === conversaId).sort((x, y) => y.criadoEm - x.criadoEm).slice(0, limite)
           .map((t) => ({ turnoId: t.id, agenteId: t.agenteId, estado: t.estado, custoUsd: t.custoUsd, criadoEm: t.criadoEm, composicao: null, execucao: b.raioX.get(t.id)?.execucao ?? null }));

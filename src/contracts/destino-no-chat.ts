@@ -106,6 +106,8 @@ export const ASSUNTOS = [
   "memoria.anotada",
   "memoria.task_fechada",
   "compactacao",
+  // Issue #168: o histórico da conversa passou do limite do aviso; a linha sugere /compactar ou /nova-sessao.
+  "contexto.cheio",
   // NOD-54 (ADR-134): a linha que o bot lê no próximo turno ("Desfeito: N arquivos voltaram"); a pessoa vê o resultado na própria fala.
   "arquivos.desfeitos",
   "proposta.decidida",

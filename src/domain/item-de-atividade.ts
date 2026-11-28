@@ -79,6 +79,7 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "memoria.anotada": "Anotou na memória",
   "memoria.task_fechada": "Fechou uma tarefa para liberar memória",
   compactacao: "Conversa compactada",
+  "contexto.cheio": "Contexto cheio",
   "arquivos.desfeitos": "Desfez os arquivos de um turno",
   "proposta.decidida": "Proposta decidida",
   "proposta.resultado": "Proposta decidida",

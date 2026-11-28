@@ -114,6 +114,8 @@ export const DESTINO: Readonly<Record<Assunto, RegraDeDestino>> = {
   "memoria.anotada": { destino: "atividade", categoria: null },
   "memoria.task_fechada": { destino: "atividade", categoria: null },
   compactacao: { destino: "atividade", categoria: null },
+  // Issue #168: o aviso pede uma escolha da pessoa (/compactar ou /nova-sessao), então fica no chat.
+  "contexto.cheio": { destino: "chat", categoria: null },
   "arquivos.desfeitos": { destino: "atividade", categoria: null },
   "proposta.decidida": { destino: "atividade", categoria: null },
   inteligencia: { destino: "atividade", categoria: null },
