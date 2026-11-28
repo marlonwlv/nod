@@ -23,6 +23,7 @@ import { campoComFocoNoToque, criarGestoNaTela, rolagemDoPrograma } from "./gest
 import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard, type RolagemGuardada } from "./rolagem-guardada.ts";
 import { criarAlvosDeRolagem, criarReservaDeAltura } from "./alvo-de-rolagem-na-tela.ts";
 import { COLADO_PX } from "./alvo-de-rolagem.ts";
+import { CONVERSA_ESCONDIDA } from "./rolagem.ts";
 import { acharAncora, topoPelaAncora } from "./ancora-de-leitura.ts";
 import type { PassosDoRunDto } from "../../src/contracts/quadro-comentarios.ts";
 import type { CamposDeLabel } from "../../src/contracts/quadro-labels.ts";
@@ -2701,7 +2702,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   const inerte = (e: HTMLElement, sim: boolean): void => { if (e.id === "quadro" && e.inert !== sim) e.inert = sim; };
   function mostrar(els: HTMLElement[]): void {
     for (const e of els) {
-      e.classList.remove("qd-saiu");
+      e.classList.remove(CONVERSA_ESCONDIDA);
       inerte(e, false);
       if (e.id === "quadro") {
         e.hidden = false;
@@ -2715,7 +2716,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   function esconder(els: HTMLElement[]): void {
     for (const e of els) {
       if (e.id === "quadro") { e.hidden = true; continue; }
-      e.classList.add("qd-saiu");
+      e.classList.add(CONVERSA_ESCONDIDA);
     }
     marcarEstadoDaPagina(doc);
   }

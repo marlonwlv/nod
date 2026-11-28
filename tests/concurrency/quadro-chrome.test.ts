@@ -25,6 +25,7 @@ const descrever = chrome ? describe : describe.skip;
 const ENTRADA = `
 import { estadoInicial, reduzir } from "./web/estado/reducer.ts";
 import { criarQuadroNaTela } from "./web/lib/quadro-na-tela.ts";
+import { criarRolagem } from "./web/lib/rolagem-na-tela.ts";
 import { atalhoDoTeclado, SELETOR_CAMPO } from "./web/lib/atalhos.ts";
 import { contextoDaPilula, executarNaPilula } from "./web/lib/setas-da-pilula.ts";
 import { renderCabecalhoConversa } from "./web/telas/conversa.ts";
@@ -69,6 +70,26 @@ window.__montar = (comQuadro) => {
   q.sincronizar(comQuadro ? { chave: C, nome: "Ada", paginas: PAGINAS } : { chave: null, nome: "" });
   window.__quadro = q;
 };
+/**
+ * Tasks pontuais (2026-11-25): a conversa longa com a rolagem de verdade (criarRolagem, como o main liga), para medir a
+ * volta do quadro e das páginas: \`__amostrarVolta(pagina)\` clica e guarda o topo da timeline a cada quadro desde o primeiro.
+ */
+window.__montarLonga = () => {
+  window.__montar(true);
+  const t = document.getElementById("timeline");
+  t.innerHTML = '<div class="timeline">' + Array.from({ length: 400 }, (_, i) => '<p style="margin:0;padding:8px 0">mensagem ' + i + '</p>').join("") + "</div>";
+  window.__rolagem = criarRolagem(t, document.getElementById("pilula-novas"), () => false);
+  window.__rolagem.depoisDeDesenhar(C, true);
+};
+window.__fimDaTimeline = () => { const t = document.getElementById("timeline"); return t.scrollHeight - t.clientHeight; };
+window.__amostrarVolta = (pagina) => new Promise((r) => {
+  const t = document.getElementById("timeline");
+  document.querySelector('#cabecalho .pg-ic[data-pagina="' + pagina + '"]').click();
+  // Do primeiro quadro depois do clique em diante (o que a pessoa vê); o valor no meio do clique nunca é pintado.
+  const amostras = [];
+  const f = () => { amostras.push(Math.round(t.scrollTop)); if (amostras.length < 20) requestAnimationFrame(f); else r(amostras); };
+  requestAnimationFrame(f);
+});
 /** Com o agente e a ordem guardada (arrastar um ícone muda a casa): monta como o main, que redesenha ao mudar a ordem. */
 window.__montarComOrdem = () => {
   const cab = document.getElementById("cabecalho");
@@ -926,6 +947,43 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await estadoFinal()).toEqual({ atual: "conversa", quadroOculto: true, timelineVis: "visible", timelineInert: false, selecionada: "conversa" });
     // A inversão também avisa quem ouve, já com o modo novo.
     expect(await avaliar<string[]>(cdp, `window.__trocas`)).toEqual(["quadro:quadro", "conversa:conversa"]);
+  }, 30_000);
+
+  it("Tasks pontuais · voltar do Quadro à conversa longa: a última mensagem à vista desde o primeiro quadro, sem passar pelo topo", async () => {
+    await abrir(1440, false, true, false, "window.__montarLonga()");
+    const fim = await avaliar<number>(cdp, "window.__fimDaTimeline()");
+    expect(fim).toBeGreaterThan(5_000);
+    expect(await avaliar<number>(cdp, `document.getElementById("timeline").scrollTop`)).toBeGreaterThanOrEqual(fim - 2);
+    await trocar("quadro");
+    await acabar();
+    // Escondida, o Chrome zera a rolagem dela (o motivo do bug); a volta não pode mostrar esse topo.
+    expect(await estadoFinal()).toMatchObject({ atual: "quadro", timelineVis: "hidden" });
+    const amostras = await avaliar<number[]>(cdp, "window.__amostrarVolta(0)");
+    await acabar();
+    expect(amostras.filter((topo) => topo < fim - 2)).toEqual([]);
+  }, 30_000);
+
+  it("Tasks pontuais · lendo mais acima, ir a um app da pílula e voltar devolve o mesmo ponto da leitura", async () => {
+    await abrir(1440, false, true, false, "window.__montarLonga()");
+    const fim = await avaliar<number>(cdp, "window.__fimDaTimeline()");
+    const lendo = fim - 3_000;
+    await avaliar(cdp, `(() => { const t = document.getElementById("timeline"); t.scrollTop = ${lendo}; return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))); })()`);
+    await avaliar(cdp, `document.querySelector('${aba("2")}').click()`);
+    await acabar();
+    expect(await estadoFinal()).toMatchObject({ atual: "painel", timelineVis: "hidden" });
+    const amostras = await avaliar<number[]>(cdp, "window.__amostrarVolta(0)");
+    await acabar();
+    expect(amostras.filter((topo) => Math.abs(topo - lendo) > 2)).toEqual([]);
+  }, 30_000);
+
+  it("Tasks pontuais · mensagem nova com a conversa escondida: a volta mostra o fim novo, já no primeiro quadro", async () => {
+    await abrir(1440, false, true, false, "window.__montarLonga()");
+    await trocar("quadro");
+    await acabar();
+    await avaliar(cdp, `(() => { document.querySelector("#timeline .timeline").insertAdjacentHTML("beforeend", '<p style="height:400px">resposta nova</p>'); window.__rolagem.depoisDeDesenhar("${"c1"}", true); })()`);
+    const amostras = await avaliar<number[]>(cdp, "window.__amostrarVolta(0)");
+    const fim = await avaliar<number>(cdp, "window.__fimDaTimeline()");
+    expect(amostras.filter((topo) => topo < fim - 2)).toEqual([]);
   }, 30_000);
 
   it("revisão 2 do PR 606: quem ouve a troca (a leitura da conversa na volta) já vê o modo novo", async () => {

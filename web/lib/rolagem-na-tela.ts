@@ -1,5 +1,5 @@
 import { chaveDoProgresso, progressoNaTela, SEM_PROGRESSO, type ProgressoNaTela } from "./pilula.ts";
-import { depoisDeRolar, distanciaDoFim, permanenciaDaLinha, pilulaDaPergunta, pilulaDasNovas, pilulaDosPedidos, type LinhaNaJanela, type Medida, type Permanencia, type PedidosNaJanela, type PerguntaNaJanela } from "./rolagem.ts";
+import { CONVERSA_ESCONDIDA, depoisDeRolar, distanciaDoFim, permanenciaDaLinha, pilulaDaPergunta, pilulaDasNovas, pilulaDosPedidos, type LinhaNaJanela, type Medida, type Permanencia, type PedidosNaJanela, type PerguntaNaJanela } from "./rolagem.ts";
 
 /**
  * A rolagem da conversa na tela (definido em 2026-10-05): o estado "colada no fim" e a pílula da base, ligados à caixa
@@ -52,17 +52,47 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
   const medida = (): Medida => ({ topo: caixa.scrollTop, altura: caixa.scrollHeight, janela: caixa.clientHeight });
 
   /**
+   * A conversa escondida sob o quadro ou uma página da pílula (`CONVERSA_ESCONDIDA`, web/lib/rolagem.ts): a rolagem dela
+   * fica parada onde a pessoa deixou. O topo que o Chrome zera nesse tempo não é a pessoa subindo, e descer até o fim de
+   * uma caixa sem altura não leva a lugar nenhum. `topoVisto` é o último topo com a conversa à vista; a volta restaura.
+   */
+  const escondida = (): boolean => caixa.classList.contains(CONVERSA_ESCONDIDA);
+  let topoVisto = caixa.scrollTop;
+
+  /**
    * `acompanhar` (o conteúdo cresceu com a conversa colada): como o Grok Bot, o salto que cabe numa tela desce suave
    * (`scrollTo` smooth, que o próximo crescimento só redireciona); maior que isso, ou sem movimento (reduced motion), vai
    * direto. Mandar mensagem (`colar`) e abrir a conversa continuam indo direto. `topoAntes` fica no ponto de partida: a
    * descida suave só sobe o topo, e `depoisDeRolar` não a lê como a pessoa subindo.
    */
   function irAoFim(acompanhar = false): void {
+    // Escondida, só o estado: a volta (`reaparecer`) desce de verdade, já com a altura de novo.
+    if (escondida()) {
+      estado = { ...estado, colada: true };
+      return;
+    }
     const alvo = caixa.scrollHeight - caixa.clientHeight;
     const salto = alvo - caixa.scrollTop;
     if (acompanhar && salto > 1 && salto <= caixa.clientHeight && suave()) caixa.scrollTo({ top: alvo, behavior: "smooth" });
     else caixa.scrollTop = caixa.scrollHeight;
     estado = { colada: true, topoAntes: caixa.scrollTop };
+    topoVisto = caixa.scrollTop;
+  }
+
+  /**
+   * A conversa voltou à vista (a classe saiu, ainda antes do primeiro quadro da volta: o MutationObserver roda no fim da
+   * mesma tarefa). Colada, vai ao fim, com o que chegou enquanto ela estava escondida; quem lia mais acima volta ao
+   * mesmo ponto. Nunca no topo que o Chrome deixou.
+   */
+  function reaparecer(): void {
+    if (!conversa) return;
+    if (estado.colada) irAoFim();
+    else {
+      if (caixa.scrollTop !== topoVisto) caixa.scrollTop = topoVisto;
+      estado = { ...estado, topoAntes: caixa.scrollTop };
+      topoVisto = caixa.scrollTop;
+    }
+    atualizarPilula();
   }
 
   function linhaNaJanela(): LinhaNaJanela | null {
@@ -148,8 +178,17 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
   });
   observador.observe(caixa);
 
+  let estavaEscondida = escondida();
+  new MutationObserver(() => {
+    const agora = escondida();
+    if (agora === estavaEscondida) return;
+    estavaEscondida = agora;
+    if (!agora) reaparecer();
+  }).observe(caixa, { attributes: true, attributeFilter: ["class"] });
+
   caixa.addEventListener("scroll", () => {
-    if (!conversa) return;
+    if (!conversa || escondida()) return;
+    topoVisto = caixa.scrollTop;
     estado = depoisDeRolar(estado, medida());
     atualizarPilula();
   }, { passive: true });
@@ -195,7 +234,7 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
       // Com o card já no fim e a caixa no fim, não há para onde rolar e nenhum evento chega para colar de novo: a
       // conversa ficaria solta no fim, sem acompanhar a resposta. Confere depois que a rolagem suave teria começado.
       window.setTimeout(() => {
-        if (conversa && !estado.colada && distanciaDoFim(medida()) <= 2) estado = { colada: true, topoAntes: caixa.scrollTop };
+        if (conversa && !estado.colada && !escondida() && distanciaDoFim(medida()) <= 2) estado = { colada: true, topoAntes: caixa.scrollTop };
       }, 300);
     },
     irParaNovas() {

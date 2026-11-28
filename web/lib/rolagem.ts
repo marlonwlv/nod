@@ -35,6 +35,14 @@ export function distanciaDoFim(m: Medida): number {
 export type EstadoDaRolagem = { colada: boolean; topoAntes: number };
 
 /**
+ * A classe da conversa escondida sob o quadro e as páginas da pílula (web/quadro.css: `content-visibility: hidden`). Escondida,
+ * o Chrome zera a rolagem da timeline (o conteúdo pulado não tem altura) e dispara um evento de rolagem para o topo; na
+ * volta, a conversa aparecia no topo e só descia quando o ResizeObserver acordava, alguns quadros depois (medido em
+ * 2026-11-25 no Chrome headless sobre o app local: 3 a 7 quadros no topo; a pessoa via a conversa começar do início).
+ */
+export const CONVERSA_ESCONDIDA = "qd-saiu";
+
+/**
  * Depois de um evento de rolagem: subir solta, chegar perto do fim cola, e o resto mantém. "Subir" é o topo menor que a
  * referência com o fim fora de alcance. Quando o conteúdo encolhe, o navegador puxa o topo para baixo mas a caixa
  * continua no fim, e isso não solta (a folga de 2 px cobre o arredondamento de tela retina). Uma imagem que termina de
