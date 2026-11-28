@@ -162,7 +162,8 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
   switch (estado) {
     case "controle":
       // 2026-11-22: parado há 4 min, o controle está para voltar sozinho (DEVOLVE_SOZINHO_MS no servidor).
-      corpo = `<span class="ctc-estado"${devolveEm ? ' role="status"' : ""}>${CURSOR_NA_JANELA}<span>${devolveEm ? `Volta ${esc(aoNome(nome))} em 1 min` : "Você está no controle"}</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="${ariaTecla("Meta+Shift+A")}" title="${quem} espera · ${tecla("⌘⇧A")} devolve">Devolver ${esc(aoNome(nome))}</button>`;
+      // 2026-11-28: com a janela do Chrome aberta (ela pediu no ⋯), a pílula diz onde mexer; devolver fecha a janela.
+      corpo = `<span class="ctc-estado"${devolveEm ? ' role="status"' : ""}${janela ? ` title="A janela do Chrome está aberta no seu ${aparelho === "pc" ? "PC" : "Mac"}"` : ""}>${CURSOR_NA_JANELA}<span>${devolveEm ? `Volta ${esc(aoNome(nome))} em 1 min` : janela ? "Na janela do Chrome" : "Você está no controle"}</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="${ariaTecla("Meta+Shift+A")}" title="${quem} espera · ${tecla("⌘⇧A")} devolve">Devolver ${esc(aoNome(nome))}</button>`;
       break;
     case "assumindo":
       corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${quem} está terminando um clique…</span></span>${assumir(true)}`;
@@ -651,7 +652,7 @@ export function htmlAcoesDoPainel(o: { celular?: boolean } = {}): string {
  * O ⋯ do navegador (D1c): Recarregar a página · Copiar endereço · Abrir no meu navegador · Logins deste site… | Encerrar o
  * navegador (vermelho). No modo abas, o clique direito da aba (D7) leva os itens da aba antes (`daAba`).
  */
-export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean; trazerDoChrome?: boolean } = {}): string {
+export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean; trazerDoChrome?: boolean; janela?: "mac" | "pc" | null } = {}): string {
   // Achado 15 do crítico: um rótulo só ("Assumir o controle"), atalhos à direita em cinza e "Fechar os outros lugares".
   const aba = o.daAba
     ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir o controle</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia<span class="nv-menu-dica">${tecla("⌘⇧F")}</span></button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">${tecla("⌘W")}</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar os outros lugares</button><hr>`
@@ -664,6 +665,8 @@ export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEnder
     + '<button type="button" role="menuitem" data-nv-menu="logins">Logins deste site…</button>'
     // 2026-11-23 (o dono no LinkedIn pelo Google): a sessão do site do Chrome da pessoa, a qualquer hora (não só no cartão).
     + (o.trazerDoChrome ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="trazer-chrome"${desligado}>Trazer do meu Chrome<span class="nv-menu-sub">Entra neste site com o login do seu Chrome</span></button>` : "")
+    // 2026-11-28: a janela de verdade é a saída do que o painel não alcança (só no controle, com o Chrome no aparelho dela).
+    + (o.janela ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="janela">Abrir numa janela do ${o.janela === "pc" ? "PC" : "Mac"}<span class="nv-menu-sub">Para escolher um arquivo ou usar a digital</span></button>` : "")
     // T1: "Ensinar uma tarefa" também mora aqui (nunca no celular: um passo a passo longo não cabe ali).
     + (o.ensinar ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="ensinar">Ensinar uma tarefa<span class="nv-menu-sub">${esc(subtituloDeEnsinar(nome))}</span></button>` : "")
     + `<hr><button type="button" role="menuitem" class="danger" data-nv-menu="encerrar">Encerrar o navegador ${esc(deNome(nome))}</button></div>`;

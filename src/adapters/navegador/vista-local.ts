@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
-import { FECHAMENTOS_VISTA_LOCAL, type EnderecoVistaLocal, type MotivoFimLocal } from "../../contracts/navegador-local.ts";
+import type { EnderecoVistaLocal, MotivoFimLocal } from "../../contracts/navegador-local.ts";
 import type { EntradaNavegador } from "../../contracts/navegador-do-bot.ts";
 import { chamadasCdpDaEntrada, entradaDescartavel } from "../../domain/navegador-entrada-cdp.ts";
 import { comandosDaEntrada, lerEntradaNavegador } from "../../domain/navegador-entrada.ts";
@@ -78,12 +78,12 @@ export function criarVistaLocal(o: OpcoesVistaLocal): VistaLocal {
     return a.length === b.length && timingSafeEqual(a, b);
   }
 
-  function atender(ws: WebSocket, agenteId: string): void {
+  function atender(ws: WebSocket, agenteId: string, motor: MotorNavegador, portaDoBot: number): void {
     abertas.add(ws);
     let aberto = true;
     let stream: StreamDoNavegador | null = null;
     let cdp: EntradaCdp | null = null;
-    let porta = 0;
+    const porta = portaDoBot;
     let viewport = { w: 8192, h: 8192 };
     const fila: { n: number; e: EntradaNavegador }[] = [];
     let andando = false;
@@ -145,11 +145,6 @@ export function criarVistaLocal(o: OpcoesVistaLocal): VistaLocal {
 
     void (async () => {
       try {
-        const motor = await o.motor();
-        const p = await motor.portaDoStream(s);
-        if (!aberto) return;
-        if (p === null) { encerrar("sem_chrome", FECHAMENTOS_VISTA_LOCAL.semChrome); return; }
-        porta = p;
         const url = o.conectarCdp && motor.enderecoCdp ? await motor.enderecoCdp(s).catch(() => null) : null;
         if (url && o.conectarCdp) { const conectar = o.conectarCdp; cdp = criarEntradaCdp({ conectar: () => conectar(url) }); }
         const st = await o.conectarStream(porta);
@@ -187,7 +182,18 @@ export function criarVistaLocal(o: OpcoesVistaLocal): VistaLocal {
           socket.destroy();
           return;
         }
-        w.handleUpgrade(req, socket, head, (ws) => atender(ws, m[1]!.toLowerCase()));
+        const agenteId = m[1]!.toLowerCase();
+        // Sem o Chrome do bot aqui, nem abre (o app devolve null e a vista segue pelo servidor).
+        void (async () => {
+          const motor = await o.motor().catch(() => null);
+          const porta = motor ? await motor.portaDoStream({ agenteId }).catch(() => null) : null;
+          if (!motor || porta === null) {
+            socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          w.handleUpgrade(req, socket, head, (ws) => atender(ws, agenteId, motor, porta));
+        })();
       });
       await new Promise<void>((resolve, reject) => { servidor.once("error", reject); servidor.listen(0, "127.0.0.1", () => resolve()); });
       const addr = servidor.address();

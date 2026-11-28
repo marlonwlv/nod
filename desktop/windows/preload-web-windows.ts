@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { navegadorLocal } from "../preload-navegador-local.ts";
 import { CANAIS_DESKTOP, type IaDesktop, type NodDesktop } from "../../src/contracts/desktop.ts";
 import { CANAIS_MICROFONE } from "../../src/contracts/desktop-microfone.ts";
 import { CANAIS_REMOVER, type OpcoesRemover } from "../../src/contracts/remover-computador.ts";
@@ -26,7 +27,7 @@ const atualizacaoApp: NonNullable<PonteAtualizacaoApp["atualizacaoApp"]> = {
   definirSozinho: (ligado: boolean) => ipcRenderer.invoke(CANAIS_ATUALIZACAO.definirSozinho, ligado === true),
   avisoVisto: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.avisoVisto),
 };
-const ponte: Pick<NodDesktop, "iaEntrar" | "iaInstalar" | "desafioConta" | "trocarConta" | "googleConta" | "esteComputador" | "estaMaquina" | "removerDaqui" | "fecharAposRemover" | "microfone" | "ajustesMicrofone" | "atualizacaoApp"> = {
+const ponte: Pick<NodDesktop, "iaEntrar" | "iaInstalar" | "desafioConta" | "trocarConta" | "googleConta" | "esteComputador" | "estaMaquina" | "removerDaqui" | "fecharAposRemover" | "microfone" | "ajustesMicrofone" | "atualizacaoApp" | "navegadorLocal"> = {
   iaEntrar: (ia: IaDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.iaEntrar, ia),
   iaInstalar: (ia: IaDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.iaInstalar, ia),
   // ADA-242 (ADR-157): o Google para conta dentro do app, como no Mac (desafio do segredo de troca + loopback).
@@ -48,5 +49,6 @@ const ponte: Pick<NodDesktop, "iaEntrar" | "iaInstalar" | "desafioConta" | "troc
   microfone: () => ipcRenderer.invoke(CANAIS_DESKTOP.microfone),
   ajustesMicrofone: () => ipcRenderer.invoke(CANAIS_MICROFONE.ajustes),
   atualizacaoApp,
+  navegadorLocal, // 2026-11-28: o navegador do bot (no motor deste PC) sem a volta pela nuvem
 };
 contextBridge.exposeInMainWorld("nodDesktop", ponte);

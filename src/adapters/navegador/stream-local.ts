@@ -99,13 +99,13 @@ export const relayPadrao = async (porta: number, comando: Readonly<Record<string
 export type ConstrutorWebSocket = new (url: string) => WebSocket;
 
 /**
- * O stream local pelo `WebSocket` global (a máquina da pessoa; o servidor usa o `ws`, em vivo.ts). Teto de 10 quadros por
- * segundo pedido ao próprio agent-browser (`maxFps`).
+ * O stream local pelo `WebSocket` global (a máquina da pessoa; o servidor usa o `ws`, em vivo.ts). Teto de quadros por
+ * segundo pedido ao próprio agent-browser (`maxFps`): 10 para a vista pela nuvem; a vista local (2026-11-28) pede 30.
  */
-export function conectarStreamGlobal(porta: number, WS: ConstrutorWebSocket | undefined = (globalThis as { WebSocket?: ConstrutorWebSocket }).WebSocket): Promise<StreamDoNavegador> {
+export function conectarStreamGlobal(porta: number, WS: ConstrutorWebSocket | undefined = (globalThis as { WebSocket?: ConstrutorWebSocket }).WebSocket, maxFps = 10): Promise<StreamDoNavegador> {
   return new Promise((resolve, reject) => {
     if (!WS) { reject(new Error("sem_websocket")); return; }
-    const ws = new WS(`ws://127.0.0.1:${porta}/?maxFps=10`);
+    const ws = new WS(`ws://127.0.0.1:${porta}/?maxFps=${Math.max(1, Math.min(60, Math.round(maxFps)))}`);
     const prazo = setTimeout(() => { ws.close(); reject(new Error("stream_sem_resposta")); }, 10_000);
     const aoMensagem: ((t: string) => void)[] = [];
     const aoFechar: (() => void)[] = [];

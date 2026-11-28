@@ -31,6 +31,8 @@ import { aquecerDriver, baixadorDoDriver } from "../src/adapters/seu-computador/
 import { publicarAtividade, vigiarParada } from "../src/adapters/seu-computador/sinal-entre-processos.ts";
 import { criarPessoaWindows } from "../src/adapters/seu-computador/pessoa-windows.ts";
 import { agentBrowserDoLinux, agentBrowserNoWindows, chromeDoLinux, chromeDoWindows, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
+import { gravarEnderecoVistaLocal } from "../src/adapters/navegador/endereco-vista-local.ts";
+import type { EnderecoVistaLocal } from "../src/contracts/navegador-local.ts";
 import { cookiesDoChromeDoPc, criarCofresDoWindows } from "../desktop/cofres-do-windows.ts";
 import { criarPonteDoChrome, pipeDoChrome, registrarHostNoWindows, rodarHostDoChrome, senhaDoChrome, type PonteDoChrome } from "../src/adapters/executor/chrome-da-pessoa.ts";
 import type { PlanoTurno } from "../src/contracts/plano-turno.ts";
@@ -339,6 +341,9 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
     // o cua-driver que ele sobe enxerga os apps dela pela UI Automation. O pacote fixo é baixado uma vez para a pasta do
     // executor (sha256 conferido); sem ele, o comando responde indisponível.
     ...(NO_WINDOWS ? { seuComputador: seuComputadorDoPc() } : {}),
+    // 2026-11-28 (o painel como um navegador normal): no PC a janela do nod é do app; a vista local mora aqui e o app lê o
+    // endereço (porta e token) do arquivo da pasta do executor.
+    ...(NO_WINDOWS ? { vistaLocal: { publicar: (e: EnderecoVistaLocal) => { void gravarEnderecoVistaLocal(pastaDoExecutor(process.env), e).catch(() => undefined); } } } : {}),
   });
 
   function seuComputadorDoPc(): SeuComputadorLocal {

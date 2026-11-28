@@ -541,44 +541,59 @@ describe("o PC oferece 'Trazer do meu Chrome' pela extensão do nod (2026-11-23)
   });
 });
 
-describe("2026-11-27: no aparelho da pessoa, 'Entrar eu mesmo' abre o Chrome do bot numa janela de verdade", () => {
+describe("2026-11-28: no aparelho da pessoa, ela entra pelo painel; a janela do Chrome é a saída que ela pede", () => {
   const noAparelho = () => criar({ lugarDe: async () => ({ tipo: "roda", lugar: { tipo: "mac", nome: "seu PC" }, desvio: null }) });
   const janelas = () => chamadas.filter((c) => c.op === "janela").map((c) => c.args[0]);
   const esperar = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
 
-  it("abre com janela no 'Entrar eu mesmo' e volta sem janela no 'Pronto', antes de o bot retomar", async () => {
+  it("'Entrar eu mesmo' passa o controle no painel, sem abrir janela", async () => {
     const n = noAparelho();
     const decisao = await noLoginDoItau(n);
     await n.escolherLogin(MARLON, A, decisao, "eu_mesmo");
     await esperar();
+    expect(janelas()).toEqual([]);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { etapa: "eu_mesmo" } });
+    expect(n.vista(MARLON, A)!.janela).toBeUndefined();
+  });
+
+  it("ela pede a janela (⋯ Abrir numa janela): abre no mesmo perfil; 'Pronto' a fecha antes de o bot retomar", async () => {
+    const n = noAparelho();
+    const decisao = await noLoginDoItau(n);
+    await n.escolherLogin(MARLON, A, decisao, "eu_mesmo");
+    await n.operar(MARLON, A, "janela");
     expect(janelas()).toEqual([true]);
-    expect(n.vista(MARLON, A)).toMatchObject({ janela: true, controle: "pessoa", pedido: { etapa: "eu_mesmo" } });
+    expect(n.vista(MARLON, A)).toMatchObject({ janela: true, controle: "pessoa" });
     await n.operar(MARLON, A, "resolver");
     expect(janelas()).toEqual([true, false]);
     expect(n.vista(MARLON, A)!.janela).toBe(false);
-    // A janela fechou antes da retomada: a primeira leitura do bot já cai no Chrome sem janela, logado.
-    const iFechou = chamadas.findIndex((c) => c.op === "janela" && c.args[0] === false);
-    expect(iFechou).toBeGreaterThan(-1);
     expect(retomadas).toEqual([expect.objectContaining({ decisaoId: decisao })]);
   });
 
-  it("com o navegador no nod não há janela: fica a vista do painel, como antes", async () => {
-    const n = criar();
-    const decisao = await noLoginDoItau(n);
-    await n.escolherLogin(MARLON, A, decisao, "eu_mesmo");
-    await esperar();
-    expect(janelas()).toEqual([]);
-    expect(n.vista(MARLON, A)!.janela).toBeUndefined();
+  it("no controle sem pedido (escolher um arquivo): a janela abre e devolver a fecha", async () => {
+    const n = noAparelho();
+    await chamar(n, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await n.operar(MARLON, A, "assumir");
+    await n.operar(MARLON, A, "janela");
+    expect(n.vista(MARLON, A)!.janela).toBe(true);
+    await n.operar(MARLON, A, "devolver");
+    expect(janelas()).toEqual([true, false]);
+    expect(n.vista(MARLON, A)!.janela).toBe(false);
   });
 
-  it("app antigo (sem a operação): a janela não abre, o login segue pela vista e nada quebra", async () => {
+  it("sem o controle, no nod (nuvem) ou com o app antigo (sem a operação): recusa", async () => {
+    const assistindo = noAparelho();
+    await chamar(assistindo, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await expect(assistindo.operar(MARLON, A, "janela")).rejects.toThrow();
+    const noNod = criar();
+    await chamar(noNod, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await noNod.operar(MARLON, A, "assumir");
+    await expect(noNod.operar(MARLON, A, "janela")).rejects.toThrow();
     const semJanela: MotorNavegador = new Proxy({} as MotorNavegador, { get: (_t, op: string) => (op === "janela" ? undefined : (motor as unknown as Record<string, unknown>)[op]) });
-    const n = criar({ motor: () => semJanela, lugarDe: async () => ({ tipo: "roda", lugar: { tipo: "mac", nome: "seu Mac" }, desvio: null }) });
-    const decisao = await noLoginDoItau(n);
-    await n.escolherLogin(MARLON, A, decisao, "eu_mesmo");
-    await esperar();
-    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { etapa: "eu_mesmo" } });
-    expect(n.vista(MARLON, A)!.janela).toBeUndefined();
+    const antigo = criar({ motor: () => semJanela, lugarDe: async () => ({ tipo: "roda", lugar: { tipo: "mac", nome: "seu Mac" }, desvio: null }) });
+    await chamar(antigo, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await antigo.operar(MARLON, A, "assumir");
+    await expect(antigo.operar(MARLON, A, "janela")).rejects.toThrow();
+    expect(antigo.vista(MARLON, A)!.janela).toBeUndefined();
   });
 });
 

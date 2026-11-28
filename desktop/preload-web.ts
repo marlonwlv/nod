@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { navegadorLocal } from "./preload-navegador-local.ts";
 import { CANAIS_DESKTOP, type AlvoAviso, type AvisoDesktop, type ContasNaTela, type IaDesktop, type NodDesktop, type PonteContas, type PonteIas, type TemaDesktop } from "../src/contracts/desktop.ts";
 import type { BarraDesktop, DecisaoBarraDesktop } from "../src/contracts/desktop-barra.ts";
 import type { AcaoDeBusca } from "./menu.ts";
@@ -91,6 +92,7 @@ const atualizacaoApp: NonNullable<PonteAtualizacaoApp["atualizacaoApp"]> = {
 };
 const ponte: NodDesktop = {
   atualizacaoApp,
+  navegadorLocal, // 2026-11-28: o navegador do bot sem a volta pela nuvem
   avisar: (aviso: AvisoDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.avisar, aviso),
   contador: (n: number) => ipcRenderer.invoke(CANAIS_DESKTOP.contador, n),
   preferencias: () => ipcRenderer.invoke(CANAIS_DESKTOP.preferencias),

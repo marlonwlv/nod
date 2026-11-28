@@ -10,6 +10,9 @@ import { log } from "../../obs/log.ts";
 import { ambienteDoSistema, criarMotorAgentBrowser, ehFalhaNavegador, executorPadrao, FalhaNavegador, type ExecutorProcesso, type MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import { ehOperacao, executarOperacao } from "../navegador/operacoes-remotas.ts";
 import { conectarStreamGlobal, lerJson, relayPadrao, relayPermitido, tipoDaMensagem, TIPOS_DE_ENTRADA_DO_STREAM, TIPOS_DO_STREAM_QUE_SAEM, type StreamDoNavegador } from "../navegador/stream-local.ts";
+import { conectarCdpGlobal } from "../navegador/entrada-cdp.ts";
+import { criarVistaLocal, type VistaLocal } from "../navegador/vista-local.ts";
+import type { EnderecoVistaLocal } from "../../contracts/navegador-local.ts";
 
 /**
  * O navegador do bot na máquina da pessoa (ADR-190, decisão 5; ADR-021, a máquina puxa). O app do Mac e o motor do Linux
@@ -78,6 +81,12 @@ export type OpcoesNavegadorDaMaquina = {
    * comandos `seu_computador` rodam aqui; ausente = esta máquina não atende (o servidor nem manda).
    */
   seuComputador?: { executar(agenteId: string, pedido: PedidoSeuComputador): Promise<RespostaSeuComputador> };
+  /**
+   * 2026-11-28 (o painel como um navegador normal): a vista local, para o app do nod NESTA máquina mostrar o navegador do
+   * bot sem a volta pela nuvem (vista-local.ts). `publicar` recebe o endereço quando o servidor local sobe (o motor do PC
+   * grava para o app; no Mac o app pergunta direto). Ausente = só a vista pelo servidor (o Linux sempre ligado).
+   */
+  vistaLocal?: { publicar?(e: EnderecoVistaLocal): void };
 };
 
 const ESPERA_SEM_ROTA_MS = 10 * 60_000;
@@ -135,7 +144,13 @@ function falha(id: string, e: unknown): ResultadoComandoNavegador {
   return { id, ok: false, motivo: "acao_falhou", detalhe: "falhou nesta máquina" };
 }
 
-export type NavegadorDaMaquina = { parar(): void; /** Só testes: vistas abertas agora. */ vivos(): number };
+export type NavegadorDaMaquina = {
+  parar(): void;
+  /** Só testes: vistas abertas agora. */
+  vivos(): number;
+  /** Onde a vista local ouve (null = sem vista local nesta máquina, ou ela não subiu). */
+  enderecoLocal(): Promise<EnderecoVistaLocal | null>;
+};
 
 export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): NavegadorDaMaquina {
   const agora = o.agora ?? (() => Date.now());
@@ -148,6 +163,13 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
   /** Os comandos de um bot em ordem (o agent-browser serializa a sessão; bots diferentes andam juntos). */
   const filas = new Map<string, Promise<void>>();
   const vivos = new Map<string, { fechar(): void }>();
+  // definido em 2026-11-28: a vista local pede 30 quadros/s (na mesma máquina não há rede a poupar; 10 por segundo deixava
+  // a rolagem e a digitação aos trancos).
+  const streamLocal = o.conectarStream ?? ((porta: number) => conectarStreamGlobal(porta, undefined, 30));
+  const vistaLocal: VistaLocal | null = o.vistaLocal ? criarVistaLocal({ motor: o.motor, conectarStream: streamLocal, relay, conectarCdp: (url) => conectarCdpGlobal(url) }) : null;
+  const enderecoLocal: Promise<EnderecoVistaLocal | null> = vistaLocal
+    ? vistaLocal.iniciar().then((e) => { o.vistaLocal?.publicar?.(e); return e; }, (e: unknown) => { log("aviso", "navegador_local_nao_subiu", { erro: e instanceof Error ? e.message.slice(0, 80) : "desconhecido" }); return null; })
+    : Promise.resolve(null);
 
   async function responder(r: ResultadoComandoNavegador): Promise<void> {
     if (await o.canal.resultado(r).catch(() => false)) return;
@@ -289,8 +311,10 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
       parado = true;
       for (const v of [...vivos.values()]) v.fechar();
       vivos.clear();
+      void vistaLocal?.parar();
     },
     vivos: () => vivos.size,
+    enderecoLocal: () => enderecoLocal,
   };
 }
 

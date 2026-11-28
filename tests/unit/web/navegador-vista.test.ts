@@ -364,6 +364,14 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(htmlMenuDoNavegador("Ada")).not.toContain("trazer-chrome");
   });
 
+  it("2026-11-28: 'Abrir numa janela' só aparece quando a vista manda (no controle, com o Chrome no aparelho dela)", () => {
+    expect(htmlMenuDoNavegador("Ada", { janela: "pc" })).toMatch(/data-nv-menu="janela">Abrir numa janela do PC<span class="nv-menu-sub">Para escolher um arquivo ou usar a digital/);
+    expect(htmlMenuDoNavegador("Ada", { janela: "mac" })).toContain("Abrir numa janela do Mac");
+    expect(htmlMenuDoNavegador("Ada", {})).not.toContain('data-nv-menu="janela"');
+    expect(htmlPilula("Ada", "controle", null, null, null, "pc", true)).toContain("Na janela do Chrome");
+    expect(htmlPilula("Ada", "controle", null, null, null, "pc", true)).toContain("Devolver à Ada");
+  });
+
   it("encerrar pergunta só com o bot no meio de algo", () => {
     expect(botNoMeio(vista({ passo: { tipo: "clicar", frase: "", caixa: null, em: 10_000 } }), 15_000)).toBe(true);
     expect(botNoMeio(vista({ passo: { tipo: "clicar", frase: "", caixa: null, em: 10_000 } }), 60_000)).toBe(false);

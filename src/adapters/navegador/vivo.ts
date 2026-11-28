@@ -82,7 +82,11 @@ export const FILA_MAX_BYTES = 1024 * 1024;
 const RECUSA_A_CADA_MS = 1_000;
 /** definido em 2026-11-20: entradas na fila de um espectador; passando disto, o movimento do mouse cai. */
 const FILA_ENTRADAS_MAX = 64;
-type Espectador = { canal: CanalVivoNavegador; ultimoQuadroEm: number; ultimaRecusaEm: number; fila: Promise<void>; naFila: number; aberto: boolean };
+/**
+ * `local` (2026-11-28): a web desta pessoa vê os quadros pela vista local do app (o Chrome do bot no computador onde ela
+ * está, `vista-local.ts`); por aqui só a vista, o espelho da entrada e as abas/tamanho que ela repassa. Sem quadro.
+ */
+type Espectador = { canal: CanalVivoNavegador; ultimoQuadroEm: number; ultimaRecusaEm: number; fila: Promise<void>; naFila: number; aberto: boolean; local: boolean };
 type Bot = {
   escopo: Escopo;
   agenteId: string;
@@ -138,13 +142,17 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
     f?.stream.fechar();
   }
 
+  /** Alguém assiste pelo servidor (não pela vista local): só então o stream da máquina abre. */
+  const querQuadros = (bot: Bot) => bot.espectadores.some((e) => !e.local);
+
   function sair(bot: Bot, e: Espectador): void {
     e.aberto = false;
     bot.espectadores = bot.espectadores.filter((x) => x !== e);
-    if (bot.espectadores.length) return;
+    if (bot.espectadores.length) { if (!querQuadros(bot)) fecharStream(bot); return; }
     fecharStream(bot);
     bots.delete(chave(bot.escopo, bot.agenteId));
   }
+
 
   function agendarReabrir(bot: Bot): void {
     if (bot.reabrir || !bot.espectadores.length) return;
@@ -158,7 +166,7 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
     bot.seq++;
     const t = agora();
     for (const e of bot.espectadores) {
-      if (t - e.ultimoQuadroEm < intervalo || e.canal.pendente() > FILA_MAX_BYTES) continue;
+      if (e.local || t - e.ultimoQuadroEm < intervalo || e.canal.pendente() > FILA_MAX_BYTES) continue;
       e.ultimoQuadroEm = t;
       enviar(e, { t: "quadro", seq: bot.seq, jpeg: q.jpeg, w: q.w, h: q.h });
     }
@@ -190,13 +198,13 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
 
   /** Abre o stream do bot se alguém assiste e há Chrome vivo; um por vez. */
   async function garantirStream(bot: Bot): Promise<void> {
-    if (bot.fonte || bot.conectando || !bot.espectadores.length) return;
+    if (bot.fonte || bot.conectando || !querQuadros(bot)) return;
     if (!temChromeVivo(o.portao.vistaDe(bot.escopo, bot.agenteId).estado)) return;
     bot.conectando = true;
     try {
       const f = await abrirFonte(bot);
       if (!f) { if (o.portao.vistaDe(bot.escopo, bot.agenteId).lugar.tipo !== "nod") agendarReabrir(bot); return; }
-      if (!bot.espectadores.length || bots.get(chave(bot.escopo, bot.agenteId)) !== bot) { f.stream.fechar(); return; }
+      if (!querQuadros(bot) || bots.get(chave(bot.escopo, bot.agenteId)) !== bot) { f.stream.fechar(); return; }
       bot.fonte = f;
       bot.lugarDaFonte = JSON.stringify(o.portao.vistaDe(bot.escopo, bot.agenteId).lugar);
       f.stream.aoMensagem((texto) => doStream(bot, texto));
@@ -213,10 +221,51 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
     }
   }
 
+  /**
+   * 2026-11-28: o que só a web com a vista local manda. `quadros`: troca de caminho (a vista local caiu e ela volta a ver
+   * por aqui, ou o contrário). `espelho`: a entrada que já foi ao Chrome pela máquina, para a gravação (ensinar), o
+   * "Guardar no cofre" (L5) e o relógio de quem mexe; nada vai ao Chrome daqui. `do_stream`: as abas e o tamanho que a
+   * vista local recebeu (o portão os tinha pelo stream do servidor). true = era uma destas.
+   */
+  function doLocal(bot: Bot, e: Espectador, m: Record<string, unknown>): boolean {
+    if (m.t === "quadros") {
+      e.local = m.local === true;
+      if (querQuadros(bot)) void garantirStream(bot);
+      else fecharStream(bot);
+      return true;
+    }
+    if (m.t === "do_stream" && e.local) {
+      const d = m.m;
+      if (typeof d !== "object" || d === null || Array.isArray(d)) return true;
+      const msg = d as Record<string, unknown>;
+      if (msg.type === "tabs") { const abas = lerAbasDoStream(msg); if (abas) o.portao.doStream(bot.escopo, bot.agenteId, { abas }); }
+      else if (msg.type === "status" && inteiro(msg.viewportWidth, 1, 8192) && inteiro(msg.viewportHeight, 1, 8192)) o.portao.doStream(bot.escopo, bot.agenteId, { viewport: { w: msg.viewportWidth, h: msg.viewportHeight } });
+      return true;
+    }
+    if (m.t === "espelho" && e.local) {
+      const vista = o.portao.vistaDe(bot.escopo, bot.agenteId);
+      const ent = lerEntradaNavegador(m.e, vista.viewport);
+      if (!ent || ent.t === "tamanho" || vista.controle !== "pessoa") return true;
+      if (e.naFila >= FILA_ENTRADAS_MAX) return true;
+      e.naFila++;
+      e.fila = e.fila.then(async () => {
+        try {
+          await o.portao.antesDaEntrada(bot.escopo, bot.agenteId, ent).catch((erro: unknown) => log("aviso", "navegador_gravacao_falhou", { agente_id: bot.agenteId, erro: erro instanceof Error ? erro.name : "desconhecido" }));
+        } finally {
+          e.naFila--;
+        }
+      });
+      return true;
+    }
+    return false;
+  }
+
   /** Uma entrada da pessoa: conferida, só com ela no controle, na ordem em que chegou. */
   function entrada(bot: Bot, e: Espectador, texto: string): void {
     const vista = o.portao.vistaDe(bot.escopo, bot.agenteId);
-    const ent = lerEntradaNavegador(lerJson(texto), vista.viewport);
+    const cru = lerJson(texto);
+    if (cru && doLocal(bot, e, cru)) return;
+    const ent = lerEntradaNavegador(cru, vista.viewport);
     if (!ent) return;
     // O tamanho vale assistindo ou no controle: não mexe na página, só no tamanho do Chrome.
     if (ent.t === "tamanho") { o.portao.tamanho?.(bot.escopo, bot.agenteId, { w: ent.w, h: ent.h }); return; }
@@ -247,8 +296,8 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
 
   return {
     /** A dona abriu o canal (o upgrade já conferiu cookie, tenant e Origin): confere o bot, manda a vista e liga o stream. */
-    web(escopo: Escopo, agenteId: string, canal: CanalVivoNavegador): void {
-      const e: Espectador = { canal, ultimoQuadroEm: 0, ultimaRecusaEm: 0, fila: Promise.resolve(), naFila: 0, aberto: true };
+    web(escopo: Escopo, agenteId: string, canal: CanalVivoNavegador, modo?: { local?: boolean }): void {
+      const e: Espectador = { canal, ultimoQuadroEm: 0, ultimaRecusaEm: 0, fila: Promise.resolve(), naFila: 0, aberto: true, local: modo?.local === true };
       const recebidas: string[] = [];
       let bot: Bot | null = null;
       canal.aoFechar(() => { if (bot) sair(bot, e); else e.aberto = false; });

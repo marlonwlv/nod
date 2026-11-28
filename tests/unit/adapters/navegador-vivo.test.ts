@@ -71,7 +71,7 @@ async function montar(o: { intervaloQuadroMs?: number; semVivo?: boolean } = {})
   const srv: Server = createServer();
   const canais = anexarCanaisVoz(srv, {
     resolverEscopo: async () => ESCOPO, autorizarTokenTurno: () => null, ligacaoDoTurno: () => null, anexarMidia: () => null, anexarCerebro: () => null, anexarDitado: () => {},
-    ...(o.semVivo ? {} : { navegadorVivo: { web: (escopo, agenteId, canal) => vivo.web(escopo, agenteId, canal) } }),
+    ...(o.semVivo ? {} : { navegadorVivo: { web: (escopo, agenteId, canal, modo) => vivo.web(escopo, agenteId, canal, modo) } }),
   });
   await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
   servidores.push({ close: (cb) => { vivo.fechar(); void canais.fechar().then(() => { srv.closeAllConnections(); srv.close(() => cb()); }); } });
@@ -81,8 +81,8 @@ async function montar(o: { intervaloQuadroMs?: number; semVivo?: boolean } = {})
 }
 
 type Web = { ws: WebSocket; msgs: Record<string, unknown>[]; fechou: Promise<{ codigo: number; motivo: string }> };
-async function abrirWeb(host: string, agenteId = BOT, origem = `http://${host}`): Promise<Web> {
-  const ws = new WebSocket(`ws://${host}/api/t/${ESCOPO.tenantId}/agentes/${agenteId}/navegador/vivo`, { headers: { origin: origem } });
+async function abrirWeb(host: string, agenteId = BOT, origem = `http://${host}`, query = ""): Promise<Web> {
+  const ws = new WebSocket(`ws://${host}/api/t/${ESCOPO.tenantId}/agentes/${agenteId}/navegador/vivo${query}`, { headers: { origin: origem } });
   const msgs: Record<string, unknown>[] = [];
   ws.on("message", (d) => msgs.push(JSON.parse(d.toString()) as Record<string, unknown>));
   const fechou = new Promise<{ codigo: number; motivo: string }>((r) => ws.once("close", (codigo, motivo) => r({ codigo, motivo: motivo.toString() })));
@@ -279,5 +279,68 @@ describe("a vista de um bot que roda na máquina da pessoa (lugar mac/maquina)",
     await ate(() => aberturas === 2);
     expect(fechadas).toBe(1);
     vivo.fechar();
+  });
+});
+
+describe("2026-11-28: a web com a vista local do app (?quadros=local)", () => {
+  it("só a vista: o stream do servidor nem abre; com outro espectador comum ele abre e o local segue sem quadro", async () => {
+    const { ab, host } = await montar();
+    const local = await abrirWeb(host, BOT, undefined, "?quadros=local");
+    await ate(() => local.msgs.length > 0);
+    expect(local.msgs[0]).toMatchObject({ t: "vista" });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(ab.abertas()).toBe(0);
+    const comum = await abrirWeb(host);
+    await ate(() => ab.abertas() === 1);
+    ab.mandar({ type: "frame", seq: 1, data: JPEG, metadata: { deviceWidth: 1280, deviceHeight: 720 } });
+    await ate(() => quadros(comum).length === 1);
+    expect(quadros(local)).toHaveLength(0);
+    comum.ws.close();
+    await ate(() => ab.abertas() === 0);
+    local.ws.close();
+  });
+
+  it("a vista local caiu (`quadros: false`): o stream abre e os quadros voltam por aqui; `true` de novo fecha", async () => {
+    const { ab, host } = await montar();
+    const web = await abrirWeb(host, BOT, undefined, "?quadros=local");
+    await ate(() => web.msgs.length > 0);
+    web.ws.send(JSON.stringify({ t: "quadros", local: false }));
+    await ate(() => ab.abertas() === 1);
+    ab.mandar({ type: "frame", seq: 1, data: JPEG, metadata: { deviceWidth: 1280, deviceHeight: 720 } });
+    await ate(() => quadros(web).length === 1);
+    web.ws.send(JSON.stringify({ t: "quadros", local: true }));
+    await ate(() => ab.abertas() === 0);
+    web.ws.close();
+  });
+
+  it("o espelho vai só à gravação (antesDaEntrada), nunca ao Chrome; as abas e o tamanho da vista local vão ao portão", async () => {
+    const { ab, host, antes, doStream, mudar } = await montar();
+    const web = await abrirWeb(host, BOT, undefined, "?quadros=local");
+    await ate(() => web.msgs.length > 0);
+    // Assistindo, o espelho não conta (a entrada só vale no controle).
+    web.ws.send(JSON.stringify({ t: "espelho", e: { t: "tecla", evento: "char", texto: "a" } }));
+    await new Promise((r) => setTimeout(r, 80));
+    mudar({ controle: "pessoa" });
+    web.ws.send(JSON.stringify({ t: "espelho", e: { t: "mouse", evento: "mousePressed", x: 10, y: 20 } }));
+    web.ws.send(JSON.stringify({ t: "espelho", e: { t: "tecla", evento: "char", texto: "b" } }));
+    web.ws.send(JSON.stringify({ t: "do_stream", m: { type: "tabs", tabs: [{ tabId: "t2", title: "Banco", url: "https://banco.example/", active: true, targetId: "ABCDEF0123456789" }] } }));
+    web.ws.send(JSON.stringify({ t: "do_stream", m: { type: "status", viewportWidth: 900, viewportHeight: 600 } }));
+    web.ws.send(JSON.stringify({ t: "do_stream", m: { type: "result", data: "nada" } }));
+    await ate(() => antes.length === 2 && doStream.length === 2);
+    expect(antes).toEqual([{ t: "mouse", evento: "mousePressed", x: 10, y: 20, cliques: 0, dx: 0, dy: 0, modificadores: 0 }, { t: "tecla", evento: "char", texto: "b", modificadores: 0 }]);
+    expect(doStream).toEqual([{ abas: [{ id: "t2", titulo: "Banco", url: "https://banco.example/", ativa: true }] }, { viewport: { w: 900, h: 600 } }]);
+    expect(ab.recebidas).toEqual([]);
+    expect(ab.relay).toEqual([]);
+    web.ws.close();
+  });
+
+  it("um espectador comum não manda abas pelo do_stream (só a vista local tem esse caminho)", async () => {
+    const { host, doStream } = await montar();
+    const web = await abrirWeb(host);
+    await ate(() => web.msgs.length > 0);
+    web.ws.send(JSON.stringify({ t: "do_stream", m: { type: "status", viewportWidth: 900, viewportHeight: 600 } }));
+    await new Promise((r) => setTimeout(r, 80));
+    expect(doStream).toEqual([]);
+    web.ws.close();
   });
 });

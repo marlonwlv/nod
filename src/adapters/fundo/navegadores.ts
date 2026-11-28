@@ -827,8 +827,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       try {
         await motor.janela!(s, true);
         est.refs = null; est.refsPorTamanho = false;
-        // A pessoa pode ter terminado (ou desistido) enquanto a janela abria: aí ela volta a fechar já.
-        if (est.vista.pedido?.tipo === "login" && est.vista.controle === "pessoa") mudar(est, { janela: true });
+        // A pessoa pode ter devolvido (ou terminado o login) enquanto a janela abria: aí ela volta a fechar já.
+        if (est.vista.controle === "pessoa") mudar(est, { janela: true });
         else await motor.janela!(s, false).catch(() => undefined);
       } catch (e) {
         log("aviso", "navegador_janela_nao_abriu", { agente_id: est.vista.agenteId, erro: ehFalhaNavegador(e) ? e.motivo : e instanceof Error ? e.name : "desconhecido" });
@@ -1599,6 +1599,16 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         else if (!pedido && esperando) await retomarDevolvido(escopo, esperando, false);
         return est.vista;
       }
+      // 2026-11-28: a pessoa no controle pede o Chrome do bot numa janela de verdade no aparelho dela (o que o painel não
+      // alcança: escolher arquivo, a digital do Windows). Devolver ou "Pronto" a fecham.
+      if (op === "janela") {
+        exigirPessoa(est);
+        if (est.vista.lugar.tipo !== "mac" || !motorDe(est)?.janela) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
+        abrirJanela(est);
+        await est.trocandoJanela;
+        if (!est.vista.janela) throw new ErroDeDominio("estado_invalido", { cause: "acao_falhou" });
+        return est.vista;
+      }
       if (op === "ligar" || op === "retomar") {
         const lugar = await o.dentro(escopo, (d) => decidirLugar(d, est));
         if (lugar.tipo === "espera") throw new ErroDeDominio("estado_invalido", { cause: lugar.motivo });
@@ -1710,8 +1720,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if (est.loginEmCurso) throw new ErroDeDominio("estado_invalido", { cause: "login_em_curso" });
       if (escolha === "eu_mesmo") {
         comecarCaptura(est, est.loginHost ?? hostDoSite(pedido.site));
+        // 2026-11-28: ela entra pelo próprio painel (a vista local leva cada tecla confirmada); a janela do Chrome é a saída
+        // que ela pede no ⋯ ("Abrir numa janela"), não o caminho de sempre.
         mudar(est, { controle: "pessoa", pedido: { ...pedido, etapa: "eu_mesmo", erro: null }, atividadeEm: agora() });
-        abrirJanela(est);
         return { vista: est.vista, aviso: null };
       }
       const { motor, url } = await motorAberto(est);

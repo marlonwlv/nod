@@ -128,7 +128,7 @@ describe.skipIf(!LIGADO)("o painel como um navegador normal: login e rotina pela
     const dados = mkdtempSync(join(tmpdir(), "nod-painel-"));
     const motor = criarMotorAgentBrowser({ dados, segredo: randomBytes(32), binario: binarioAgentBrowser(), chrome, ociosoMs: 600_000 });
     const s = { agenteId: "22222222-2222-4222-8222-222222222222" };
-    const vista = criarVistaLocal({ motor: async () => motor, conectarStream: (p) => conectarStreamGlobal(p), relay: relayPadrao, conectarCdp: (u) => conectarCdpGlobal(u) });
+    const vista = criarVistaLocal({ motor: async () => motor, conectarStream: (p) => conectarStreamGlobal(p, undefined, 30), relay: relayPadrao, conectarCdp: (u) => conectarCdpGlobal(u) });
     try {
       // O bot chegou na tela de login (o Chrome dele está ligado, como quando ele pede para a pessoa entrar).
       await motor.abrir(s, `${base}/`);

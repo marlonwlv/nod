@@ -66,7 +66,7 @@ export type DepsCanaisVoz = {
    * sentidos (src/adapters/navegador/vivo.ts). Ausente, o caminho dá 404.
    */
   navegadorVivo?: {
-    web(escopo: Escopo, agenteId: string, canal: CanalVoz): void;
+    web(escopo: Escopo, agenteId: string, canal: CanalVoz, modo?: { local?: boolean }): void;
     /**
      * A vista vinda da máquina da pessoa (`/api/maquina/navegador/vivo/:agenteId?t=`): sem cookie nem `Origin`, o token de
      * uso único do comando `assistir` (que só saiu pela puxada escopada da chave da máquina) a autentica. false = recusado.
@@ -246,7 +246,9 @@ export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz 
         wss.handleUpgrade(req, socket, head, (ws) => {
           vigiarSessao(ws, req, escopo);
           ws.on("error", (e) => log("aviso", "navegador_vivo_erro_socket", { erro: e.name }));
-          vivo.web(escopo, agenteId, canalDeSocket(ws));
+          // 2026-11-28: `?quadros=local` — a web vê os quadros pela vista local do app; por aqui, só a vista.
+          const local = new URL(req.url ?? "/", "http://127.0.0.1").searchParams.get("quadros") === "local";
+          vivo.web(escopo, agenteId, canalDeSocket(ws), { local });
         });
       });
       return;

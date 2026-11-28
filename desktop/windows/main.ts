@@ -6,6 +6,8 @@ import { hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { arquivoDaConexao, carregarConexao, carregarMaquinaDoMotor, guardarConexao, pastaDoExecutor, pastaDoMotor, type ConexaoMotor } from "../../motor/conexao.ts";
+import { lerEnderecoVistaLocal } from "../../src/adapters/navegador/endereco-vista-local.ts";
+import { ligarNavegadorLocal } from "../navegador-local.ts";
 import { pedirParada, vigiarAtividade } from "../../src/adapters/seu-computador/sinal-entre-processos.ts";
 import { criarIlha } from "../ilha-seu-computador.ts";
 import { depsDeVerdade, desinstalar } from "../../motor/desinstalar.ts";
@@ -480,6 +482,9 @@ else {
       const r: EstaMaquina | null = estaMaquinaDe({ id: m?.id, nome: hostname(), plataforma: "win32" });
       return r;
     });
+    // 2026-11-28 (o painel como um navegador normal): a vista local do navegador do bot neste PC. O navegador roda no motor;
+    // o endereço (porta e token) vem do arquivo que ele grava na pasta do executor.
+    ligarNavegadorLocal({ ipcMain, endereco: () => lerEnderecoVistaLocal(pastaDoExecutor(process.env)), validar: (e) => { if (!daJanela(e)) throw new Error("entrada_invalida"); } });
     // 17/11/2026 (o microfone no Windows): antes de abrir o microfone a página confere o acesso do Windows; negado, o
     // aviso traz "Abrir Configurações", que vai direto a Privacidade e segurança › Microfone (endereço fixo daqui).
     ipcMain.handle(CANAIS_DESKTOP.microfone, (e) => { if (!daJanela(e)) throw new Error("entrada_invalida");
