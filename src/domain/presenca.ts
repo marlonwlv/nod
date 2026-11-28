@@ -29,7 +29,8 @@ export type RelogioDoAgendador = { ultimoTick: number | null; esperarAte: number
 
 /**
  * Um passo do laço do agendador: registra o tick, detecta o salto de relógio e diz se pode disparar.
- * Puro para o laço (src/adapters/fundo/scheduler-rotina.ts) não precisar de timer falso em teste.
+ * Puro para o laço (src/adapters/fundo/scheduler-rotina.ts e, desde a emenda de 2026-11-25,
+ * src/adapters/fundo/varredor-expiracao.ts) não precisar de timer falso em teste.
  */
 export function passoDoAgendador(estado: RelogioDoAgendador, agora: number, intervaloMs: number): { estado: RelogioDoAgendador; disparar: boolean; paradoMs: number | null } {
   const acordou = processoAcordou(estado.ultimoTick, agora, intervaloMs);

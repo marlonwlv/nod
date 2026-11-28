@@ -26,6 +26,7 @@ import { recolherRevisoesVelhas } from "../../use-cases/revisar-acao.ts";
 import { RECOLHER_REVISAO_MS } from "../../contracts/revisao.ts";
 import { varrerTrocasDeIa } from "../../use-cases/trocas-de-ia.ts";
 import { paraCadaPessoa, type OpcoesLaco } from "./escopos-de-fundo.ts";
+import { passoDoAgendador, type RelogioDoAgendador } from "../../domain/presenca.ts";
 
 /** definido em 2026-09-16: 30 s — a spec aceita "em ≤30s" para o vencimento aparecer (fluxo SUA VEZ E EXPIRAÇÃO). */
 export const INTERVALO_VARREDOR_MS = 30_000;
@@ -359,10 +360,19 @@ export async function varrer(db: Db, opcoes: OpcoesVarredor, laco: OpcoesLaco = 
 
 export function iniciarVarredorExpiracao(db: Db, opcoesIniciais: OpcoesVarredor & { intervaloMs?: number }, laco: OpcoesLaco = {}): { parar(): Promise<void> } {
   const opcoes = { ...opcoesIniciais, pedidosAdiados: opcoesIniciais.pedidosAdiados ?? new Map<string, number>(), esperasAdiadas: opcoesIniciais.esperasAdiadas ?? new Map<string, number>(), esperasPassadas: opcoesIniciais.esperasPassadas ?? new Map<string, number>(), riscosPassados: opcoesIniciais.riscosPassados ?? new Map<string, number>(), turnosObservados: opcoesIniciais.turnosObservados ?? new Map<string, number>() };
+  const intervaloMs = opcoes.intervaloMs ?? INTERVALO_VARREDOR_MS;
   let rodando = false;
   let emVoo: Promise<unknown> | null = null;
+  let relogio: RelogioDoAgendador = { ultimoTick: null, esperarAte: 0 };
   const timer = setInterval(() => {
+    // definido em 2026-09-24 (ADR-045), igual ao scheduler: o relógio que salta mais de 3 intervalos entre dois ticks é
+    // o processo que ficou suspenso; o laço espera 3 min antes de vencer as decisões acumuladas, para não vencer em lote
+    // um prazo que só "passou" porque o PC dormiu.
+    const passo = passoDoAgendador(relogio, opcoes.agora(), intervaloMs);
+    relogio = passo.estado;
+    if (passo.paradoMs !== null) log("aviso", "processo_acordou", { laco: "varredor_expiracao", parado_ms: passo.paradoMs, espera_ms: relogio.esperarAte - (relogio.ultimoTick ?? 0) });
     if (rodando) return;
+    if (!passo.disparar) return;
     rodando = true;
     emVoo = varrer(db, opcoes, laco)
       .catch((e: unknown) => log("erro", "varredor_tick_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }))
@@ -370,7 +380,7 @@ export function iniciarVarredorExpiracao(db: Db, opcoesIniciais: OpcoesVarredor 
         rodando = false;
         emVoo = null;
       });
-  }, opcoes.intervaloMs ?? INTERVALO_VARREDOR_MS);
+  }, intervaloMs);
   timer.unref();
   // NOD-218: `parar()` espera o tick em voo — a drenagem do deploy azul/verde não deixa um tick pela metade quando a
   // outra cor já assumiu.

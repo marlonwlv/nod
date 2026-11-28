@@ -505,3 +505,35 @@ parou de responder" — culpando a máquina pela falha do servidor. Diagnóstico
 `quedas_esgotadas`, a espera ou o teto estão curtos: subir. Se a pessoa clicar "Retomar" numa conversa cuja frase diz
 "o servidor do nod não respondeu" e a máquina de fato estava fora (presença mentiu), voltar a culpar a máquina e revisar
 `OFFLINE_MS`.
+
+## Emenda de 2026-11-25 — o varredor de expiração também espera ao acordar
+
+**Contexto.** Em 23/11, cerca de 29 rotinas pausaram quase juntas às 00:10 (`vencerPedidoDaRotina`, dentro de
+`varrerDecisoes`). Hipótese, sem o evento exato confirmado no banco: o PC dormiu, e ao acordar o `iniciarVarredorExpiracao`
+(ao contrário do `iniciarScheduler`) não tinha a guarda desta ADR — o primeiro tick depois do sono varria de uma vez
+TODAS as decisões vencidas acumuladas durante o sono (acesso, aprovação, pergunta, turno caído), em vez de dar o mesmo
+respiro de 3 min que o agendador de rotinas já dá.
+
+**Decisão.** `iniciarVarredorExpiracao` passa a usar o mesmo `passoDoAgendador`/`RelogioDoAgendador` de
+`src/domain/presenca.ts` que o `iniciarScheduler` já usa: o relógio anda a cada disparo do timer, e um salto de mais de
+3 intervalos (`INTERVALOS_PARA_ACORDAR`) segura o próximo `varrer()` por `ESPERA_APOS_ACORDAR_MS` (3 min), com o mesmo
+log `processo_acordou`. A guarda fica no laço (`iniciarVarredorExpiracao`), não dentro de `varrerDecisoes` ou de cada
+sub-varredura: atrasar o tick inteiro cobre todas as frentes (acesso, aprovação, pergunta, turno caído) de uma vez, sem
+precisar de uma trava por tipo de decisão.
+
+**Alternativa descartada.** Tratar só `vencerPedidoDaRotina` (o mecanismo visto em 23/11), ignorando as outras decisões
+que o mesmo tick vence. Resolveria o sintoma observado, mas deixaria a mesma falta de guarda nas outras frentes do
+varredor, que passam pelo mesmo `setInterval`.
+
+**Não implementado.** `iniciarVarredorLease` (`src/adapters/fundo/varredor-lease.ts`) tem o mesmo `setInterval` sem a
+guarda do ADR-045; fica para outra tarefa, já que o varredor de lease já tem piso próprio contra tick lento
+(`tests/unit/fundo/batimento-lacos.test.ts`) e não foi o mecanismo apontado em 23/11.
+
+**Gatilho de reversão.** Se em 14 dias de log um `processo_acordou` do `varredor_expiracao` não evitar nenhuma vencida
+em lote (nenhuma decisão venceria de qualquer forma nos 3 min seguintes), a guarda só atrasa o vencimento normal: trocar
+por uma espera menor ou remover. Se aparecer um pedido de acesso de rotina que deveria ter vencido na hora e não venceu
+por causa da espera, 3 min é demais para aquele caso: revisar por tipo de decisão em vez de no laço inteiro.
+
+**Validação.** unit `domain/presenca` (`passoDoAgendador`, já cobre a lógica pura reaproveitada), `fundo/varredor-expiracao-sono`
+(o laço: tick normal dispara; depois de um salto de relógio, segura por 3 min e loga `processo_acordou`; ticks durante a
+espera não disparam nem renovam a espera).
