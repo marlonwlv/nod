@@ -118,6 +118,7 @@ import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembret
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
 import { alternarTexto, versaoDosTextos } from "./lib/textos-abertos.ts";
 import { criarLeituraDeNovo } from "./lib/leitura-de-novo.ts";
+import { caminhoDoScript, criarRecargaPorVersaoNova, lerDepoisDaRecarga, type DepoisDaRecarga } from "./lib/versao-nova.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
 import { criarReleituraAdiada } from "./lib/releitura-adiada.ts";
@@ -533,6 +534,31 @@ let carregandoMarketplace = false;
 let modalDoMarketplace: { vez: number; inicial: InicialDoMarketplace } | null = null;
 let vezDoMarketplace = 0;
 let apiDoMarketplace: ReturnType<(typeof import("./react/marketplace/regiao.tsx"))["criarApiReal"]> | null = null;
+/**
+ * XUM-9: o pedaço do bundle que só baixa quando abre (o modal do Marketplace, o onboarding) some do servidor no deploy
+ * seguinte. A falha do `import()` com uma versão nova no servidor recarrega a página uma vez, em vez do "Algo deu errado
+ * nesta tela"; o Marketplace que a pessoa ia abrir abre sozinho depois (web/lib/versao-nova.ts).
+ */
+const sessaoDaAba = ((): Storage | null => { try { return window.sessionStorage; } catch { return null; } })();
+const recargaPorVersaoNova = criarRecargaPorVersaoNova({
+  buscarIndex: async () => {
+    const r = await fetch("/", { cache: "no-store", credentials: "same-origin" });
+    if (!r.ok) throw new Error(`index ${r.status}`);
+    return r.text();
+  },
+  scriptAtual: () => {
+    const src = document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.getAttribute("src");
+    return src ? caminhoDoScript(src) : null;
+  },
+  storage: sessaoDaAba,
+  recarregar: () => window.location.reload(),
+  agora: () => Date.now(),
+});
+let marketplaceDepoisDaRecarga = lerDepoisDaRecarga(sessaoDaAba, Date.now());
+/** A falha do `import()` de uma tela: recarrega se o servidor tem versão nova; senão, o erro de sempre. */
+function falhaAoBaixarTela(e: unknown, depois?: DepoisDaRecarga): void {
+  void recargaPorVersaoNova(e, depois).then((recarregou) => { if (!recarregou) mostrarErro(e); }, () => mostrarErro(e));
+}
 /**
  * ADR-189 (fases 3, 4 e 6 da ADR-179): as regiões que o React desenha a partir do mesmo HTML das telas. Medido em
  * 2026-11-19 (scripts/carga-tela): regravar a barra inteira a cada frame de outro bot recriava todas as linhas e mascotes;
@@ -1905,7 +1931,7 @@ function desenharCamadaOnboarding(): void {
     regiaoOnb?.toggleAttribute("hidden", true);
     if (!vista || carregandoOnboarding) return;
     carregandoOnboarding = true;
-    void import("./react/onboarding/regiao.tsx").then((m) => { moduloOnboarding = m; render(); }, (e: unknown) => { carregandoOnboarding = false; mostrarErro(e); });
+    void import("./react/onboarding/regiao.tsx").then((m) => { moduloOnboarding = m; render(); }, (e: unknown) => { carregandoOnboarding = false; falhaAoBaixarTela(e); });
     return;
   }
   moduloOnboarding.desenharOnboarding(vista ? { vista, executar: executarNoOnboarding, copiar: copiarNoOnboarding, cartao: cartaoIaNoOnboarding } : null);
@@ -1949,7 +1975,13 @@ function desenharModalDoMarketplace(): void {
   if (!moduloMarketplace) {
     if (!modalDoMarketplace || carregandoMarketplace) return;
     carregandoMarketplace = true;
-    void import("./react/marketplace/regiao.tsx").then((m) => { moduloMarketplace = m; desenharModalDoMarketplace(); }, (e: unknown) => { carregandoMarketplace = false; modalDoMarketplace = null; mostrarErro(e); });
+    void import("./react/marketplace/regiao.tsx").then((m) => { moduloMarketplace = m; desenharModalDoMarketplace(); }, (e: unknown) => {
+      carregandoMarketplace = false;
+      const inicial = modalDoMarketplace?.inicial ?? {};
+      modalDoMarketplace = null;
+      const t = estado.tela;
+      falhaAoBaixarTela(e, { tipo: "marketplace", inicial, ...(t.tipo === "conversa" ? { conversa: { conversaId: t.conversaId, agenteId: t.agenteId } } : {}) });
+    });
     return;
   }
   apiDoMarketplace ??= moduloMarketplace.criarApiReal({
@@ -4865,6 +4897,17 @@ function render(): void {
   // O modal do Marketplace também lê o que mora fora do reducer (o padrão do app, o nível otimista): a foto dele só
   // muda de objeto quando algo que ele mostra mudou (web/react/marketplace/real.ts).
   apiDoMarketplace?.avisar();
+  // XUM-9: a página recarregou porque o modal do Marketplace era de um deploy anterior; ele abre agora, na versão nova.
+  if (marketplaceDepoisDaRecarga && estado.sessao && estado.frota && !celular.ativo()) {
+    const { inicial, conversa } = marketplaceDepoisDaRecarga;
+    marketplaceDepoisDaRecarga = null;
+    queueMicrotask(() => {
+      // Volta à conversa de antes (a recarga abre outra), se o bot ainda está na frota.
+      const naFrota = conversa && estado.frota?.agentes.some((a) => a.id === conversa.agenteId && a.conversaId === conversa.conversaId);
+      if (naFrota && !(estado.tela.tipo === "conversa" && estado.tela.conversaId === conversa.conversaId)) navegar({ tipo: "conversa", ...conversa });
+      abrirModalDoMarketplace(inicial as InicialDoMarketplace);
+    });
+  }
   if (ajusteDoLink && estado.sessao && estado.frota && !celular.ativo()) {
     const id = ajusteDoLink;
     ajusteDoLink = null;
