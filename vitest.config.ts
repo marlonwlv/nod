@@ -1,6 +1,7 @@
 import { availableParallelism } from "node:os";
 import { defineConfig } from "vitest/config";
 import { apontarParaBancoDaWorktree } from "./tests/setup/banco-por-worktree.ts";
+import { tetoDeWorkers, VARIAVEL_TETO_DE_WORKERS } from "./tests/setup/teto-de-workers.ts";
 
 // Lê .env quando existe (Node 24 nativo, sem dependência). Sob CI as variáveis vêm do workflow.
 try {
@@ -55,8 +56,10 @@ const BANCO = {
  * e 4 dava +71%. Gatilho de reversão: o erro voltar com 8, ou o tempo sem carga passar de +20%.
  * É um TETO, nunca mais que o padrão do vitest (núcleos − 1): no runner do CI (poucos núcleos) um 8 fixo subiu o
  * paralelismo e os testes de tempo do unit estouraram (run 37864813061).
+ * definido em 2026-11-25: `TESTE_NOD_WORKERS` abaixa o teto em máquina que roda vários turnos ao mesmo tempo
+ * (tests/setup/teto-de-workers.ts, com a medida); sem a variável nada muda.
  */
-const MAX_WORKERS = Math.min(8, Math.max(1, availableParallelism() - 1));
+const MAX_WORKERS = tetoDeWorkers(availableParallelism(), process.env[VARIAVEL_TETO_DE_WORKERS]);
 
 export default defineConfig({
   test: {
