@@ -310,17 +310,19 @@ jobs:
       - name: Smoke da janela
         timeout-minutes: 5
         run: npx electron scripts/desktop/smoke-window.mjs
+      # ADR-197: o computador da pessoa com o cua-driver de verdade (pacote fixo, sha256 conferido, modo bounded): abrir o
+      # Editor de Texto com um arquivo, ler, digitar e ler de novo (o runner do macos-15 tem Acessibilidade: provado em 26/11).
+      - name: Computador da pessoa (cua-driver no Mac)
+        timeout-minutes: 5
+        run: npx tsx scripts/seu-computador/fumaca.ts --exigir --saida "$RUNNER_TEMP/fumaca-seu-computador"
+      # Depois do cua-driver: na CI de 2026-11-28 o driver subindo logo depois do Electron e do Chrome desta prova
+      # esgotou o prazo ("ainda não está instalado"); antes da prova ele passa (como na main).
       # 2026-11-28 (ADR-190, o painel como um navegador normal): no Electron de verdade, a janela com a ponte, o IPC, a
       # vista local e o Chrome do bot: o login pelo painel (CPF, senha com acento e colada, código), a primeira imagem em
       # menos de 1 s, o clique até a imagem nova em menos de 150 ms e a rotina do bot com o login feito no painel.
       - name: O painel do navegador no Electron (Mac)
         timeout-minutes: 5
         run: node scripts/navegador/prova-painel-electron/rodar.mjs
-      # ADR-197: o computador da pessoa com o cua-driver de verdade (pacote fixo, sha256 conferido, modo bounded): abrir o
-      # Editor de Texto com um arquivo, ler, digitar e ler de novo (o runner do macos-15 tem Acessibilidade: provado em 26/11).
-      - name: Computador da pessoa (cua-driver no Mac)
-        timeout-minutes: 5
-        run: npx tsx scripts/seu-computador/fumaca.ts --exigir --saida "$RUNNER_TEMP/fumaca-seu-computador"
       - if: always()
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -372,10 +374,6 @@ jobs:
           ESPERADA=$(node -p "require('./package.json').version")
           if [ "$SAIDA" != "$ESPERADA" ]; then echo "::error::o versao do motor escreveu '$SAIDA' (esperado '$ESPERADA')"; exit 1; fi
       - run: npx vitest run --project windows
-      # 2026-11-28 (ADR-190): a mesma prova do painel no Electron de verdade, no Windows (o motor e o app no mesmo PC).
-      - name: O painel do navegador no Electron (Windows)
-        timeout-minutes: 5
-        run: node scripts/navegador/prova-painel-electron/rodar.mjs
       # Os unitários do caminho Windows que não supõem caminho POSIX também rodam no Windows de verdade (separador,
       # maiúsculas e PATHEXT reais). Os outros fingem a plataforma e ficam só no Linux.
       - run: npx vitest run --project unit tests/unit/motor/bundle-motor.test.ts tests/unit/executor/executor-windows.test.ts
@@ -385,6 +383,11 @@ jobs:
         shell: bash
         timeout-minutes: 6
         run: npx tsx scripts/seu-computador/fumaca.ts --exigir --saida "$RUNNER_TEMP/fumaca-seu-computador"
+      # 2026-11-28 (ADR-190): a mesma prova do painel no Electron de verdade, no Windows (o motor e o app no mesmo PC), depois do
+      # cua-driver, como no Mac.
+      - name: O painel do navegador no Electron (Windows)
+        timeout-minutes: 5
+        run: node scripts/navegador/prova-painel-electron/rodar.mjs
       - if: always()
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
