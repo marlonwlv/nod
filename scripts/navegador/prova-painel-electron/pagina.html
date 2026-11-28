@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><img id="q" width="640"><script>
+const BOT = "33333333-3333-4333-8333-333333333333";
+const nl = window.nodDesktop.navegadorLocal;
+let quadros = 0, primeiro = 0; const t0 = performance.now();
+nl.aoMensagem((id, texto) => { if (texto.includes('"type":"frame"')) { quadros++; if (!primeiro) primeiro = performance.now() - t0; const m = JSON.parse(texto); document.getElementById('q').src = 'data:image/jpeg;base64,' + m.data; } });
+const esperarQuadro = async (desde) => { const t = performance.now(); while (quadros === desde && performance.now() - t < 3000) await new Promise((r) => setTimeout(r, 1)); };
+(async () => {
+  const id = await nl.abrir(BOT);
+  await esperarQuadro(0);
+  const abrirMs = performance.now() - t0;
+  const enviar = (e) => nl.enviar(id, e);
+  const clicar = async (sel) => { const p = await window.prova.centro(sel); return (await enviar({ t: "mouse", evento: "mousePressed", x: p.x, y: p.y, botao: "left", cliques: 1 })) && (await enviar({ t: "mouse", evento: "mouseReleased", x: p.x, y: p.y, botao: "left", cliques: 1 })); };
+  const confs = []; let falhas = 0;
+  const tecla = async (k, code, mods = 0) => { const t = performance.now(); const a = await enviar({ t: "tecla", evento: "keyDown", tecla: k, codigo: code, ...(k.length === 1 ? { texto: k } : {}), modificadores: mods }); const b = await enviar({ t: "tecla", evento: "keyUp", tecla: k, codigo: code, modificadores: mods }); if (!a || !b) falhas++; confs.push(performance.now() - t); };
+  await clicar("#cpf");
+  for (const c of "12345678909") await tecla(c, "Digit" + c);
+  await clicar("#senha");
+  await tecla("S", "KeyS", 8);
+  for (const c of "enh") await tecla(c, "Key" + c.toUpperCase());
+  if (!(await enviar({ t: "tecla", evento: "char", texto: "ã@2026 çé" }))) falhas++;
+  await tecla("Enter", "Enter");
+  // O código do SMS, numa página nova (a vista local segue a aba).
+  for (let i = 0; i < 50 && (await window.prova.url()) !== "/codigo"; i++) await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 300));
+  await clicar("#codigo");
+  for (const c of "481516") await tecla(c, "Digit" + c);
+  await tecla("Enter", "Enter");
+  for (let i = 0; i < 50 && (await window.prova.url()) !== "/area"; i++) await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 300));
+  const p = await window.prova.centro("#cor");
+  const lat = [];
+  for (let i = 0; i < 10; i++) { await new Promise((r) => setTimeout(r, 250)); const antes = quadros; const t = performance.now(); await enviar({ t: "mouse", evento: "mousePressed", x: p.x, y: p.y, botao: "left", cliques: 1 }); await enviar({ t: "mouse", evento: "mouseReleased", x: p.x, y: p.y, botao: "left", cliques: 1 }); await esperarQuadro(antes); lat.push(performance.now() - t); }
+  lat.sort((a, b) => a - b); confs.sort((a, b) => a - b);
+  await window.prova.fim({ abrirMs: Math.round(abrirMs), primeiroQuadroMs: Math.round(primeiro), teclas: confs.length, falhas, teclaMediana: +confs[Math.floor(confs.length / 2)].toFixed(1), cliqueQuadroMediana: Math.round(lat[5]), cliqueQuadroPior: Math.round(lat[9]) });
+})().catch((e) => { console.log("ERRO " + e); window.prova.fim({ erro: String(e) }); });
+</script>

@@ -129,6 +129,10 @@ export async function executarOperacao(m: MotorNavegador, s: SessaoNavegador, op
       return m.inserirTexto(s, a[0] === null ? null : texto(op, a[0], false), t);
     }
     case "definirCookies": return m.definirCookies(s, lerCookies(op, a[0]));
+    case "janela": {
+      if (!m.janela) throw new FalhaNavegador("indisponivel", "esta máquina não abre a janela do navegador");
+      return m.janela(s, a[0] === true);
+    }
     case "tamanho": {
       // definido em 2026-11-20: o portão manda de 800 a 1440 de largura e até 2400 de altura; a máquina aceita 320–4096.
       const w = numero(op, a[0]);
@@ -154,7 +158,7 @@ const LEITORES: { [K in OperacaoMotorNavegador]: (v: unknown) => unknown } = {
   },
   clicar: vazio, preencher: vazio, digitar: vazio, tecla: vazio, rolar: vazio, esperar: vazio, selecionar: vazio, marcar: vazio, passarMouse: vazio,
   arrastar: vazio, mouse: vazio, historico: vazio, abaNova: vazio, abaTrocar: vazio, abaFechar: vazio, quadro: vazio, dialogo: vazio, enviarArquivo: vazio,
-  procurar: vazio, fechar: vazio, inserirTexto: vazio, definirCookies: vazio, tamanho: vazio,
+  procurar: vazio, fechar: vazio, inserirTexto: vazio, definirCookies: vazio, tamanho: vazio, janela: vazio,
   camposDeLogin: (v) => ({ usuario: obj(v).usuario === true, senha: obj(v).senha === true, codigo: obj(v).codigo === true }),
   print: (v) => {
     const jpeg = str(obj(v).jpeg);

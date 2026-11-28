@@ -7,7 +7,7 @@ import { comandosDaEntrada, entradaDigita, lerEntradaNavegador, TEXTO_MAX_ENTRAD
 import { arquivoDosPassos, campoDoElemento, eventoDoClique, mensagemDoEnsinado, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao, type ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
 import { esperaDoNavegador, fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, sujeitoDoBot, type EntradaLugar } from "../../../src/domain/navegador-lugar.ts";
 import { campoEhSecreto, MARCA_PROTEGIDO, redigirArvore, redigirSegredos, segredoAindaNaPagina } from "../../../src/domain/navegador-sensivel.ts";
-import { botPodeAgir, camposQueMudaram, deveriaPausar, PAUSA_APOS_MS, proximoControle } from "../../../src/domain/navegador-vista.ts";
+import { botPodeAgir, camposQueMudaram, deveriaPausar, PAUSA_APOS_MS, PAUSA_NO_APARELHO_MS, proximoControle } from "../../../src/domain/navegador-vista.ts";
 
 const botao = (nome: string, host = "tap.pt") => ({ papel: "button", nome, host });
 
@@ -198,6 +198,13 @@ describe("vista e controle (D3, D4)", () => {
     expect(deveriaPausar(v, PAUSA_APOS_MS)).toBe(true);
     expect(deveriaPausar({ ...v, controle: "pessoa" }, PAUSA_APOS_MS)).toBe(false);
     expect(deveriaPausar({ ...v, gravacao: { desde: 0, passos: [], parou: null } }, PAUSA_APOS_MS)).toBe(false);
+    // 2026-11-28: no aparelho da pessoa, 30 min; com alguém assistindo, nunca; a última vista conta como uso.
+    const noAparelho = { ...v, lugar: { tipo: "mac" as const, nome: "seu PC" } };
+    expect(deveriaPausar(noAparelho, PAUSA_APOS_MS)).toBe(false);
+    expect(deveriaPausar(noAparelho, PAUSA_NO_APARELHO_MS)).toBe(true);
+    expect(deveriaPausar(v, PAUSA_APOS_MS, { assistindo: true })).toBe(false);
+    expect(deveriaPausar(v, PAUSA_APOS_MS, { vistoEm: 5 })).toBe(false);
+    expect(deveriaPausar(v, PAUSA_APOS_MS + 5, { vistoEm: 5 })).toBe(true);
   });
 
   it("assumir, devolver, pedir e resolver", () => {

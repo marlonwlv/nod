@@ -12,10 +12,23 @@ export const SOLTAR_ATE_MS = 3_000;
 export const REDE_FRACA_SEM_QUADRO_MS = 4_000;
 export const IMAGEM_REDE_FRACA_MS = 2_000;
 
-export function deveriaPausar(v: Pick<VistaNavegador, "estado" | "controle" | "atividadeEm" | "gravacao" | "pedido">, agora: number): boolean {
+/**
+ * 2026-11-28 (o painel como um navegador normal): no aparelho da pessoa (o lugar "mac": o Mac ou o PC dela) o Chrome do bot
+ * fica 30 min, não 10: ela volta ao painel e ele já está lá, sem ligar de novo (medido no Mac: ligar o Chrome do bot leva
+ * 4,3 s; o painel com ele vivo abre em 0,1–0,16 s). É o computador dela, sem o teto de Chromes do servidor. Gatilho de
+ * reversão: queixa de memória no aparelho com o Chrome do bot parado.
+ */
+export const PAUSA_NO_APARELHO_MS = 30 * 60_000;
+
+/**
+ * `assistindo`: alguém está com a vista aberta agora (não pausa no meio). `vistoEm`: quando a última vista fechou (conta
+ * como uso, como a atividade do bot).
+ */
+export function deveriaPausar(v: Pick<VistaNavegador, "estado" | "controle" | "atividadeEm" | "gravacao" | "pedido"> & { lugar?: VistaNavegador["lugar"] }, agora: number, o: { assistindo?: boolean; vistoEm?: number | null } = {}): boolean {
   if (v.estado !== "ao_vivo" && v.estado !== "terminou" && v.estado !== "rede_fraca") return false;
-  if (v.controle === "pessoa" || v.gravacao || v.pedido) return false;
-  return agora - v.atividadeEm >= PAUSA_APOS_MS;
+  if (v.controle === "pessoa" || v.gravacao || v.pedido || o.assistindo) return false;
+  const pausa = v.lugar?.tipo === "mac" ? PAUSA_NO_APARELHO_MS : PAUSA_APOS_MS;
+  return agora - Math.max(v.atividadeEm, o.vistoEm ?? 0) >= pausa;
 }
 
 /** As transições de quem mexe. Devolver só vale para quem está com a pessoa; assumir não vale do meio de um pedido de

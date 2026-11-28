@@ -55,6 +55,8 @@ export interface ServicesNod<Trx> extends ServicosLinear {
    */
   navegadores?: {
     disponivel(): boolean;
+    /** 2026-11-27: onde o navegador deste bot roda agora (o prompt diz ao bot); null = não deu para saber. */
+    onde?(escopo: { tenantId: string; pessoaId: string }, agenteId: string): Promise<import("./navegador-onde.ts").OndeDoNavegador | null>;
     /** `lembrar` (A3): a pessoa deixou marcado "Não perguntar de novo para …" (o `sempre` do cartão). */
     executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void>;
   };

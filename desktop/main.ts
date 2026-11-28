@@ -19,6 +19,7 @@ import { criarAmostradorMemoria } from "../src/adapters/executor/amostrador-memo
 import { criarExecutarComando, iniciarLimpezaDasTasks, modoDaLimpeza, type LimpezaDasTasks } from "../src/adapters/executor/limpeza-das-tasks.ts";
 import { iniciarDesfazeres, type Desfazeres } from "../src/adapters/executor/desfazeres.ts";
 import { chromeDoMac, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
+import { ligarNavegadorLocal } from "./navegador-local.ts";
 import { binarioAgentBrowser, type MotorNavegador } from "../src/adapters/navegador/motor-agent-browser.ts";
 import { criarCofresDoMac } from "./cofres-do-mac.ts";
 import { criarSeuComputadorLocal, type SeuComputadorLocal } from "../src/adapters/seu-computador/driver.ts";
@@ -884,11 +885,11 @@ async function conectar(c: Config) {
     desfazeresDoMac = iniciarDesfazeres({ ponte: ponteHttp.ponte, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, home: homeDoMac });
     // ADR-190: o navegador do bot neste Mac (não depende da VM local). Chrome: o Google Chrome do sistema, senão o Chrome
     // for Testing que o agent-browser instala na primeira vez (chromeDoMac, motorDaMaquina).
-    motorDoNavegador ??= motorDaMaquina({ dados: join(app.getPath("userData"), "navegadores"), binario: binarioDoNavegador(), chrome: () => chromeDoMac(homedir()) });
+    motorDoNavegador ??= motorDaMaquina({ dados: join(app.getPath("userData"), "navegadores"), binario: binarioDoNavegador(), chrome: () => chromeDoMac(homedir()), comJanela: true });
     navegadorDoMac?.parar();
     // ADR-177/190 (L, A1): o 1Password, o Bitwarden, os cookies do Chrome da pessoa e o Touch ID, para os comandos da fila.
     const sc = seuComputador();
-    navegadorDoMac = iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDoNavegador, ...(process.platform === "darwin" ? { mac: criarCofresDoMac({ home: homedir(), touchId: confirmarNoMac }) } : {}), ...(sc ? { seuComputador: sc } : {}) });
+    navegadorDoMac = iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDoNavegador, vistaLocal: {}, ...(process.platform === "darwin" ? { mac: criarCofresDoMac({ home: homedir(), touchId: confirmarNoMac }) } : {}), ...(sc ? { seuComputador: sc } : {}) });
   }
   // ADR-102 (2026-10-13): as contas deste Mac, lidas pelo CLI na pasta de cada uma (impressão = e-mail + organização +
   // pessoa, nunca em claro ao servidor). A lista segue a do app (contas.json); a primeira leitura é inteira (a pessoa
@@ -1949,6 +1950,8 @@ else {
     // confere tudo de novo contra ~/nod/<pasta do bot>; o Finder só abre com o arquivo selecionado (nada é executado).
     const homeDaMidia = () => cfgExecutor?.env.HOME ?? homedir();
     ipcMain.handle(CANAIS_MIDIA.maquina, (e): string | null => { validarRemetenteWeb(e); return maquinaIdAtual; });
+    // 2026-11-28 (o painel como um navegador normal): a vista local do navegador do bot neste Mac, sem a volta pela nuvem.
+    ligarNavegadorLocal({ ipcMain, endereco: async () => (navegadorDoMac ? navegadorDoMac.enderecoLocal() : null), validar: validarRemetenteWeb });
     ipcMain.handle(CANAIS_DESKTOP.estaMaquina, (e): EstaMaquina | null => { validarRemetenteWeb(e); return estaMaquinaDe({ id: maquinaIdAtual, nome: hostname(), plataforma: process.platform }); }); // ADA-243
     // ADA-245 (jornada D): "Remover o nod deste computador". Qual é este Mac vem do estaMaquina da ADA-243 (acima); o
     // removerDaqui faz a limpeza local (remover-daqui.ts) com as opções validadas de novo. Sem fecharAposRemover no Mac.

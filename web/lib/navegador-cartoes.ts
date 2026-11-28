@@ -154,8 +154,10 @@ export function htmlCartaoLogin(p: PedidoLogin, o: { nome: string; agenteId: str
 }
 
 /** D4, D: a pessoa escolheu "Entrar eu mesmo" — o cartão fecha e a pílula assume. Na conversa fica esta linha. */
-export function htmlLinhaEntrandoEuMesmo(p: Pick<PedidoLogin, "site">, o: { agenteId: string }): string {
+export function htmlLinhaEntrandoEuMesmo(p: Pick<PedidoLogin, "site">, o: { agenteId: string; janela?: boolean; aparelho?: "mac" | "pc" }): string {
   const site = nomeDoSite(p.site);
+  // 2026-11-27: no aparelho da pessoa o login abre numa janela do Chrome na tela dela; a linha diz onde e fecha com "Pronto".
+  if (o.janela) return `<div class="msg-sistema nvc-linha" role="status">Abri ${esc(site)} numa janela do Chrome no seu ${o.aparelho === "pc" ? "PC" : "Mac"}: entre por lá · <button type="button" class="nvc-link" data-act="navegador-pronto" data-agente="${esc(o.agenteId)}">Pronto, já entrei</button></div>`;
   return `<div class="msg-sistema nvc-linha" role="status">Você está entrando ${esc(noOuNa(site))} ${esc(site)} no navegador · <button type="button" class="nvc-link" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir</button></div>`;
 }
 

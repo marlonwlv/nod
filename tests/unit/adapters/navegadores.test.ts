@@ -313,6 +313,23 @@ describe("ler → agir por referência", () => {
     expect(n.vista(MARLON, A)?.estado).toBe("ao_vivo");
   });
 
+  it("2026-11-28: com alguém assistindo o Chrome não pausa; fechada a vista, a conta recomeça dali", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/notas" });
+    concluidos.add("turno-a");
+    n.assistindo(MARLON, A, 1);
+    agora = T0 + 11 * 60_000;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)?.estado).toBe("terminou");
+    n.assistindo(MARLON, A, 0);
+    agora += 9 * 60_000;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)?.estado).toBe("terminou");
+    agora += 60_000;
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)?.estado).toBe("pausa");
+  });
+
   it("assumir depois de o bot terminar põe a vista ao vivo: a pessoa não mexe num quadro esmaecido (prova real)", async () => {
     const n = criar();
     await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/notas" });

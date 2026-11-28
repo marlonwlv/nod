@@ -9821,6 +9821,13 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   },
   // ADR-190: o navegador do bot — o "Ver" da linha de atividade, o botão do canto e a aba de lugar (D7).
   "navegador-ver": (el) => navegadorNaTela.ver(el.dataset.agente ?? ""),
+  // 2026-11-27: o "Pronto, já entrei" da linha do login na janela do Chrome (o mesmo "Pronto" da pílula).
+  "navegador-pronto": (el) => agir(async () => {
+    const agenteId = el.dataset.agente ?? "";
+    (el as HTMLButtonElement).disabled = true;
+    const r = await api!.operarNavegador(agenteId, "resolver");
+    hidratarVistaDoNavegador(agenteId, r.vista);
+  }),
   "navegador-alternar": (el) => navegadorNaTela.alternar(el.dataset.agente ?? ""),
   // ADR-190 (L1, L2): a escolha do cartão de login. Nenhum segredo passa aqui: só a fonte e a referência do item do cofre.
   "nv-login": (el) => agir(async () => {
@@ -9834,7 +9841,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const r = await api!.escolherLoginNoNavegador(agenteId, decisaoId, escolha);
       hidratarVistaDoNavegador(agenteId, r.vista);
       if (r.aviso) anunciar(r.aviso);
-      // D4, D: "Entrar eu mesmo" — o cartão fecha e a pílula assume; a vista abre para a pessoa digitar.
+      // D4, D: "Entrar eu mesmo" — o cartão fecha e a pílula assume; a vista abre para a pessoa digitar. No aparelho dela
+      // (2026-11-27) o Chrome abre numa janela de verdade na tela: a vista abre para acompanhar e a pílula diz onde entrar.
       if (escolha === "eu_mesmo") navegadorNaTela.ver(agenteId);
     } finally {
       for (const b of document.querySelectorAll<HTMLButtonElement>(`.nvc[data-decisao="${CSS.escape(decisaoId)}"] button:not([aria-disabled="true"])`)) b.disabled = false;

@@ -541,6 +541,77 @@ describe("o PC oferece 'Trazer do meu Chrome' pela extensão do nod (2026-11-23)
   });
 });
 
+describe("2026-11-28: no aparelho da pessoa, ela entra pelo painel; a janela do Chrome é a saída que ela pede", () => {
+  const noAparelho = () => criar({ lugarDe: async () => ({ tipo: "roda", lugar: { tipo: "mac", nome: "seu PC" }, desvio: null }) });
+  const janelas = () => chamadas.filter((c) => c.op === "janela").map((c) => c.args[0]);
+  const esperar = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
+
+  it("'Entrar eu mesmo' passa o controle no painel, sem abrir janela", async () => {
+    const n = noAparelho();
+    const decisao = await noLoginDoItau(n);
+    await n.escolherLogin(MARLON, A, decisao, "eu_mesmo");
+    await esperar();
+    expect(janelas()).toEqual([]);
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "pessoa", pedido: { etapa: "eu_mesmo" } });
+    expect(n.vista(MARLON, A)!.janela).toBeUndefined();
+  });
+
+  it("ela pede a janela (⋯ Abrir numa janela): abre no mesmo perfil; 'Pronto' a fecha antes de o bot retomar", async () => {
+    const n = noAparelho();
+    const decisao = await noLoginDoItau(n);
+    await n.escolherLogin(MARLON, A, decisao, "eu_mesmo");
+    await n.operar(MARLON, A, "janela");
+    expect(janelas()).toEqual([true]);
+    expect(n.vista(MARLON, A)).toMatchObject({ janela: true, controle: "pessoa" });
+    await n.operar(MARLON, A, "resolver");
+    expect(janelas()).toEqual([true, false]);
+    expect(n.vista(MARLON, A)!.janela).toBe(false);
+    expect(retomadas).toEqual([expect.objectContaining({ decisaoId: decisao })]);
+  });
+
+  it("no controle sem pedido (escolher um arquivo): a janela abre e devolver a fecha", async () => {
+    const n = noAparelho();
+    await chamar(n, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await n.operar(MARLON, A, "assumir");
+    await n.operar(MARLON, A, "janela");
+    expect(n.vista(MARLON, A)!.janela).toBe(true);
+    await n.operar(MARLON, A, "devolver");
+    expect(janelas()).toEqual([true, false]);
+    expect(n.vista(MARLON, A)!.janela).toBe(false);
+  });
+
+  it("sem o controle, no nod (nuvem) ou com o app antigo (sem a operação): recusa", async () => {
+    const assistindo = noAparelho();
+    await chamar(assistindo, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await expect(assistindo.operar(MARLON, A, "janela")).rejects.toThrow();
+    const noNod = criar();
+    await chamar(noNod, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await noNod.operar(MARLON, A, "assumir");
+    await expect(noNod.operar(MARLON, A, "janela")).rejects.toThrow();
+    const semJanela: MotorNavegador = new Proxy({} as MotorNavegador, { get: (_t, op: string) => (op === "janela" ? undefined : (motor as unknown as Record<string, unknown>)[op]) });
+    const antigo = criar({ motor: () => semJanela, lugarDe: async () => ({ tipo: "roda", lugar: { tipo: "mac", nome: "seu Mac" }, desvio: null }) });
+    await chamar(antigo, "navegador_abrir", { url: "https://www.itau.com.br/" });
+    await antigo.operar(MARLON, A, "assumir");
+    await expect(antigo.operar(MARLON, A, "janela")).rejects.toThrow();
+    expect(antigo.vista(MARLON, A)!.janela).toBeUndefined();
+  });
+});
+
+describe("2026-11-27: o PC sem a extensão do nod não oferece 'Trazer do meu Chrome'", () => {
+  it("a última lista disse chrome=false: o cartão sai sem a opção; sem dizer (Mac, motor antigo), vale", async () => {
+    let pronto: boolean | null = false;
+    const pc: MacDaPessoa = { ...macFalso, aparelho: () => "pc", chromePronto: () => pronto };
+    const n = criar({ mac: pc });
+    await chamar(n, "navegador_abrir", { url: "https://www.itau.com.br/login" });
+    await chamar(n, "navegador_entrar", { site: "itau.com.br", motivo: "ver a fatura" });
+    expect(n.vista(MARLON, A)!.pedido).toMatchObject({ tipo: "login", podeTrazerDoChrome: false });
+    decisoes.set("pedido-1", { estado: "respondida" });
+    pronto = null;
+    await chamar(n, "navegador_entrar", { site: "itau.com.br", motivo: "de novo" });
+    expect(n.vista(MARLON, A)!.pedido).toMatchObject({ tipo: "login", podeTrazerDoChrome: true });
+  });
+});
+
 describe("A3: não perguntar de novo para o destino visto na página", () => {
   it("o destino que aparece na página leva o lembrar marcado; aprovado com 'sempre', o próximo envio para ele passa", async () => {
     const n = criar();

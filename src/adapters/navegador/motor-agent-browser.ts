@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, hkdfSync, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
@@ -113,8 +113,18 @@ export interface MotorNavegador {
   definirCookies(s: SessaoNavegador, cookies: readonly CookieNavegador[]): Promise<void>;
   /** A porta do WebSocket de quadros da sessão (liga o streaming se estiver desligado); null sem sessão viva. */
   portaDoStream(s: SessaoNavegador): Promise<number | null>;
+  /**
+   * 2026-11-28: o endereço do CDP do Chrome do bot (`ws://127.0.0.1:…`), para a entrada confirmada da vista local
+   * (entrada-cdp.ts). Só na máquina onde o Chrome roda; o motor remoto não tem.
+   */
+  enderecoCdp?(s: SessaoNavegador): Promise<string | null>;
   /** O tamanho da página em CSS px (`set viewport`): acompanha a área de quem assiste (emenda de 2026-11-20 da ADR-190). */
   tamanho(s: SessaoNavegador, w: number, h: number): Promise<void>;
+  /**
+   * 2026-11-27: o Chrome do bot com janela na tela da pessoa (`mostrar`) ou de volta sem janela. Fecha e reabre a sessão
+   * no MESMO perfil (os cookies e o login ficam) e na mesma página. Só faz sentido no aparelho da pessoa; no nod não existe.
+   */
+  janela?(s: SessaoNavegador, mostrar: boolean): Promise<void>;
   fechar(s: SessaoNavegador): Promise<void>;
   /**
    * Ponto 09 dos cenários (2026-11-22): com o Chrome fechado, apaga o que o Chrome refaz sozinho (caches, o modelo do
@@ -152,6 +162,11 @@ export type ExecutorProcesso = (p: { bin: string; args: readonly string[]; env: 
 export type OpcoesMotorAgentBrowser = {
   /** Diretório de dados do nod para os navegadores (perfis, prints e arquivos por bot). */
   dados: string;
+  /**
+   * 2026-11-27: este motor roda no aparelho da pessoa (o app do Mac, o motor do PC), na sessão gráfica dela: o Chrome do
+   * bot pode abrir com janela para ela entrar num site (`janela`). No servidor e no Linux sempre ligado, ausente.
+   */
+  comJanela?: boolean;
   /** A chave mestra do servidor (a mesma das credenciais): a cifra do estado de cada bot sai dela por HKDF. */
   segredo: Buffer;
   /** O binário; ausente = o do pacote npm desta plataforma. */
@@ -219,6 +234,32 @@ export const ARGS_CHROME_DO_BOT = [
   "--lang=pt-BR",
   "--accept-lang=pt-BR",
 ] as const;
+
+/**
+ * 2026-11-28 (prova no SauceDemo, site real com login): depois de um login, o Google Chrome sem janela abre o "Salvar
+ * senha?" (ou o aviso de senha vazada) do gerenciador de senhas. Ninguém vê a bolha, mas ela congela a página: o stream
+ * parou de mandar quadros e os cliques da pessoa e do bot deixaram de pegar até um comando de fora. Com isto no perfil do
+ * bot antes de o Chrome nascer, o clique depois do login vira quadro novo em 39 ms. Os logins do bot moram no cofre do nod,
+ * no 1Password ou no Bitwarden, nunca no gerenciador do Chrome do bot.
+ */
+export const PREFERENCIAS_DO_PERFIL = { credentials_enable_service: false, credentials_enable_autosignin: false, profile: { password_manager_enabled: false, password_manager_leak_detection: false } } as const;
+
+/** Funde as preferências do nod no `Default/Preferences` do perfil (o resto fica como o Chrome deixou). */
+export async function prepararPerfil(perfil: string): Promise<void> {
+  const dir = join(perfil, "Default");
+  const arquivo = join(dir, "Preferences");
+  let atual: Record<string, unknown> = {};
+  try {
+    const v: unknown = JSON.parse(await readFile(arquivo, "utf8"));
+    if (v && typeof v === "object" && !Array.isArray(v)) atual = v as Record<string, unknown>;
+  } catch { /* perfil novo, ou o arquivo torto: começa do zero */ }
+  const perfilAtual = atual.profile && typeof atual.profile === "object" && !Array.isArray(atual.profile) ? atual.profile as Record<string, unknown> : {};
+  const novo = { ...atual, ...PREFERENCIAS_DO_PERFIL, profile: { ...perfilAtual, ...PREFERENCIAS_DO_PERFIL.profile } };
+  await mkdir(dir, { recursive: true });
+  const temp = `${arquivo}.nod-${randomUUID()}.tmp`;
+  await writeFile(temp, JSON.stringify(novo), { mode: 0o600 });
+  await rename(temp, arquivo);
+}
 
 /**
  * A identificação que o mesmo Chrome dá com janela: a dele sem janela com "HeadlessChrome/" trocado por "Chrome/" (o
@@ -527,7 +568,11 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const ocioso = o.ociosoMs ?? OCIOSO_PADRAO_MS;
   const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, pastaDoBot(s.agenteId));
+  /** Os bots cujo perfil já levou PREFERENCIAS_DO_PERFIL para o Chrome de agora (fechar o Chrome tira daqui). */
+  const perfisProntos = new Set<string>();
   const pedidoDirSocket = o.dirSocket === undefined ? dirSocketPadrao() : o.dirSocket;
+  /** Os bots cujo Chrome está com janela na tela da pessoa agora (o daemon nasce com AGENT_BROWSER_HEADED). */
+  const comJanela = new Set<string>();
   /**
    * Conferida a cada comando, não uma vez por processo (QA-208, 2026-11-25): a limpeza do /tmp pode apagar a pasta com o
    * motor vivo, e aí quem a refaz é o agent-browser (0755, medido no Chromium real) ou outro usuário (link ou pasta dele),
@@ -583,12 +628,15 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       ...(o.chrome ? { AGENT_BROWSER_EXECUTABLE_PATH: o.chrome } : {}),
       AGENT_BROWSER_ARGS: ARGS_CHROME_DO_BOT.join(","),
       ...(agente ? { AGENT_BROWSER_USER_AGENT: agente } : {}),
+      ...(comJanela.has(s.agenteId) ? { AGENT_BROWSER_HEADED: "1" } : {}),
     };
   }
 
   async function rodar(s: SessaoNavegador, args: readonly string[], prazoMs = PRAZO_COMANDO_MS): Promise<Record<string, unknown>> {
     if (!bin) throw new FalhaNavegador("indisponivel", "o agent-browser não está instalado nesta máquina");
     await mkdir(join(pasta(s), "arquivos"), { recursive: true });
+    // O perfil sem o gerenciador de senhas do Chrome antes de ele nascer (PREFERENCIAS_DO_PERFIL): uma vez por Chrome.
+    if (!perfisProntos.has(s.agenteId)) { await prepararPerfil(join(pasta(s), "perfil")).catch(() => undefined); perfisProntos.add(s.agenteId); }
     const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s, await identificacaoDoChrome(), await socketPronto()), prazoMs, limiteSaida: LIMITE_SAIDA });
     if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
     const d = lerResposta(r.saida, r.codigo);
@@ -675,6 +723,11 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       d = await rodar(s, ["stream", "status"]);
     }
     return typeof d.port === "number" ? d.port : null;
+  }
+  async function enderecoCdp(s: SessaoNavegador): Promise<string | null> {
+    const d = await rodar(s, ["get", "cdp-url"]);
+    const url = typeof d.cdpUrl === "string" ? d.cdpUrl : "";
+    return /^ws:\/\/(127\.0\.0\.1|localhost):\d{1,5}\/devtools\/browser\/[\w-]{1,80}$/.test(url) ? url : null;
   }
   /**
    * QA-209: o relay precisa do stream ligado; ligado só para este comando, ele volta a desligar no fim — a não ser que já
@@ -868,8 +921,27 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       });
     },
     portaDoStream,
+    enderecoCdp,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
-    async fechar(s) { await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; }); },
+    ...(o.comJanela ? {
+      // 2026-11-27: o daemon do agent-browser decide com ou sem janela quando nasce; trocar é fechar e reabrir no mesmo
+      // perfil (cookies, login e Local Storage ficam no disco) e na mesma página. A janela que a pessoa fechou à mão
+      // derruba o daemon: o próximo comando reabre (sem janela, depois do `janela(false)`).
+      async janela(s: SessaoNavegador, mostrar: boolean) {
+        if (comJanela.has(s.agenteId) === mostrar) return;
+        const url = str((await rodar(s, ["get", "url"]).catch(() => ({} as Record<string, unknown>))).url);
+        await rodar(s, ["close"]).catch(() => undefined);
+        perfisProntos.delete(s.agenteId);
+        if (mostrar) comJanela.add(s.agenteId); else comJanela.delete(s.agenteId);
+        await rodar(s, ["open", /^https?:/iu.test(url) ? url : "about:blank"], PRAZO_ABRIR_MS);
+      },
+    } : {}),
+    async fechar(s) {
+      // Fechado (pausa, encerrar), o Chrome volta a nascer sem janela.
+      comJanela.delete(s.agenteId);
+      await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; });
+      perfisProntos.delete(s.agenteId);
+    },
     async limparCache(s) {
       const perfil = join(pasta(s), "perfil");
       for (const c of CACHES_DO_PERFIL) await rm(join(perfil, c), { recursive: true, force: true }).catch(() => undefined);

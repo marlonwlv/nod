@@ -930,7 +930,7 @@ function htmlDoPedidoAberto(p: PedidoNaFala, decisaoId: string, agente: { id: st
   const pedido = vista?.pedido?.decisaoId === decisaoId ? vista.pedido : null;
   const o = { decisaoId, agenteId: agente.id, nome: agente.nome };
   if (pedido?.tipo === "login") {
-    if (pedido.etapa === "eu_mesmo") return htmlLinhaEntrandoEuMesmo(pedido, o);
+    if (pedido.etapa === "eu_mesmo") return htmlLinhaEntrandoEuMesmo(pedido, { ...o, janela: vista?.janela === true, ...(vista?.aparelho ? { aparelho: vista.aparelho } : {}) });
     const url = vista?.abas.find((a) => a.ativa)?.url;
     return htmlCartaoLogin(pedido, { nome: agente.nome, agenteId: agente.id, fonte: fonteDoLogin(agente.id), ...(url ? { url } : {}), ...(vista?.aparelho ? { aparelho: vista.aparelho } : {}) });
   }

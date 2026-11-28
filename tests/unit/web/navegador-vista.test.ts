@@ -364,6 +364,14 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(htmlMenuDoNavegador("Ada")).not.toContain("trazer-chrome");
   });
 
+  it("2026-11-28: 'Abrir numa janela' só aparece quando a vista manda (no controle, com o Chrome no aparelho dela)", () => {
+    expect(htmlMenuDoNavegador("Ada", { janela: "pc" })).toMatch(/data-nv-menu="janela">Abrir numa janela do PC<span class="nv-menu-sub">Para escolher um arquivo ou usar a digital/);
+    expect(htmlMenuDoNavegador("Ada", { janela: "mac" })).toContain("Abrir numa janela do Mac");
+    expect(htmlMenuDoNavegador("Ada", {})).not.toContain('data-nv-menu="janela"');
+    expect(htmlPilula("Ada", "controle", null, null, null, "pc", true)).toContain("Na janela do Chrome");
+    expect(htmlPilula("Ada", "controle", null, null, null, "pc", true)).toContain("Devolver à Ada");
+  });
+
   it("encerrar pergunta só com o bot no meio de algo", () => {
     expect(botNoMeio(vista({ passo: { tipo: "clicar", frase: "", caixa: null, em: 10_000 } }), 15_000)).toBe(true);
     expect(botNoMeio(vista({ passo: { tipo: "clicar", frase: "", caixa: null, em: 10_000 } }), 60_000)).toBe(false);
@@ -496,5 +504,18 @@ describe("o navegador no PC (2026-11-22): os textos do aparelho", () => {
     expect(login).toContain("Confirme no seu PC");
     expect(login).toContain("Windows Hello");
     expect(login).not.toContain("Touch ID");
+  });
+});
+
+describe("2026-11-27 (Paper D4 · F): a pílula do login com a janela do Chrome aberta", () => {
+  it("diz para entrar pela janela e o botão é 'Pronto, já entrei'; sem janela, o texto de antes", async () => {
+    const { htmlPilula } = await import("../../../web/lib/navegador-vista.ts");
+    const com = htmlPilula("Ada", "login", null, null, null, "pc", true);
+    expect(com).toContain("Entre pela janela do Chrome");
+    expect(com).toContain("Pronto, já entrei");
+    expect(com).toContain("abriu no seu PC");
+    const sem = htmlPilula("Ada", "login", null, null, null, "pc");
+    expect(sem).toContain("espera você entrar");
+    expect(sem).toContain("Pronto, pode seguir");
   });
 });

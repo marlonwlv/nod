@@ -161,6 +161,37 @@ describe("argv e ambiente", () => {
   });
 });
 
+describe("2026-11-27: a janela do login no aparelho da pessoa", () => {
+  it("mostrar fecha e reabre na mesma página com AGENT_BROWSER_HEADED; esconder volta sem; repetir não mexe", async () => {
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, comJanela: true });
+    respostas.push(() => ({ codigo: 0, saida: ok({ url: "https://www.itau.com.br/login" }) }));
+    await m.janela!(s, true);
+    expect(recebidos.map((r) => r.args.slice(0, 2))).toEqual([["get", "url"], ["close", "--session"], ["open", "https://www.itau.com.br/login"]]);
+    expect(recebidos[1]!.env.AGENT_BROWSER_HEADED).toBeUndefined();
+    expect(recebidos[2]!.env.AGENT_BROWSER_HEADED).toBe("1");
+    // Os comandos seguintes (o quadro, a leitura) vão ao mesmo Chrome com janela.
+    await m.url(s);
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_HEADED).toBe("1");
+    await m.janela!(s, true);
+    expect(recebidos).toHaveLength(4);
+    respostas.push(() => ({ codigo: 0, saida: ok({ url: "https://www.itau.com.br/conta" }) }));
+    await m.janela!(s, false);
+    expect(recebidos.slice(4).map((r) => r.args[0])).toEqual(["get", "close", "open"]);
+    expect(recebidos.at(-1)!.args[1]).toBe("https://www.itau.com.br/conta");
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_HEADED).toBeUndefined();
+  });
+
+  it("fechar (pausa, encerrar) esquece a janela: o Chrome volta a nascer sem; no servidor a operação nem existe", async () => {
+    const m = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "/bin/agent-browser-falso", executor, chrome: "/chrome", dirSocket: null, comJanela: true });
+    respostas.push(() => ({ codigo: 0, saida: ok({ url: "https://exemplo.com/" }) }));
+    await m.janela!(s, true);
+    await m.fechar(s);
+    await m.url(s);
+    expect(recebidos.at(-1)!.env.AGENT_BROWSER_HEADED).toBeUndefined();
+    expect(motor().janela).toBeUndefined();
+  });
+});
+
 describe("o disco do perfil (cenários 22/11, ponto 09)", () => {
   it("limpar tira os caches e mantém cookies, logins e dados dos sites; apagar tira a pasta do bot", async () => {
     const m = motor();
@@ -438,5 +469,27 @@ describe("abas: o stream acompanha a aba nova (QA do navegador no Windows, 2026-
     respostas.push(() => ({ codigo: 0, saida: ok({}) }), () => ({ codigo: 1, saida: JSON.stringify({ success: false, data: null, error: "falhou" }) }));
     await expect(motor().abaFechar(s, "t1")).resolves.toBeUndefined();
     expect(recebidos.map((r) => r.args[1])).toEqual(["close", "--session"]);
+  });
+});
+
+describe("2026-11-28: o perfil do bot sem o gerenciador de senhas do Chrome (a bolha invisível congelava a página)", () => {
+  it("funde as preferências no Default/Preferences, guardando o resto; perfil novo ou arquivo torto começam do zero", async () => {
+    const { prepararPerfil, PREFERENCIAS_DO_PERFIL } = await import("../../../src/adapters/navegador/motor-agent-browser.ts");
+    const { mkdtemp, readFile: ler, rm: apagar, writeFile: gravar } = await import("node:fs/promises");
+    const { tmpdir: tmp } = await import("node:os");
+    const { join: j } = await import("node:path");
+    const perfil = await mkdtemp(j(tmp(), "nod-perfil-"));
+    try {
+      await prepararPerfil(perfil);
+      expect(JSON.parse(await ler(j(perfil, "Default", "Preferences"), "utf8"))).toEqual(PREFERENCIAS_DO_PERFIL);
+      await gravar(j(perfil, "Default", "Preferences"), JSON.stringify({ intl: { accept_languages: "pt-BR" }, profile: { name: "Ada", password_manager_enabled: true } }));
+      await prepararPerfil(perfil);
+      expect(JSON.parse(await ler(j(perfil, "Default", "Preferences"), "utf8"))).toEqual({ intl: { accept_languages: "pt-BR" }, credentials_enable_service: false, credentials_enable_autosignin: false, profile: { name: "Ada", password_manager_enabled: false, password_manager_leak_detection: false } });
+      await gravar(j(perfil, "Default", "Preferences"), "{torto");
+      await prepararPerfil(perfil);
+      expect(JSON.parse(await ler(j(perfil, "Default", "Preferences"), "utf8"))).toEqual(PREFERENCIAS_DO_PERFIL);
+    } finally {
+      await apagar(perfil, { recursive: true, force: true });
+    }
   });
 });

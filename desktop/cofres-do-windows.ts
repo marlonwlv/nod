@@ -20,7 +20,9 @@ export async function cookiesDoChromeDoPc(host: string, env: Readonly<Record<str
   try {
     return await cookiesDoChromeNoWindows({ host, env });
   } catch (e) {
-    if ((e as { detalhe?: string }).detalhe === PRESOS_AO_CHROME) throw new FalhaNavegador("indisponivel", SEM_EXTENSAO);
+    // O Chrome aberto trava o banco (EBUSY) e, fechado, o perfil do dia a dia cifra `v20`: nos dois a saída é a mesma.
+    const detalhe = (e as { detalhe?: string }).detalhe;
+    if (detalhe === PRESOS_AO_CHROME || detalhe?.startsWith("feche o Google Chrome")) throw new FalhaNavegador("indisponivel", SEM_EXTENSAO);
     throw e;
   }
 }
@@ -177,6 +179,8 @@ export type OpcoesCofresDoWindows = {
   cookies?: RecursosDoMac["cookiesDoChrome"];
   /** A confirmação (padrão: o Windows Hello, ou a caixa). */
   confirmar?: (motivo: string) => Promise<boolean>;
+  /** 2026-11-27: a extensão do nod está ligada no Chrome da pessoa agora (o único caminho do "Trazer do meu Chrome" no PC). */
+  chromePronto?: () => boolean;
 };
 
 export function criarCofresDoWindows(o: OpcoesCofresDoWindows): RecursosDoMac {
@@ -186,7 +190,7 @@ export function criarCofresDoWindows(o: OpcoesCofresDoWindows): RecursosDoMac {
   const existe = o.existe ?? existsSync;
   const textos = textosDoAparelho("pc");
   const assinaturas = new Map<string, boolean>();
-  return criarCofresDoMac({
+  const cofres = criarCofresDoMac({
     home: env.USERPROFILE ?? "",
     executar,
     // A assinatura de cada op.exe é conferida uma vez por processo (o PowerShell leva ~1 s, e a lista do cartão tem 4 s).
@@ -210,4 +214,5 @@ export function criarCofresDoWindows(o: OpcoesCofresDoWindows): RecursosDoMac {
       bitwardenTravado: textos.bitwardenTravado,
     },
   });
+  return o.chromePronto ? { ...cofres, chromePronto: o.chromePronto } : cofres;
 }

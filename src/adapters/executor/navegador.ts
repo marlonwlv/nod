@@ -10,6 +10,10 @@ import { log } from "../../obs/log.ts";
 import { ambienteDoSistema, criarMotorAgentBrowser, ehFalhaNavegador, executorPadrao, FalhaNavegador, type ExecutorProcesso, type MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import { ehOperacao, executarOperacao } from "../navegador/operacoes-remotas.ts";
 import { conectarStreamGlobal, lerJson, relayPadrao, relayPermitido, tipoDaMensagem, TIPOS_DE_ENTRADA_DO_STREAM, TIPOS_DO_STREAM_QUE_SAEM, type StreamDoNavegador } from "../navegador/stream-local.ts";
+import { conectarCdpGlobal } from "../navegador/entrada-cdp.ts";
+import { criarVistaLocal, type VistaLocal } from "../navegador/vista-local.ts";
+import { manterAcordado } from "../navegador/manter-acordado.ts";
+import type { EnderecoVistaLocal } from "../../contracts/navegador-local.ts";
 
 /**
  * O navegador do bot na máquina da pessoa (ADR-190, decisão 5; ADR-021, a máquina puxa). O app do Mac e o motor do Linux
@@ -56,6 +60,11 @@ export type RecursosDoMac = {
   cookiesDoChrome(host: string): Promise<CookieNavegador[]>;
   /** true = a pessoa confirmou no Touch ID; false = cancelou (ou o Mac não tem Touch ID e ela recusou a senha). */
   touchId(motivo: string): Promise<boolean>;
+  /**
+   * 2026-11-27: o "Trazer do meu Chrome" funciona agora? No PC só pela extensão do nod ligada (o Chrome aberto com ela);
+   * sem ela o cartão nem oferece (a cópia do perfil esbarra no Chrome aberto e nos cookies `v20`). Ausente = sim (o Mac).
+   */
+  chromePronto?(): boolean;
 };
 
 export type OpcoesNavegadorDaMaquina = {
@@ -73,6 +82,12 @@ export type OpcoesNavegadorDaMaquina = {
    * comandos `seu_computador` rodam aqui; ausente = esta máquina não atende (o servidor nem manda).
    */
   seuComputador?: { executar(agenteId: string, pedido: PedidoSeuComputador): Promise<RespostaSeuComputador> };
+  /**
+   * 2026-11-28 (o painel como um navegador normal): a vista local, para o app do nod NESTA máquina mostrar o navegador do
+   * bot sem a volta pela nuvem (vista-local.ts). `publicar` recebe o endereço quando o servidor local sobe (o motor do PC
+   * grava para o app; no Mac o app pergunta direto). Ausente = só a vista pelo servidor (o Linux sempre ligado).
+   */
+  vistaLocal?: { publicar?(e: EnderecoVistaLocal): void };
 };
 
 const ESPERA_SEM_ROTA_MS = 10 * 60_000;
@@ -130,7 +145,13 @@ function falha(id: string, e: unknown): ResultadoComandoNavegador {
   return { id, ok: false, motivo: "acao_falhou", detalhe: "falhou nesta máquina" };
 }
 
-export type NavegadorDaMaquina = { parar(): void; /** Só testes: vistas abertas agora. */ vivos(): number };
+export type NavegadorDaMaquina = {
+  parar(): void;
+  /** Só testes: vistas abertas agora. */
+  vivos(): number;
+  /** Onde a vista local ouve (null = sem vista local nesta máquina, ou ela não subiu). */
+  enderecoLocal(): Promise<EnderecoVistaLocal | null>;
+};
 
 export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): NavegadorDaMaquina {
   const agora = o.agora ?? (() => Date.now());
@@ -143,6 +164,13 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
   /** Os comandos de um bot em ordem (o agent-browser serializa a sessão; bots diferentes andam juntos). */
   const filas = new Map<string, Promise<void>>();
   const vivos = new Map<string, { fechar(): void }>();
+  // definido em 2026-11-28: a vista local pede 30 quadros/s (na mesma máquina não há rede a poupar; 10 por segundo deixava
+  // a rolagem e a digitação aos trancos).
+  const streamLocal = o.conectarStream ?? ((porta: number) => conectarStreamGlobal(porta, undefined, 30));
+  const vistaLocal: VistaLocal | null = o.vistaLocal ? criarVistaLocal({ motor: o.motor, conectarStream: streamLocal, relay, conectarCdp: (url) => conectarCdpGlobal(url) }) : null;
+  const enderecoLocal: Promise<EnderecoVistaLocal | null> = vistaLocal
+    ? vistaLocal.iniciar().then((e) => { o.vistaLocal?.publicar?.(e); return e; }, (e: unknown) => { log("aviso", "navegador_local_nao_subiu", { erro: e instanceof Error ? e.message.slice(0, 80) : "desconhecido" }); return null; })
+    : Promise.resolve(null);
 
   async function responder(r: ResultadoComandoNavegador): Promise<void> {
     if (await o.canal.resultado(r).catch(() => false)) return;
@@ -192,6 +220,7 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
     });
     local.aoFechar(fechar);
     ws.aoFechar(fechar);
+    manterAcordado(motor, c.agenteId, () => aberto);
     return { id: c.id, ok: true };
   }
 
@@ -220,7 +249,7 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
       return { quantos: cookies.length };
     }
     const p = c.pedido;
-    if (p.operacao === "listar") return { opcoes: await mac.listar(p.host) };
+    if (p.operacao === "listar") return { opcoes: await mac.listar(p.host), ...(mac.chromePronto ? { chrome: mac.chromePronto() } : {}) };
     if (p.operacao === "guardar") { await mac.guardar(p.fonte, p.site, p.usuario, p.senha); return { guardado: true }; }
     const cred = await mac.ler(p.fonte, p.ref, p.host);
     if (p.operacao === "ler") return cred;
@@ -284,8 +313,10 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
       parado = true;
       for (const v of [...vivos.values()]) v.fechar();
       vivos.clear();
+      void vistaLocal?.parar();
     },
     vivos: () => vivos.size,
+    enderecoLocal: () => enderecoLocal,
   };
 }
 
@@ -429,7 +460,10 @@ const PRAZO_INSTALAR_MS = 10 * 60_000;
  * `agent-browser install` em segundo plano e responde `indisponivel` com a frase para o bot ("tente em 2 min") até
  * terminar; a marca `chrome-instalado` na pasta evita repetir nas próximas aberturas.
  */
-export function motorDaMaquina(o: { dados: string; binario: string | null | (() => Promise<string | null>); chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>>; plataforma?: string }): () => Promise<MotorNavegador> {
+/** definido em 2026-11-28: 35 min, um pouco além da pausa do servidor no aparelho da pessoa (30 min). */
+export const OCIOSO_NO_APARELHO_MS = 35 * 60_000;
+
+export function motorDaMaquina(o: { dados: string; binario: string | null | (() => Promise<string | null>); chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>>; plataforma?: string; /** No aparelho da pessoa: o Chrome pode abrir com janela (o login dela). */ comJanela?: boolean }): () => Promise<MotorNavegador> {
   let motor: MotorNavegador | null = null;
   let instalando: Promise<boolean> | null = null;
   let falhouAInstalar = false;
@@ -454,7 +488,9 @@ export function motorDaMaquina(o: { dados: string; binario: string | null | (() 
       })().finally(() => { instalando = null; });
       throw new FalhaNavegador("indisponivel", "estou preparando o Chrome nesta máquina pela primeira vez (alguns minutos); tente de novo em 2 minutos");
     }
-    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}) });
+    // 2026-11-28: no aparelho da pessoa o daemon vive mais que a pausa do servidor ali (30 min, PAUSA_NO_APARELHO_MS):
+    // quem fecha o Chrome é a pausa, que guarda as abas; o daemon sozinho fecharia antes, sem guardar.
+    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}), ...(o.comJanela ? { comJanela: true, ociosoMs: OCIOSO_NO_APARELHO_MS } : {}) });
     return motor;
   };
 }

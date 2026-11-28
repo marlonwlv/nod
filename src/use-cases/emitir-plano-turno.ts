@@ -503,6 +503,9 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const modeloEfetivo = modeloEscolhido ?? turno.modelo;
   const janelaObservada = (escolha?.harness ?? "claude-cli") === "claude-cli" && modo !== "ligacao"
     ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, modeloEfetivo)).catch(() => null) : null;
+  // 2026-11-27: onde o navegador roda agora, só na conversa com a dona (o prompt diz ao bot; falhar não derruba a emissão).
+  const navegadorOnde = (modo === "conversa" || modo === "rotina") && deps.services.navegadores?.disponivel() === true
+    ? await deps.services.navegadores.onde?.(deps.escopo, agente.id).catch(() => null) ?? null : null;
   const parcial = montarPlano({
     ...(janelaObservada ? { janelaObservada } : {}),
     ...(reconfiguracao ? { reconfiguracao: true } : {}),
@@ -511,6 +514,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     computador: temComputador,
     computadorFora,
     navegador: navegadorNoPlano,
+    ...(navegadorOnde ? { navegadorOnde } : {}),
     seuComputador: seuComputadorAgora,
     turno: { ...turno, sobProcuracaoDe, ...(modeloEscolhido ? { modelo: modeloEscolhido } : {}) },
     agente,

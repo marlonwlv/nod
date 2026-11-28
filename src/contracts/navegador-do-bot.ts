@@ -131,13 +131,12 @@ export type VistaNavegador = {
    * "Volta para a Ada em 1 min". null/ausente = não está para voltar.
    */
   devolveEm?: number | null;
-  /**
-   * 2026-11-22: o aparelho da pessoa com o app do nod (o Mac ou o PC), para os textos da confirmação e do "ligado"
-   * (textosDoAparelho). Ausente = o Mac (a vista de antes).
-   */
+  /** 2026-11-22: o aparelho da pessoa (Mac ou PC), para os textos (textosDoAparelho). Ausente = o Mac. */
   aparelho?: "mac" | "pc";
   /** 2026-11-23: o Google recusou o login aqui; `site` = o host de origem, para o "Trazer do meu Chrome". */
   googleRecusou?: { site: string } | null;
+  /** 2026-11-27/28: o Chrome do bot numa janela na tela da pessoa (a saída do que o painel não alcança; navegadores.ts). */
+  janela?: boolean;
 };
 
 /**
@@ -172,7 +171,7 @@ export type RespostaNavegador = { vista: VistaNavegador; disponivel: boolean };
 export type RespostaEnsinar = { ok: true; vista: VistaNavegador; tarefa?: TarefaEnsinada };
 
 /** POST /agentes/:id/navegador {operacao}: o que a pessoa faz com o navegador do bot ("voltar": a barra no controle, D2 B). */
-export const OPERACOES_NAVEGADOR = ["assumir", "devolver", "resolver", "ligar", "encerrar", "retomar", "recarregar", "voltar"] as const;
+export const OPERACOES_NAVEGADOR = ["assumir", "devolver", "resolver", "ligar", "encerrar", "retomar", "recarregar", "voltar", "janela"] as const;
 export type OperacaoNavegador = (typeof OPERACOES_NAVEGADOR)[number];
 
 /** POST /agentes/:id/navegador/ensinar {operacao, nome?} (T). */

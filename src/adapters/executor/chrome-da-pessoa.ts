@@ -134,7 +134,11 @@ export type PonteDoChrome = {
   fechar(): Promise<void>;
 };
 
-export const SEM_EXTENSAO = "instale a extensão do nod no seu Chrome (e deixe o Chrome aberto) para trazer o login dele";
+/**
+ * Revisto em 2026-11-27 (o login de uma usuária no PC): a frase de antes ("instale a extensão…") mandava a pessoa atrás de uma
+ * extensão que ainda não está na loja. Agora aponta a saída que funciona no PC: entrar ela mesma, na janela do Chrome.
+ */
+export const SEM_EXTENSAO = "no PC o login do seu Chrome só vem pela extensão do nod; por agora, toque em Entrar eu mesmo e entre pelo painel, como num navegador";
 /** definido em 2026-11-23: a extensão responde na hora; 15 s cobre o service worker acordando. */
 const PRAZO_COOKIES_MS = 15_000;
 const HOST_VALIDO = /^[a-z0-9.-]{1,253}$/u;

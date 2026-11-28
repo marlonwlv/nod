@@ -7,6 +7,8 @@ import {
 } from "../lib/navegador-vista.ts";
 import { pulsarHalo } from "./tela-cheia.ts";
 import { fonteDoLogin, htmlSeloDoLogin } from "../lib/navegador-cartoes.ts";
+import { abrirVistaLocal, chromeVivo, criarFilaLocal, ponteDoApp, quadroDoStream, type VistaLocalAberta } from "../lib/navegador-local.ts";
+import type { PonteNavegadorLocal } from "../../src/contracts/navegador-local.ts";
 
 /**
  * A vista do navegador do bot (ADR-190; Paper D1–D4, D1d, D8): UM elemento por bot, que viaja entre os hospedeiros (o
@@ -44,10 +46,17 @@ export type OpcoesDaVista = {
   entrarEuMesmo?: (agenteId: string, decisaoId: string) => Promise<VistaNavegador | null>;
   /** Os testes passam um socket falso e o relógio; o padrão é o WebSocket do navegador. */
   abrirSocket?: (url: string) => SocketDaVista;
+  /**
+   * 2026-11-28: a vista local do app (o Chrome do bot neste computador, sem a volta pela nuvem). Ausente = a ponte do app,
+   * se houver; null = nunca (os testes e o navegador comum).
+   */
+  local?: PonteNavegadorLocal | null;
   agora?: () => number;
   menosMovimento?: () => boolean;
 };
 
+/** 2026-11-28: a vista local falhou: o painel segue pelo servidor e tenta o caminho local de novo depois disto. */
+export const MS_LOCAL_DE_NOVO = 30_000;
 /** O canal caiu: tenta de novo em 1, 2, 4 e 8 s (o último se repete), como a tela do computador. */
 export const ESPERAS_DO_CANAL_MS = [1_000, 2_000, 4_000, 8_000] as const;
 /** D3, 4: sem o canal, a imagem a cada 2 s (a vista relê o REST e o canal tenta de novo). */
@@ -156,6 +165,15 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   let geracao = 0;
   let timerTamanho = 0;
   let tamanhoMandado = "";
+  // 2026-11-28: a vista local (o Chrome do bot neste computador). Enquanto ela está aberta, os quadros vêm dela e a
+  // entrada vai por ela, confirmada; o canal do servidor fica só com a vista e o espelho da entrada.
+  const ponte = o.local === undefined ? ponteDoApp() : o.local;
+  let local: VistaLocalAberta | null = null;
+  let filaLocal: ReturnType<typeof criarFilaLocal> | null = null;
+  let abrindoLocal = false;
+  let localDeNovoEm = 0;
+  let quadrosLocais = ponte !== null;
+  let retomouAoAbrir = false;
 
   const vista = (): VistaNavegador | null => r?.vista ?? null;
   const controla = (): boolean => vista()?.controle === "pessoa";
@@ -222,7 +240,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     img.hidden = !temQuadro || e === "segredo" || e === "desligado" || e === "pausa" || e === "erro" || e === "indisponivel" || e === "ligando";
     // A pílula (D1b, A) na faixa de 52 px. Sem vista ou parada, sem pílula (o estado tem o botão).
     const comPilula = !!v && pilula !== null && (e === "ao_vivo" || e === "rede_fraca" || e === "terminou" || e === "segredo" || e === "conectando" || v.pedido !== null || v.controle !== "bot");
-    const htmlP = comPilula ? htmlPilula(nome, pilula!, v!.pedido, e === "terminou" && pilula === "assistindo" ? v!.atividadeEm : null, v!.devolveEm ?? null, v!.aparelho) : "";
+    const htmlP = comPilula ? htmlPilula(nome, pilula!, v!.pedido, e === "terminou" && pilula === "assistindo" ? v!.atividadeEm : null, v!.devolveEm ?? null, v!.aparelho, v!.janela === true) : "";
     if (htmlP !== pintadoPilula) {
       const tinhaFoco = pilulaLugar.contains(document.activeElement);
       const antiga = pilulaLugar.querySelector<HTMLElement>(".nv-pilula:not(.nv-pilula-sai)");
@@ -325,6 +343,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     if (nova.controle !== "pessoa") editando = null;
     pintar();
     o.aoMudar?.(r);
+    decidirLocal();
   }
 
   function ligarCanal(): void {
@@ -333,7 +352,9 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     const minha = ++geracao;
     let s: SocketDaVista;
     try {
-      s = (o.abrirSocket ?? ((url: string) => new WebSocket(url) as unknown as SocketDaVista))(o.api.urlVivoNavegador(o.agenteId));
+      quadrosLocais = ponte !== null && agora() >= localDeNovoEm;
+      const url = o.api.urlVivoNavegador(o.agenteId) + (quadrosLocais ? "?quadros=local" : "");
+      s = (o.abrirSocket ?? ((u: string) => new WebSocket(u) as unknown as SocketDaVista))(url);
     } catch { agendarCanal(); return; }
     sock = s;
     s.onopen = () => { if (minha !== geracao) return; tentativas = 0; tamanhoMandado = ""; mandarTamanho(); };
@@ -360,6 +381,8 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       if (destruida || !visivel) return;
       // 4403: não é a dona (não tenta de novo). 4409: outra janela abriu; tenta de novo devagar.
       if (ev.code === 4403) return;
+      // Com a vista local de pé, os quadros seguem; só a vista (o estado) espera o canal voltar.
+      if (local) { agendarCanal(); return; }
       canalCaiu = true;
       pintar();
       armarImagem();
@@ -375,6 +398,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   }
 
   function desligarCanal(): void {
+    fecharLocal();
     geracao++;
     const s = sock;
     sock = null;
@@ -415,9 +439,106 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     timerTamanho = window.setTimeout(() => { timerTamanho = 0; mandarTamanho(); }, MS_TAMANHO_PARADO);
   }
 
+  function mandarAoServidor(msg: object): void {
+    if (!sock || sock.readyState !== 1) return;
+    try { sock.send(JSON.stringify(msg)); } catch { /* o canal caiu; a reconexão cuida */ }
+  }
+
   function enviar(e: EntradaNavegador): void {
-    if (!sock || sock.readyState !== 1 || !controla()) return;
-    try { sock.send(JSON.stringify(e)); } catch { /* o canal caiu; a reconexão cuida */ }
+    if (!controla()) return;
+    // A vista local leva a entrada confirmada; gravando uma tarefa (T), vai pelo servidor (a gravação lê o elemento antes
+    // do clique, e o espelho chegaria depois dele).
+    if (local && filaLocal && !vista()?.gravacao) {
+      filaLocal.colocar(e);
+      if (!(e.t === "mouse" && e.evento === "mouseMoved")) mandarAoServidor({ t: "espelho", e });
+      return;
+    }
+    mandarAoServidor(e);
+  }
+
+  // ---- a vista local (2026-11-28) ------------------------------------------------------------------------------------------
+
+  /** Os quadros vêm da vista local (true) ou do servidor (false): o servidor liga ou desliga o stream dele. */
+  function quadrosDaqui(sim: boolean): void {
+    if (quadrosLocais === sim) return;
+    quadrosLocais = sim;
+    mandarAoServidor({ t: "quadros", local: sim });
+  }
+
+  /** A vista chegou ou mudou: abre a vista local se o Chrome do bot está vivo neste computador (o lugar "mac"). */
+  function decidirLocal(): void {
+    const v = vista();
+    if (!v || destruida || !visivel) return;
+    // O Chrome do bot pausou no aparelho da pessoa (30 min sem uso) e ela abriu o painel: ele religa sem esperar o
+    // "Retomar" (uma vez por abertura; com o aparelho desligado o servidor recusa e o "Retomar" continua lá).
+    if (v.estado === "pausa" && v.lugar.tipo === "mac" && !retomouAoAbrir) {
+      retomouAoAbrir = true;
+      void o.api.operarNavegador(o.agenteId, "retomar").then((resp) => { if (!destruida) mudouVista(resp.vista); }).catch(() => undefined);
+    }
+    if (!ponte) return;
+    if (v.lugar.tipo !== "mac") { fecharLocal(); quadrosDaqui(false); return; }
+    if (!chromeVivo(v.estado)) return;
+    if (local || abrindoLocal) return;
+    if (agora() < localDeNovoEm) { quadrosDaqui(false); return; }
+    void abrirLocal();
+  }
+
+  async function abrirLocal(): Promise<void> {
+    if (!ponte) return;
+    abrindoLocal = true;
+    const minha = geracao;
+    const l = await abrirVistaLocal(ponte, o.agenteId, doLocal).catch(() => null);
+    abrindoLocal = false;
+    if (!l) { localDeNovoEm = agora() + MS_LOCAL_DE_NOVO; quadrosDaqui(false); return; }
+    if (minha !== geracao || destruida || !visivel) { l.fechar(); return; }
+    local = l;
+    filaLocal = criarFilaLocal({ enviar: (e) => l.enviar(e), aoFalhar: (pendentes) => caiuLocal(pendentes) });
+    quadrosDaqui(true);
+    if (canalCaiu) { canalCaiu = false; pararImagem(); pintar(); }
+  }
+
+  function fecharLocal(): void {
+    const l = local;
+    local = null;
+    filaLocal = null;
+    l?.fechar();
+  }
+
+  /** A vista local não confirmou nem tentando de novo: segue pelo servidor, levando o que ainda não tinha ido. */
+  function caiuLocal(pendentes: readonly EntradaNavegador[]): void {
+    fecharLocal();
+    localDeNovoEm = agora() + MS_LOCAL_DE_NOVO;
+    quadrosDaqui(false);
+    for (const e of pendentes) mandarAoServidor(e);
+    anuncio.textContent = "A conexão direta com o navegador falhou; seguindo pela internet.";
+  }
+
+  /** Uma mensagem da vista local: o quadro (direto na imagem), as abas e o tamanho (ao servidor) ou o fim. */
+  function doLocal(texto: string): void {
+    if (destruida) return;
+    let m: Record<string, unknown>;
+    try { m = JSON.parse(texto) as Record<string, unknown>; } catch { return; }
+    if (m.type === "frame") {
+      // Os quadros que chegaram antes de a ponte dizer o id vêm durante a abertura (abrindoLocal).
+      if ((!local && !abrindoLocal) || vista()?.segredoNaPagina) return;
+      const q = quadroDoStream(m);
+      if (!q) return;
+      img.src = `data:image/jpeg;base64,${q.jpeg}`;
+      tamQuadro = { w: q.w, h: q.h };
+      const primeiro = !temQuadro;
+      temQuadro = true;
+      if (canalCaiu || primeiro) { canalCaiu = false; pararImagem(); pintar(); }
+      return;
+    }
+    if (m.type === "tabs" || m.type === "status") { mandarAoServidor({ t: "do_stream", m }); return; }
+    if (m.t === "fim") {
+      fecharLocal();
+      // O Chrome fechou (a pausa, a janela do login): a próxima vista viva abre de novo. Sem Chrome do bot aqui (o lugar
+      // é outro computador da pessoa) ou falha: segue pelo servidor e tenta mais tarde.
+      if (m.motivo === "fechou") { window.setTimeout(() => decidirLocal(), 1_000); return; }
+      localDeNovoEm = agora() + MS_LOCAL_DE_NOVO;
+      quadrosDaqui(false);
+    }
   }
 
   // ---- as operações da pessoa ----------------------------------------------------------------------------------------------
@@ -654,12 +775,13 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       else r = nova;
       if (r?.vista.controle !== "pessoa") editando = null;
       pintar();
+      decidirLocal();
     },
     hospedar(h) { host = h; pintar(); agendarTamanho(); },
     ligar(v) {
       if (visivel === v) return;
       visivel = v;
-      if (v) { tentativas = 0; ligarCanal(); } else desligarCanal();
+      if (v) { tentativas = 0; ligarCanal(); decidirLocal(); } else { retomouAoAbrir = false; desligarCanal(); }
     },
     assumir,
     devolver,
