@@ -113,6 +113,11 @@ export interface MotorNavegador {
   definirCookies(s: SessaoNavegador, cookies: readonly CookieNavegador[]): Promise<void>;
   /** A porta do WebSocket de quadros da sessão (liga o streaming se estiver desligado); null sem sessão viva. */
   portaDoStream(s: SessaoNavegador): Promise<number | null>;
+  /**
+   * 2026-11-28: o endereço do CDP do Chrome do bot (`ws://127.0.0.1:…`), para a entrada confirmada da vista local
+   * (entrada-cdp.ts). Só na máquina onde o Chrome roda; o motor remoto não tem.
+   */
+  enderecoCdp?(s: SessaoNavegador): Promise<string | null>;
   /** O tamanho da página em CSS px (`set viewport`): acompanha a área de quem assiste (emenda de 2026-11-20 da ADR-190). */
   tamanho(s: SessaoNavegador, w: number, h: number): Promise<void>;
   /**
@@ -689,6 +694,11 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     }
     return typeof d.port === "number" ? d.port : null;
   }
+  async function enderecoCdp(s: SessaoNavegador): Promise<string | null> {
+    const d = await rodar(s, ["get", "cdp-url"]);
+    const url = typeof d.cdpUrl === "string" ? d.cdpUrl : "";
+    return /^ws:\/\/(127\.0\.0\.1|localhost):\d{1,5}\/devtools\/browser\/[\w-]{1,80}$/.test(url) ? url : null;
+  }
   /**
    * QA-209: o relay precisa do stream ligado; ligado só para este comando, ele volta a desligar no fim — a não ser que já
    * estivesse ligado (a vista ao vivo aberta), que aí fica como estava.
@@ -881,6 +891,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       });
     },
     portaDoStream,
+    enderecoCdp,
     async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
     ...(o.comJanela ? {
       // 2026-11-27: o daemon do agent-browser decide com ou sem janela quando nasce; trocar é fechar e reabrir no mesmo
