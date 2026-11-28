@@ -4,7 +4,7 @@ import type { Conector } from "../contracts/conector.ts";
 import type { Agente, ModoAprovacao } from "../contracts/agente.ts";
 import type { Memoria } from "../contracts/memoria.ts";
 import type { FerramentaPlano, ModoTurno } from "../contracts/plano-turno.ts";
-import type { OndeDoNavegador } from "../contracts/navegador-do-bot.ts";
+import type { OndeDoNavegador } from "../contracts/navegador-onde.ts";
 import type { SecaoDoPrompt } from "../contracts/raio-x.ts";
 import type { Profundidade } from "../contracts/turno.ts";
 import type { OrigemTrabalho } from "../contracts/trabalho.ts";

@@ -131,31 +131,13 @@ export type VistaNavegador = {
    * "Volta para a Ada em 1 min". null/ausente = não está para voltar.
    */
   devolveEm?: number | null;
-  /**
-   * 2026-11-22: o aparelho da pessoa com o app do nod (o Mac ou o PC), para os textos da confirmação e do "ligado"
-   * (textosDoAparelho). Ausente = o Mac (a vista de antes).
-   */
+  /** 2026-11-22: o aparelho da pessoa (Mac ou PC), para os textos (textosDoAparelho). Ausente = o Mac. */
   aparelho?: "mac" | "pc";
   /** 2026-11-23: o Google recusou o login aqui; `site` = o host de origem, para o "Trazer do meu Chrome". */
   googleRecusou?: { site: string } | null;
-  /**
-   * 2026-11-27 (o login de uma usuária no PC): no aparelho da pessoa, "Entrar eu mesmo" abre o Chrome do bot numa janela
-   * de verdade na tela dela, e ela digita ali, não pela imagem do painel. true enquanto a janela está aberta.
-   */
+  /** 2026-11-27: "Entrar eu mesmo" no aparelho da pessoa abriu o Chrome do bot numa janela na tela dela (navegadores.ts). */
   janela?: boolean;
 };
-
-/**
- * 2026-11-27: onde o navegador do bot roda agora, para o prompt (o bot sabe onde trabalha e diz à pessoa numa frase).
- * Antes o prompt dizia sempre "um Chrome do nod, separado do laptop da pessoa", e no PC de uma usuária ele rodava no
- * PC dela: o bot misturava o navegador com o computador e respondia "indisponível" sem tentar.
- */
-export type OndeDoNavegador =
-  | { tipo: "nod" }
-  | { tipo: "aparelho"; aparelho: "Mac" | "PC" }
-  | { tipo: "maquina"; nome: string }
-  /** O lugar dele não atende agora (o aparelho desligado, a máquina fora do ar): `instrucao` é a da ferramenta. */
-  | { tipo: "espera"; instrucao: string };
 
 /**
  * Quadros do canal ao vivo, servidor → web (JSON por WebSocket, `/api/t/:tenant/agentes/:id/navegador/vivo`).

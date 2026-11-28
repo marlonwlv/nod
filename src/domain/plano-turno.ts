@@ -38,7 +38,7 @@ import { janelaDoModelo, orcamentoDoTurno, precisaEnxugar, type OrcamentoContext
 import { partesDoPromptSistema, trechoComClone, trechoDoClone, type BastidorNoPrompt, type EntradaPromptSistema, type RotinaNoPrompt, type TrabalhoNoPrompt } from "./prompt-sistema.ts";
 import { FERRAMENTAS_COMPUTADOR } from "../contracts/ferramentas-computador.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA } from "../contracts/ferramentas-navegador.ts";
-import type { OndeDoNavegador } from "../contracts/navegador-do-bot.ts";
+import type { OndeDoNavegador } from "../contracts/navegador-onde.ts";
 import { FERRAMENTAS_SEU_COMPUTADOR, SEU_COMPUTADOR_SO_LEITURA } from "../contracts/seu-computador.ts";
 import { FERRAMENTA_ANEXAR_MIDIA, FERRAMENTA_LER_MAIS } from "../contracts/ferramentas-proxy.ts";
 import type { ComputadorFora } from "./prompt-sistema.ts";

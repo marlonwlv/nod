@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA, type NomeFerramentaNavegador } from "../../contracts/ferramentas-navegador.ts";
 import type { JsonSchema } from "../../contracts/json-schema.ts";
 import type { Executor } from "../../contracts/evento.ts";
-import type { AbaNavegador, CaixaNavegador, EntradaNavegador, EscolhaLoginNavegador, FonteCofre, GravacaoNavegador, LugarNavegador, OndeDoNavegador, OpcaoLogin, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
+import type { AbaNavegador, CaixaNavegador, EntradaNavegador, EscolhaLoginNavegador, FonteCofre, GravacaoNavegador, LugarNavegador, OpcaoLogin, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { PlanoTurno } from "../../contracts/plano-turno.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import { modoNoTurno } from "../../domain/modo-aprovacao.ts";
@@ -15,6 +15,7 @@ import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.
 import { campoEhSecreto, JS_CAMPO_PREENCHIDO, JS_SEGREDO_MARCADO, paginaSemFragmento, redigirArvore, segredoAindaNaPagina, segredoEmAlgumaAba } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, viewportDeQuemAssiste, viewportMudouMuito, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
+import type { OndeDoNavegador } from "../../contracts/navegador-onde.ts";
 import type { Escopo } from "../../shared/types.ts";
 import { errosDoSchema, type ResultadoChamada } from "../../use-cases/chamar-ferramenta.ts";
 import { receberAnexo } from "../../use-cases/anexos.ts";
