@@ -388,6 +388,14 @@ jobs:
       - name: O painel do navegador no Electron (Windows)
         timeout-minutes: 5
         run: node scripts/navegador/prova-painel-electron/rodar.mjs
+      # A mesma prova num site real e externo com login (o SauceDemo, feito para testes de automação). Só informa: depende da
+      # rede e de um site de fora, então não reprova o job.
+      - name: O painel do navegador num site real (Windows, informativo)
+        timeout-minutes: 5
+        continue-on-error: true
+        env:
+          NOD_PROVA_SITE: real
+        run: node scripts/navegador/prova-painel-electron/rodar.mjs
       - if: always()
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
