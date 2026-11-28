@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { navegadorLocal } from "../preload-navegador-local.ts";
+import { CANAIS_NAVEGADOR_LOCAL, type PonteNavegadorLocal } from "../../src/contracts/navegador-local.ts";
+import type { EntradaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { CANAIS_DESKTOP, type IaDesktop, type NodDesktop } from "../../src/contracts/desktop.ts";
 import { CANAIS_MICROFONE } from "../../src/contracts/desktop-microfone.ts";
 import { CANAIS_REMOVER, type OpcoesRemover } from "../../src/contracts/remover-computador.ts";
@@ -26,6 +27,19 @@ const atualizacaoApp: NonNullable<PonteAtualizacaoApp["atualizacaoApp"]> = {
   procurar: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.procurar),
   definirSozinho: (ligado: boolean) => ipcRenderer.invoke(CANAIS_ATUALIZACAO.definirSozinho, ligado === true),
   avisoVisto: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.avisoVisto),
+};
+/**
+ * 2026-11-28 (o painel como um navegador normal): a vista local do navegador do bot (desktop/navegador-local.ts faz o resto
+ * no processo principal). A página não vê porta nem token: só o id da vista.
+ */
+const navegadorLocal: PonteNavegadorLocal = {
+  abrir: (agenteId: string) => ipcRenderer.invoke(CANAIS_NAVEGADOR_LOCAL.abrir, agenteId),
+  enviar: (id: string, e: EntradaNavegador) => ipcRenderer.invoke(CANAIS_NAVEGADOR_LOCAL.enviar, id, e),
+  fechar: (id: string) => ipcRenderer.invoke(CANAIS_NAVEGADOR_LOCAL.fechar, id),
+  aoMensagem: (fn: (id: string, texto: string) => void) => {
+    ipcRenderer.removeAllListeners(CANAIS_NAVEGADOR_LOCAL.mensagem);
+    ipcRenderer.on(CANAIS_NAVEGADOR_LOCAL.mensagem, (_e, id: unknown, texto: unknown) => { if (typeof id === "string" && typeof texto === "string") fn(id, texto); });
+  },
 };
 const ponte: Pick<NodDesktop, "iaEntrar" | "iaInstalar" | "desafioConta" | "trocarConta" | "googleConta" | "esteComputador" | "estaMaquina" | "removerDaqui" | "fecharAposRemover" | "microfone" | "ajustesMicrofone" | "atualizacaoApp" | "navegadorLocal"> = {
   iaEntrar: (ia: IaDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.iaEntrar, ia),
