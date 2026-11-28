@@ -12,6 +12,7 @@ import { ehOperacao, executarOperacao } from "../navegador/operacoes-remotas.ts"
 import { conectarStreamGlobal, lerJson, relayPadrao, relayPermitido, tipoDaMensagem, TIPOS_DE_ENTRADA_DO_STREAM, TIPOS_DO_STREAM_QUE_SAEM, type StreamDoNavegador } from "../navegador/stream-local.ts";
 import { conectarCdpGlobal } from "../navegador/entrada-cdp.ts";
 import { criarVistaLocal, type VistaLocal } from "../navegador/vista-local.ts";
+import { manterAcordado } from "../navegador/manter-acordado.ts";
 import type { EnderecoVistaLocal } from "../../contracts/navegador-local.ts";
 
 /**
@@ -219,6 +220,7 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
     });
     local.aoFechar(fechar);
     ws.aoFechar(fechar);
+    manterAcordado(motor, c.agenteId, () => aberto);
     return { id: c.id, ok: true };
   }
 
@@ -458,6 +460,9 @@ const PRAZO_INSTALAR_MS = 10 * 60_000;
  * `agent-browser install` em segundo plano e responde `indisponivel` com a frase para o bot ("tente em 2 min") até
  * terminar; a marca `chrome-instalado` na pasta evita repetir nas próximas aberturas.
  */
+/** definido em 2026-11-28: 35 min, um pouco além da pausa do servidor no aparelho da pessoa (30 min). */
+export const OCIOSO_NO_APARELHO_MS = 35 * 60_000;
+
 export function motorDaMaquina(o: { dados: string; binario: string | null | (() => Promise<string | null>); chrome: () => string | null; executor?: ExecutorProcesso; env?: Readonly<Record<string, string | undefined>>; plataforma?: string; /** No aparelho da pessoa: o Chrome pode abrir com janela (o login dela). */ comJanela?: boolean }): () => Promise<MotorNavegador> {
   let motor: MotorNavegador | null = null;
   let instalando: Promise<boolean> | null = null;
@@ -483,7 +488,9 @@ export function motorDaMaquina(o: { dados: string; binario: string | null | (() 
       })().finally(() => { instalando = null; });
       throw new FalhaNavegador("indisponivel", "estou preparando o Chrome nesta máquina pela primeira vez (alguns minutos); tente de novo em 2 minutos");
     }
-    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}), ...(o.comJanela ? { comJanela: true } : {}) });
+    // 2026-11-28: no aparelho da pessoa o daemon vive mais que a pausa do servidor ali (30 min, PAUSA_NO_APARELHO_MS):
+    // quem fecha o Chrome é a pausa, que guarda as abas; o daemon sozinho fecharia antes, sem guardar.
+    motor = criarMotorAgentBrowser({ dados: o.dados, segredo: await segredoDaMaquina(o.dados), binario: o.binario as string, chrome, ...(o.executor ? { executor: o.executor } : {}), ...(o.comJanela ? { comJanela: true, ociosoMs: OCIOSO_NO_APARELHO_MS } : {}) });
     return motor;
   };
 }

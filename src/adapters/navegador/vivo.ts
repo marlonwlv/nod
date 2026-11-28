@@ -46,6 +46,8 @@ export type PortaoDoVivo = {
   antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void>;
   /** A área da vista de quem assiste mudou (`{t:"tamanho"}`): o Chrome acompanha (emenda de 2026-11-20 da ADR-190). */
   tamanho?(escopo: Escopo, agenteId: string, area: { w: number; h: number }): void;
+  /** 2026-11-28: quantas vistas deste bot estão abertas (o Chrome não pausa com alguém olhando). */
+  assistindo?(escopo: Escopo, agenteId: string, quantas: number): void;
 };
 
 export type OpcoesVivoNavegador = {
@@ -148,6 +150,7 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
   function sair(bot: Bot, e: Espectador): void {
     e.aberto = false;
     bot.espectadores = bot.espectadores.filter((x) => x !== e);
+    o.portao.assistindo?.(bot.escopo, bot.agenteId, bot.espectadores.length);
     if (bot.espectadores.length) { if (!querQuadros(bot)) fecharStream(bot); return; }
     fecharStream(bot);
     bots.delete(chave(bot.escopo, bot.agenteId));
@@ -317,6 +320,7 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
           b.espectadores = b.espectadores.filter((x) => x !== velho);
         }
         b.espectadores.push(e);
+        o.portao.assistindo?.(escopo, agenteId, b.espectadores.length);
         enviar(e, { t: "vista", vista: o.portao.vistaDe(escopo, agenteId) });
         for (const t of recebidas.splice(0)) entrada(b, e, t);
         void garantirStream(b);

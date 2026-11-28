@@ -137,3 +137,19 @@ describe("a vista local da máquina (127.0.0.1, com token)", () => {
     expect(alvoAtivoDasAbas({})).toBeNull();
   });
 });
+
+describe("o daemon fica acordado enquanto alguém assiste (2026-11-28)", () => {
+  it("um comando barato a cada intervalo; para quando a vista fecha", async () => {
+    const { manterAcordado } = await import("../../../src/adapters/navegador/manter-acordado.ts");
+    let aberto = true;
+    let chamadas = 0;
+    manterAcordado({ portaDoStream: async () => { chamadas++; return 1; } }, BOT, () => aberto, 10);
+    await new Promise((r) => setTimeout(r, 45));
+    expect(chamadas).toBeGreaterThanOrEqual(3);
+    aberto = false;
+    await new Promise((r) => setTimeout(r, 15));
+    const depois = chamadas;
+    await new Promise((r) => setTimeout(r, 40));
+    expect(chamadas).toBe(depois);
+  });
+});

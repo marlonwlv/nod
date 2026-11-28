@@ -70,8 +70,10 @@ describe("a vista local do app (o Chrome do bot neste computador)", () => {
   let sockets: SocketFalso[];
   beforeEach(() => { sockets = []; document.body.innerHTML = ""; });
 
+  let api: ReturnType<typeof apiFalsa>;
   function montar(ponte: PonteNavegadorLocal, r: RespostaNavegador = resposta()) {
-    const v = montarVistaNavegador({ api: apiFalsa(), agenteId: "a1", nome: () => "Ada", local: ponte, abrirSocket: (url) => { const s = new SocketFalso(url); sockets.push(s); return s; }, menosMovimento: () => true });
+    api = apiFalsa();
+    const v = montarVistaNavegador({ api, agenteId: "a1", nome: () => "Ada", local: ponte, abrirSocket: (url) => { const s = new SocketFalso(url); sockets.push(s); return s; }, menosMovimento: () => true });
     document.body.append(v.el);
     v.atualizar(r);
     v.ligar(true);
@@ -133,13 +135,20 @@ describe("a vista local do app (o Chrome do bot neste computador)", () => {
     expect(ponte.abrir).not.toHaveBeenCalled();
   });
 
-  it("o Chrome em pausa: espera; quando volta a viver, abre a vista local", async () => {
+  it("o Chrome em pausa no aparelho dela: abrir o painel já o retoma (uma vez) e, vivo, a vista local abre", async () => {
     const ponte = ponteFalsa();
     const v = montar(ponte, resposta({ estado: "pausa" }));
-    await new Promise((r) => setTimeout(r, 10));
-    expect(ponte.abrir).not.toHaveBeenCalled();
-    v.atualizar(resposta({ estado: "ao_vivo" }));
+    await vi.waitFor(() => expect(api.operarNavegador).toHaveBeenCalledWith("a1", "retomar"));
     await vi.waitFor(() => expect(ponte.abrir).toHaveBeenCalledTimes(1));
+    v.atualizar(resposta({ estado: "pausa" }));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(api.operarNavegador).toHaveBeenCalledTimes(1);
+  });
+
+  it("em pausa no nod (nuvem): não retoma sozinho (lá o Chrome conta no teto do servidor)", async () => {
+    montar(ponteFalsa(), resposta({ estado: "pausa", lugar: { tipo: "nod" } }));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(api.operarNavegador).not.toHaveBeenCalled();
   });
 
   it("gravando uma tarefa (T): a entrada vai pelo servidor (a gravação lê o elemento antes do clique)", async () => {

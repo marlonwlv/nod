@@ -8,6 +8,7 @@ import { comandosDaEntrada, lerEntradaNavegador } from "../../domain/navegador-e
 import { log } from "../../obs/log.ts";
 import { criarEntradaCdp, type ConexaoCdp, type EntradaCdp } from "./entrada-cdp.ts";
 import type { MotorNavegador } from "./motor-agent-browser.ts";
+import { manterAcordado } from "./manter-acordado.ts";
 import { lerJson, relayPermitido, tipoDaMensagem, TIPOS_DO_STREAM_QUE_SAEM, type StreamDoNavegador } from "./stream-local.ts";
 
 /**
@@ -160,6 +161,7 @@ export function criarVistaLocal(o: OpcoesVistaLocal): VistaLocal {
           mandar(texto);
         });
         st.aoFechar(() => encerrar("fechou"));
+        manterAcordado(motor, agenteId, () => aberto);
         pronto = true;
         void andar();
       } catch (e) {

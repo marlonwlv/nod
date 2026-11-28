@@ -135,6 +135,9 @@ type Estado = {
   loginEmCurso: Promise<void> | null;
   /** 2026-11-27: a troca do Chrome com/sem janela em curso (o bot só segue depois dela). */
   trocandoJanela: Promise<void> | null;
+  /** 2026-11-28: quantas vistas abertas agora (o canal ao vivo diz) e quando a última fechou: assistir conta como uso. */
+  assistindo: number;
+  vistoEm: number | null;
   /** L5: o que a pessoa digita no login "Entrar eu mesmo", só em memória e cifrado, até `ate`. */
   captura: Captura | null;
   /** A3: o último texto que o BOT preencheu e em que página (a citação do cartão de envio). Nunca o que a pessoa digita. */
@@ -423,7 +426,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, paginasComSegredo: new Set(), vivo: false,
-      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, siteAntesDoGoogle: null, loginEmCurso: null, trocandoJanela: null, captura: null, ultimoTexto: null,
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, siteAntesDoGoogle: null, loginEmCurso: null, trocandoJanela: null, assistindo: 0, vistoEm: null, captura: null, ultimoTexto: null,
       tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null, desafioEm: null, assumidoEm: null, entradaPessoaEm: null, turnoEsperando: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
@@ -550,7 +553,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     await marcarTerminados();
     let pausados = 0;
     for (const est of estados.values()) {
-      if (!est.vivo || !deveriaPausar(est.vista, agora())) continue;
+      if (!est.vivo || !deveriaPausar(est.vista, agora(), { assistindo: est.assistindo > 0, vistoEm: est.vistoEm })) continue;
       await pausar(est);
       pausados++;
     }
@@ -1909,6 +1912,13 @@ export function criarNavegadores(o: OpcoesNavegadores) {
      * Antes de repassar uma entrada da pessoa ao Chrome (T): gravando, o clique vira "Clicou em …" (o elemento no ponto,
      * descrito ANTES do clique, que pode trocar de página) e a digitação vira "Preencheu <rótulo>" (nunca o texto).
      */
+    /** 2026-11-28: o canal ao vivo diz quantas vistas deste bot estão abertas (enquanto há uma, o Chrome não pausa). */
+    assistindo(escopo: Escopo, agenteId: string, quantas: number): void {
+      const est = estados.get(agenteId);
+      if (!est || est.escopo.pessoaId !== escopo.pessoaId) return;
+      if (est.assistindo > 0 && quantas === 0) est.vistoEm = agora();
+      est.assistindo = Math.max(0, quantas);
+    },
     async antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void> {
       const est = estados.get(agenteId);
       if (!est || est.vista.controle !== "pessoa" || est.escopo.pessoaId !== escopo.pessoaId) return;

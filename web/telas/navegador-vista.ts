@@ -173,6 +173,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   let abrindoLocal = false;
   let localDeNovoEm = 0;
   let quadrosLocais = ponte !== null;
+  let retomouAoAbrir = false;
 
   const vista = (): VistaNavegador | null => r?.vista ?? null;
   const controla = (): boolean => vista()?.controle === "pessoa";
@@ -467,7 +468,14 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   /** A vista chegou ou mudou: abre a vista local se o Chrome do bot está vivo neste computador (o lugar "mac"). */
   function decidirLocal(): void {
     const v = vista();
-    if (!ponte || !v || destruida || !visivel) return;
+    if (!v || destruida || !visivel) return;
+    // O Chrome do bot pausou no aparelho da pessoa (30 min sem uso) e ela abriu o painel: ele religa sem esperar o
+    // "Retomar" (uma vez por abertura; com o aparelho desligado o servidor recusa e o "Retomar" continua lá).
+    if (v.estado === "pausa" && v.lugar.tipo === "mac" && !retomouAoAbrir) {
+      retomouAoAbrir = true;
+      void o.api.operarNavegador(o.agenteId, "retomar").then((resp) => { if (!destruida) mudouVista(resp.vista); }).catch(() => undefined);
+    }
+    if (!ponte) return;
     if (v.lugar.tipo !== "mac") { fecharLocal(); quadrosDaqui(false); return; }
     if (!chromeVivo(v.estado)) return;
     if (local || abrindoLocal) return;
@@ -773,7 +781,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     ligar(v) {
       if (visivel === v) return;
       visivel = v;
-      if (v) { tentativas = 0; ligarCanal(); decidirLocal(); } else desligarCanal();
+      if (v) { tentativas = 0; ligarCanal(); decidirLocal(); } else { retomouAoAbrir = false; desligarCanal(); }
     },
     assumir,
     devolver,
